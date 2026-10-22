@@ -1,6 +1,6 @@
 # Design language
 
-How Canopy looks and feels. Inspired by the qualities users describe in Arc (calm, warm, alive, personal) expressed through original tokens and assets. Research basis: `docs/RESEARCH.md` section 3.
+How Boaz looks and feels. Inspired by the qualities users describe in Arc (calm, warm, alive, personal) expressed through original tokens and assets. Research basis: `docs/RESEARCH.md` section 3.
 
 ## Principles
 

@@ -24,7 +24,7 @@ Cost ladder for building a browser (source: <https://entalogics.com/blog/what-it
 ## Module map (target state)
 
 ```
-canopy/
+boaz/
   engine/            # zen fork, minimal patches; upstream-mergeable
   chrome/            # our UI layer (themeable)
     sidebar/         # pins, today tabs, folders, shelf

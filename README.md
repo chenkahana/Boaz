@@ -1,8 +1,8 @@
-# Canopy (working title)
+# Boaz
 
 A browser project inspired by what people loved about Arc, built as original work. Arc sunsets on **December 22, 2026**; this project aims to carry its ideas further, not to copy it.
 
-> Canopy is a placeholder codename. Do not use Arc's code, assets, icons, fonts, copy, or branding anywhere in this repo. Everything here is original work inspired by published behavior and user sentiment. See `docs/RESEARCH.md` for sources.
+> Boaz is the project name (earlier drafts used the Canopy codename). Do not use Arc's code, assets, icons, fonts, copy, or branding anywhere in this repo. Everything here is original work inspired by published behavior and user sentiment. See `docs/RESEARCH.md` for sources.
 
 ## Status
 
