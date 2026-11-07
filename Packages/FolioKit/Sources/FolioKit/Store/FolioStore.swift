@@ -128,6 +128,24 @@ public struct Sidebar: Equatable, Sendable {
         items.first { $0.kind == .container && $0.containerKind == kind && $0.spaceID == spaceID }
     }
 
+    /// Position that places a new child after the existing ones.
+    public func nextPosition(in parentID: String) -> Double {
+        (children(of: parentID).map(\.position).max() ?? -1) + 1
+    }
+
+    /// Inserts or replaces an item locally, so the UI reflects a write before the observation fires.
+    public mutating func upsert(_ item: SidebarItem) {
+        items.removeAll { $0.id == item.id }
+        if item.deletedAt == nil {
+            let index = items.firstIndex { $0.parentID == item.parentID && $0.position > item.position } ?? items.endIndex
+            items.insert(item, at: index)
+        }
+    }
+
+    public func favoritesContainer(profileID: String) -> SidebarItem? {
+        items.first { $0.containerKind == .favorites && $0.profileID == profileID }
+    }
+
     public func favorites(profileID: String) -> [SidebarItem] {
         guard let container = items.first(where: { $0.containerKind == .favorites && $0.profileID == profileID })
         else { return [] }

@@ -22,11 +22,11 @@
 - [x] git init in `~/Folio`. Split into `Apps/iOS`, `Apps/macOS`, `Apps/Shared` (theme and assets) and `Packages/FolioKit`. AI answers are parked behind `FeatureFlags.aiAnswers = false`; search loads the web directly via `SearchInput`.
 - [x] FolioKit: `Profile`, `Space`, `SidebarItem`, `ArchiveItem` and `WindowTheme` (Arc schema), with a GRDB store (migration `v1`), a live `sidebarUpdates()` observation, and DEBUG `SampleData` in Arc's shape.
 
-## Phase 1: Mobile experience parity (non-AI)
-- [ ] Spaces paging with themed gradient backgrounds and a space indicator. Pins and favorites grid. Folders.
-- [ ] Tab stack: card switcher, swipe-to-page on the bottom bar, pan-select, close with undo (shake + toast).
-- [ ] Web view: edge-swipe back/forward, bottom bar that collapses on scroll, custom pull indicator, glow progress bar.
-- [ ] Search and command field: autocomplete from history, pins, top domains and search engines.
+## Phase 1: Mobile experience parity (non-AI). Core slice on branch `phase-1/mobile-core`
+- [x] Spaces paging with themed gradient backgrounds (from `windowTheme`) and a space indicator. Favorites grid, pinned list, folders that expand and collapse.
+- [x] Tab stack: Today cards with zoom transition into the tab, swipe-to-page on the bottom bar, close (✕, swipe card up, menu) with undo (toast + shake). Pin/unpin. *Still open:* pan-select, page snapshots on cards.
+- [x] Web view: edge-swipe back/forward, bottom bar that collapses on scroll, glow progress line; live title/URL saved to the store. *Still open:* custom pull indicator.
+- [x] Search field: overlay with suggestions from open and pinned tabs. *Still open:* history, top domains, search-engine choice.
 - [ ] Auto-archive with interval setting, archive view, history, downloads, incognito, reader mode.
 - [ ] Content blocking (`WKContentRuleList`) and cookie-banner auto-consent.
 - [ ] Delight layer: tuned springs and haptics at every snap point, confetti/sparkle moments, alternate app icons.
@@ -60,4 +60,10 @@
 **Phase 0 (2026-11-07)**
 - Verified: `Folio-iOS` and `Folio-macOS` both build (Xcode 27.2). The macOS app launched and created `~/Library/Application Support/Folio/folio.sqlite` with migration `v1`, 2 spaces with theme JSON, 5 containers, 2 folders and 11 tabs. On the iPhone Duo simulator, typing `swift.org` opened `https://swift.org`.
 - Not verified: how the macOS window renders (no accessibility or screen permission to inspect it), and the unfolded Duo layouts (the simulator has no hinge control).
+**Phase 1, core slice (2026-11-07)**
+- Verified on the iPhone Duo simulator (folded): the home screen renders both spaces on their own gradients; swiping changes space; tapping a card zooms into the tab; GitHub loaded; a bar swipe paged to the next tab; titles saved back to the cards; ✕ closed a tab with a toast and Undo restored it; search suggestions matched open tabs. Both apps build.
+- Bug fixed during verification: `page(for:)` mutated observed state while rendering, causing an endless re-render loop that froze the app. The page cache is now `@ObservationIgnored`.
+- Not verified: bar collapse on scroll, shake-to-undo, pin/unpin, and the unfolded/half-open Duo layouts (the simulator has no hinge control).
+- AI prototype files were removed (recoverable from `675f224`).
+
 - Carry into later phases: the macOS sandbox blocks reading `~/Library/Application Support/Arc`. Phase 4 needs a user-chosen folder grant or a non-sandboxed build. `position` is a Double; add rebalancing when sync lands.
