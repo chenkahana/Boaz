@@ -12,6 +12,21 @@ struct SearchOverlay: View {
             Color.black.opacity(0.25).ignoresSafeArea()
                 .onTapGesture { model.searchTarget = nil }
             VStack(spacing: 8) {
+                ForEach(historySuggestions) { visit in
+                    Button { model.openNewTab(visit.url, title: visit.title) } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "clock.arrow.circlepath").frame(width: 24).foregroundStyle(.secondary)
+                            VStack(alignment: .leading) {
+                                Text(visit.title ?? visit.url.host() ?? "").lineLimit(1)
+                                Text(visit.url.host() ?? "").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16).padding(.vertical, 10)
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                }
                 ForEach(suggestions) { item in
                     Button {
                         model.searchTarget = nil
@@ -57,10 +72,16 @@ struct SearchOverlay: View {
         .onAppear { focused = true }
     }
 
+    /// History matches, minus addresses already open as a tab (those show as "switch to tab" below).
+    private var historySuggestions: [HistoryVisit] {
+        let open = Set(suggestions.compactMap(\.url))
+        return model.historySuggestions.filter { !open.contains($0.url) }
+    }
+
     /// Open and pinned tabs whose title or address matches what's typed.
     private var suggestions: [SidebarItem] {
         let query = model.searchText.lowercased()
-        guard query.count > 1, model.searchTarget == .newTab else { return [] }
+        guard query.count > 1, model.searchTarget == .newTab, !model.isIncognito else { return [] }
         return model.sidebar.items
             .filter { $0.kind == .tab && (($0.title ?? "").lowercased().contains(query)
                                            || ($0.url?.absoluteString.lowercased().contains(query) ?? false)) }

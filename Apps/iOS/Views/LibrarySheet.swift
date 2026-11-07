@@ -1,0 +1,152 @@
+import FolioKit
+import SwiftUI
+
+/// Archive (closed and auto-archived tabs) and History, grouped by day.
+struct LibrarySheet: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
+    @State private var tab = 0
+    @State private var query = ""
+    @State private var archive: [ArchiveItem] = []
+    @State private var history: [HistoryVisit] = []
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if tab == 0 {
+                    ForEach(grouped(filteredArchive, by: \.archivedAt), id: \.day) { group in
+                        Section(dayLabel(group.day)) {
+                            ForEach(group.items) { item in
+                                Row(title: item.title, url: item.url,
+                                    detail: item.reason == "autoArchived" ? "Archived" : "Closed") { model.restore(item) }
+                                    .swipeActions {
+                                        Button("Delete", systemImage: "trash", role: .destructive) {
+                                            try? model.store?.removeFromArchive(item.id)
+                                            reload()
+                                        }
+                                    }
+                            }
+                        }
+                    }
+                } else {
+                    ForEach(grouped(history, by: \.visitedAt), id: \.day) { group in
+                        Section(dayLabel(group.day)) {
+                            ForEach(group.items) { visit in
+                                Row(title: visit.title, url: visit.url,
+                                    detail: visit.visitedAt.formatted(date: .omitted, time: .shortened)) {
+                                    model.openAfterSheet(visit.url, title: visit.title)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .overlay {
+                if (tab == 0 ? filteredArchive.isEmpty : history.isEmpty) {
+                    ContentUnavailableView(tab == 0 ? "Archive is empty" : "No history",
+                                           systemImage: tab == 0 ? "archivebox" : "clock",
+                                           description: Text(tab == 0 ? "Closed and inactive tabs land here." : "Pages you visit appear here."))
+                }
+            }
+            .searchable(text: $query)
+            .navigationTitle("Library")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Picker("Library", selection: $tab) {
+                        Text("Archive").tag(0)
+                        Text("History").tag(1)
+                    }
+                    .pickerStyle(.segmented).frame(width: 220)
+                }
+                ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .bottomBar) {
+                    Button(tab == 0 ? "Clear Archive" : "Clear History", role: .destructive) {
+                        if tab == 0 { try? model.store?.clearArchive() } else { try? model.store?.clearHistory() }
+                        reload()
+                    }
+                }
+            }
+        }
+        .onAppear(perform: reload)
+        .onChange(of: query) { reload() }
+    }
+
+    private var filteredArchive: [ArchiveItem] {
+        guard !query.isEmpty else { return archive }
+        return archive.filter { ($0.title ?? "").localizedCaseInsensitiveContains(query)
+            || $0.url.absoluteString.localizedCaseInsensitiveContains(query) }
+    }
+
+    private func reload() {
+        archive = (try? model.store?.archivedItems()) ?? []
+        history = (try? model.store?.history(matching: query)) ?? []
+    }
+
+    private func dayLabel(_ day: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(day) { return "Today" }
+        if calendar.isDateInYesterday(day) { return "Yesterday" }
+        return day.formatted(.dateTime.weekday(.wide).month().day())
+    }
+
+    private func grouped<T: Identifiable>(_ items: [T], by date: KeyPath<T, Date>) -> [(day: Date, items: [T])] {
+        let calendar = Calendar.current
+        var groups: [(day: Date, items: [T])] = []
+        for item in items {
+            let day = calendar.startOfDay(for: item[keyPath: date])
+            if groups.last?.day == day { groups[groups.count - 1].items.append(item) } else { groups.append((day, [item])) }
+        }
+        return groups
+    }
+}
+
+private struct Row: View {
+    let title: String?
+    let url: URL
+    let detail: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Monogram(url: url, tint: Theme.brand, size: 28)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title ?? url.host() ?? url.absoluteString).lineLimit(1)
+                    Text(url.host() ?? "").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text(detail).font(.caption2).foregroundStyle(.tertiary)
+            }
+        }
+        .foregroundStyle(.primary)
+    }
+}
+
+struct SettingsSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage(Preferences.archiveAfterKey) private var archiveAfter = ArchiveInterval.day.rawValue
+    @AppStorage(Preferences.searchEngineKey) private var searchEngine = SearchEngine.duckDuckGo.rawValue
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Picker("Archive Today tabs", selection: $archiveAfter) {
+                        ForEach(ArchiveInterval.allCases) { Text($0.label).tag($0.rawValue) }
+                    }
+                } footer: {
+                    Text("Tabs you haven't opened in this long move to the Archive. Pinned tabs and favorites stay put.")
+                }
+                Section("Search") {
+                    Picker("Search engine", selection: $searchEngine) {
+                        ForEach(SearchEngine.allCases) { Text($0.name).tag($0.rawValue) }
+                    }
+                }
+            }
+            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
+        }
+    }
+}

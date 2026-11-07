@@ -4,19 +4,71 @@ import SwiftUI
 /// Home: spaces page horizontally, each on its own themed gradient, with favorites, pins and today's tabs.
 struct SpaceHome: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.colorScheme) private var scheme
     var zoom: Namespace.ID?
 
     var body: some View {
         @Bindable var model = model
-        TabView(selection: $model.currentSpaceID) {
-            ForEach(model.spaces) { space in
-                SpacePage(space: space, zoom: zoom).tag(Optional(space.id))
+        Group {
+            if model.isIncognito {
+                IncognitoPage(zoom: zoom).transition(.opacity)
+            } else {
+                TabView(selection: $model.currentSpaceID) {
+                    ForEach(model.spaces) { space in
+                        SpacePage(space: space, zoom: zoom).tag(Optional(space.id))
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                .transition(.opacity)
             }
         }
-        .tabViewStyle(.page(indexDisplayMode: .never))
-        .ignoresSafeArea()
-        .safeAreaInset(edge: .bottom) { HomeBar() }
+        .ignoresSafeArea(edges: .bottom)
+        .safeAreaInset(edge: .bottom) { HomeBar().environment(\.colorScheme, model.isIncognito ? .dark : scheme) }
+        // One full-bleed backdrop so the colour reaches under the sensor column and the bar; content stays in the safe area.
+        .background {
+            Group {
+                if model.isIncognito {
+                    LinearGradient(colors: [Color(white: 0.08), Theme.indigo(3)], startPoint: .top, endPoint: .bottom)
+                        .environment(\.colorScheme, .dark)
+                } else {
+                    SpaceStyle(model.currentSpace, scheme: scheme).gradient
+                }
+            }
+            .ignoresSafeArea()
+            .animation(.easeInOut(duration: 0.35), value: model.currentSpaceID)
+        }
+        .animation(.easeInOut(duration: 0.35), value: model.isIncognito)
         .sensoryFeedback(.selection, trigger: model.currentSpaceID)
+    }
+}
+
+/// Private mode: tabs live only in memory with a non-persistent website data store.
+private struct IncognitoPage: View {
+    @Environment(AppModel.self) private var model
+    let zoom: Namespace.ID?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                HStack(spacing: 10) {
+                    Image(systemName: "eyeglasses").font(.title)
+                    Text("Incognito").font(.system(.largeTitle, design: .rounded, weight: .bold))
+                }
+                Text("Private tabs don't save history, cookies or site data, and close when you leave Incognito.")
+                    .font(.callout).foregroundStyle(.white.opacity(0.7))
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                    ForEach(model.incognitoTabs) { tab in
+                        TabCard(tab: tab, tint: Theme.violet)
+                            .matchedTransitionSourceIfPresent(id: tab.id, in: zoom)
+                    }
+                }
+                Button("Leave Incognito") { model.setIncognito(false) }
+                    .buttonStyle(.bordered).tint(.white)
+            }
+            .padding(.horizontal, 20).padding(.top, 60).padding(.bottom, 120)
+        }
+        .foregroundStyle(.white)
+        .environment(\.colorScheme, .dark)
     }
 }
 
@@ -72,7 +124,6 @@ private struct SpacePage: View {
         }
         .scrollIndicators(.hidden)
         .foregroundStyle(style.foreground)
-        .background(style.gradient.ignoresSafeArea())
     }
 }
 
@@ -81,7 +132,7 @@ private struct HomeBar: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            if model.spaces.count > 1 {
+            if model.spaces.count > 1, !model.isIncognito {
                 HStack(spacing: 6) {
                     ForEach(model.spaces) { space in
                         Capsule()
@@ -91,18 +142,32 @@ private struct HomeBar: View {
                 }
                 .animation(.spring(response: 0.3, dampingFraction: 0.7), value: model.currentSpaceID)
             }
-            Button { model.beginSearch(.newTab) } label: {
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                    Text("Search or enter address")
-                    Spacer()
-                    Image(systemName: "plus")
+            HStack(spacing: 10) {
+                Menu {
+                    Button("Library", systemImage: "archivebox") { model.sheet = .library }
+                    Button(model.isIncognito ? "Leave Incognito" : "Incognito",
+                           systemImage: "eyeglasses") { model.setIncognito(!model.isIncognito) }
+                    Button("Settings", systemImage: "gearshape") { model.sheet = .settings }
+                } label: {
+                    Image(systemName: "line.3.horizontal")
+                        .font(.body.weight(.medium))
+                        .frame(width: 50, height: 50)
+                        .glassEffect(.regular.interactive(), in: .circle)
                 }
-                .font(.body.weight(.medium))
-                .padding(.horizontal, 18).padding(.vertical, 14)
-                .glassEffect(.regular.interactive(), in: .capsule)
+                .buttonStyle(.plain)
+                Button { model.beginSearch(.newTab) } label: {
+                    HStack {
+                        Image(systemName: model.isIncognito ? "eyeglasses" : "magnifyingglass")
+                        Text(model.isIncognito ? "Private search" : "Search or enter address")
+                        Spacer()
+                        Image(systemName: "plus")
+                    }
+                    .font(.body.weight(.medium))
+                    .padding(.horizontal, 18).padding(.vertical, 14)
+                    .glassEffect(.regular.interactive(), in: .capsule)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
             .padding(.horizontal, 16)
         }
         .padding(.bottom, 8)
@@ -220,7 +285,7 @@ private struct PinnedRow: View {
     }
 }
 
-private extension View {
+extension View {
     @ViewBuilder
     func matchedTransitionSourceIfPresent(id: String, in namespace: Namespace.ID?) -> some View {
         if let namespace { matchedTransitionSource(id: id, in: namespace) } else { self }

@@ -5,8 +5,10 @@ import SwiftUI
 struct RootView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
+        @Bindable var model = model
         Group {
             if sizeClass == .compact {
                 CompactShell()
@@ -30,6 +32,15 @@ struct RootView: View {
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: model.searchTarget)
         .sensoryFeedback(.impact(weight: .medium), trigger: model.toast) { _, new in new?.canUndo == true }
         .onReceive(NotificationCenter.default.publisher(for: .deviceDidShake)) { _ in model.undoClose() }
+        .sheet(item: $model.sheet, onDismiss: model.sheetDidDismiss) { sheet in
+            switch sheet {
+            case .library: LibrarySheet()
+            case .settings: SettingsSheet()
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { model.archiveStaleTabs() }
+        }
         .onHingeChange { _, new in
             withAnimation(.smooth) { model.hinge = new.hinge }
         }

@@ -98,6 +98,16 @@ public final class FolioStore: Sendable {
                 t.column("deletedAt", .datetime)
             }
         }
+        // History stays on this device: it is never synced.
+        migrator.registerMigration("v2-history") { db in
+            try db.create(table: "historyVisit") { t in
+                t.primaryKey("id", .text)
+                t.column("profileID", .text).notNull()
+                t.column("url", .text).notNull().indexed()
+                t.column("title", .text)
+                t.column("visitedAt", .datetime).notNull().indexed()
+            }
+        }
         return migrator
     }
 }

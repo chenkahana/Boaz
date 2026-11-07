@@ -26,8 +26,10 @@
 - [x] Spaces paging with themed gradient backgrounds (from `windowTheme`) and a space indicator. Favorites grid, pinned list, folders that expand and collapse.
 - [x] Tab stack: Today cards with zoom transition into the tab, swipe-to-page on the bottom bar, close (✕, swipe card up, menu) with undo (toast + shake). Pin/unpin. *Still open:* pan-select, page snapshots on cards.
 - [x] Web view: edge-swipe back/forward, bottom bar that collapses on scroll, glow progress line; live title/URL saved to the store. *Still open:* custom pull indicator.
-- [x] Search field: overlay with suggestions from open and pinned tabs. *Still open:* history, top domains, search-engine choice.
-- [ ] Auto-archive with interval setting, archive view, history, downloads, incognito, reader mode.
+- [x] Search field: overlay with suggestions from open and pinned tabs plus history (an address already open as a tab shows only as "switch to tab"). Search-engine choice lives in Settings. *Still open:* top-domains autocomplete.
+- [x] Library: auto-archive of Today tabs with an interval setting (12h–30d/never, checked on foreground); Archive and History lists grouped by day, with search, restore, delete and clear. Closed tabs go to the Archive. History is local only (migration `v2-history`).
+- [x] Incognito: in-memory tabs on a non-persistent website data store, no history, dark home and bar.
+- [ ] Downloads, reader mode.
 - [ ] Content blocking (`WKContentRuleList`) and cookie-banner auto-consent.
 - [ ] Delight layer: tuned springs and haptics at every snap point, confetti/sparkle moments, alternate app icons.
 - [ ] iPhone Duo: unfolded shows spaces sidebar + web (`ArrangementView`); half-open shows web on top and tab controls below; fold glow.
@@ -67,3 +69,20 @@
 - AI prototype files were removed (recoverable from `675f224`).
 
 - Carry into later phases: the macOS sandbox blocks reading `~/Library/Application Support/Arc`. Phase 4 needs a user-chosen folder grant or a non-sandboxed build. `position` is a Double; add rebalancing when sync lands.
+
+**Phase 1, Library slice (2026-11-07)**
+- Verified on the Duo simulator (folded):
+  - A tab backdated by 3 days was auto-archived on launch.
+  - The Library shows it under "Today", and tapping it re-opened the tab after the sheet closed.
+  - Visits are written to `historyVisit` and suggested in search.
+  - The Incognito page loaded example.com with no `historyVisit` or `sidebarItem` rows, and its private tabs were gone after relaunch.
+  - The Settings sheet renders.
+- Bugs fixed during verification:
+  - Restore didn't open the tab (cover vs. dismissing sheet); it now opens from the sheet's `onDismiss`.
+  - Day headers read "11 hours ago".
+  - Restored tabs recorded no visit.
+  - History duplicated open-tab suggestions.
+  - The incognito gradient ended light (Indigo12 under dark scheme).
+  - Space dots showed in incognito.
+  - Home content ran under the cover screen's sensor column; content now respects the safe area while one full-bleed backdrop cross-fades between spaces.
+- Not verified: changing the archive interval or search engine and seeing it take effect; the Library on the unfolded layout.

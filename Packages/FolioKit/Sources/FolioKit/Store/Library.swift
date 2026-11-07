@@ -1,0 +1,125 @@
+import Foundation
+import GRDB
+
+/// A page visit. Local only: history is never synced.
+public struct HistoryVisit: Codable, Identifiable, Hashable, Sendable, FetchableRecord, PersistableRecord {
+    public var id: String
+    public var profileID: String
+    public var url: URL
+    public var title: String?
+    public var visitedAt: Date
+
+    public static let databaseTableName = "historyVisit"
+}
+
+extension FolioStore {
+    // MARK: History
+
+    /// Records a visit. Repeated loads of the same URL within ten minutes update the existing visit.
+    public func recordVisit(profileID: String, url: URL, title: String?, at date: Date = .now) throws {
+        try writer.write { db in
+            if var last = try HistoryVisit.order(Column("visitedAt").desc).fetchOne(db),
+               last.url == url, date.timeIntervalSince(last.visitedAt) < 600 {
+                if let title, !title.isEmpty { last.title = title }
+                last.visitedAt = date
+                try last.update(db)
+            } else {
+                try HistoryVisit(id: UUID().uuidString, profileID: profileID, url: url, title: title, visitedAt: date)
+                    .insert(db)
+            }
+        }
+    }
+
+    /// Most recent visits, newest first, optionally filtered by title or address.
+    public func history(matching query: String = "", limit: Int = 300) throws -> [HistoryVisit] {
+        try writer.read { db in
+            var request = HistoryVisit.order(Column("visitedAt").desc).limit(limit)
+            if !query.isEmpty {
+                let pattern = "%\(query)%"
+                request = request.filter(Column("url").like(pattern) || Column("title").like(pattern))
+            }
+            return try request.fetchAll(db)
+        }
+    }
+
+    /// One entry per address, most recently visited first, for search suggestions.
+    public func historySuggestions(matching query: String, limit: Int = 5) throws -> [HistoryVisit] {
+        guard !query.isEmpty else { return [] }
+        let pattern = "%\(query)%"
+        return try writer.read { db in
+            try HistoryVisit.fetchAll(db, sql: """
+                SELECT id, profileID, url, title, MAX(visitedAt) AS visitedAt FROM historyVisit
+                WHERE url LIKE ? OR title LIKE ?
+                GROUP BY url ORDER BY visitedAt DESC LIMIT ?
+                """, arguments: [pattern, pattern, limit])
+        }
+    }
+
+    public func clearHistory() throws {
+        _ = try writer.write { db in try HistoryVisit.deleteAll(db) }
+    }
+
+    // MARK: Archive
+
+    public func archivedItems(limit: Int = 500) throws -> [ArchiveItem] {
+        try writer.read { db in
+            try ArchiveItem.filter(Column("deletedAt") == nil)
+                .order(Column("archivedAt").desc).limit(limit).fetchAll(db)
+        }
+    }
+
+    /// Moves a tab into the archive: tombstones the tab and records an archive item, atomically.
+    @discardableResult
+    public func archive(_ tab: SidebarItem, reason: String, at date: Date = .now) throws -> ArchiveItem? {
+        try writer.write { db in try Self.archive(tab, reason: reason, at: date, in: db) }
+    }
+
+    /// Archives Today tabs that haven't been active for `interval`. Pinned and favorite tabs are never archived.
+    @discardableResult
+    public func archiveStaleTabs(olderThan interval: TimeInterval, now: Date = .now) throws -> Int {
+        let cutoff = now.addingTimeInterval(-interval)
+        return try writer.write { db in
+            let todayContainers = try SidebarItem
+                .filter(Column("kind") == SidebarItem.Kind.container.rawValue)
+                .filter(Column("containerKind") == SidebarItem.ContainerKind.unpinned.rawValue)
+                .filter(Column("deletedAt") == nil)
+                .fetchAll(db).map(\.id)
+            let stale = try SidebarItem
+                .filter(todayContainers.contains(Column("parentID")))
+                .filter(Column("kind") == SidebarItem.Kind.tab.rawValue)
+                .filter(Column("deletedAt") == nil)
+                .filter(SQL(sql: "COALESCE(lastActiveAt, createdAt) < ?", arguments: [cutoff]))
+                .fetchAll(db)
+            for tab in stale { try Self.archive(tab, reason: "autoArchived", at: now, in: db) }
+            return stale.count
+        }
+    }
+
+    public func removeFromArchive(_ id: String, at date: Date = .now) throws {
+        try writer.write { db in
+            guard var item = try ArchiveItem.fetchOne(db, key: id) else { return }
+            item.deletedAt = date
+            item.modifiedAt = date
+            try item.update(db)
+        }
+    }
+
+    public func clearArchive(at date: Date = .now) throws {
+        try writer.write { db in
+            try ArchiveItem.filter(Column("deletedAt") == nil)
+                .updateAll(db, Column("deletedAt").set(to: date), Column("modifiedAt").set(to: date))
+        }
+    }
+
+    private static func archive(_ tab: SidebarItem, reason: String, at date: Date, in db: Database) throws -> ArchiveItem? {
+        var tab = tab
+        tab.deletedAt = date
+        tab.modifiedAt = date
+        try tab.save(db)
+        guard let url = tab.url else { return nil }
+        let item = ArchiveItem(id: UUID().uuidString, profileID: tab.profileID, spaceID: tab.spaceID,
+                               title: tab.title, url: url, archivedAt: date, reason: reason, modifiedAt: date)
+        try item.insert(db)
+        return item
+    }
+}
