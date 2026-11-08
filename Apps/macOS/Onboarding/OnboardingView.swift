@@ -390,7 +390,7 @@ private struct BrowserImportRow: View {
 }
 
 /// A folder the user granted once, kept as a read-only security-scoped bookmark (as the Arc import does).
-private enum ReadOnlyFolder {
+enum ReadOnlyFolder {
     /// The user's real home; inside the sandbox `homeDirectoryForCurrentUser` is the app container.
     static var realHome: URL {
         URL(fileURLWithPath: getpwuid(getuid()).flatMap { String(validatingCString: $0.pointee.pw_dir) } ?? NSHomeDirectory())

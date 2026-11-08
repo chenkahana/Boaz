@@ -89,9 +89,11 @@ struct TabBrowser: View {
     }
 
     /// The cluster lies across the top (wider than tall) on the upright inner screen; in landscape it stands in the
-    /// side column the rail keeps clear.
+    /// side column the rail keeps clear. On iPhones without a side column the status bar is always across the top.
     nonisolated private static func statusAcrossTop(_ proxy: GeometryProxy) -> Bool {
-        proxy.reservedRegions(kind: .occlusion).contains { $0.frame.maxY <= 1 && $0.frame.width > $0.frame.height }
+        let insets = proxy.safeAreaInsets
+        if insets.top > 0, insets.leading == 0, insets.trailing == 0 { return true }
+        return proxy.reservedRegions(kind: .occlusion).contains { $0.frame.maxY <= 1 && $0.frame.width > $0.frame.height }
     }
 
     private var site: SiteColor? { tintWithSiteColors ? model.siteColors[tab.id] : nil }

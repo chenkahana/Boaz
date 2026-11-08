@@ -171,6 +171,7 @@ struct SettingsSheet: View {
                 }
                 SyncSettingsSection()
                 AppIconPicker()
+                AboutSection()
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)

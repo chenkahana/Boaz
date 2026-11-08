@@ -1,6 +1,6 @@
 name: Folio
 options:
-  bundleIdPrefix: com.example
+  bundleIdPrefix: com.chenkahana
   deploymentTarget:
     iOS: "27.1"
     macOS: "26.0"
@@ -13,7 +13,7 @@ settings:
     SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
     DEVELOPMENT_TEAM: DPF8459C2J
     CODE_SIGN_STYLE: Automatic
-    MARKETING_VERSION: "0.1.0"
+    MARKETING_VERSION: "1.0"
     CURRENT_PROJECT_VERSION: "1"
     PRODUCT_NAME: Folio
     GENERATE_INFOPLIST_FILE: YES
@@ -43,6 +43,14 @@ targets:
     info:
       path: Apps/iOS/Info.plist
       properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # HTTPS through the system only: exempt from export compliance documentation.
+        ITSAppUsesNonExemptEncryption: false
+        # Websites can ask for these (video calls, photo uploads from the camera, maps); iOS asks the user first.
+        NSCameraUsageDescription: Websites you visit can ask to use your camera, for example for video calls or to take a photo to upload.
+        NSMicrophoneUsageDescription: Websites you visit can ask to use your microphone, for example for calls or voice search.
+        NSLocationWhenInUseUsageDescription: Websites you visit can ask for your location, for example to show nearby places on a map.
         # Background refresh for sync; remote notifications are CloudKit's change pushes.
         BGTaskSchedulerPermittedIdentifiers: [com.chenkahana.folio.sync]
         UIBackgroundModes: [fetch, remote-notification]
@@ -81,13 +89,17 @@ targets:
     info:
       path: Apps/macOS/Info.plist
       properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        ITSAppUsesNonExemptEncryption: false
         CFBundleURLTypes:
           - CFBundleTypeRole: Viewer
-            CFBundleURLName: com.example.folio.mac.web
+            CFBundleURLName: com.chenkahana.folio.web
             CFBundleURLSchemes: [http, https]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.folio.mac
+        # Same bundle ID as the iPhone app: one App Store record (universal purchase) and one iCloud App ID.
+        PRODUCT_BUNDLE_IDENTIFIER: com.chenkahana.folio
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
   ShareExtension:
     type: app-extension
@@ -104,6 +116,8 @@ targets:
       path: Apps/Extensions/ShareExtension/Info.plist
       properties:
         CFBundleDisplayName: Add to Folio
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.share-services
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
@@ -132,6 +146,8 @@ targets:
       path: Apps/Extensions/Widgets/Info.plist
       properties:
         CFBundleDisplayName: Folio Widgets
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:

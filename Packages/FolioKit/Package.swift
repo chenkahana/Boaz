@@ -9,6 +9,8 @@ let package = Package(
         .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0"),
     ],
     targets: [
-        .target(name: "FolioKit", dependencies: [.product(name: "GRDB", package: "GRDB.swift")]),
+        .target(name: "FolioKit", dependencies: [.product(name: "GRDB", package: "GRDB.swift")],
+                // Not shipped: reading another browser's saved passwords stays out of the apps.
+                exclude: ["Import/ArcPasswordImporter.swift"]),
     ]
 )

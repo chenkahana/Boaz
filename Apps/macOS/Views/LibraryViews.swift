@@ -120,6 +120,7 @@ struct MacSettingsView: View {
                 }
                 if let message { Text(message).font(.caption).foregroundStyle(.secondary) }
             }
+            AboutSection()
         }
         .formStyle(.grouped)
         .frame(width: 440)
@@ -130,8 +131,7 @@ struct MacSettingsView: View {
         let panel = NSOpenPanel()
         panel.message = "Choose Arc's StorableKeyBindings.json (in ~/Library/Application Support/Arc)"
         panel.allowedContentTypes = [.json]
-        panel.directoryURL = FileManager.default.homeDirectoryForCurrentUser
-            .appending(path: "Library/Application Support/Arc", directoryHint: .isDirectory)
+        panel.directoryURL = ReadOnlyFolder.realHome.appending(path: "Library/Application Support/Arc", directoryHint: .isDirectory)
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             let count = try model.keyBindings.applyArcKeyBindings(fileURL: url)

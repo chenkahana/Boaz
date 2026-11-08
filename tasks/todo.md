@@ -277,3 +277,19 @@ when peeked).
       `loadSidebar()` used by the Arc import view, the share extension and iOS `reloadSidebar` (which drops its
       snapshot if the live observation delivered a newer one meanwhile). Verified: 3,000 stale tabs archived at
       launch with the UI up, integrity ok; a row written while backgrounded appears on return; both apps build.
+
+### G. App Store readiness (2026-11-08)
+- [x] Mac bundle ID `com.example.folio.mac` → `com.chenkahana.folio` (universal purchase with iPhone). Fixed the
+      "Invalid bundle ID for container" iCloud error: the Mac debug build fetched 29 records from iCloud.
+- [x] Version 1.0 (1) from build settings in every bundle; `ITSAppUsesNonExemptEncryption = NO`.
+- [x] Privacy manifest in app, share extension and widgets (no tracking, no data collected, required reasons).
+- [x] iOS camera / microphone / location purpose strings (websites can ask; camera file uploads would crash without).
+- [x] Password importer excluded from the build; Arc shortcuts panel opens in the real home, not the container.
+- [x] Settings › About: privacy policy, support, EasyList (CC BY-SA 3.0) and GRDB (MIT) notices.
+- [x] Standard iPhone (iOS 26.4 test build with the Duo-only APIs stubbed; not shipped): pages with a fixed header
+      ran under the status bar → page now inset whenever the status bar is across the top. Duo cover screen unchanged.
+- [x] Release archives + App Store exports: iOS ipa (production push/iCloud, no get-task-allow), Mac pkg (Apple
+      Distribution + Mac installer cert, production). In build/archives (not committed).
+- [x] docs/privacy.md, docs/app-store.md (listing, review notes, privacy answers, owner checklist), screenshots
+      (iPhone 6.9" 1320×2868 ×5, Mac 1440×900 ×2) in docs/screenshots.
+- [ ] Owner: deploy CloudKit schema to Production; create the App Store Connect record; upload; submit.

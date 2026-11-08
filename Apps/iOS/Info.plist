@@ -19,7 +19,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
+	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -34,7 +34,15 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>NSCameraUsageDescription</key>
+	<string>Websites you visit can ask to use your camera, for example for video calls or to take a photo to upload.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Websites you visit can ask for your location, for example to show nearby places on a map.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Websites you visit can ask to use your microphone, for example for calls or voice search.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
