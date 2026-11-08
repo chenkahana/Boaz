@@ -1,100 +1,166 @@
+import AppKit
+import CloudKit
 import FolioKit
 import SwiftUI
-import WebKit
 
 @main
 struct FolioMacApp: App {
-    @State private var model = MacModel()
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
+    @State private var model = MacModel.shared
 
     var body: some Scene {
-        WindowGroup {
-            MacRootView()
+        WindowGroup("Folio", id: "main") {
+            BrowserWindow(incognito: false)
                 .environment(model)
                 .tint(Theme.brand)
                 .task { await model.start() }
         }
-    }
-}
+        .windowStyle(.hiddenTitleBar)
+        .defaultSize(width: 1280, height: 820)
+        .handlesExternalEvents(matching: [])
+        .commands { FolioCommands(model: model) }
 
-/// Phase 0 shell: proves the shared store end to end. The real sidebar UI lands in Phase 3.
-@Observable
-final class MacModel {
-    var sidebar = Sidebar()
-    var selectedTabID: String?
-    var loadError: String?
-    let page = WebPage()
-    private var store: FolioStore?
-
-    func start() async {
-        do {
-            let store = try FolioStore.onDisk()
-            self.store = store
-            #if DEBUG
-            if try store.isEmpty() { try SampleData.seed(store) }
-            #endif
-            for try await snapshot in store.sidebarUpdates() { sidebar = snapshot }
-        } catch {
-            loadError = String(describing: error)
+        WindowGroup("Incognito", id: "incognito") {
+            BrowserWindow(incognito: true)
+                .environment(model)
+                .tint(Theme.violet)
+                .task { await model.start() }
         }
-    }
+        .windowStyle(.hiddenTitleBar)
+        .defaultSize(width: 1100, height: 760)
+        .handlesExternalEvents(matching: [])
+        .restorationBehavior(.disabled)
 
-    func open(_ tab: SidebarItem) {
-        selectedTabID = tab.id
-        if let url = tab.url { page.load(URLRequest(url: url)) }
-    }
-}
+        WindowGroup("Little Folio", id: "little", for: URL.self) { $url in
+            LittleFolioWindow(url: url)
+                .environment(model)
+                .task { await model.start() }
+        }
+        .windowStyle(.hiddenTitleBar)
+        .defaultSize(width: 760, height: 620)
+        .handlesExternalEvents(matching: [])
+        // A peek window is for one link; relaunching shouldn't bring back a stack of empty ones.
+        .restorationBehavior(.disabled)
 
-struct MacRootView: View {
-    @Environment(MacModel.self) private var model
+        Window("Archive", id: "archive") {
+            ArchiveWindow().environment(model)
+        }
+        .defaultSize(width: 540, height: 640)
+        .handlesExternalEvents(matching: [])
 
-    var body: some View {
-        @Bindable var model = model
-        NavigationSplitView {
-            List(selection: $model.selectedTabID) {
-                ForEach(model.sidebar.spaces) { space in
-                    Section("\(space.icon ?? "") \(space.title)") {
-                        ForEach([SidebarItem.ContainerKind.pinned, .unpinned], id: \.self) { kind in
-                            if let box = model.sidebar.container(kind, in: space.id) {
-                                ItemRows(parentID: box.id)
-                            }
-                        }
-                    }
-                }
-            }
-            .navigationSplitViewColumnWidth(min: 220, ideal: 260)
-            .onChange(of: model.selectedTabID) { _, id in
-                if let tab = model.sidebar.items.first(where: { $0.id == id }) { model.open(tab) }
-            }
-        } detail: {
-            WebView(model.page)
-                .overlay {
-                    if let error = model.loadError {
-                        ContentUnavailableView("Store failed to open", systemImage: "exclamationmark.triangle",
-                                               description: Text(error))
-                    }
-                }
+        Settings {
+            MacSettingsView().environment(model)
         }
     }
 }
 
-private struct ItemRows: View {
-    @Environment(MacModel.self) private var model
-    let parentID: String
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApplication.shared.registerForRemoteNotifications()
+    }
 
-    var body: some View {
-        ForEach(model.sidebar.children(of: parentID)) { item in
-            switch item.kind {
-            case .folder:
-                DisclosureGroup {
-                    ItemRows(parentID: item.id)
-                } label: {
-                    Label(item.title ?? "Folder", systemImage: "folder")
-                }
-            case .tab:
-                Label(item.title ?? item.url?.absoluteString ?? "Tab", systemImage: "globe").tag(item.id)
-            case .container:
-                EmptyView()
+    /// iCloud change pushes: fetch right away.
+    func application(_ application: NSApplication, didReceiveRemoteNotification userInfo: [String: Any]) {
+        guard CKNotification(fromRemoteNotificationDictionary: userInfo) != nil else { return }
+        Task { await MacModel.shared.sync?.syncNow() }
+    }
+
+    /// Links opened from other apps (Folio as the target of `open -a` or as default browser) go to Little Folio.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        MacModel.shared.openExternal(urls)
+    }
+}
+
+/// Menu bar with Arc's default shortcuts; rebindable ones read from `KeyBindings`.
+struct FolioCommands: Commands {
+    let model: MacModel
+    @FocusedValue(BrowserState.self) private var browser
+    @Environment(\.openWindow) private var openWindow
+
+    private func key(_ command: BrowserCommand) -> KeyboardShortcut? { model.keyBindings.shortcut(command) }
+
+    var body: some Commands {
+        // The menu is built at launch even when no window opens (a cold launch to open links), so links never
+        // wait for a window that isn't coming.
+        let _ = model.registerOpenWindow(openWindow)
+        CommandGroup(replacing: .newItem) {
+            Button("New Tab") { browser?.commandMode = .newTab }
+                .keyboardShortcut(key(.newTab)).disabled(browser == nil)
+            Button("New Window") { openWindow(id: "main") }.keyboardShortcut(key(.newWindow))
+            Button("New Incognito Window") { openWindow(id: "incognito") }.keyboardShortcut(key(.newIncognitoWindow))
+            Button("New Little Folio Window") { openWindow(id: "little") }.keyboardShortcut(key(.newLittleWindow))
+            Divider()
+            Button("Open Location…") { browser?.commandMode = browser?.activeTab == nil ? .newTab : .currentTab }
+                .keyboardShortcut(key(.openLocation)).disabled(browser == nil)
+            Divider()
+            Button("Close Tab") { browser?.closeActive() }
+                .keyboardShortcut(key(.closeTab)).disabled(browser == nil)
+            Button("Reopen Closed Tab") { browser?.reopenClosedTab() }
+                .keyboardShortcut(key(.reopenClosedTab)).disabled(browser == nil)
+            Divider()
+            Button("Import from Arc…") {
+                if let browser { browser.showImport = true } else { openWindow(id: "main") }
             }
+            Button("Import from Another Browser…") {
+                if let browser { browser.onboarding = .browsers } else { openWindow(id: "main") }
+            }
+            .disabled(browser?.isIncognito == true)
+        }
+        CommandGroup(replacing: .saveItem) {}
+
+        CommandGroup(after: .pasteboard) {
+            Divider()
+            Button("Copy URL") { browser?.copyActiveURL() }
+                .keyboardShortcut(key(.copyURL)).disabled(browser?.activeTab == nil)
+        }
+        CommandGroup(replacing: .textEditing) {
+            Button("Find in Page…") { browser?.findVisible = true }
+                .keyboardShortcut(key(.find)).disabled(browser?.activeTab == nil)
+        }
+
+        CommandGroup(replacing: .sidebar) {
+            Button(browser?.sidebarVisible == false ? "Show Sidebar" : "Hide Sidebar") { browser?.toggleSidebar() }
+                .keyboardShortcut(key(.toggleSidebar)).disabled(browser == nil)
+        }
+        CommandGroup(before: .toolbar) {
+            Button("Reload Page") { browser?.reload() }.keyboardShortcut(key(.reload)).disabled(browser?.activeTab == nil)
+            Button("Back") { browser?.goBack() }.keyboardShortcut(key(.goBack)).disabled(browser?.activeTab == nil)
+            Button("Forward") { browser?.goForward() }.keyboardShortcut(key(.goForward)).disabled(browser?.activeTab == nil)
+            Divider()
+            Button(browser?.split == nil ? "Add Split View" : "Close Split View") { browser?.toggleSplit() }
+                .keyboardShortcut(key(.addSplitView)).disabled(browser?.activeTab == nil)
+            Button("Edit Space Theme…") {
+                if let browser, let id = browser.spaceID { browser.themeEditor = .init(id: id) }
+            }
+            .disabled(browser == nil || browser?.isIncognito == true)
+            Button("Archive") { openWindow(id: "archive") }.keyboardShortcut(key(.showArchive))
+            Divider()
+        }
+
+        CommandMenu("Tabs") {
+            Button(browser?.activeTab.map { model.isPinned($0) } == true ? "Unpin Tab" : "Pin Tab") { browser?.togglePinActive() }
+                .keyboardShortcut(key(.pinTab)).disabled(browser?.activeTab == nil)
+            Button("Next Tab") { browser?.cycleTab(by: 1) }.keyboardShortcut(key(.nextTab)).disabled(browser == nil)
+            Button("Previous Tab") { browser?.cycleTab(by: -1) }.keyboardShortcut(key(.previousTab)).disabled(browser == nil)
+            Divider()
+            ForEach(1...9, id: \.self) { number in
+                Button("Favorite \(number)") { browser?.selectFavorite(number) }
+                    .keyboardShortcut(KeyEquivalent(Character("\(number)")), modifiers: .command)
+                    .disabled(browser == nil)
+            }
+        }
+
+        CommandMenu("Spaces") {
+            Button("Next Space") { browser?.shiftSpace(by: 1) }.keyboardShortcut(key(.nextSpace)).disabled(browser == nil)
+            Button("Previous Space") { browser?.shiftSpace(by: -1) }.keyboardShortcut(key(.previousSpace)).disabled(browser == nil)
+            Divider()
+            ForEach(Array(model.sidebar.spaces.prefix(9).enumerated()), id: \.element.id) { index, space in
+                Button("\(space.icon.map { $0 + " " } ?? "")\(space.title)") { browser?.selectSpace(index + 1) }
+                    .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .control)
+                    .disabled(browser == nil)
+            }
+            Divider()
+            Button("New Space") { browser?.newSpace() }.keyboardShortcut(key(.newSpace)).disabled(browser == nil)
         }
     }
 }

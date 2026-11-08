@@ -76,9 +76,10 @@ extension FolioStore {
 
     /// Archives Today tabs that haven't been active for `interval`. Pinned and favorite tabs are never archived.
     @discardableResult
-    public func archiveStaleTabs(olderThan interval: TimeInterval, now: Date = .now) throws -> Int {
+    /// Runs on the database's queue: a backlog of thousands of tabs takes ~150 ms.
+    public func archiveStaleTabs(olderThan interval: TimeInterval, now: Date = .now) async throws -> Int {
         let cutoff = now.addingTimeInterval(-interval)
-        return try writer.write { db in
+        return try await writer.write { db in
             let todayContainers = try SidebarItem
                 .filter(Column("kind") == SidebarItem.Kind.container.rawValue)
                 .filter(Column("containerKind") == SidebarItem.ContainerKind.unpinned.rawValue)

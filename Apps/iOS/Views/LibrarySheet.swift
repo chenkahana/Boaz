@@ -1,5 +1,6 @@
 import FolioKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Archive (closed and auto-archived tabs) and History, grouped by day.
 struct LibrarySheet: View {
@@ -9,6 +10,7 @@ struct LibrarySheet: View {
     @State private var query = ""
     @State private var archive: [ArchiveItem] = []
     @State private var history: [HistoryVisit] = []
+    @State private var archiveClears = 0
 
     var body: some View {
         NavigationStack {
@@ -62,12 +64,18 @@ struct LibrarySheet: View {
                 ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
                 ToolbarItem(placement: .bottomBar) {
                     Button(tab == 0 ? "Clear Archive" : "Clear History", role: .destructive) {
-                        if tab == 0 { try? model.store?.clearArchive() } else { try? model.store?.clearHistory() }
+                        if tab == 0 {
+                            if !archive.isEmpty { archiveClears += 1 }
+                            try? model.store?.clearArchive()
+                        } else {
+                            try? model.store?.clearHistory()
+                        }
                         reload()
                     }
                 }
             }
         }
+        .confetti(trigger: archiveClears)
         .onAppear(perform: reload)
         .onChange(of: query) { reload() }
     }
@@ -127,6 +135,9 @@ struct SettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(Preferences.archiveAfterKey) private var archiveAfter = ArchiveInterval.day.rawValue
     @AppStorage(Preferences.searchEngineKey) private var searchEngine = SearchEngine.duckDuckGo.rawValue
+    @AppStorage("blockTrackers") private var blockTrackers = true
+    @AppStorage("hideCookieBanners") private var hideCookieBanners = true
+    @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
 
     var body: some View {
         NavigationStack {
@@ -143,6 +154,23 @@ struct SettingsSheet: View {
                         ForEach(SearchEngine.allCases) { Text($0.name).tag($0.rawValue) }
                     }
                 }
+                Section {
+                    Toggle("Block ads and trackers", isOn: $blockTrackers)
+                    Toggle("Hide cookie banners", isOn: $hideCookieBanners)
+                } header: {
+                    Text("Content")
+                } footer: {
+                    Text("Folio blocks known ad and tracking requests, and dismisses cookie consent pop-ups by declining non-essential cookies where the site allows it. Turn either off if a site breaks.")
+                }
+                Section {
+                    Toggle("Tint chrome with site colors", isOn: $tintWithSiteColors)
+                } header: {
+                    Text("Appearance")
+                } footer: {
+                    Text("The toolbar and the strip around the page take on the color of the site you're on.")
+                }
+                SyncSettingsSection()
+                AppIconPicker()
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
@@ -150,3 +178,33 @@ struct SettingsSheet: View {
         }
     }
 }
+
+/// iCloud sync status and Sync Now; a sync folder is offered only while iCloud can't sync on this iPhone.
+private struct SyncSettingsSection: View {
+    @Environment(AppModel.self) private var model
+    @State private var picking = false
+    @State private var pickError: String?
+
+    var body: some View {
+        if let sync = model.sync {
+            Section {
+                SyncStatusLabel(status: sync.status)
+                Button("Sync Now") { Task { await sync.syncNow(userInitiated: true) } }
+                    .disabled(sync.status == .syncing)
+                if sync.offersFolder {
+                    LabeledContent("Sync Folder", value: sync.folderURL?.lastPathComponent ?? "None")
+                    Button(sync.folderURL == nil ? "Sync Through a Folder…" : "Change Folder…") { picking = true }
+                    if let pickError { Text(pickError).font(.footnote).foregroundStyle(.secondary) }
+                }
+            } header: {
+                Text("iCloud Sync")
+            } footer: {
+                Text(sync.offersFolder
+                     ? "Until iCloud is available, you can sync through a folder your Mac can reach too, like iCloud Drive › Folio."
+                     : "Spaces, pins, tabs and the Archive sync through your iCloud account. History and private tabs stay on this iPhone.")
+            }
+            .syncFolderImporter(isPresented: $picking, sync: sync, message: $pickError)
+        }
+    }
+}
+

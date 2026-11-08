@@ -13,22 +13,40 @@ final class AppModel {
     static let incognitoParent = "incognito"
 
     var sidebar = Sidebar()
-    var currentSpaceID: String?
+    /// Counts snapshots from the live observation (see `reloadSidebar`).
+    @ObservationIgnored private var sidebarGeneration = 0
+    var currentSpaceID: String? {
+        didSet {
+            guard currentSpaceID != oldValue else { return }
+            UserDefaults(suiteName: FolioStore.appGroup)?.set(currentSpaceID, forKey: "currentSpaceID")
+        }
+    }
     var activeTabID: String?
     var searchTarget: SearchTarget?
     var searchText = "" { didSet { refreshHistorySuggestions() } }
     var historySuggestions: [HistoryVisit] = []
     var sheet: Sheet?
+    var showOnboarding = false
     var toast: Toast?
     var hinge: DeviceHinge?
     var isIncognito = false
     private(set) var incognitoTabs: [SidebarItem] = []
+    /// Last rendered image of each tab, shown on its Today card. Memory only.
+    var snapshots: [String: UIImage] = [:]
+    /// Each tab's site color, which the browser chrome takes on. Private tabs are never sampled.
+    private(set) var siteColors: [String: SiteColor] = [:]
+    /// Bumped on every edge-swipe back/forward commit; `TabBrowser` fires a haptic off it.
+    var backForwardHaptic = 0
 
     // Caches touched while views render; observing them would re-render in a loop.
     @ObservationIgnored private var pages: [String: WebPage] = [:]
     @ObservationIgnored private var pageRecency: [String] = []
     @ObservationIgnored private var closedTabs: [(tab: SidebarItem, archiveID: String?)] = []
     @ObservationIgnored private(set) var store: FolioStore?
+    /// iCloud sync with the user's other devices (a picked folder only when iCloud isn't available).
+    @ObservationIgnored private(set) var sync: LibrarySync?
+    /// Compiled once at launch; `nil` until ready, so the very first page or two may load unblocked.
+    @ObservationIgnored private var contentBlockLists: [WKContentRuleList] = []
     /// Runs once the current sheet has finished dismissing (a tab can't present while a sheet is leaving).
     @ObservationIgnored private var afterSheet: (() -> Void)?
     private let maxLivePages = 8
@@ -37,21 +55,32 @@ final class AppModel {
         UserDefaults.standard.register(defaults: [
             Preferences.archiveAfterKey: ArchiveInterval.day.rawValue,
             Preferences.searchEngineKey: SearchEngine.duckDuckGo.rawValue,
+            Preferences.blockTrackersKey: true,
+            Preferences.hideCookieBannersKey: true,
         ])
     }
 
     // MARK: Lifecycle
 
     func start() async {
+        // Compiling EasyList the first time takes a few seconds; the library loads meanwhile.
+        Task { contentBlockLists = await ContentBlocking.compiledLists() }
         do {
-            let store = try FolioStore.onDisk()
-            self.store = store
-            #if DEBUG
-            if try store.isEmpty() { try SampleData.seed(store) }
-            #endif
+            let sync = try prepareSync()
+            guard let store = self.store else { return }
+            // A device joining an existing library gets it from there; a lone device starts with a Personal space.
+            if try store.isEmpty() {
+                // Welcome goes up at once; the library (joined or starter) lands behind it.
+                showOnboarding = Onboarding.shouldShow(store)
+                await sync.start()
+            }
+            try StarterLibrary.seedIfEmpty(store)
+            showOnboarding = showOnboarding || Onboarding.shouldShow(store)
+            Task { await sync.start() }
             archiveStaleTabs()
             for try await snapshot in store.sidebarUpdates() {
                 sidebar = snapshot
+                sidebarGeneration += 1
                 if currentSpace == nil { currentSpaceID = snapshot.spaces.first?.id }
             }
         } catch {
@@ -59,15 +88,48 @@ final class AppModel {
         }
     }
 
+    /// Opens the library and its sync once. A push or background refresh can launch the app with no scene.
+    @discardableResult
+    func prepareSync() throws -> LibrarySync {
+        if let sync { return sync }
+        let store = try FolioStore.onDisk(appGroup: FolioStore.appGroup)
+        self.store = store
+        let sync = LibrarySync(store: store)
+        self.sync = sync
+        return sync
+    }
+
+    /// Syncs for a push or background refresh. The database is suspended in the background, so it is woken for
+    /// the work and suspended again if the app is still in the background.
+    func backgroundSync() async {
+        guard let sync = try? prepareSync() else { return }
+        FolioStore.resumeDatabases()
+        await sync.syncNow()
+        if UIApplication.shared.applicationState == .background { FolioStore.suspendDatabases() }
+    }
+
+    /// Picks up rows the share extension wrote while the app was away: the live observation only sees this
+    /// process's own commits. A snapshot the observation delivers meanwhile is newer, so this one is dropped.
+    func reloadSidebar() {
+        guard let store else { return }
+        let generation = sidebarGeneration
+        Task {
+            guard let fresh = try? await store.loadSidebar(), generation == sidebarGeneration else { return }
+            sidebar = fresh
+        }
+    }
+
     /// Moves Today tabs untouched for the chosen interval into the archive, as Arc does.
     func archiveStaleTabs() {
         let interval = Preferences.archiveAfter
         guard interval != .never, let store else { return }
-        do {
-            let count = try store.archiveStaleTabs(olderThan: TimeInterval(interval.rawValue))
-            if count > 0 { showToast("Archived \(count) inactive tab\(count == 1 ? "" : "s")") }
-        } catch {
-            showToast("Couldn't archive tabs: \(error.localizedDescription)")
+        Task {
+            do {
+                let count = try await store.archiveStaleTabs(olderThan: TimeInterval(interval.rawValue))
+                if count > 0 { showToast("Archived \(count) inactive tab\(count == 1 ? "" : "s")") }
+            } catch {
+                showToast("Couldn't archive tabs: \(error.localizedDescription)")
+            }
         }
     }
 
@@ -107,7 +169,20 @@ final class AppModel {
         if let page = pages[tab.id] { return page }
         var configuration = WebPage.Configuration()
         if isPrivate(tab) { configuration.websiteDataStore = .nonPersistent() }
-        let page = WebPage(configuration: configuration)
+        if Preferences.blockTrackers {
+            contentBlockLists.forEach(configuration.userContentController.add)
+        }
+        if Preferences.hideCookieBanners {
+            configuration.userContentController.addUserScript(CookieBanners.userScript())
+        }
+        let dataStore = configuration.websiteDataStore
+        let decider = FolioNavigationDecider(
+            onBackForward: { [weak self] in self?.backForwardHaptic += 1 },
+            onDownload: { [weak self] response in
+                self?.discardIfDownloadOnly(tab.id)
+                self?.handleDownload(response, dataStore: dataStore)
+            })
+        let page = WebPage(configuration: configuration, navigationDecider: decider)
         if let url = tab.url { page.load(URLRequest(url: url)) }
         pages[tab.id] = page
         while pageRecency.count > maxLivePages {
@@ -116,18 +191,123 @@ final class AppModel {
         return page
     }
 
+    /// Called by `TabBrowser`'s single `page.navigations` subscriber on every finished load — the
+    /// async sequence only supports one consumer, so AppModel never subscribes to it directly.
+    func pageDidFinishLoading(_ tab: SidebarItem) {
+        guard let page = pages[tab.id] else { return }
+        updateSiteColor(for: tab)
+        let tabIsPrivate = isPrivate(tab)
+        Task { [weak self] in
+            guard let data = try? await page.exported(as: .image(snapshotWidth: 400)),
+                  let image = UIImage(data: data) else { return }
+            self?.snapshots[tab.id] = image
+        }
+        Task {
+            guard let pageURL = page.url,
+                  let href = try? await page.callJavaScript(Favicons.discoveryScript, contentWorld: .defaultClient) as? String,
+                  let iconURL = URL(string: href, relativeTo: pageURL)?.absoluteURL else { return }
+            Favicons.shared.learn(iconURL: iconURL, forPageAt: pageURL, isPrivate: tabIsPrivate)
+        }
+    }
+
+    /// Samples the tab's site color once its page has loaded; while it loads, uses the color last seen for the host.
+    func updateSiteColor(for tab: SidebarItem) {
+        guard !isPrivate(tab), let page = pages[tab.id] else { return }
+        if page.isLoading {
+            if let cached = SiteColor.cached(for: page.url), siteColors[tab.id] != cached { siteColors[tab.id] = cached }
+            return
+        }
+        Task { [weak self] in
+            let color = await SiteColor.sample(page)
+            if let self, self.siteColors[tab.id] != color { self.siteColors[tab.id] = color }
+        }
+    }
+
+    /// Downscaled render of a tab's current page, kept only in memory and dropped when the tab closes.
+    private func captureSnapshot(of page: WebPage, tabID: String) {
+        Task { [weak self] in
+            guard let data = try? await page.exported(as: .image(snapshotWidth: 400)),
+                  let image = UIImage(data: data) else { return }
+            self?.snapshots[tabID] = image
+        }
+    }
+
+    // WebKit traps when two WebViews show the same WebPage. That happens for a moment whenever the posture
+    // changes: the old layout's browser is still on screen while the new layout's appears. So each browser
+    // claims its tab's page, and a new claim only gets the page once the current host's WebView is gone.
+    private(set) var pageOwners: [String: UUID] = [:]
+    @ObservationIgnored private var pageClaims: [String: UUID] = [:]
+    @ObservationIgnored private var pageReleasing: [String: UUID] = [:]
+
+    func claimPage(_ tabID: String, host: UUID) {
+        guard pageOwners[tabID] != host else { return }
+        if pageReleasing[tabID] != nil {
+            pageClaims[tabID] = host
+        } else if let owner = pageOwners[tabID] {
+            pageReleasing[tabID] = owner
+            pageClaims[tabID] = host
+            pageOwners[tabID] = nil
+        } else {
+            pageOwners[tabID] = host
+        }
+    }
+
+    /// Called once a browser's WebView has left the screen, or the browser itself went away.
+    func releasePage(_ tabID: String, host: UUID) {
+        if pageClaims[tabID] == host { pageClaims[tabID] = nil }
+        if pageOwners[tabID] == host { pageOwners[tabID] = nil }
+        if pageReleasing[tabID] == host { pageReleasing[tabID] = nil }
+        if pageReleasing[tabID] == nil, pageOwners[tabID] == nil, let next = pageClaims.removeValue(forKey: tabID) {
+            pageOwners[tabID] = next
+        }
+    }
+
+    /// A Today or private tab whose only navigation turned into a download never showed a page. Drop it,
+    /// rather than keep a tab that downloads the file again every time it's opened.
+    private func discardIfDownloadOnly(_ tabID: String) {
+        guard pages[tabID]?.backForwardList.currentItem == nil,
+              let tab = sidebar.items.first(where: { $0.id == tabID }) ?? incognitoTabs.first(where: { $0.id == tabID }),
+              !isPinned(tab) else { return }
+        if activeTabID == tabID { activeTabID = nil }
+        pages[tabID] = nil
+        pageRecency.removeAll { $0 == tabID }
+        snapshots[tabID] = nil
+        if isPrivate(tab) {
+            incognitoTabs.removeAll { $0.id == tabID }
+        } else {
+            var removed = tab
+            removed.deletedAt = .now
+            commit(removed)
+        }
+    }
+
+    /// Re-fetches a non-renderable response with the page's own cookies and saves it to Downloads.
+    private func handleDownload(_ response: URLResponse, dataStore: WKWebsiteDataStore) {
+        Task { [weak self] in
+            do {
+                let (_, name) = try await Downloads.save(response, cookieStore: dataStore.httpCookieStore)
+                self?.showToast("Downloaded \(name)")
+            } catch {
+                self?.showToast("Couldn't download: \(error.localizedDescription)")
+            }
+        }
+    }
+
     /// Persists where a tab has navigated to, and records the visit in history (except private tabs).
     func didNavigate(_ tab: SidebarItem, url: URL?, title: String) {
         guard var item = sidebar.items.first(where: { $0.id == tab.id }) ?? incognitoTabs.first(where: { $0.id == tab.id })
         else { return }
-        let newTitle = title.isEmpty ? item.title : title
-        if item.url != url || item.title != newTitle {
-            if let url { item.url = url }
+        // A pinned tab keeps its saved address and title; only Today tabs follow the page.
+        let pinned = isPinned(item)
+        let newURL = pinned ? item.url : url ?? item.url
+        let newTitle = title.isEmpty || (pinned && item.title != nil) ? item.title : title
+        if item.url != newURL || item.title != newTitle {
+            item.url = newURL
             item.title = newTitle
             commit(item)
         }
         if !isPrivate(item), let url, url.scheme?.hasPrefix("http") == true {
-            try? store?.recordVisit(profileID: item.profileID, url: url, title: newTitle)
+            try? store?.recordVisit(profileID: item.profileID, url: url, title: title.isEmpty ? newTitle : title)
         }
     }
 
@@ -169,6 +349,9 @@ final class AppModel {
     func activate(_ tab: SidebarItem) {
         guard tab.kind == .tab else { return }
         searchTarget = nil
+        if let previous = activeTab, previous.id != tab.id, let page = pages[previous.id] {
+            captureSnapshot(of: page, tabID: previous.id)
+        }
         var item = tab
         item.lastActiveAt = .now
         item.isUnread = false
@@ -177,13 +360,17 @@ final class AppModel {
         activeTabID = tab.id
     }
 
-    func goHome() { activeTabID = nil }
+    func goHome() {
+        if let tab = activeTab, let page = pages[tab.id] { captureSnapshot(of: page, tabID: tab.id) }
+        activeTabID = nil
+    }
 
     /// Closing sends a tab to the archive (like Arc); undo brings it back and removes the archive entry.
     func close(_ tab: SidebarItem) {
         if activeTabID == tab.id { activeTabID = neighbor(of: tab)?.id }
         pages[tab.id] = nil
         pageRecency.removeAll { $0 == tab.id }
+        snapshots[tab.id] = nil
         if isPrivate(tab) {
             incognitoTabs.removeAll { $0.id == tab.id }
             return
@@ -229,10 +416,26 @@ final class AppModel {
         guard let space = tab.spaceID.flatMap({ id in sidebar.spaces.first { $0.id == id } }),
               let target = sidebar.container(isPinned(tab) ? .unpinned : .pinned, in: space.id) else { return }
         var item = tab
+        // Unpinning keeps the tab where its page is now, not where it was pinned.
+        if isPinned(tab), let page = pages[tab.id], let url = page.url {
+            item.url = url
+            if !page.title.isEmpty { item.title = page.title }
+        }
         item.parentID = target.id
         item.position = sidebar.nextPosition(in: target.id)
         commit(item)
         showToast(isPinned(item) ? "Pinned" : "Unpinned")
+    }
+
+    /// Whether a pinned tab's page has browsed away from where it was pinned.
+    func hasWandered(_ tab: SidebarItem) -> Bool {
+        guard isPinned(tab), let page = pages[tab.id] else { return false }
+        return PinnedAnchor.hasWandered(page, from: tab.url)
+    }
+
+    func returnToPinnedPage(_ tab: SidebarItem) {
+        guard let url = tab.url else { return }
+        page(for: tab).load(URLRequest(url: url))
     }
 
     func toggleExpanded(_ folder: SidebarItem) {
@@ -328,6 +531,10 @@ enum ArchiveInterval: Int, CaseIterable, Identifiable {
 enum Preferences {
     static let archiveAfterKey = "archiveAfter"
     static let searchEngineKey = "searchEngine"
+    static let blockTrackersKey = "blockTrackers"
+    static let hideCookieBannersKey = "hideCookieBanners"
+    /// Read through `@AppStorage` (default on) by the views that tint.
+    static let tintWithSiteColorsKey = "tintWithSiteColors"
 
     static var archiveAfter: ArchiveInterval {
         ArchiveInterval(rawValue: UserDefaults.standard.integer(forKey: archiveAfterKey)) ?? .day
@@ -335,6 +542,8 @@ enum Preferences {
     static var searchEngine: SearchEngine {
         SearchEngine(rawValue: UserDefaults.standard.string(forKey: searchEngineKey) ?? "") ?? .duckDuckGo
     }
+    static var blockTrackers: Bool { UserDefaults.standard.bool(forKey: blockTrackersKey) }
+    static var hideCookieBanners: Bool { UserDefaults.standard.bool(forKey: hideCookieBannersKey) }
 }
 
 extension Notification.Name {

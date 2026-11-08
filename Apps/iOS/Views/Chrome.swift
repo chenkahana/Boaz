@@ -5,6 +5,8 @@ import SwiftUI
 struct SearchOverlay: View {
     @Environment(AppModel.self) private var model
     @FocusState private var focused: Bool
+    /// Off right after a deletion, so backspacing over a completion doesn't bring it straight back.
+    @State private var completes = true
 
     var body: some View {
         @Bindable var model = model
@@ -46,6 +48,23 @@ struct SearchOverlay: View {
                     }
                     .buttonStyle(.plain)
                 }
+                if let completion {
+                    Button(action: submit) {
+                        HStack(spacing: 10) {
+                            Monogram(url: URL(string: "https://" + completion), tint: Theme.brand, size: 24)
+                            let typed = typedPart(of: completion)
+                            Text("\(typed)\(Text(completion.dropFirst(typed.count)).foregroundStyle(.secondary))")
+                                .lineLimit(1)
+                            Spacer()
+                            Image(systemName: "return").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 16).padding(.vertical, 10)
+                        .background(Theme.brand.opacity(0.12), in: .rect(cornerRadius: 16))
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .transition(.opacity)
+                }
                 HStack(spacing: 10) {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                     TextField("Search or enter address", text: $model.searchText)
@@ -54,7 +73,7 @@ struct SearchOverlay: View {
                         .autocorrectionDisabled()
                         .keyboardType(.webSearch)
                         .submitLabel(.go)
-                        .onSubmit { model.submitSearch() }
+                        .onSubmit(submit)
                     if !model.searchText.isEmpty {
                         Button { model.searchText = "" } label: { Image(systemName: "xmark.circle.fill") }
                             .foregroundStyle(.secondary)
@@ -70,6 +89,24 @@ struct SearchOverlay: View {
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
         .onAppear { focused = true }
+        .onChange(of: model.searchText) { old, new in completes = new.count >= old.count }
+        .animation(.snappy(duration: 0.2), value: completion)
+    }
+
+    /// Host the typed text completes to, from history hosts first, then popular domains.
+    private var completion: String? {
+        guard completes else { return nil }
+        return DomainCompletion.complete(model.searchText, historyHosts: model.historySuggestions.compactMap { $0.url.host() })
+    }
+
+    /// The part of the completion the user already typed (kept in their own spelling).
+    private func typedPart(of completion: String) -> String {
+        String(completion.prefix(DomainCompletion.query(model.searchText).count))
+    }
+
+    private func submit() {
+        if let completion { model.searchText = completion }
+        model.submitSearch()
     }
 
     /// History matches, minus addresses already open as a tab (those show as "switch to tab" below).
@@ -107,19 +144,15 @@ struct ToastView: View {
     }
 }
 
-/// Letter tile standing in for a favicon (no third-party favicon service, so no browsing data leaves the device).
+/// Shows the site's real favicon once known, falling back to a tinted letter tile (no third-party
+/// favicon service, so no browsing data leaves the device for an icon we can't resolve ourselves).
 struct Monogram: View {
     let url: URL?
     let tint: Color
     let size: CGFloat
 
     var body: some View {
-        let host = url?.host()?.replacingOccurrences(of: "www.", with: "") ?? "?"
-        Text(host.prefix(1).uppercased())
-            .font(.system(size: size * 0.5, weight: .bold, design: .rounded))
-            .foregroundStyle(.white)
-            .frame(width: size, height: size)
-            .background(tint.gradient, in: .rect(cornerRadius: size * 0.28))
+        FaviconTile(url: url, tint: tint, size: size)
     }
 }
 

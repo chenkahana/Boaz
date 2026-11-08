@@ -5,6 +5,7 @@ import SwiftUI
 struct SpaceHome: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.homeControlsElsewhere) private var homeControlsElsewhere
     var zoom: Namespace.ID?
 
     var body: some View {
@@ -23,7 +24,11 @@ struct SpaceHome: View {
             }
         }
         .ignoresSafeArea(edges: .bottom)
-        .safeAreaInset(edge: .bottom) { HomeBar().environment(\.colorScheme, model.isIncognito ? .dark : scheme) }
+        .toolRail { axis in
+            if !homeControlsElsewhere {
+                HomeBar(axis: axis).environment(\.colorScheme, model.isIncognito ? .dark : scheme)
+            }
+        }
         // One full-bleed backdrop so the colour reaches under the sensor column and the bar; content stays in the safe area.
         .background {
             Group {
@@ -35,7 +40,7 @@ struct SpaceHome: View {
                 }
             }
             .ignoresSafeArea()
-            .animation(.easeInOut(duration: 0.35), value: model.currentSpaceID)
+            .animation(.smooth(duration: 0.45), value: model.currentSpaceID)
         }
         .animation(.easeInOut(duration: 0.35), value: model.isIncognito)
         .sensoryFeedback(.selection, trigger: model.currentSpaceID)
@@ -56,17 +61,13 @@ private struct IncognitoPage: View {
                 }
                 Text("Private tabs don't save history, cookies or site data, and close when you leave Incognito.")
                     .font(.callout).foregroundStyle(.white.opacity(0.7))
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                    ForEach(model.incognitoTabs) { tab in
-                        TabCard(tab: tab, tint: Theme.violet)
-                            .matchedTransitionSourceIfPresent(id: tab.id, in: zoom)
-                    }
-                }
+                TodayGrid(tabs: model.incognitoTabs, tint: Theme.violet, zoom: zoom)
                 Button("Leave Incognito") { model.setIncognito(false) }
                     .buttonStyle(.bordered).tint(.white)
             }
             .padding(.horizontal, 20).padding(.top, 60).padding(.bottom, 120)
         }
+        .collapsesToolRail()
         .foregroundStyle(.white)
         .environment(\.colorScheme, .dark)
     }
@@ -75,20 +76,32 @@ private struct IncognitoPage: View {
 private struct SpacePage: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.isSidebar) private var isSidebar
+    @Environment(\.sidebar) private var sidebar
     let space: Space
     let zoom: Namespace.ID?
-
-    private let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
 
     var body: some View {
         let style = SpaceStyle(space, scheme: scheme)
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                HStack(spacing: 10) {
-                    Text(space.icon ?? "✦").font(.title)
-                    Text(space.title).font(.system(.largeTitle, design: .rounded, weight: .bold))
+                HStack(spacing: isSidebar ? 8 : 10) {
+                    Text(space.icon ?? "✦").font(isSidebar ? .title3 : .title)
+                    Text(space.title).font(.system(isSidebar ? .title2 : .largeTitle, design: .rounded, weight: .bold))
+                        .lineLimit(1)
+                    if isSidebar, let sidebar {
+                        Spacer(minLength: 4)
+                        Button("Hide Sidebar", systemImage: "sidebar.left", action: sidebar.toggle)
+                            .labelStyle(.iconOnly)
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 36, height: 36)
+                            .contentShape(.rect)
+                    }
                 }
                 .padding(.top, 8)
+
+                if isSidebar { searchField(style) }
 
                 let favorites = model.favorites(for: space)
                 if !favorites.isEmpty {
@@ -107,139 +120,341 @@ private struct SpacePage: View {
                 }
 
                 let today = model.todayTabs(in: space)
-                Text(today.isEmpty ? "No open tabs" : "Today")
-                    .font(.footnote.weight(.semibold)).textCase(.uppercase)
-                    .foregroundStyle(style.foreground.opacity(0.6))
-                LazyVGrid(columns: columns, spacing: 12) {
-                    ForEach(today) { tab in
-                        TabCard(tab: tab, tint: style.tint)
-                            .matchedTransitionSourceIfPresent(id: tab.id, in: zoom)
+                if isSidebar {
+                    // The sidebar lists Today like Arc: a new-tab row, then one row per tab.
+                    VStack(spacing: 2) {
+                        Capsule().fill(style.foreground.opacity(0.12)).frame(height: 1)
+                            .padding(.horizontal, 10).padding(.bottom, 8)
+                        TodayRow.newTab(tint: style.tint)
+                        ForEach(today) { TodayRow(tab: $0, tint: style.tint) }
                     }
+                    .animation(.snappy, value: today.map(\.id))
+                } else if today.isEmpty {
+                    searchField(style)
+                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                } else {
+                    VStack(alignment: .leading, spacing: 22) {
+                        Text("Today")
+                            .font(.footnote.weight(.semibold)).textCase(.uppercase)
+                            .foregroundStyle(style.foreground.opacity(0.6))
+                        TodayGrid(tabs: today, tint: style.tint, zoom: zoom)
+                    }
+                    .transition(.opacity)
                 }
-                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: today.map(\.id))
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 60)
-            .padding(.bottom, 120)
+            .padding(.horizontal, isSidebar ? 14 : 20)
+            .padding(.top, isSidebar ? 12 : 60)
+            .padding(.bottom, isSidebar ? 40 : 120)
+            .animation(.snappy, value: model.todayTabs(in: space).isEmpty)
         }
         .scrollIndicators(.hidden)
+        .collapsesToolRail()
         .foregroundStyle(style.foreground)
+    }
+
+    private func searchField(_ style: SpaceStyle) -> some View {
+        Button { model.beginSearch(.newTab) } label: {
+            Label("Search or enter address", systemImage: "magnifyingglass")
+                .font(.callout)
+                .lineLimit(1)
+                .foregroundStyle(style.foreground.opacity(0.7))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, isSidebar ? 14 : 18).padding(.vertical, isSidebar ? 11 : 15)
+                .glassEffect(.regular.interactive(), in: .capsule)
+        }
+        .buttonStyle(.plain)
     }
 }
 
-private struct HomeBar: View {
+/// A Today tab as a sidebar row: tap to open, × (or the context menu) to close.
+private struct TodayRow: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.sidebar) private var sidebar
+    let tab: SidebarItem
+    let tint: Color
+
+    var body: some View {
+        let active = model.activeTabID == tab.id
+        Button { model.activate(tab); sidebar?.didPick() } label: {
+            HStack(spacing: 10) {
+                Monogram(url: tab.url, tint: tint, size: 22)
+                Text(tab.title ?? tab.url?.host() ?? "New Tab").lineLimit(1)
+                    .fontWeight(active ? .semibold : .regular)
+                Spacer(minLength: 0)
+            }
+            .font(.callout)
+            .padding(.vertical, 9).padding(.leading, 10).padding(.trailing, 36)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .overlay(alignment: .trailing) {
+            Button("Close", systemImage: "xmark") { withAnimation(.snappy) { model.close(tab) } }
+                .labelStyle(.iconOnly)
+                .font(.caption.weight(.semibold))
+                .opacity(active ? 0.8 : 0.35)
+                .frame(width: 36, height: 36)
+                .contentShape(.rect)
+                .buttonStyle(.plain)
+        }
+        .background(.white.opacity(active ? (scheme == .dark ? 0.14 : 0.55) : 0), in: .rect(cornerRadius: 12))
+        .animation(.snappy, value: active)
+        .contextMenu {
+            Button("Pin", systemImage: "pin") { model.togglePin(tab) }
+            Button("Close", systemImage: "xmark", role: .destructive) { model.close(tab) }
+        }
+        .transition(.opacity.combined(with: .move(edge: .leading)))
+    }
+
+    static func newTab(tint: Color) -> some View { NewTabRow() }
+}
+
+private struct NewTabRow: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        VStack(spacing: 10) {
-            if model.spaces.count > 1, !model.isIncognito {
-                HStack(spacing: 6) {
-                    ForEach(model.spaces) { space in
-                        Capsule()
-                            .fill(.primary.opacity(space.id == model.currentSpaceID ? 0.8 : 0.25))
-                            .frame(width: space.id == model.currentSpaceID ? 18 : 6, height: 6)
-                    }
-                }
-                .animation(.spring(response: 0.3, dampingFraction: 0.7), value: model.currentSpaceID)
-            }
+        Button { model.beginSearch(.newTab) } label: {
             HStack(spacing: 10) {
-                Menu {
-                    Button("Library", systemImage: "archivebox") { model.sheet = .library }
-                    Button(model.isIncognito ? "Leave Incognito" : "Incognito",
-                           systemImage: "eyeglasses") { model.setIncognito(!model.isIncognito) }
-                    Button("Settings", systemImage: "gearshape") { model.sheet = .settings }
-                } label: {
-                    Image(systemName: "line.3.horizontal")
-                        .font(.body.weight(.medium))
-                        .frame(width: 50, height: 50)
-                        .glassEffect(.regular.interactive(), in: .circle)
-                }
-                .buttonStyle(.plain)
-                Button { model.beginSearch(.newTab) } label: {
-                    HStack {
-                        Image(systemName: model.isIncognito ? "eyeglasses" : "magnifyingglass")
-                        Text(model.isIncognito ? "Private search" : "Search or enter address")
-                        Spacer()
-                        Image(systemName: "plus")
-                    }
-                    .font(.body.weight(.medium))
-                    .padding(.horizontal, 18).padding(.vertical, 14)
-                    .glassEffect(.regular.interactive(), in: .capsule)
-                }
-                .buttonStyle(.plain)
+                Image(systemName: "plus").font(.callout.weight(.semibold)).frame(width: 22)
+                Text("New Tab")
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 16)
+            .font(.callout)
+            .opacity(0.7)
+            .padding(.vertical, 9).padding(.horizontal, 10)
+            .contentShape(.rect)
         }
-        .padding(.bottom, 8)
+        .buttonStyle(.plain)
+    }
+}
+
+/// Home toolbar: search, space dots and the menu. Runs down the right-hand rail, or across the bottom.
+struct HomeBar: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.sidebar) private var sidebar
+    let axis: Axis
+
+    var body: some View {
+        if axis == .vertical {
+            RailColumn {
+                Button { model.beginSearch(.newTab) } label: {
+                    RailGlyph(symbol: searchSymbol)
+                        .foregroundStyle(.white)
+                        .background(Theme.brand.gradient, in: .circle)
+                        .padding(2)
+                }
+                .buttonStyle(PressableStyle())
+                .accessibilityLabel("Search")
+                spaceDots.padding(.vertical, 8)
+            } bottom: {
+                if let sidebar { SidebarRailButton(sidebar: sidebar) }
+                HomeMenu(inDock: true)
+            } nub: {
+                RailGlyph(symbol: searchSymbol, size: 30)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(.white)
+                    .background(Theme.brand.gradient, in: .circle)
+            }
+        } else {
+            VStack(spacing: 10) {
+                spaceDots
+                HStack(spacing: 10) {
+                    if let sidebar {
+                        Button(action: sidebar.toggle) { RailIcon(symbol: "sidebar.left", size: 50) }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(sidebar.isCollapsed ? "Show Sidebar" : "Hide Sidebar")
+                    }
+                    HomeMenu()
+                    Button { model.beginSearch(.newTab) } label: {
+                        HStack {
+                            Image(systemName: model.isIncognito ? "eyeglasses" : "magnifyingglass")
+                            Text(model.isIncognito ? "Private search" : "Search or enter address")
+                            Spacer()
+                            Image(systemName: "plus")
+                        }
+                        .font(.body.weight(.medium))
+                        .padding(.horizontal, 18).padding(.vertical, 14)
+                        .glassEffect(.regular.interactive(), in: .capsule)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 16)
+            }
+            .padding(.bottom, 8)
+        }
+    }
+
+    private var searchSymbol: String { model.isIncognito ? "eyeglasses" : "magnifyingglass" }
+
+    @ViewBuilder private var spaceDots: some View {
+        if model.spaces.count > 1, !model.isIncognito {
+            let stack = axis.stack(spacing: 6)
+            stack {
+                ForEach(model.spaces) { space in
+                    let current = space.id == model.currentSpaceID
+                    Button { withAnimation(.smooth) { model.currentSpaceID = space.id } } label: {
+                        Capsule()
+                            .fill(.primary.opacity(current ? 0.8 : 0.25))
+                            .frame(width: axis == .horizontal && current ? 18 : 6,
+                                   height: axis == .vertical && current ? 18 : 6)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(space.title)
+                    .accessibilityAddTraits(current ? .isSelected : [])
+                }
+            }
+            .animation(.bouncy(duration: 0.35, extraBounce: 0.1), value: model.currentSpaceID)
+        }
+    }
+}
+
+/// Library, Incognito and Settings.
+struct HomeMenu: View {
+    @Environment(AppModel.self) private var model
+    var inDock = false
+
+    var body: some View {
+        Menu {
+            HomeMenuItems()
+        } label: {
+            if inDock { RailGlyph(symbol: "line.3.horizontal") } else { RailIcon(symbol: "line.3.horizontal", size: 50) }
+        }
+        .buttonStyle(PressableStyle())
+    }
+}
+
+struct HomeMenuItems: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        Button("Library", systemImage: "archivebox") { model.sheet = .library }
+        Button(model.isIncognito ? "Leave Incognito" : "Incognito",
+               systemImage: "eyeglasses") { model.setIncognito(!model.isIncognito) }
+        Button("Settings", systemImage: "gearshape") { model.sheet = .settings }
+    }
+}
+
+/// Today's tabs in two columns. Holding a card opens its menu.
+private struct TodayGrid: View {
+    let tabs: [SidebarItem]
+    let tint: Color
+    let zoom: Namespace.ID?
+
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+            ForEach(tabs) { tab in
+                TabCard(tab: tab, tint: tint)
+                    .matchedTransitionSourceIfPresent(id: tab.id, in: zoom)
+            }
+        }
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: tabs.map(\.id))
     }
 }
 
 struct TabCard: View {
     @Environment(AppModel.self) private var model
+    @AppStorage("delight.celebratedFirstPin") private var celebratedFirstPin = false
     let tab: SidebarItem
     let tint: Color
-    @State private var dragY: CGFloat = 0
-
     var body: some View {
         Button { model.activate(tab) } label: {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Monogram(url: tab.url, tint: tint, size: 28)
-                    Spacer()
-                    Button { model.close(tab) } label: {
-                        Image(systemName: "xmark").font(.caption.weight(.bold)).padding(6)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 0)
-                Text(tab.title ?? tab.url?.host() ?? "New Tab")
-                    .font(.subheadline.weight(.semibold)).lineLimit(2)
-                Text(tab.url?.host() ?? "").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            Group {
+                if let snapshot = model.snapshots[tab.id] { preview(snapshot) } else { monogramLayout }
             }
-            .padding(14)
             .frame(height: 150)
             .background(.regularMaterial, in: .rect(cornerRadius: 22))
         }
         .buttonStyle(PressableStyle())
-        .offset(y: min(dragY, 0))
-        .opacity(1 + Double(min(dragY, 0)) / 300)
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 20)
-                .onChanged { if abs($0.translation.height) > abs($0.translation.width) { dragY = $0.translation.height } }
-                .onEnded { value in
-                    if value.translation.height < -90 {
-                        withAnimation(.spring(response: 0.3)) { dragY = -400 }
-                        model.close(tab)
-                    } else {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) { dragY = 0 }
-                    }
-                }
-        )
         .contextMenu {
-            Button("Pin", systemImage: "pin") { model.togglePin(tab) }
+            Button("Pin", systemImage: "pin") { pin() }
             Button("Close", systemImage: "xmark", role: .destructive) { model.close(tab) }
+        }
+    }
+
+    private var title: String { tab.title ?? tab.url?.host() ?? "New Tab" }
+
+    private var closeButton: some View {
+        Button { model.close(tab) } label: {
+            Image(systemName: "xmark").font(.caption.weight(.bold)).padding(6)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Close \(title)")
+        .foregroundStyle(.secondary)
+    }
+
+    private var monogramLayout: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Monogram(url: tab.url, tint: tint, size: 28)
+                Spacer()
+                closeButton
+            }
+            Spacer(minLength: 0)
+            Text(title).font(.subheadline.weight(.semibold)).lineLimit(2)
+            Text(tab.url?.host() ?? "").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+        }
+        .padding(14)
+    }
+
+    /// Last rendered page, top-aligned, with the monogram and title as a footer.
+    private func preview(_ snapshot: UIImage) -> some View {
+        VStack(spacing: 0) {
+            Color.clear
+                .overlay(alignment: .top) { Image(uiImage: snapshot).resizable().scaledToFill() }
+                .clipShape(.rect(cornerRadius: 15))
+                .overlay { RoundedRectangle(cornerRadius: 15).strokeBorder(.primary.opacity(0.1), lineWidth: 0.5) }
+                .overlay(alignment: .topTrailing) {
+                    closeButton.background(.ultraThinMaterial, in: .circle).padding(5)
+                }
+            HStack(spacing: 7) {
+                Monogram(url: tab.url, tint: tint, size: 20)
+                Text(title).font(.caption.weight(.semibold)).lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.top, 7).padding(.horizontal, 2)
+        }
+        .padding(7)
+    }
+
+    /// Pins the tab; the very first pin ever gets confetti once the menu has closed.
+    private func pin() {
+        model.togglePin(tab)
+        guard !celebratedFirstPin, tab.spaceID != nil else { return }
+        celebratedFirstPin = true
+        Task {
+            try? await Task.sleep(for: .milliseconds(350))
+            Celebration.shared.confetti()
         }
     }
 }
 
 private struct FavoriteTile: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.sidebar) private var sidebar
     let tab: SidebarItem
     let tint: Color
+    @State private var taps = 0
 
     var body: some View {
-        Button { model.activate(tab) } label: {
+        Button {
+            taps += 1
+            model.activate(tab)
+            sidebar?.didPick()
+        } label: {
             Monogram(url: tab.url, tint: tint, size: 30)
                 .frame(maxWidth: .infinity, minHeight: 64)
                 .background(.ultraThinMaterial, in: .rect(cornerRadius: 18))
         }
         .buttonStyle(PressableStyle())
+        .accessibilityLabel(tab.title ?? tab.url?.host() ?? "Favorite")
+        .sparkle(trigger: taps)
     }
 }
 
 private struct PinnedRow: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.sidebar) private var sidebar
+    @Environment(\.colorScheme) private var scheme
     let item: SidebarItem
     let tint: Color
     let depth: Int
@@ -260,15 +475,39 @@ private struct PinnedRow: View {
                 ForEach(model.sidebar.children(of: item.id)) { PinnedRow(item: $0, tint: tint, depth: depth + 1) }
             }
         case .tab:
-            Button { model.activate(item) } label: {
+            let active = model.activeTabID == item.id
+            let wandered = model.hasWandered(item)
+            Button { model.activate(item); sidebar?.didPick() } label: {
                 row {
                     Monogram(url: item.url, tint: tint, size: 24)
                     Text(item.title ?? item.url?.host() ?? "Tab").lineLimit(1)
+                        .fontWeight(active ? .semibold : .regular)
                     Spacer()
                 }
             }
             .buttonStyle(.plain)
+            .overlay(alignment: .trailing) {
+                if wandered {
+                    Button("Back to pinned page", systemImage: "arrow.uturn.backward") {
+                        model.activate(item)
+                        model.returnToPinnedPage(item)
+                        sidebar?.didPick()
+                    }
+                    .labelStyle(.iconOnly)
+                    .font(.caption.weight(.semibold))
+                    .frame(width: 36, height: 36)
+                    .contentShape(.rect)
+                    .buttonStyle(.plain)
+                    .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .background(.white.opacity(active ? (scheme == .dark ? 0.14 : 0.55) : 0), in: .rect(cornerRadius: 12))
+            .animation(.snappy, value: active)
+            .animation(.snappy, value: wandered)
             .contextMenu {
+                if wandered {
+                    Button("Back to Pinned Page", systemImage: "arrow.uturn.backward") { model.returnToPinnedPage(item) }
+                }
                 Button("Unpin", systemImage: "pin.slash") { model.togglePin(item) }
             }
         case .container:
