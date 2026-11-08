@@ -1,0 +1,17 @@
+Copyright (c) 2026 Chen Kahana. All rights reserved.
+
+This repository and everything in it, including source code, artwork, icons, screenshots and documentation, is
+proprietary. It is published so that it can be read and reviewed.
+
+You may view the source and fork this repository on GitHub, as GitHub's Terms of Service allow. You may not copy,
+modify, distribute, sublicense, sell or publish this software or any part of it, or build and distribute apps from
+it, without prior written permission from the copyright holder.
+
+Contributions submitted through pull requests are accepted under the terms in CONTRIBUTING.md.
+
+Third-party components keep their own licenses; see THIRD_PARTY_NOTICES.md.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

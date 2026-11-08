@@ -7,3 +7,7 @@ xcuserdata/
 .omc/
 .DS_Store
 build-*/
+
+# Internal working notes (kept locally, not published)
+tasks/
+.claude/

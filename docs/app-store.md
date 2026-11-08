@@ -99,10 +99,7 @@ iPad screenshots aren't needed for an iPhone-only app.
    Changes* to Production. Without this, App Store builds can't sync (they use the production environment).
 2. **App Store Connect** › Apps › New App: iOS and macOS, name Folio, bundle ID `com.chenkahana.folio`, SKU `folio`.
 3. **Upload builds**: double-click `build/archives/Folio-iOS.xcarchive` and `Folio-macOS.xcarchive` (opens them in
-   Xcode's Organizer) › Distribute App › App Store Connect › Upload. To rebuild them first:
-   `xcodegen generate`, then
-   `xcodebuild archive -project Folio.xcodeproj -scheme Folio-iOS -configuration Release -destination generic/platform=iOS -archivePath build/archives/Folio-iOS.xcarchive -allowProvisioningUpdates`
-   (and the same with `Folio-macOS` / `generic/platform=macOS`). Raise `CURRENT_PROJECT_VERSION` in `project.yml`
-   for every new upload.
+   Xcode's Organizer) › Distribute App › App Store Connect › Upload. To rebuild them first, run `make archive`.
+   Raise `CURRENT_PROJECT_VERSION` in `project.yml` for every new upload, and add the release to `CHANGELOG.md`.
 4. Fill the listing from this file, upload the screenshots, answer App Privacy and Age Rating as above.
 5. Add both builds to version 1.0 and **Submit for Review**.

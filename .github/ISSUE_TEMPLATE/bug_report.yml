@@ -1,0 +1,53 @@
+name: Bug report
+description: Something in Folio doesn't work as expected.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for the report. Please don't include personal data such as cookies, passwords or private URLs.
+  - type: dropdown
+    id: app
+    attributes:
+      label: App
+      options:
+        - iPhone
+        - Mac
+        - Both
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Folio version
+      description: Settings › About shows it.
+      placeholder: "1.0 (1)"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and OS version
+      placeholder: "iPhone Duo, iOS 27.1 / MacBook Pro, macOS 26.1"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Tap …
+        3. See …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened instead
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots, recordings or other context
+      description: For sync problems, say which devices are involved and whether they use iCloud or a sync folder.
