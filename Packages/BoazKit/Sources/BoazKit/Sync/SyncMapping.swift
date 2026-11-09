@@ -3,12 +3,13 @@ import CryptoKit
 import Foundation
 import GRDB
 
-/// The synced tables. History and incognito tabs never reach CloudKit.
+/// The synced tables. History and incognito tabs never reach CloudKit. A build that predates a type skips its records.
 public enum SyncRecordType: String, CaseIterable, Sendable {
     case profile = "Profile"
     case space = "Space"
     case sidebarItem = "SidebarItem"
     case archiveItem = "ArchiveItem"
+    case device = "Device"
 
     var tableName: String {
         switch self {
@@ -16,6 +17,7 @@ public enum SyncRecordType: String, CaseIterable, Sendable {
         case .space: Space.databaseTableName
         case .sidebarItem: SidebarItem.databaseTableName
         case .archiveItem: ArchiveItem.databaseTableName
+        case .device: Device.databaseTableName
         }
     }
 
@@ -25,6 +27,7 @@ public enum SyncRecordType: String, CaseIterable, Sendable {
         case .space: Space.self
         case .sidebarItem: SidebarItem.self
         case .archiveItem: ArchiveItem.self
+        case .device: Device.self
         }
     }
 }
@@ -192,7 +195,7 @@ extension Space: SyncableRecord {
 
 extension SidebarItem: SyncableRecord {
     public static var syncType: SyncRecordType { .sidebarItem }
-    public static var mergeGroups: [[String]] { [["parentID", "spaceID", "profileID", "position"]] }
+    public static var mergeGroups: [[String]] { [["parentID", "spaceID", "profileID", "position", "deviceID"]] }
 
     public func write(to record: CKRecord) {
         record["spaceID"] = spaceID
@@ -209,6 +212,7 @@ extension SidebarItem: SyncableRecord {
         record["lastActiveAt"] = lastActiveAt
         record["modifiedAt"] = modifiedAt
         record["deletedAt"] = deletedAt
+        record["deviceID"] = deviceID
     }
 
     public init(cloudRecord r: CKRecord) throws {
@@ -227,7 +231,9 @@ extension SidebarItem: SyncableRecord {
                   createdAt: r.date("createdAt") ?? r.creationDate ?? .now,
                   lastActiveAt: r.date("lastActiveAt"),
                   modifiedAt: try r.required("modifiedAt", r.date("modifiedAt")),
-                  deletedAt: r.date("deletedAt"))
+                  deletedAt: r.date("deletedAt"),
+                  // Absent on records from before devices were recorded: those show on every device.
+                  deviceID: r.string("deviceID"))
     }
 }
 
@@ -254,6 +260,28 @@ extension ArchiveItem: SyncableRecord {
                   url: try r.required("url", r.secretString("url").flatMap(URL.init(string:))),
                   archivedAt: try r.required("archivedAt", r.date("archivedAt")),
                   reason: r.string("reason") ?? "closed",
+                  modifiedAt: try r.required("modifiedAt", r.date("modifiedAt")),
+                  deletedAt: r.date("deletedAt"))
+    }
+}
+
+extension Device: SyncableRecord {
+    public static var syncType: SyncRecordType { .device }
+
+    public func write(to record: CKRecord) {
+        record.encryptedValues["name"] = name
+        record["platform"] = platform.rawValue
+        record["lastSeenAt"] = lastSeenAt
+        record["modifiedAt"] = modifiedAt
+        record["deletedAt"] = deletedAt
+    }
+
+    public init(cloudRecord r: CKRecord) throws {
+        let id = try SyncMapping.check(r, is: Device.self)
+        self.init(id: id,
+                  name: r.secretString("name") ?? "",
+                  platform: try r.required("platform", r.string("platform").flatMap(Platform.init(rawValue:))),
+                  lastSeenAt: r.date("lastSeenAt") ?? .distantPast,
                   modifiedAt: try r.required("modifiedAt", r.date("modifiedAt")),
                   deletedAt: r.date("deletedAt"))
     }

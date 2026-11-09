@@ -66,17 +66,22 @@ public struct SidebarItem: Codable, Identifiable, Hashable, Sendable, FetchableR
     public var lastActiveAt: Date?
     public var modifiedAt: Date
     public var deletedAt: Date?
+    /// The `Device` a Today tab was opened on: each device's Today lists only its own tabs. Nil for pinned and
+    /// favorite items, and for tabs from before devices were recorded, which show on every device.
+    public var deviceID: String?
 
     public static let databaseTableName = "sidebarItem"
 
     public init(id: String, spaceID: String?, profileID: String, parentID: String?, kind: Kind,
                 containerKind: ContainerKind? = nil, title: String? = nil, url: URL? = nil,
                 isUnread: Bool = false, isExpanded: Bool = true, position: Double,
-                createdAt: Date = .now, lastActiveAt: Date? = nil, modifiedAt: Date = .now, deletedAt: Date? = nil) {
+                createdAt: Date = .now, lastActiveAt: Date? = nil, modifiedAt: Date = .now, deletedAt: Date? = nil,
+                deviceID: String? = nil) {
         self.id = id; self.spaceID = spaceID; self.profileID = profileID; self.parentID = parentID
         self.kind = kind; self.containerKind = containerKind; self.title = title; self.url = url
         self.isUnread = isUnread; self.isExpanded = isExpanded; self.position = position
         self.createdAt = createdAt; self.lastActiveAt = lastActiveAt; self.modifiedAt = modifiedAt; self.deletedAt = deletedAt
+        self.deviceID = deviceID
     }
 }
 
@@ -98,5 +103,26 @@ public struct ArchiveItem: Codable, Identifiable, Hashable, Sendable, FetchableR
                 reason: String, modifiedAt: Date = .now, deletedAt: Date? = nil) {
         self.id = id; self.profileID = profileID; self.spaceID = spaceID; self.title = title; self.url = url
         self.archivedAt = archivedAt; self.reason = reason; self.modifiedAt = modifiedAt; self.deletedAt = deletedAt
+    }
+}
+
+/// An iPhone or Mac using this library, so the others can name it ("Chen's MacBook Pro").
+public struct Device: Codable, Identifiable, Hashable, Sendable, FetchableRecord, PersistableRecord {
+    public enum Platform: String, Codable, Sendable { case iOS, macOS }
+
+    public var id: String
+    public var name: String
+    public var platform: Platform
+    /// Refreshed at launch and on returning to the foreground, not continuously.
+    public var lastSeenAt: Date
+    public var modifiedAt: Date
+    public var deletedAt: Date?
+
+    public static let databaseTableName = "device"
+
+    public init(id: String, name: String, platform: Platform, lastSeenAt: Date,
+                modifiedAt: Date = .now, deletedAt: Date? = nil) {
+        self.id = id; self.name = name; self.platform = platform; self.lastSeenAt = lastSeenAt
+        self.modifiedAt = modifiedAt; self.deletedAt = deletedAt
     }
 }

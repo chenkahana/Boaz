@@ -1,0 +1,29 @@
+name: Auto-merge
+
+# Pull requests from the owner, collaborators and Dependabot squash-merge on their own once the required checks pass.
+# Outside contributors' pull requests are left for a maintainer to merge.
+on:
+  pull_request_target:
+    types: [opened, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+jobs:
+  enable:
+    if: >-
+      !github.event.pull_request.draft &&
+      (contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.pull_request.author_association) ||
+       github.event.pull_request.user.login == 'dependabot[bot]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    # Runs with write access on pull_request_target, so it never checks out or runs the pull request's code.
+    steps:
+      - run: gh pr merge "$PR" --auto --squash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}

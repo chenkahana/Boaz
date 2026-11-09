@@ -157,7 +157,9 @@ private struct SpacePage: View {
                             Spacer()
                             TodayAIMenu().foregroundStyle(style.foreground.opacity(0.6))
                         }
-                        TodayGrid(tabs: today, tint: style.tint, zoom: zoom)
+                        // The open page zooms back into the stack, unless the cover flow is the one showing.
+                        TabStack(space: space, cardSize: CGSize(width: 116, height: 160), zoom: model.showsCoverFlow ? nil : zoom)
+                            .frame(maxWidth: .infinity)
                     }
                     .transition(.opacity)
                 }
@@ -381,7 +383,7 @@ struct HomeMenuItems: View {
     }
 }
 
-/// Today's tabs as cards, as many columns as fit (three on the cover screen). Holding a card opens its menu.
+/// Private tabs as cards, as many columns as fit (three on the cover screen). Holding a card opens its menu.
 private struct TodayGrid: View {
     let tabs: [SidebarItem]
     let tint: Color

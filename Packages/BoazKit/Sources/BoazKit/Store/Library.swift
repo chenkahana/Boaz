@@ -75,9 +75,11 @@ extension BoazStore {
     }
 
     /// Archives Today tabs that haven't been active for `interval`. Pinned and favorite tabs are never archived.
+    /// Only `deviceID`'s tabs (and those that recorded no device) go: another device sweeps its own.
     @discardableResult
     /// Runs on the database's queue: a backlog of thousands of tabs takes ~150 ms.
-    public func archiveStaleTabs(olderThan interval: TimeInterval, now: Date = .now) async throws -> Int {
+    public func archiveStaleTabs(olderThan interval: TimeInterval, onDevice deviceID: String,
+                                 now: Date = .now) async throws -> Int {
         let cutoff = now.addingTimeInterval(-interval)
         return try await writer.write { db in
             let todayContainers = try SidebarItem
@@ -95,6 +97,7 @@ extension BoazStore {
                 .filter((todayContainers + todayFolders).contains(Column("parentID")))
                 .filter(Column("kind") == SidebarItem.Kind.tab.rawValue)
                 .filter(Column("deletedAt") == nil)
+                .filter(Column("deviceID") == nil || Column("deviceID") == deviceID)
                 .filter(SQL(sql: "COALESCE(lastActiveAt, createdAt) < ?", arguments: [cutoff]))
                 .fetchAll(db)
             for tab in stale { try Self.archive(tab, reason: "autoArchived", at: now, in: db) }

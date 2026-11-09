@@ -2,6 +2,7 @@ import Accessibility
 import AppKit
 import BoazKit
 import SwiftUI
+import SystemConfiguration
 import WebKit
 
 /// App-wide state shared by every window: the store, the live sidebar snapshot, archive/undo and shortcuts.
@@ -20,6 +21,8 @@ final class MacModel {
     var loadError: String?
     var toast: Toast?
     let keyBindings = KeyBindings()
+    /// This Mac, in the device list: the sidebar's Today shows only the tabs opened here (see `SidebarItem.deviceID`).
+    let deviceID = Device.localID(in: .standard)
 
     @ObservationIgnored private(set) var store: BoazStore?
     /// iCloud sync with the user's other devices (a picked folder only when iCloud isn't available).
@@ -68,12 +71,14 @@ final class MacModel {
             if !askedEarly { needsOnboarding = Onboarding.shouldShow(store) }
             Task { await sync.start() }
             archiveStaleTabs()
+            registerDevice()
             Task { await archiveLoop() }
             Task { await fetchLoop(sync) }
             NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil,
                                                    queue: .main) { _ in
                 MainActor.assumeIsolated {
                     MacModel.shared.archiveStaleTabs()
+                    MacModel.shared.registerDevice()
                     Task { await sync.syncNow() }
                 }
             }
@@ -105,12 +110,19 @@ final class MacModel {
         guard interval != .never, let store else { return }
         Task {
             do {
-                let count = try await store.archiveStaleTabs(olderThan: TimeInterval(interval.rawValue))
+                let count = try await store.archiveStaleTabs(olderThan: TimeInterval(interval.rawValue), onDevice: deviceID)
                 if count > 0 { showToast("Archived \(count) inactive tab\(count == 1 ? "" : "s")") }
             } catch {
                 showToast("Couldn't archive tabs: \(error.localizedDescription)")
             }
         }
+    }
+
+    /// Refreshes this Mac's name and last-seen time, so the iPhone can say which Mac a tab is open on.
+    func registerDevice() {
+        guard let store else { return }
+        let name = SCDynamicStoreCopyComputerName(nil, nil) as String? ?? "Mac"
+        Task { try? await store.registerDevice(id: deviceID, name: name, platform: .macOS) }
     }
 
     // MARK: Windows
@@ -159,9 +171,7 @@ final class MacModel {
         sidebar.container(.pinned, in: space.id).map { sidebar.children(of: $0.id) } ?? []
     }
 
-    func todayTabs(in space: Space) -> [SidebarItem] {
-        sidebar.container(.unpinned, in: space.id).map { sidebar.children(of: $0.id).filter { $0.kind == .tab } } ?? []
-    }
+    func todayTabs(in space: Space) -> [SidebarItem] { sidebar.todayTabs(in: space.id, onDevice: deviceID) }
 
     func favorites(profileID: String?) -> [SidebarItem] {
         guard let profileID = profileID ?? sidebar.profiles.first?.id else { return [] }
@@ -226,7 +236,8 @@ final class MacModel {
               let box = sidebar.container(.unpinned, in: space.id) else { return nil }
         let top = sidebar.children(of: box.id).map(\.position).min() ?? 1
         let tab = SidebarItem(id: UUID().uuidString, spaceID: space.id, profileID: space.profileID, parentID: box.id,
-                              kind: .tab, title: title ?? url.host(), url: url, position: top - 1, lastActiveAt: .now)
+                              kind: .tab, title: title ?? url.host(), url: url, position: top - 1, lastActiveAt: .now,
+                              deviceID: deviceID)
         commit(tab)
         return tab
     }
@@ -360,6 +371,12 @@ final class MacModel {
             item.position = index > 0 ? (siblings[index - 1].position + next) / 2 : next - 1
         } else {
             item.position = (siblings.last?.position ?? -1) + 1
+        }
+        // A tab moved into Today becomes this Mac's; pinned and favorite tabs are every device's.
+        if targetContainer?.containerKind != .unpinned {
+            item.deviceID = nil
+        } else if item.kind == .tab, container(of: item)?.containerKind != .unpinned {
+            item.deviceID = deviceID
         }
         item.parentID = parentID
         let spaceID = targetContainer?.containerKind == .favorites ? nil : parent.spaceID

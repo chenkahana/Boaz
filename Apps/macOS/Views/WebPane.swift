@@ -42,7 +42,10 @@ struct TabPane: View {
                 for try await event in page.navigations {
                     switch event {
                     case .startedProvisionalNavigation: failure = nil
-                    case .committed, .finished: if PageZoom.level(for: page.url) != 1 { PageZoom.apply(to: page) }
+                    case .committed, .finished:
+                        if PageZoom.level(for: page.url, isPrivate: browser.isIncognito) != 1 {
+                            PageZoom.apply(to: page, isPrivate: browser.isIncognito)
+                        }
                     default: break
                     }
                 }

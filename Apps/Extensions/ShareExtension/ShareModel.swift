@@ -60,9 +60,11 @@ final class ShareModel {
                 return
             }
             let title = pageTitle.isEmpty ? (url.host() ?? url.absoluteString) : pageTitle
+            // A Today tab is this iPhone's; the App Group's defaults hold the same device id the app uses.
+            let deviceID = pinned ? nil : Device.localID(in: UserDefaults(suiteName: BoazStore.appGroup) ?? .standard)
             let tab = SidebarItem(id: UUID().uuidString, spaceID: space.id, profileID: space.profileID,
                                   parentID: box.id, kind: .tab, title: title, url: url,
-                                  position: sidebar.nextPosition(in: box.id))
+                                  position: sidebar.nextPosition(in: box.id), deviceID: deviceID)
             try store.save([tab])
             didSave = true
         } catch {

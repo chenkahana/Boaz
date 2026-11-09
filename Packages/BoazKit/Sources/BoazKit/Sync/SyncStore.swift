@@ -89,7 +89,7 @@ extension BoazStore {
         }
     }
 
-    /// Deletes the synced library (profiles, spaces, sidebar, archive) and all sync state, without queueing the
+    /// Deletes the synced library (profiles, spaces, sidebar, archive, devices) and all sync state, without queueing the
     /// deletions: used when another iCloud account takes over this device. History stays (it never syncs).
     public func deleteSyncedLibrary() throws {
         try writer.write { db in
