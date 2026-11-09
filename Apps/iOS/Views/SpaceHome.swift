@@ -94,7 +94,7 @@ private struct SpacePage: View {
                                 .lineLimit(1)
                             Image(systemName: "chevron.down")
                                 .font((isSidebar ? Font.footnote : .callout).weight(.bold))
-                                .opacity(0.45)
+                                .foregroundStyle(.secondary)
                         }
                         .contentShape(.rect)
                     }
@@ -152,10 +152,10 @@ private struct SpacePage: View {
                         HStack {
                             Text("Today")
                                 .font(.footnote.weight(.semibold)).textCase(.uppercase)
-                                .foregroundStyle(style.foreground.opacity(0.6))
+                                .foregroundStyle(.secondary)
                                 .accessibilityAddTraits(.isHeader)
                             Spacer()
-                            TodayAIMenu().foregroundStyle(style.foreground.opacity(0.6))
+                            TodayAIMenu().foregroundStyle(.secondary)
                         }
                         // The open page zooms back into the stack, unless the cover flow is the one showing.
                         TabStack(space: space, cardSize: CGSize(width: 116, height: 160), zoom: model.showsCoverFlow ? nil : zoom)
@@ -171,7 +171,8 @@ private struct SpacePage: View {
         }
         .scrollIndicators(.hidden)
         .collapsesToolRail()
-        .foregroundStyle(style.foreground)
+        // Both read at 4.5:1 on this space's backdrop; `.secondary` below resolves to the second.
+        .foregroundStyle(style.foreground, style.secondary)
     }
 
     private func searchField(_ style: SpaceStyle) -> some View {
@@ -179,7 +180,7 @@ private struct SpacePage: View {
             Label("Search or enter address", systemImage: "magnifyingglass")
                 .font(.callout)
                 .lineLimit(1)
-                .foregroundStyle(style.foreground.opacity(0.7))
+                .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, isSidebar ? 14 : 18).padding(.vertical, isSidebar ? 11 : 15)
                 .glassEffect(.regular.interactive(), in: .capsule)
@@ -214,7 +215,7 @@ private struct TodayRow: View {
             Button("Close", systemImage: "xmark") { withAnimation(.snappy) { model.close(tab) } }
                 .labelStyle(.iconOnly)
                 .font(.caption.weight(.semibold))
-                .opacity(active ? 0.8 : 0.35)
+                .foregroundStyle(active ? .primary : .secondary)
                 .frame(width: 44)
                 .frame(maxHeight: .infinity)
                 .contentShape(.rect)
@@ -243,7 +244,7 @@ private struct NewTabRow: View {
                 Spacer(minLength: 0)
             }
             .font(.callout)
-            .opacity(0.7)
+            .foregroundStyle(.secondary)
             .padding(.vertical, 7).padding(.horizontal, 10)
             .contentShape(.rect)
         }

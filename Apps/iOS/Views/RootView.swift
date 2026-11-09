@@ -25,15 +25,15 @@ struct RootView: View {
             }
         }
         .overlay(alignment: .top) {
-            if let toast = model.toast { ToastView(toast: toast).padding(.top, 8) }
+            if let toast = model.toast { ToastView(toast: toast).padding(.top, model.showsCoverFlow ? 64 : 8) }
         }
         .overlay {
-            if model.searchTarget != nil { SearchOverlay() }
+            if model.searchTarget != nil { SearchPanel() }
         }
         .environment(\.isPrivateBrowsing, model.isIncognito)
         .confetti(trigger: Celebration.shared.bursts)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.toast)
-        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: model.searchTarget)
+        .animation(BottomPanelStyle.motion, value: model.searchTarget)
         .sensoryFeedback(.impact(weight: .medium), trigger: model.toast) { _, new in new?.canUndo == true }
         // While the folded layout's page cover or a sheet is up, the alert has to come from there instead.
         .modifier(ShakeToUndo(isEnabled: model.sheet == nil && !model.showOnboarding
@@ -61,7 +61,7 @@ struct RootView: View {
         .onHingeChange { _, new in
             withAnimation(.smooth) { model.hinge = new.hinge }
         }
-        // The cover flow belongs to the folded layout; unfolding mustn't leave it waiting for the next fold.
+        // The tab carousel belongs to the folded layout; unfolding mustn't leave it waiting for the next fold.
         .onChange(of: isUnfolded) { _, unfolded in
             if unfolded { model.showsCoverFlow = false }
         }
@@ -78,6 +78,7 @@ private struct UnfoldedShell: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("sidebarCollapsed") private var sidebarCollapsed = false
+    @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
     /// The narrow layout's floating sidebar.
     @State private var cardOpen = false
     @State private var size = CGSize.zero
@@ -100,14 +101,30 @@ private struct UnfoldedShell: View {
                     sidebar
                         .frame(width: width)
                         .transition(reduceMotion ? .opacity : .move(edge: .leading))
-                    // A hairline; in book pose, the crease itself, so the page starts past the hinge.
-                    Rectangle().fill(Color(uiColor: .separator)).frame(width: creaseWidth).ignoresSafeArea()
+                    // A hairline; in book pose, the crease itself, so the page starts past the hinge, in the page's
+                    // colors while one is showing.
+                    Group {
+                        if pose == .book, let edges = pageEdges {
+                            LinearGradient(colors: [edges.top.color, edges.bottom.color], startPoint: .top,
+                                           endPoint: .bottom)
+                        } else {
+                            Color(uiColor: .separator)
+                        }
+                    }
+                    .frame(width: creaseWidth)
+                    .ignoresSafeArea()
                 }
                 VStack(spacing: 0) {
                     browserPane.frame(height: deskSplit?.page)
                     if let deskSplit {
                         DeskControls()
                             .padding(.top, deskSplit.gap)
+                            // The fold under the page takes the page's bottom color.
+                            .background(alignment: .top) {
+                                if let edges = pageEdges {
+                                    Rectangle().fill(edges.bottom.color).frame(height: deskSplit.gap)
+                                }
+                            }
                             .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                     }
                 }
@@ -125,6 +142,13 @@ private struct UnfoldedShell: View {
         .onChange(of: pose) { cardOpen = model.activeTabID == nil }
         .onAppear { cardOpen = model.activeTabID == nil }
         .animation(motion, value: pose)
+        .animation(SiteEdges.fade(reduceMotion: reduceMotion), value: pageEdges)
+    }
+
+    /// The showing page's edge colors, which the fold beside or below it takes on.
+    private var pageEdges: SiteEdges? {
+        guard tintWithSiteColors, let id = model.activeTabID else { return nil }
+        return model.siteEdges[id]
     }
 
     /// Nil when the sidebar isn't laid out beside the page.
@@ -198,7 +222,7 @@ private struct UnfoldedShell: View {
     }
 }
 
-/// Folded (cover screen): home underneath; the active tab zooms out of its card full screen. The cover flow of
+/// Folded (cover screen): home underneath; the active tab zooms out of its card full screen. The tab carousel of
 /// Today tabs opens over whichever is showing, and moves to the home screen if its last open page is archived.
 private struct CompactShell: View {
     @Environment(AppModel.self) private var model
@@ -207,38 +231,42 @@ private struct CompactShell: View {
 
     var body: some View {
         SpaceHome(zoom: zoom)
-            .overlay {
-                if model.showsCoverFlow, model.activeTabID == nil { CoverFlow(zoom: zoom).transition(coverFlowTransition) }
-            }
-            .animation(coverFlowMotion, value: model.showsCoverFlow)
+            .overlay { carousel(zoom: zoom, isShown: model.showsCoverFlow && model.activeTabID == nil) }
             .fullScreenCover(isPresented: Binding(get: { model.activeTabID != nil },
                                                   set: { if !$0 { model.goHome() } })) {
-                if let tab = model.activeTab {
-                    TabBrowser(tab: tab)
-                        .environment(\.isPrivateBrowsing, model.isPrivate(tab))
-                        .navigationTransition(.zoom(sourceID: tab.id, in: zoom))
-                        .overlay {
-                            if model.showsCoverFlow { CoverFlow().transition(coverFlowTransition) }
-                        }
-                        .animation(coverFlowMotion, value: model.showsCoverFlow)
-                        .overlay {
-                            if model.searchTarget != nil { SearchOverlay() }
-                        }
-                        .overlay(alignment: .top) {
-                            if let toast = model.toast { ToastView(toast: toast).padding(.top, 8) }
-                        }
-                        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: model.searchTarget)
-                        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.toast)
-                        .modifier(ShakeToUndo(isEnabled: true))
+                // One view for every tab, so the overlays (the carousel closing into the tab it opened) aren't
+                // rebuilt when the tab changes.
+                ZStack {
+                    if let tab = model.activeTab {
+                        TabBrowser(tab: tab).environment(\.isPrivateBrowsing, model.isPrivate(tab))
+                    }
                 }
+                .navigationTransition(.zoom(sourceID: model.activeTabID ?? "", in: zoom))
+                .overlay { carousel(zoom: nil, isShown: model.showsCoverFlow) }
+                .overlay {
+                    if model.searchTarget != nil { SearchPanel() }
+                }
+                .overlay(alignment: .top) {
+                    if let toast = model.toast { ToastView(toast: toast).padding(.top, model.showsCoverFlow ? 64 : 8) }
+                }
+                .animation(BottomPanelStyle.motion, value: model.searchTarget)
+                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.toast)
+                .modifier(ShakeToUndo(isEnabled: true))
             }
     }
 
-    private var coverFlowTransition: AnyTransition {
-        reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 1.06))
+    /// The animation stays on the carousel: a tab opened from it changes the page underneath without sliding.
+    private func carousel(zoom: Namespace.ID?, isShown: Bool) -> some View {
+        ZStack {
+            // It animates itself in and out; this fade covers being closed from outside (unfolding, Home).
+            if isShown { TabCarousel(zoom: zoom).transition(.asymmetric(insertion: .identity, removal: .opacity)) }
+        }
+        .animation(carouselMotion, value: isShown)
     }
 
-    private var coverFlowMotion: Animation { reduceMotion ? .easeInOut(duration: 0.2) : .snappy(duration: 0.32) }
+    private var carouselMotion: Animation {
+        reduceMotion ? .easeInOut(duration: 0.2) : .interpolatingSpring(duration: 0.42, bounce: 0.08)
+    }
 }
 
 /// Shake to undo, as the system does it: only with the Shake to Undo setting on, only with a tab to bring back,
@@ -306,7 +334,8 @@ private struct DeskControls: View {
 }
 
 /// Soft glow along the fold. Uses the division reserved region for placement and hinge angle for intensity.
-/// It flares once as the device settles half-open, then stays faint so it doesn't sit on the page.
+/// It flares once as the device settles half-open, then stays faint. Only with no page showing: beside a page, the
+/// fold takes the page's colors instead.
 private struct FoldGlow: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -335,7 +364,7 @@ private struct FoldGlow: View {
 
     /// Brightest when half-open, fading out as the device lies flat. An effect only, so none with Reduce Motion.
     private var intensity: Double {
-        guard !reduceMotion, let degrees = model.hinge?.angle.degrees else { return 0 }
+        guard !reduceMotion, model.activeTabID == nil, let degrees = model.hinge?.angle.degrees else { return 0 }
         return max(0, 1 - abs(degrees - 110) / 70) * (flare ? 0.35 : 0.15)
     }
 }
@@ -353,7 +382,7 @@ private struct EmptyBrowser: View {
                 .foregroundStyle(style.tint.gradient)
             Text("No tab open").font(.system(.title2, design: .rounded, weight: .bold))
             Text("Pick a tab in the sidebar, or open a new one.")
-                .font(.callout).foregroundStyle(.secondary)
+                .font(.callout).foregroundStyle(Theme.textSecondary)
             Button("New Tab", systemImage: "plus") { model.beginSearch(.newTab) }
                 .buttonStyle(.glass)
                 .padding(.top, 4)

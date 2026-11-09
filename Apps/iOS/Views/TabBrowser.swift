@@ -35,12 +35,19 @@ struct TabBrowser: View {
     @State private var hostID = UUID()
     /// Whether a status cluster lies across the top of the page (the inner screen held upright).
     @State private var statusAcrossTop = false
+    /// Whether the toolbar is the side rail (it matches `ToolRailModifier`'s choice) rather than the bottom bar.
+    @State private var hasRail = false
+    /// Non-nil while Translate's sheet is up; its presence is the sheet's `isPresented`.
+    @State private var translationText: String?
+    /// The screen's safe-area insets around the page (without the bottom bar's), which take the page's edge colors.
+    @State private var outerInsets = EdgeInsets()
 
     var body: some View {
         let page = model.page(for: tab)
         Group {
             if model.pageOwners[tab.id] == hostID {
                 webView(page)
+                    .overlay { EdgeBands(edges: edges, insets: outerInsets) }
                     // WebKit leaves the top safe area to the page while the web view touches the window's top edge,
                     // so the status cluster would sit on the page; one point of clearance makes it inset the page.
                     .padding(.top, statusAcrossTop ? 1 : 0)
@@ -58,7 +65,7 @@ struct TabBrowser: View {
             .onGeometryChange(for: Bool.self, of: Self.statusAcrossTop) { statusAcrossTop = $0 }
             .onAppear {
                 model.claimPage(tab.id, host: hostID)
-                model.updateSiteColor(for: tab)
+                model.restoreSiteEdges(for: tab)
             }
             .onDisappear { model.releasePage(tab.id, host: hostID) }
             .onChange(of: tab.id) { old, new in
@@ -73,28 +80,43 @@ struct TabBrowser: View {
                     .opacity(pullDistance > 2 || reloading ? 1 : 0)
                     .allowsHitTesting(false)
             }
+            .overlay {
+                // In the page area: beside the rail, above the bottom bar.
+                if model.showsPageSettings {
+                    BottomPanel(site: edges?.bottom, maxHeight: 0.56, onDismiss: closePageSettings) {
+                        PageSettingsPanel(tab: tab, page: page, readableLength: readableLength, hasRail: hasRail,
+                                          onReader: { Task { readerArticle = await Reader.extract(from: page) } },
+                                          onDownloads: { showingDownloads = true },
+                                          onFind: { findVisible = true },
+                                          onTranslate: { translate(page) })
+                    }
+                }
+            }
+            .onGeometryChange(for: Bool.self, of: { $0.safeAreaInsets.trailing >= 44 }) { hasRail = $0 }
             .toolRail { axis in
-                BrowserBar(tab: tab, page: page, axis: axis, readableLength: readableLength,
-                           onReader: { Task { readerArticle = await Reader.extract(from: page) } },
-                           onDownloads: { showingDownloads = true },
-                           onFind: { findVisible = true })
+                BrowserBar(tab: tab, page: page, axis: axis)
                     .highPriorityGesture(paging(axis))
                     .accessibilityAction(named: "Next Tab") { pageTab(by: 1) }
                     .accessibilityAction(named: "Previous Tab") { pageTab(by: -1) }
             }
+            .onGeometryChange(for: EdgeInsets.self, of: { $0.safeAreaInsets }) { outerInsets = $0 }
             .background { siteBackdrop }
-            .environment(\.chromeTint, site?.color)
-            .animation(SiteColor.fade(reduceMotion: reduceMotion), value: site)
+            .environment(\.chromeTint, edges?.top.color)
+            .environment(\.siteEdges, edges)
+            .animation(SiteEdges.fade(reduceMotion: reduceMotion), value: edges)
             .sensoryFeedback(.selection, trigger: bump)
             .sensoryFeedback(.selection, trigger: model.backForwardHaptic)
             .sensoryFeedback(.impact(weight: .light), trigger: pullArmed) { old, new in new && !old }
             .onChange(of: page.url) { model.didNavigate(tab, url: page.url, title: page.title) }
             .onChange(of: page.title) { model.didNavigate(tab, url: page.url, title: page.title) }
-            .onChange(of: page.url) { model.updateSiteColor(for: tab) }
+            .onChange(of: page.url) { model.restoreSiteEdges(for: tab) }
             .task(id: tab.id) { await trackNavigations(of: page) }
             .sheet(item: $readerArticle) { article in ReaderView(article: article, tint: Theme.brand) }
             .pageAISheet(tab: tab, page: page)
             .sheet(isPresented: $showingDownloads) { DownloadsView() }
+            .translationPresentation(isPresented: Binding(get: { translationText != nil },
+                                                            set: { if !$0 { translationText = nil } }),
+                                      text: translationText ?? "")
             .id(tab.id)
             .transition(pageTransition)
     }
@@ -113,12 +135,15 @@ struct TabBrowser: View {
         return proxy.reservedRegions(kind: .occlusion).contains { $0.frame.maxY <= 1 && $0.frame.width > $0.frame.height }
     }
 
-    private var site: SiteColor? { tintWithSiteColors ? model.siteColors[tab.id] : nil }
+    private var edges: SiteEdges? { tintWithSiteColors ? model.siteEdges[tab.id] : nil }
 
-    /// The site's color in the status column and behind the top of the page.
+    /// The page's edge colors behind it, seen where the page doesn't reach (beside it while swiping tabs).
     private var siteBackdrop: some View {
         ZStack {
-            if let site { site.color.transition(.opacity) }
+            if let edges {
+                VStack(spacing: 0) { Rectangle().fill(edges.top.color); Rectangle().fill(edges.bottom.color) }
+                    .transition(.opacity)
+            }
         }
         .ignoresSafeArea()
     }
@@ -221,6 +246,20 @@ struct TabBrowser: View {
         }
     }
 
+    private func closePageSettings() {
+        withAnimation(BottomPanelStyle.motion) { model.showsPageSettings = false }
+    }
+
+    private func translate(_ page: WebPage) {
+        Task {
+            guard let text = await VisibleText.extract(from: page) else {
+                model.showToast("Nothing to translate")
+                return
+            }
+            translationText = text
+        }
+    }
+
     /// Text Size is CSS on the document, so each new document needs it again.
     private func applyTextSize(to page: WebPage) {
         let isPrivate = model.isPrivate(tab)
@@ -295,61 +334,33 @@ private struct BrowserBar: View {
     @Environment(ToolRailState.self) private var rail
     @Environment(\.homeControlsElsewhere) private var homeControlsElsewhere
     @Environment(\.chromeTint) private var tint
+    @Environment(\.siteEdges) private var edges
     @Environment(\.sidebar) private var sidebar
     let tab: SidebarItem
     let page: WebPage
     let axis: Axis
-    let readableLength: Int
-    let onReader: () -> Void
-    let onDownloads: () -> Void
-    let onFind: () -> Void
     /// The rail teaches both of its swipes, one at a time.
     @State private var railTips = TipGroup(.firstAvailable) {
         SwipeTabsTip()
         TuckRailTip()
     }
-    @State private var showingWebsiteSettings = false
-    /// Non-nil while Translate's sheet is up; its presence is the sheet's `isPresented`.
-    @State private var translationText: String?
 
     var body: some View {
         bar.onChange(of: tabCount, initial: true) { SwipeTabsTip.openTabs = tabCount }
     }
 
+    /// Top to bottom (left to right on the bottom bar): the tabs, New Tab, then the page settings at the far end.
     @ViewBuilder private var bar: some View {
         if axis == .vertical {
             RailColumn {
-                siteButton(size: 40).padding(.vertical, 3)
-                if !backList.isEmpty {
-                    backButton.transition(.scale(scale: 0.4).combined(with: .opacity))
-                }
-                RailButton(symbol: page.isLoading ? "xmark" : "arrow.clockwise",
-                           label: page.isLoading ? "Stop" : "Reload") { reloadOrStop() }
+                tabsButton
+                RailButton(symbol: "plus", label: "New Tab", isSelected: model.searchTarget != nil, action: toggleSearch)
             } bottom: {
-                // Folded: the stack of Today tabs leads the dock. Incognito keeps its own grid at home.
-                if sidebar == nil, !homeControlsElsewhere {
-                    if model.isIncognito {
-                        Button { model.goHome() } label: {
-                            RailGlyph(symbol: "square.grid.2x2").overlay(alignment: .topTrailing) { RailBadge(count: tabCount) }
-                        }
-                        .buttonStyle(PressableStyle())
-                        .accessibilityLabel("Tabs")
-                        .accessibilityValue("\(tabCount) open")
-                    } else {
-                        TabStack(space: model.currentSpace, cardSize: CGSize(width: 26, height: 36)).padding(.vertical, 4)
-                    }
-                }
-                RailButton(symbol: "plus", label: "New Tab") { model.beginSearch(.newTab) }
-                if let sidebar {
-                    SidebarRailButton(sidebar: sidebar)
-                } else if homeControlsElsewhere {
-                    forwardButton
-                }
-                menu
+                RailButton(symbol: "ellipsis", label: "Page Settings", isSelected: model.showsPageSettings,
+                           action: togglePageSettings)
             } nub: {
                 SiteTile(url: page.url ?? tab.url, page: page, size: 30)
             }
-            .animation(.bouncy(duration: 0.35), value: backList.isEmpty)
             .animation(.bouncy(duration: 0.35), value: tabCount)
             .popoverTip(railTips.currentTip, arrowEdge: .trailing)
         } else {
@@ -357,60 +368,35 @@ private struct BrowserBar: View {
         }
     }
 
-    /// Book and laptop poses already list the tabs beside or below the page, so Forward takes the Tabs button's place.
-    private var showsForwardButton: Bool { sidebar == nil && homeControlsElsewhere }
-
-    private var forwardButton: some View {
-        Button { if let next = forwardList.first { _ = page.load(next) } } label: {
-            if axis == .vertical { RailGlyph(symbol: "chevron.forward") } else { RailIcon(symbol: "chevron.forward") }
-        }
-        .buttonStyle(PressableStyle())
-        .disabled(forwardList.isEmpty)
-        .accessibilityLabel("Forward")
-    }
-
-    /// The site's tile with a live loading ring: tap to edit the address, hold for link actions.
-    private func siteButton(size: CGFloat) -> some View {
-        Button { model.beginSearch(.currentTab) } label: {
-            SiteTile(url: page.url ?? tab.url, page: page, size: size)
-                .overlay(alignment: .bottomTrailing) {
-                    if page.url?.scheme == "https" {
-                        Image(systemName: "lock.fill").font(.caption2.weight(.bold)).imageScale(.small)
-                            .padding(3.5).background(.regularMaterial, in: .circle).offset(x: 5, y: 5)
+    /// The stack of Today tabs (opens the carousel); unfolded, the sidebar toggle takes its place, since the
+    /// sidebar lists the tabs. Book and laptop poses list the tabs beside or below the page, so there's none.
+    /// Incognito keeps its own grid at home.
+    @ViewBuilder private var tabsButton: some View {
+        if let sidebar {
+            if axis == .vertical {
+                SidebarRailButton(sidebar: sidebar)
+            } else {
+                BarButton(symbol: "sidebar.left", action: sidebar.toggle)
+                    .accessibilityLabel(sidebar.isCollapsed ? "Show Sidebar" : "Hide Sidebar")
+            }
+        } else if !homeControlsElsewhere {
+            if model.isIncognito {
+                Button { model.goHome() } label: {
+                    Group {
+                        if axis == .vertical { RailGlyph(symbol: "square.grid.2x2") } else { BarIcon(symbol: "square.grid.2x2") }
                     }
+                    .overlay(alignment: .topTrailing) { RailBadge(count: tabCount) }
                 }
-        }
-        .buttonStyle(PressableStyle())
-        .contextMenu {
-            if let url = page.url {
-                Button("Copy Link", systemImage: "link") {
-                    UIPasteboard.general.url = url
-                    model.showToast("Link copied")
-                }
-                ShareLink(item: url)
+                .buttonStyle(PressableStyle())
+                .accessibilityLabel("Tabs")
+                .accessibilityValue("\(tabCount) open")
+            } else if axis == .vertical {
+                TabStack(space: model.currentSpace, cardSize: CGSize(width: 26, height: 36)).padding(.vertical, 4)
+            } else {
+                TabStack(space: model.currentSpace, cardSize: CGSize(width: 22, height: 30))
+                    .frame(width: 44, height: 44)
             }
-            Button("Edit Address", systemImage: "pencil") { model.beginSearch(.currentTab) }
         }
-        .accessibilityLabel("Address")
-        .accessibilityValue(host)
-        .accessibilityHint("Edit address or search")
-    }
-
-    /// Tap goes back one page; hold for the whole back history.
-    private var backButton: some View {
-        Menu {
-            ForEach(backList.reversed()) { item in
-                Button(item.title?.isEmpty == false ? item.title! : item.url.host() ?? item.url.absoluteString) {
-                    _ = page.load(item)
-                }
-            }
-        } label: {
-            if axis == .vertical { RailGlyph(symbol: "chevron.backward") } else { RailIcon(symbol: "chevron.backward") }
-        } primaryAction: {
-            if let previous = backList.last { _ = page.load(previous) }
-        }
-        .buttonStyle(PressableStyle())
-        .accessibilityLabel("Back")
     }
 
     private var bottomBar: some View {
@@ -429,167 +415,40 @@ private struct BrowserBar: View {
                 .accessibilityValue(host)
             } else {
                 HStack(spacing: 10) {
-                    if let sidebar {
-                        BarButton(symbol: "sidebar.left", action: sidebar.toggle)
-                            .accessibilityLabel(sidebar.isCollapsed ? "Show Sidebar" : "Hide Sidebar")
-                    } else if !homeControlsElsewhere {
-                        BarButton(symbol: "square.grid.2x2") { model.goHome() }
-                            .accessibilityLabel("Tabs")
-                            .accessibilityValue("\(tabCount) open")
-                    }
-                    if !backList.isEmpty {
-                        backButton.transition(.scale(scale: 0.4).combined(with: .opacity))
-                    }
-                    if showsForwardButton { forwardButton }
-                    addressPill
-                    menu
+                    tabsButton
+                    BarButton(symbol: "plus", isSelected: model.searchTarget != nil, action: toggleSearch)
+                        .accessibilityLabel("New Tab")
+                    Spacer(minLength: 0)
+                    BarButton(symbol: "ellipsis", isSelected: model.showsPageSettings, action: togglePageSettings)
+                        .accessibilityLabel("Page Settings")
                 }
                 .padding(.horizontal, 12)
-                .animation(.bouncy(duration: 0.35), value: backList.isEmpty)
                 .popoverTip(SwipeTabsTip(), arrowEdge: .bottom)
             }
         }
         .padding(.top, rail.isCollapsed ? 0 : 6)
         .padding(.bottom, rail.isCollapsed ? 0 : 4)
         .frame(maxWidth: .infinity)
+        .chromeScheme(edges?.bottom)
     }
 
-    /// The address (tap to edit) with Reload at its trailing end, as Safari does, leaving room for Back in the bar.
-    private var addressPill: some View {
-        HStack(spacing: 0) {
-            Button { model.beginSearch(.currentTab) } label: {
-                HStack(spacing: 6) {
-                    if page.url?.scheme == "https" { Image(systemName: "lock.fill").font(.caption2) }
-                    Text(host).lineLimit(1)
-                }
-                .font(.callout.weight(.medium))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                // Balances the reload glyph so the host stays centred in the pill.
-                .padding(.leading, 44)
-                .contentShape(.rect)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Address")
-            .accessibilityValue(host)
-            .accessibilityHint("Edit address or search")
-            Button(action: reloadOrStop) {
-                Image(systemName: page.isLoading ? "xmark" : "arrow.clockwise")
-                    .font(.callout.weight(.medium))
-                    .contentTransition(.symbolEffect(.replace))
-                    .frame(width: 44, height: 44)
-                    .contentShape(.rect)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(page.isLoading ? "Stop" : "Reload")
-        }
-        .glassEffect(.chrome(tint), in: .capsule)
-    }
-
-    private var menu: some View {
-        Menu {
-            Button(model.isPinned(tab) ? "Unpin" : "Pin", systemImage: "pin") { model.togglePin(tab) }
-            Button("Forward", systemImage: "chevron.forward") { if let next = forwardList.first { _ = page.load(next) } }
-                .disabled(forwardList.isEmpty)
-            Button("Find on Page", systemImage: "text.magnifyingglass", action: onFind)
-            Button("Reader", systemImage: "doc.text.magnifyingglass", action: onReader)
-                .disabled(readableLength < Reader.minimumCharacters)
-            PageAIMenuItems(tab: tab)
-            Button("Downloads", systemImage: "arrow.down.circle", action: onDownloads)
-            if let url = page.url { ShareLink(item: url) }
-            if axis == .vertical {
-                Button("Hide Toolbar", systemImage: "sidebar.trailing") { rail.tucked = true }
-            }
-            Button("Reopen Closed Tab", systemImage: "arrow.uturn.backward") { model.undoClose() }
-                .disabled(!model.canReopenClosedTab)
-            Button("Archive Tab", systemImage: "archivebox") { model.close(tab) }
-
-            Divider()
-            Button(desktopSite ? "Request Mobile Website" : "Request Desktop Website",
-                   systemImage: desktopSite ? "iphone" : "desktopcomputer") { toggleDesktopSite() }
-                .disabled(settingsHost == nil)
-            Menu("Text Size", systemImage: "textformat.size") {
-                Button("Make Text Larger", systemImage: "textformat.size.larger") { zoomText(.in) }
-                Button("Reset Text Size", systemImage: "arrow.counterclockwise") { zoomText(.reset) }
-                Button("Make Text Smaller", systemImage: "textformat.size.smaller") { zoomText(.out) }
-            }
-            Button("Website Settings", systemImage: "switch.2") { showingWebsiteSettings = true }
-                .disabled(settingsHost == nil)
-
-            Divider()
-            Button("Translate", systemImage: "translate", action: translate)
-            Button("Print", systemImage: "printer") { Task { await PagePrint.present(page) } }
-            if let url = page.url {
-                Button("Copy Link", systemImage: "link") {
-                    UIPasteboard.general.url = url
-                    model.showToast("Link copied")
-                }
-            }
-            if !model.isPrivate(tab), !model.isFavorite(tab) {
-                Button("Add to Favorites", systemImage: "star") { model.addToFavorites(tab) }
-            }
-            Button(PageSpeech.shared.isSpeaking ? "Stop Listening" : "Listen to Page",
-                   systemImage: PageSpeech.shared.isSpeaking ? "stop.circle" : "speaker.wave.2", action: toggleListening)
-                .disabled(!PageSpeech.shared.isSpeaking && readableLength < Reader.minimumCharacters)
-
-            if homeControlsElsewhere {
-                Divider()
-                HomeMenuItems()
-            }
-        } label: {
-            if axis == .vertical { RailGlyph(symbol: "ellipsis") } else { RailIcon(symbol: "ellipsis") }
-        }
-        .buttonStyle(PressableStyle())
-        .accessibilityLabel("More")
-        .sheet(isPresented: $showingWebsiteSettings) { WebsiteSettingsSheet(host: settingsHost, isPrivate: model.isPrivate(tab)) }
-        .translationPresentation(isPresented: Binding(get: { translationText != nil },
-                                                        set: { if !$0 { translationText = nil } }),
-                                  text: translationText ?? "")
-    }
-
-    /// The host `PageSettings` and `PageZoom` key choices by; nil for a page with no address yet.
-    private var settingsHost: String? { page.url?.host() ?? tab.url?.host() }
-    private var desktopSite: Bool { PageSettings.settings(forHost: settingsHost, isPrivate: model.isPrivate(tab)).desktopSite }
-
-    /// The reload goes through `BoazNavigationDecider`, which picks the user agent and content mode.
-    private func toggleDesktopSite() {
-        PageSettings.update(forHost: settingsHost, isPrivate: model.isPrivate(tab)) { $0.desktopSite.toggle() }
-        _ = page.reload()
-    }
-
-    private func zoomText(_ change: PageZoom.Change) {
-        PageZoom.change(change, for: page, isPrivate: model.isPrivate(tab))
-    }
-
-    private func translate() {
-        Task {
-            guard let text = await VisibleText.extract(from: page) else {
-                model.showToast("Nothing to translate")
-                return
-            }
-            translationText = text
+    /// New Tab opens the search panel; pressed again, it puts it away. One panel at a time.
+    private func toggleSearch() {
+        withAnimation(BottomPanelStyle.motion) {
+            model.showsPageSettings = false
+            if model.searchTarget != nil { model.searchTarget = nil } else { model.beginSearch(.newTab) }
         }
     }
 
-    private func toggleListening() {
-        if PageSpeech.shared.isSpeaking {
-            PageSpeech.shared.stop()
-        } else {
-            Task {
-                guard let article = await Reader.extract(from: page) else { return }
-                PageSpeech.shared.speak(article)
-            }
+    private func togglePageSettings() {
+        withAnimation(BottomPanelStyle.motion) {
+            model.searchTarget = nil
+            model.showsPageSettings.toggle()
         }
     }
-
-    private func reloadOrStop() {
-        if page.isLoading { page.stopLoading() } else { _ = page.reload() }
-    }
-
-    private var backList: [WebPage.BackForwardList.Item] { page.backForwardList.backList }
-    private var forwardList: [WebPage.BackForwardList.Item] { page.backForwardList.forwardList }
 
     private var tabCount: Int {
+        if model.isIncognito { return model.incognitoTabs.count }
         guard let space = model.currentSpace else { return 0 }
         return model.todayTabs(in: space).count
     }
@@ -620,15 +479,51 @@ private struct SiteTile: View {
 }
 
 private struct BarButton: View {
-    @Environment(\.chromeTint) private var tint
     let symbol: String
+    var isSelected = false
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            Image(systemName: symbol).frame(width: 44, height: 44).glassEffect(.chrome(tint), in: .circle)
+        Button(action: action) { BarIcon(symbol: symbol, isSelected: isSelected) }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+/// Round glass icon for the bottom bar.
+private struct BarIcon: View {
+    @Environment(\.chromeTint) private var tint
+    let symbol: String
+    var isSelected = false
+
+    var body: some View {
+        Image(systemName: symbol)
+            .frame(width: 44, height: 44)
+            .railSelection(isSelected)
+            .glassEffect(.chrome(tint), in: .circle)
+    }
+}
+
+/// The page's top and bottom colors in the screen's safe areas above and below it, so the page seems to run under
+/// the status bar and home indicator. The status bar picks its own contrast from what's under it.
+private struct EdgeBands: View {
+    let edges: SiteEdges?
+    let insets: EdgeInsets
+
+    var body: some View {
+        ZStack {
+            if let edges {
+                VStack(spacing: 0) {
+                    Rectangle().fill(edges.top.color).frame(height: insets.top)
+                    Spacer(minLength: 0)
+                    Rectangle().fill(edges.bottom.color).frame(height: insets.bottom)
+                }
+                .transition(.opacity)
+            }
         }
-        .buttonStyle(.plain)
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 

@@ -20,7 +20,7 @@ struct DownloadsView: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(file.url.lastPathComponent).lineLimit(1).foregroundStyle(.primary)
                                     Text("\(sizeLabel(file.size)) · \(file.savedAt.formatted(date: .abbreviated, time: .shortened))")
-                                        .font(.caption).foregroundStyle(.secondary)
+                                        .font(.caption).foregroundStyle(Theme.textSecondary)
                                 }
                                 Spacer()
                             }

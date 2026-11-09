@@ -19,8 +19,9 @@ enum Theme {
     static let card = Color("Palette/CardBackground")
     static let cardStroke = Color("Palette/CardStroke")
 
-    /// Signature diagonal wash used behind search and onboarding.
-    static let hero = LinearGradient(colors: [peach, brand, indigo(12)],
+    /// Signature diagonal wash used behind search and onboarding. Ends in Indigo 12's light-mode navy in both
+    /// appearances: its dark-mode value is near white, which white text on the wash can't be read against.
+    static let hero = LinearGradient(colors: [peach, brand, Color(.sRGB, red: 16 / 255, green: 18 / 255, blue: 69 / 255)],
                                      startPoint: .topLeading, endPoint: .bottomTrailing)
 
     /// Glow used for loading and the fold crease.
