@@ -42,9 +42,9 @@ public final class BoazStore: Sendable {
 
     // MARK: Reads
 
-    /// Live snapshot of the whole sidebar; emits on every committed change.
+    /// Live snapshot of the whole sidebar; emits on every committed change that alters it.
     public func sidebarUpdates() -> AsyncValueObservation<Sidebar> {
-        ValueObservation.tracking(Sidebar.fetch).values(in: writer)
+        ValueObservation.tracking(Sidebar.fetch).removeDuplicates().values(in: writer)
     }
 
     public func sidebar() throws -> Sidebar {

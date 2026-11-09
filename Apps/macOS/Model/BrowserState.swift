@@ -60,6 +60,8 @@ final class BrowserState {
     @ObservationIgnored weak var window: NSWindow?
     @ObservationIgnored private var pages: [String: WebPage] = [:]
     @ObservationIgnored private var recency: [String] = []
+    /// Tabs whose title is cooling down after a save, and whether it changed again meanwhile (`didChangeTitle`).
+    @ObservationIgnored private var titleCooldowns: [String: Bool] = [:]
     @ObservationIgnored private var lastTabPerSpace: [String: String] = [:]
     @ObservationIgnored private let privateStore: WKWebsiteDataStore?
     @ObservationIgnored private var keyObserver: NSObjectProtocol?
@@ -256,6 +258,19 @@ final class BrowserState {
             return
         }
         model.didNavigate(tabID, url: url, title: title)
+    }
+
+    /// Pages that animate their title (unread counts, timers) would otherwise save, sync and refetch the whole
+    /// sidebar on every tick. A title change is saved at once, then at most every two seconds with the latest title.
+    func didChangeTitle(_ tabID: String) {
+        guard titleCooldowns[tabID] == nil else { titleCooldowns[tabID] = true; return }
+        guard let page = pages[tabID] else { return }
+        didNavigate(tabID, url: page.url, title: page.title)
+        titleCooldowns[tabID] = false
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            if self?.titleCooldowns.removeValue(forKey: tabID) == true { self?.didChangeTitle(tabID) }
+        }
     }
 
     /// Samples the tab's site color once its page has loaded; while it loads, uses the color last seen for the host.

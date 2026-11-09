@@ -58,6 +58,10 @@ final class AppModel {
     /// Runs once the current sheet has finished dismissing (a tab can't present while a sheet is leaving).
     @ObservationIgnored private var afterSheet: (() -> Void)?
     @ObservationIgnored private var historyLookup: Task<Void, Never>?
+    /// Tabs whose title is cooling down after a save, and whether it changed again meanwhile (`didChangeTitle`).
+    @ObservationIgnored private var titleCooldowns: [String: Bool] = [:]
+    /// The tab ids `pruneSnapshots` last saw.
+    @ObservationIgnored private var liveItemIDs: Set<String> = []
     private let maxLivePages = 8
     /// This iPhone, in the device list: Today shows only the tabs opened here (see `SidebarItem.deviceID`).
     let deviceID = Device.localID(in: UserDefaults(suiteName: BoazStore.appGroup) ?? .standard)
@@ -312,8 +316,13 @@ final class AppModel {
     }
 
     /// Forgets the previews of tabs that are gone: archived by the stale-tab sweep, or closed on another device.
+    /// Most updates only edit tabs that are still there, so nothing is checked until the set of tabs changes.
     private func pruneSnapshots() {
-        for id in snapshots.keys where !isLive(id) {
+        let ids = Set(sidebar.items.map(\.id))
+        guard ids != liveItemIDs else { return }
+        liveItemIDs = ids
+        let live = ids.union(incognitoTabs.map(\.id))
+        for id in snapshots.keys where !live.contains(id) {
             snapshots[id] = nil
             SnapshotCache.remove(id)
         }
@@ -397,6 +406,19 @@ final class AppModel {
         }
         if !isPrivate(item), let url, url.scheme?.hasPrefix("http") == true {
             try? store?.recordVisit(profileID: item.profileID, url: url, title: title.isEmpty ? newTitle : title)
+        }
+    }
+
+    /// Pages that animate their title (unread counts, timers) would otherwise save, sync and refetch the whole
+    /// sidebar on every tick. A title change is saved at once, then at most every two seconds with the latest title.
+    func didChangeTitle(_ tab: SidebarItem) {
+        guard titleCooldowns[tab.id] == nil else { titleCooldowns[tab.id] = true; return }
+        guard let page = pages[tab.id] else { return }
+        didNavigate(tab, url: page.url, title: page.title)
+        titleCooldowns[tab.id] = false
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            if titleCooldowns.removeValue(forKey: tab.id) == true { didChangeTitle(tab) }
         }
     }
 

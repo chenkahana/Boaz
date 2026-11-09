@@ -26,7 +26,7 @@ struct TabPane: View {
         }
         .task(id: ObjectIdentifier(page)) { await track(page) }
         .onChange(of: page.url) { browser.didNavigate(tab.id, url: page.url, title: page.title) }
-        .onChange(of: page.title) { browser.didNavigate(tab.id, url: page.url, title: page.title) }
+        .onChange(of: page.title) { browser.didChangeTitle(tab.id) }
         .onAppear { browser.updateSiteColor(tab.id, page: page) }
         .onChange(of: page.url) { browser.updateSiteColor(tab.id, page: page) }
         .onChange(of: page.isLoading) { browser.updateSiteColor(tab.id, page: page) }

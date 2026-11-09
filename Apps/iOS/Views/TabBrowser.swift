@@ -108,7 +108,7 @@ struct TabBrowser: View {
             .sensoryFeedback(.selection, trigger: model.backForwardHaptic)
             .sensoryFeedback(.impact(weight: .light), trigger: pullArmed) { old, new in new && !old }
             .onChange(of: page.url) { model.didNavigate(tab, url: page.url, title: page.title) }
-            .onChange(of: page.title) { model.didNavigate(tab, url: page.url, title: page.title) }
+            .onChange(of: page.title) { model.didChangeTitle(tab) }
             .onChange(of: page.url) { model.restoreSiteEdges(for: tab) }
             .task(id: tab.id) { await trackNavigations(of: page) }
             .sheet(item: $readerArticle) { article in ReaderView(article: article, tint: Theme.brand) }
