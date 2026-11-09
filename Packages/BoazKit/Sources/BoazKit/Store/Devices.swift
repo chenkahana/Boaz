@@ -16,9 +16,14 @@ extension Device {
 }
 
 extension BoazStore {
-    /// Records that this device is in use, under its current name.
+    /// Records that this device is in use, under its current name. Apps call this on every activation, so an
+    /// unchanged record seen within the last hour is left alone rather than synced again.
     public func registerDevice(id: String, name: String, platform: Device.Platform, at date: Date = .now) async throws {
         try await writer.write { db in
+            if let current = try Device.fetchOne(db, key: id), current.deletedAt == nil, current.name == name,
+               current.platform == platform, date.timeIntervalSince(current.lastSeenAt) < 60 * 60 {
+                return
+            }
             try Device(id: id, name: name, platform: platform, lastSeenAt: date, modifiedAt: date).save(db)
         }
     }

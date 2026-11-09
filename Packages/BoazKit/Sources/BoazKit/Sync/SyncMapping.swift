@@ -195,7 +195,7 @@ extension Space: SyncableRecord {
 
 extension SidebarItem: SyncableRecord {
     public static var syncType: SyncRecordType { .sidebarItem }
-    public static var mergeGroups: [[String]] { [["parentID", "spaceID", "profileID", "position"]] }
+    public static var mergeGroups: [[String]] { [["parentID", "spaceID", "profileID", "position", "deviceID"]] }
 
     public func write(to record: CKRecord) {
         record["spaceID"] = spaceID

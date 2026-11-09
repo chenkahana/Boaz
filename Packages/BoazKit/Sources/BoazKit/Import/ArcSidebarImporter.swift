@@ -130,6 +130,7 @@ public struct ArcSidebarImporter: Sendable {
                         position: Double(index), createdAt: createdAt,
                         lastActiveAt: Self.date(tab["timeLastActiveAt"])))
                     snapshot.tabCounts[section, default: 0] += 1
+                    if section == .unpinned { snapshot.todayTabIDs.insert(Self.boazID(childID)) }
                 } else if data["list"] != nil {
                     let folderID = Self.boazID(childID)
                     snapshot.items.append(SidebarItem(
@@ -210,12 +211,14 @@ public struct ArcSidebarImporter: Sendable {
 
     /// Merges `snapshot` (or Arc's data, parsed now) into `store` in one transaction.
     @discardableResult
-    public func importInto(_ store: BoazStore, snapshot: ArcSnapshot? = nil, now: Date = .now) throws -> ArcImportSummary {
+    /// `deviceID` is the importing device's: Arc's Today tabs join its Today, as tabs opened there do.
+    public func importInto(_ store: BoazStore, snapshot: ArcSnapshot? = nil, deviceID: String? = nil,
+                           now: Date = .now) throws -> ArcImportSummary {
         let snapshot = try snapshot ?? parse()
-        return try store.writer.write { db in try Self.merge(snapshot, into: db, now: now) }
+        return try store.writer.write { db in try Self.merge(snapshot, into: db, deviceID: deviceID, now: now) }
     }
 
-    static func merge(_ snapshot: ArcSnapshot, into db: Database, now: Date) throws -> ArcImportSummary {
+    static func merge(_ snapshot: ArcSnapshot, into db: Database, deviceID: String?, now: Date) throws -> ArcImportSummary {
         var summary = ArcImportSummary(snapshot)
 
         func upsert<R: FetchableRecord & PersistableRecord & Equatable & ArcMergeable>(_ record: R, existing: R?) throws {
@@ -236,7 +239,10 @@ public struct ArcSidebarImporter: Sendable {
 
         for profile in snapshot.profiles { try upsert(profile, existing: try Profile.fetchOne(db, key: profile.id)) }
         for space in snapshot.spaces { try upsert(space, existing: try Space.fetchOne(db, key: space.id)) }
-        for item in snapshot.items { try upsert(item, existing: try SidebarItem.fetchOne(db, key: item.id)) }
+        for var item in snapshot.items {
+            if snapshot.todayTabIDs.contains(item.id) { item.deviceID = deviceID }
+            try upsert(item, existing: try SidebarItem.fetchOne(db, key: item.id))
+        }
 
         // Tombstone Arc-derived rows of the imported profiles that Arc no longer has. Another machine's
         // favorites, present in this parse only as a losing candidate, are never stale here (see
@@ -412,8 +418,12 @@ extension Space: ArcMergeable {
 
 extension SidebarItem: ArcMergeable {
     /// An Arc item's creation date never changes; keeping the stored one also keeps re-import idempotent when
-    /// Arc's file has none (the parse then falls back to now).
-    mutating func adopt(_ existing: SidebarItem) { createdAt = existing.createdAt }
+    /// Arc's file has none (the parse then falls back to now). A Today tab stays with the device that first
+    /// imported it.
+    mutating func adopt(_ existing: SidebarItem) {
+        createdAt = existing.createdAt
+        if deviceID != nil { deviceID = existing.deviceID ?? deviceID }
+    }
 }
 
 /// Arc's profile reference: `{"default": true}` or `{"custom": {"_0": {"directoryBasename": "Profile 1", "machineID": …}}}`.
@@ -441,6 +451,8 @@ public struct ArcSnapshot: Sendable {
     /// imported (this Mac's own favorites container for that profile won instead). Excluded from the
     /// tombstone pass: this Mac never looked at that machine's own data, so it can't tell they're still live.
     var foreignFavoritesIDs: Set<String> = []
+    /// Boaz ids of the tabs in a space's Today (Arc's unpinned section), stamped with the importing device.
+    var todayTabIDs: Set<String> = []
     public var spaces: [Space] = []
     /// Containers, folders and tabs; children in Arc's order with positions 0, 1, 2, …
     public var items: [SidebarItem] = []
