@@ -48,10 +48,9 @@ struct TabBrowser: View {
             if model.pageOwners[tab.id] == hostID {
                 webView(page)
                     // Inset below the status bar (next line), the page has no top strip to cover: the band would
-                    // land on the page itself. The backdrop colors the status bar instead. Over the bottom bar the
-                    // page runs on down to the screen's edge, as in Safari.
-                    .overlay { EdgeBands(edges: edges, top: statusAcrossTop ? 0 : outerInsets.top,
-                                         bottom: hasRail ? outerInsets.bottom : 0) }
+                    // land on the page itself. The backdrop colors the status bar instead. At the bottom the page
+                    // runs on under the home indicator, as in Safari.
+                    .overlay { TopEdgeBand(edges: edges, height: statusAcrossTop ? 0 : outerInsets.top) }
                     // WebKit leaves the top safe area to the page while the web view touches the window's top edge,
                     // so the status cluster would sit on the page; one point of clearance makes it inset the page.
                     .padding(.top, statusAcrossTop ? 1 : 0)
@@ -508,22 +507,18 @@ private struct BarIcon: View {
     }
 }
 
-/// The page's top and bottom colors in the screen's safe areas above and below it, so the page seems to run under
-/// the status bar and home indicator. The status bar picks its own contrast from what's under it.
-private struct EdgeBands: View {
+/// The page's top color in the screen's top safe area, so the page seems to run under the status bar, which picks
+/// its own contrast from what's under it.
+private struct TopEdgeBand: View {
     let edges: SiteEdges?
-    let top: CGFloat
-    let bottom: CGFloat
+    let height: CGFloat
 
     var body: some View {
         ZStack {
             if let edges {
-                VStack(spacing: 0) {
-                    Rectangle().fill(edges.top.color).frame(height: top)
-                    Spacer(minLength: 0)
-                    Rectangle().fill(edges.bottom.color).frame(height: bottom)
-                }
-                .transition(.opacity)
+                Rectangle().fill(edges.top.color).frame(height: height)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .transition(.opacity)
             }
         }
         .ignoresSafeArea()
