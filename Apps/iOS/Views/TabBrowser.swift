@@ -26,7 +26,8 @@ struct TabBrowser: View {
     @State private var pullPeak: CGFloat = 0
     @State private var pullArmed = false
     @State private var reloading = false
-    private let pullThreshold: CGFloat = 70
+    /// Deep enough that the bounce off a flick to the top doesn't reload the page.
+    private let pullThreshold: CGFloat = 120
 
     @State private var readableLength = 0
     @State private var readerArticle: ReaderArticle?
