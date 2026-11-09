@@ -54,6 +54,10 @@ struct TabBrowser: View {
                     // WebKit leaves the top safe area to the page while the web view touches the window's top edge,
                     // so the status cluster would sit on the page; one point of clearance makes it inset the page.
                     .padding(.top, statusAcrossTop ? 1 : 0)
+                    // The page ends where the rail begins. A web view touching the rail's column runs on under it,
+                    // and pages sized in `vw` (which counts that hidden strip) lose their right-hand side; one point
+                    // of clearance keeps it out of the column too.
+                    .padding(.trailing, hasRail ? 1 : 0)
             } else {
                 // Shown for the moment another layout's browser still holds this page.
                 Color(.systemBackground)
@@ -373,7 +377,6 @@ private struct BrowserBar: View {
 
     /// The stack of Today tabs (opens the carousel); unfolded, the sidebar toggle takes its place, since the
     /// sidebar lists the tabs. Book and laptop poses list the tabs beside or below the page, so there's none.
-    /// Incognito keeps its own grid at home.
     @ViewBuilder private var tabsButton: some View {
         if let sidebar {
             if axis == .vertical {
@@ -383,17 +386,7 @@ private struct BrowserBar: View {
                     .accessibilityLabel(sidebar.isCollapsed ? "Show Sidebar" : "Hide Sidebar")
             }
         } else if !homeControlsElsewhere {
-            if model.isIncognito {
-                Button { model.goHome() } label: {
-                    Group {
-                        if axis == .vertical { RailGlyph(symbol: "square.grid.2x2") } else { BarIcon(symbol: "square.grid.2x2") }
-                    }
-                    .overlay(alignment: .topTrailing) { RailBadge(count: tabCount) }
-                }
-                .buttonStyle(PressableStyle())
-                .accessibilityLabel("Tabs")
-                .accessibilityValue("\(tabCount) open")
-            } else if axis == .vertical {
+            if axis == .vertical {
                 TabStack(space: model.currentSpace, cardSize: CGSize(width: 26, height: 36)).padding(.vertical, 4)
             } else {
                 TabStack(space: model.currentSpace, cardSize: CGSize(width: 22, height: 30))

@@ -35,9 +35,8 @@ struct RootView: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.toast)
         .animation(BottomPanelStyle.motion, value: model.searchTarget)
         .sensoryFeedback(.impact(weight: .medium), trigger: model.toast) { _, new in new?.canUndo == true }
-        // While the folded layout's page cover or a sheet is up, the alert has to come from there instead.
-        .modifier(ShakeToUndo(isEnabled: model.sheet == nil && !model.showOnboarding
-                                         && (isUnfolded || model.activeTabID == nil)))
+        // While a sheet is up, the alert has to come from there instead.
+        .modifier(ShakeToUndo(isEnabled: model.sheet == nil && !model.showOnboarding))
         .onGeometryChange(for: Bool.self, of: { !$0.reservedRegions(kind: .division, options: .includeInactive).isEmpty }) {
             hasFold = $0
         }
@@ -49,7 +48,6 @@ struct RootView: View {
         }
         .tidyAISheets()
         .fullScreenCover(isPresented: $model.showOnboarding) { OnboardingView() }
-        .spaceEditorPresenter()
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 model.reloadSidebar()
@@ -222,46 +220,30 @@ private struct UnfoldedShell: View {
     }
 }
 
-/// Folded (cover screen): home underneath; the active tab zooms out of its card full screen. The tab carousel of
-/// Today tabs opens over whichever is showing, and moves to the home screen if its last open page is archived.
+/// Folded (cover screen): always a page, never a home screen (spaces are a desktop idea). With no tab open, an
+/// empty page and its search. The tab carousel opens over the page.
 private struct CompactShell: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Namespace private var zoom
 
     var body: some View {
-        SpaceHome(zoom: zoom)
-            .overlay { carousel(zoom: zoom, isShown: model.showsCoverFlow && model.activeTabID == nil) }
-            .fullScreenCover(isPresented: Binding(get: { model.activeTabID != nil },
-                                                  set: { if !$0 { model.goHome() } })) {
-                // One view for every tab, so the overlays (the carousel closing into the tab it opened) aren't
-                // rebuilt when the tab changes.
-                ZStack {
-                    if let tab = model.activeTab {
-                        TabBrowser(tab: tab).environment(\.isPrivateBrowsing, model.isPrivate(tab))
-                    }
-                }
-                .navigationTransition(.zoom(sourceID: model.activeTabID ?? "", in: zoom))
-                .overlay { carousel(zoom: nil, isShown: model.showsCoverFlow) }
-                .overlay {
-                    if model.searchTarget != nil { SearchPanel() }
-                }
-                .overlay(alignment: .top) {
-                    if let toast = model.toast { ToastView(toast: toast).padding(.top, model.showsCoverFlow ? 64 : 8) }
-                }
-                .animation(BottomPanelStyle.motion, value: model.searchTarget)
-                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.toast)
-                .modifier(ShakeToUndo(isEnabled: true))
-            }
-    }
-
-    /// The animation stays on the carousel: a tab opened from it changes the page underneath without sliding.
-    private func carousel(zoom: Namespace.ID?, isShown: Bool) -> some View {
         ZStack {
-            // It animates itself in and out; this fade covers being closed from outside (unfolding, Home).
-            if isShown { TabCarousel(zoom: zoom).transition(.asymmetric(insertion: .identity, removal: .opacity)) }
+            if let tab = model.activeTab {
+                TabBrowser(tab: tab).environment(\.isPrivateBrowsing, model.isPrivate(tab))
+            } else {
+                EmptyBrowser().toolRail { axis in HomeBar(axis: axis) }
+            }
         }
-        .animation(carouselMotion, value: isShown)
+        // The animation stays on the carousel: a tab opened from it changes the page underneath without sliding.
+        .overlay {
+            ZStack {
+                // It animates itself in and out; this fade covers being closed from outside (unfolding).
+                if model.showsCoverFlow {
+                    TabCarousel().transition(.asymmetric(insertion: .identity, removal: .opacity))
+                }
+            }
+            .animation(carouselMotion, value: model.showsCoverFlow)
+        }
     }
 
     private var carouselMotion: Animation {
@@ -369,7 +351,7 @@ private struct FoldGlow: View {
     }
 }
 
-/// The unfolded browser pane with no tab open: a quiet wash of the space's color and a way to open one.
+/// The browser with no tab open: a quiet wash of color and a way to open one.
 private struct EmptyBrowser: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var scheme
@@ -381,7 +363,7 @@ private struct EmptyBrowser: View {
                 .font(.system(size: 44, weight: .light))
                 .foregroundStyle(style.tint.gradient)
             Text("No tab open").font(.system(.title2, design: .rounded, weight: .bold))
-            Text("Pick a tab in the sidebar, or open a new one.")
+            Text("Search or enter an address to open one.")
                 .font(.callout).foregroundStyle(Theme.textSecondary)
             Button("New Tab", systemImage: "plus") { model.beginSearch(.newTab) }
                 .buttonStyle(.glass)

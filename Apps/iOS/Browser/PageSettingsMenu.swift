@@ -7,7 +7,6 @@ import WebKit
 struct PageSettingsPanel: View {
     @Environment(AppModel.self) private var model
     @Environment(ToolRailState.self) private var rail: ToolRailState?
-    @Environment(\.homeControlsElsewhere) private var homeControlsElsewhere
     @Environment(\.chromeTint) private var tint
     let tab: SidebarItem
     let page: WebPage
@@ -46,10 +45,8 @@ struct PageSettingsPanel: View {
                         }
                     }
                     group { tabActions }
-                    if homeControlsElsewhere {
-                        group { HomeMenuItems() }
-                            .simultaneousGesture(TapGesture().onEnded(close))
-                    }
+                    group { HomeMenuItems() }
+                        .simultaneousGesture(TapGesture().onEnded(close))
                 }
                 .padding(.horizontal, 12)
                 .padding(.bottom, 12)

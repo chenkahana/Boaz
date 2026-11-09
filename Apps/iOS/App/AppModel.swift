@@ -22,7 +22,15 @@ final class AppModel {
             UserDefaults(suiteName: BoazStore.appGroup)?.set(currentSpaceID, forKey: "currentSpaceID")
         }
     }
-    var activeTabID: String?
+    /// The page on screen. Remembered across launches: the app opens on it again (mobile has no home screen).
+    var activeTabID: String? {
+        didSet {
+            guard activeTabID != oldValue, let activeTabID, !incognitoTabs.contains(where: { $0.id == activeTabID })
+            else { return }
+            UserDefaults.standard.set(activeTabID, forKey: Self.lastTabKey)
+        }
+    }
+    private static let lastTabKey = "lastTabID"
     var searchTarget: SearchTarget? { didSet { if searchTarget == nil { remoteSuggestions.clear() } } }
     var searchText = "" { didSet { refreshHistorySuggestions(); refreshRemoteSuggestions() } }
     var historySuggestions: [HistoryVisit] = []
@@ -100,6 +108,7 @@ final class AppModel {
                 // Also how the stale-tab sweep's archived tabs lose their previews: the sweep lands as an update.
                 pruneSnapshots()
                 if currentSpace == nil { currentSpaceID = snapshot.spaces.first?.id }
+                if sidebarGeneration == 1 { reopenLastTab() }
             }
         } catch {
             Self.log.error("Opening the library failed: \(String(describing: error))")
@@ -427,10 +436,15 @@ final class AppModel {
         activeTabID = tab.id
     }
 
-    func goHome() {
-        if let tab = activeTab, let page = pages[tab.id] { captureSnapshot(of: page, tab: tab) }
-        showsPageSettings = false
-        activeTabID = nil
+    /// The page open when the app last closed, else the most recently used of this iPhone's tabs.
+    private func reopenLastTab() {
+        guard activeTabID == nil else { return }
+        let open = sidebar.items.filter { $0.kind == .tab && $0.deletedAt == nil }
+        if let id = UserDefaults.standard.string(forKey: Self.lastTabKey), open.contains(where: { $0.id == id }) {
+            activeTabID = id
+        } else if let space = currentSpace {
+            activeTabID = todayTabs(in: space).max { ($0.lastActiveAt ?? .distantPast) < ($1.lastActiveAt ?? .distantPast) }?.id
+        }
     }
 
     func openCoverFlow() {
@@ -550,7 +564,10 @@ final class AppModel {
             incognitoTabs = []
             PageSettings.forgetPrivateChoices()
             PageZoom.forgetPrivateLevels()
-            if let id = activeTabID, sidebar.items.first(where: { $0.id == id }) == nil { activeTabID = nil }
+            if let id = activeTabID, sidebar.items.first(where: { $0.id == id }) == nil {
+                activeTabID = nil
+                reopenLastTab()
+            }
         }
         isIncognito = on
         showToast(on ? "Incognito on" : "Incognito off — private tabs closed")
