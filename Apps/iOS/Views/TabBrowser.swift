@@ -311,17 +311,23 @@ private struct BrowserBar: View {
                 RailButton(symbol: page.isLoading ? "xmark" : "arrow.clockwise",
                            label: page.isLoading ? "Stop" : "Reload") { reloadOrStop() }
             } bottom: {
+                // Folded: the stack of Today tabs leads the dock. Incognito keeps its own grid at home.
+                if sidebar == nil, !homeControlsElsewhere {
+                    if model.isIncognito {
+                        Button { model.goHome() } label: {
+                            RailGlyph(symbol: "square.grid.2x2").overlay(alignment: .topTrailing) { RailBadge(count: tabCount) }
+                        }
+                        .buttonStyle(PressableStyle())
+                        .accessibilityLabel("Tabs")
+                        .accessibilityValue("\(tabCount) open")
+                    } else {
+                        TabStack(cardSize: CGSize(width: 26, height: 36)).padding(.vertical, 4)
+                    }
+                }
                 RailButton(symbol: "plus", label: "New Tab") { model.beginSearch(.newTab) }
                 if let sidebar {
                     SidebarRailButton(sidebar: sidebar)
-                } else if !homeControlsElsewhere {
-                    Button { model.goHome() } label: {
-                        RailGlyph(symbol: "square.grid.2x2").overlay(alignment: .topTrailing) { RailBadge(count: tabCount) }
-                    }
-                    .buttonStyle(PressableStyle())
-                    .accessibilityLabel("Tabs")
-                    .accessibilityValue("\(tabCount) open")
-                } else {
+                } else if homeControlsElsewhere {
                     forwardButton
                 }
                 menu

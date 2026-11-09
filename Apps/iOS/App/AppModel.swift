@@ -32,8 +32,10 @@ final class AppModel {
     var hinge: DeviceHinge?
     var isIncognito = false
     private(set) var incognitoTabs: [SidebarItem] = []
-    /// Last rendered image of each tab, shown on its Today card. Memory only.
+    /// Last rendered image of each tab, shown on its card. Saved in Caches (`SnapshotCache`), except private tabs'.
     var snapshots: [String: UIImage] = [:]
+    /// The folded layout's cover flow of Today tabs, over the page or the home screen.
+    var showsCoverFlow = false
     /// Each tab's site color, which the browser chrome takes on. Private tabs are never sampled.
     private(set) var siteColors: [String: SiteColor] = [:]
     /// Bumped on every edge-swipe back/forward commit; `TabBrowser` fires a haptic off it.
@@ -81,6 +83,7 @@ final class AppModel {
             }
             try StarterLibrary.seedIfEmpty(store)
             showOnboarding = showOnboarding || Onboarding.shouldShow(store)
+            Task { await restoreSnapshots(from: store) }
             Task { await sync.start() }
             archiveStaleTabs()
             registerDevice()
@@ -139,6 +142,13 @@ final class AppModel {
                 showToast("Couldn't archive inactive tabs.")
             }
         }
+    }
+
+    /// Brings back the previews saved before the last quit, and forgets those of tabs that are gone.
+    private func restoreSnapshots(from store: BoazStore) async {
+        guard let ids = try? await store.loadSidebar().items.map(\.id) else { return }
+        let saved = await SnapshotCache.load(keeping: Set(ids))
+        snapshots.merge(saved) { live, _ in live }
     }
 
     /// Refreshes this iPhone's name and last-seen time for the user's other devices.
@@ -214,11 +224,7 @@ final class AppModel {
         guard let page = pages[tab.id] else { return }
         updateSiteColor(for: tab)
         let tabIsPrivate = isPrivate(tab)
-        Task { [weak self] in
-            guard let data = try? await page.exported(as: .image(snapshotWidth: 400)),
-                  let image = UIImage(data: data) else { return }
-            self?.snapshots[tab.id] = image
-        }
+        captureSnapshot(of: page, tab: tab)
         Task {
             guard let pageURL = page.url,
                   let href = try? await page.callJavaScript(Favicons.discoveryScript, contentWorld: .defaultClient) as? String,
@@ -240,12 +246,14 @@ final class AppModel {
         }
     }
 
-    /// Downscaled render of a tab's current page, kept only in memory and dropped when the tab closes.
-    private func captureSnapshot(of page: WebPage, tabID: String) {
+    /// Downscaled render of a tab's current page, dropped when the tab closes.
+    private func captureSnapshot(of page: WebPage, tab: SidebarItem) {
+        let persist = !isPrivate(tab)
         Task { [weak self] in
             guard let data = try? await page.exported(as: .image(snapshotWidth: 400)),
                   let image = UIImage(data: data) else { return }
-            self?.snapshots[tabID] = image
+            self?.snapshots[tab.id] = image
+            if persist { SnapshotCache.save(data, for: tab.id) }
         }
     }
 
@@ -289,6 +297,7 @@ final class AppModel {
         pages[tabID] = nil
         pageRecency.removeAll { $0 == tabID }
         snapshots[tabID] = nil
+        SnapshotCache.remove(tabID)
         if isPrivate(tab) {
             incognitoTabs.removeAll { $0.id == tabID }
         } else {
@@ -368,7 +377,7 @@ final class AppModel {
         guard tab.kind == .tab else { return }
         searchTarget = nil
         if let previous = activeTab, previous.id != tab.id, let page = pages[previous.id] {
-            captureSnapshot(of: page, tabID: previous.id)
+            captureSnapshot(of: page, tab: previous)
         }
         var item = tab
         item.lastActiveAt = .now
@@ -379,8 +388,14 @@ final class AppModel {
     }
 
     func goHome() {
-        if let tab = activeTab, let page = pages[tab.id] { captureSnapshot(of: page, tabID: tab.id) }
+        if let tab = activeTab, let page = pages[tab.id] { captureSnapshot(of: page, tab: tab) }
         activeTabID = nil
+    }
+
+    func openCoverFlow() {
+        // The page's card should show it as it is now, not as it first loaded.
+        if let tab = activeTab, let page = pages[tab.id] { captureSnapshot(of: page, tab: tab) }
+        showsCoverFlow = true
     }
 
     /// Closing sends a tab to the archive (like Arc); undo brings it back and removes the archive entry.
@@ -389,6 +404,7 @@ final class AppModel {
         pages[tab.id] = nil
         pageRecency.removeAll { $0 == tab.id }
         snapshots[tab.id] = nil
+        SnapshotCache.remove(tab.id)
         if isPrivate(tab) {
             incognitoTabs.removeAll { $0.id == tab.id }
             return

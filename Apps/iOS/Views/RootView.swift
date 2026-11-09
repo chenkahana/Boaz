@@ -193,19 +193,29 @@ private struct UnfoldedShell: View {
     }
 }
 
-/// Folded (cover screen): home underneath; the active tab zooms out of its card full screen.
+/// Folded (cover screen): home underneath; the active tab zooms out of its card full screen. The cover flow of
+/// Today tabs opens over whichever is showing, and moves to the home screen if its last open page is archived.
 private struct CompactShell: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var zoom
 
     var body: some View {
         SpaceHome(zoom: zoom)
+            .overlay {
+                if model.showsCoverFlow, model.activeTabID == nil { CoverFlow(zoom: zoom).transition(coverFlowTransition) }
+            }
+            .animation(coverFlowMotion, value: model.showsCoverFlow)
             .fullScreenCover(isPresented: Binding(get: { model.activeTabID != nil },
                                                   set: { if !$0 { model.goHome() } })) {
                 if let tab = model.activeTab {
                     TabBrowser(tab: tab)
                         .environment(\.isPrivateBrowsing, model.isPrivate(tab))
                         .navigationTransition(.zoom(sourceID: tab.id, in: zoom))
+                        .overlay {
+                            if model.showsCoverFlow { CoverFlow().transition(coverFlowTransition) }
+                        }
+                        .animation(coverFlowMotion, value: model.showsCoverFlow)
                         .overlay {
                             if model.searchTarget != nil { SearchOverlay() }
                         }
@@ -218,6 +228,12 @@ private struct CompactShell: View {
                 }
             }
     }
+
+    private var coverFlowTransition: AnyTransition {
+        reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 1.06))
+    }
+
+    private var coverFlowMotion: Animation { reduceMotion ? .easeInOut(duration: 0.2) : .snappy(duration: 0.32) }
 }
 
 /// Shake to undo, as the system does it: only with the Shake to Undo setting on, only with a tab to bring back,
