@@ -33,21 +33,50 @@ enum PagePrint {
     }
 }
 
-/// Reads the Reader-extracted text aloud; one utterance at a time, shared across tabs.
-final class PageSpeech {
+/// Reads the Reader-extracted text aloud; one utterance at a time, shared across tabs. Observable, so the
+/// menu's Listen to Page / Stop Listening follows the speech as it starts and ends.
+@MainActor @Observable
+final class PageSpeech: NSObject, AVSpeechSynthesizerDelegate {
     static let shared = PageSpeech()
-    private let synthesizer = AVSpeechSynthesizer()
+    @ObservationIgnored private let synthesizer = AVSpeechSynthesizer()
+    /// The utterance being read; a cancelled one finishing late mustn't clear its successor.
+    @ObservationIgnored private var current: ObjectIdentifier?
+    private(set) var isSpeaking = false
 
-    private init() {}
-
-    var isSpeaking: Bool { synthesizer.isSpeaking }
+    private override init() {
+        super.init()
+        synthesizer.delegate = self
+    }
 
     func speak(_ article: ReaderArticle) {
         synthesizer.stopSpeaking(at: .immediate)
         let text = article.blocks.compactMap(\.text).joined(separator: ". ")
-        guard !text.isEmpty else { return }
-        synthesizer.speak(AVSpeechUtterance(string: text))
+        guard !text.isEmpty else { return stop() }
+        let utterance = AVSpeechUtterance(string: text)
+        current = ObjectIdentifier(utterance)
+        isSpeaking = true
+        synthesizer.speak(utterance)
     }
 
-    func stop() { synthesizer.stopSpeaking(at: .immediate) }
+    func stop() {
+        current = nil
+        isSpeaking = false
+        synthesizer.stopSpeaking(at: .immediate)
+    }
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        let id = ObjectIdentifier(utterance)
+        Task { @MainActor in self.ended(id) }
+    }
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        let id = ObjectIdentifier(utterance)
+        Task { @MainActor in self.ended(id) }
+    }
+
+    private func ended(_ id: ObjectIdentifier) {
+        guard id == current else { return }
+        current = nil
+        isSpeaking = false
+    }
 }

@@ -1,18 +1,16 @@
-import BoazKit
 import SwiftUI
 
 /// The ellipsis menu's "Website Settings": permissions, pop-ups and content blocking for the current host.
 struct WebsiteSettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(AppModel.self) private var model
-    let tab: SidebarItem
     let host: String?
+    let isPrivate: Bool
     @State private var settings: PageSettings.HostSettings
 
-    init(tab: SidebarItem, host: String?) {
-        self.tab = tab
+    init(host: String?, isPrivate: Bool) {
         self.host = host
-        _settings = State(initialValue: PageSettings.settings(forHost: host))
+        self.isPrivate = isPrivate
+        _settings = State(initialValue: PageSettings.settings(forHost: host, isPrivate: isPrivate))
     }
 
     var body: some View {
@@ -44,7 +42,7 @@ struct WebsiteSettingsSheet: View {
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button(role: .close) { dismiss() } } }
         }
         .onChange(of: settings) { _, new in
-            PageSettings.update(forHost: host, remember: !model.isPrivate(tab)) { $0 = new }
+            PageSettings.update(forHost: host, isPrivate: isPrivate) { $0 = new }
         }
     }
 }

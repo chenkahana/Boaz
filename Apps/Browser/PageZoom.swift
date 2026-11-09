@@ -10,17 +10,17 @@ enum PageZoom {
     /// Safari's steps.
     private static let levels: [Double] = [0.5, 0.75, 0.85, 1, 1.15, 1.25, 1.5, 1.75, 2, 2.5, 3]
     private static let defaultsKey = "pageZoomByHost"
-    /// Levels set in private windows: applied to the page, never written to disk.
+    /// Levels set in private windows and tabs: applied to private pages only, never written to disk.
     private static var unsaved: [String: Double] = [:]
 
-    static func level(for url: URL?) -> Double {
+    static func level(for url: URL?, isPrivate: Bool) -> Double {
         guard let host = url?.host() else { return 1 }
-        if let level = unsaved[host] { return level }
+        if isPrivate, let level = unsaved[host] { return level }
         return (UserDefaults.standard.dictionary(forKey: defaultsKey)?[host] as? Double) ?? 1
     }
 
-    static func change(_ change: Change, for page: WebPage, remember: Bool) {
-        let current = level(for: page.url)
+    static func change(_ change: Change, for page: WebPage, isPrivate: Bool) {
+        let current = level(for: page.url, isPrivate: isPrivate)
         let index = levels.firstIndex { $0 >= current } ?? levels.count - 1
         let next = switch change {
         case .in: levels[min(index + (levels[index] > current ? 0 : 1), levels.count - 1)]
@@ -28,22 +28,25 @@ enum PageZoom {
         case .reset: 1.0
         }
         if let host = page.url?.host() {
-            if remember {
+            if isPrivate {
+                unsaved[host] = next
+            } else {
                 var saved = UserDefaults.standard.dictionary(forKey: defaultsKey) ?? [:]
                 saved[host] = next == 1 ? nil : next
                 UserDefaults.standard.set(saved, forKey: defaultsKey)
-            } else {
-                unsaved[host] = next
             }
         }
-        apply(to: page)
+        apply(to: page, isPrivate: isPrivate)
     }
 
-    static func apply(to page: WebPage) {
-        let level = level(for: page.url)
+    static func apply(to page: WebPage, isPrivate: Bool) {
+        let level = level(for: page.url, isPrivate: isPrivate)
         Task {
             _ = try? await page.callJavaScript("document.documentElement.style.zoom = z === 1 ? '' : String(z);",
                                                 arguments: ["z": level])
         }
     }
+
+    /// Called when private browsing ends (iPhone: leaving Incognito).
+    static func forgetPrivateLevels() { unsaved = [:] }
 }

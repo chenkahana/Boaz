@@ -194,29 +194,34 @@ final class AppModel {
         pageRecency.removeAll { $0 == tab.id }
         pageRecency.append(tab.id)
         if let page = pages[tab.id] { return page }
+        let tabIsPrivate = isPrivate(tab)
         var configuration = WebPage.Configuration()
-        if isPrivate(tab) { configuration.websiteDataStore = .nonPersistent() }
-        if Preferences.blockTrackers, PageSettings.settings(for: tab.url).contentBlocking {
+        if tabIsPrivate { configuration.websiteDataStore = .nonPersistent() }
+        if Preferences.blockTrackers, PageSettings.settings(for: tab.url, isPrivate: tabIsPrivate).contentBlocking {
             contentBlockLists.forEach(configuration.userContentController.add)
         }
         if Preferences.hideCookieBanners {
             configuration.userContentController.addUserScript(CookieBanners.userScript())
         }
         // Website Settings' camera/microphone pickers, per host; re-read on every request, so a change
-        // made while the tab is open takes effect on the site's next request, not just its next open.
-        configuration.deviceSensorAuthorization = .init { permission, frame, _ in
+        // made while the tab is open takes effect on the site's next request, not just its next open. Keyed by
+        // the page's host, as the sheet is: an embedded frame doesn't get its own say.
+        configuration.deviceSensorAuthorization = .init { [weak self] permission, _, _ in
             guard case .mediaCapture(let type) = permission else { return .prompt }
-            return PageSettings.mediaCaptureDecision(type, host: frame.request.url?.host())
+            let host = self?.pages[tab.id]?.url?.host() ?? tab.url?.host()
+            return PageSettings.mediaCaptureDecision(type, host: host, isPrivate: tabIsPrivate)
         }
         let dataStore = configuration.websiteDataStore
         let decider = BoazNavigationDecider(
+            isPrivate: tabIsPrivate,
+            page: { [weak self] in self?.pages[tab.id] },
             onBackForward: { [weak self] in self?.backForwardHaptic += 1 },
             onDownload: { [weak self] response in
                 self?.discardIfDownloadOnly(tab.id)
                 self?.handleDownload(response, dataStore: dataStore)
             })
         let page = WebPage(configuration: configuration, navigationDecider: decider)
-        PageSettings.applyDesktopSite(to: page)
+        page.customUserAgent = PageSettings.userAgent(forHost: tab.url?.host(), isPrivate: tabIsPrivate)
         if let url = tab.url { page.load(URLRequest(url: url)) }
         pages[tab.id] = page
         while pageRecency.count > maxLivePages {
@@ -511,6 +516,8 @@ final class AppModel {
             for tab in incognitoTabs { pages[tab.id] = nil }
             pageRecency.removeAll { id in incognitoTabs.contains { $0.id == id } }
             incognitoTabs = []
+            PageSettings.forgetPrivateChoices()
+            PageZoom.forgetPrivateLevels()
             if let id = activeTabID, sidebar.items.first(where: { $0.id == id }) == nil { activeTabID = nil }
         }
         isIncognito = on

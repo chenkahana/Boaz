@@ -2,8 +2,8 @@ import Foundation
 import WebKit
 
 /// Per-host choices from the page settings menu: desktop/mobile site and the Website Settings sheet's
-/// permissions, pop-ups and content blocking. Remembered like `PageZoom`; Incognito tabs apply the same
-/// choice to the live page but never write it to disk.
+/// permissions, pop-ups and content blocking. Remembered like `PageZoom`; Incognito tabs keep their own
+/// choices in memory until Incognito ends.
 enum PageSettings {
     enum Permission: String, Codable, CaseIterable, Identifiable {
         case ask, allow, deny
@@ -27,8 +27,22 @@ enum PageSettings {
         var desktopSite = false
         var camera: Permission = .ask
         var microphone: Permission = .ask
-        var popups: PopupPolicy = .block
+        /// Allowed by default: a blocked pop-up is often a sign-in window the site can't work without.
+        var popups: PopupPolicy = .allow
         var contentBlocking = true
+
+        init() {}
+
+        /// Every field is optional on disk, so a setting added later never wipes the ones already saved.
+        init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let defaults = HostSettings()
+            desktopSite = try container.decodeIfPresent(Bool.self, forKey: .desktopSite) ?? defaults.desktopSite
+            camera = try container.decodeIfPresent(Permission.self, forKey: .camera) ?? defaults.camera
+            microphone = try container.decodeIfPresent(Permission.self, forKey: .microphone) ?? defaults.microphone
+            popups = try container.decodeIfPresent(PopupPolicy.self, forKey: .popups) ?? defaults.popups
+            contentBlocking = try container.decodeIfPresent(Bool.self, forKey: .contentBlocking) ?? defaults.contentBlocking
+        }
     }
 
     /// Matches Mac Safari. `applicationNameForUserAgent` only yields a desktop-shaped user agent when
@@ -36,35 +50,39 @@ enum PageSettings {
     static let desktopUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.4 Safari/605.1.15"
 
     private static let defaultsKey = "pageSettingsByHost"
-    /// Set in Incognito: applied to the page, never written to disk.
+    /// Choices made in Incognito: applied to private tabs only, never written to disk, and forgotten when
+    /// Incognito ends. Private tabs fall back to the saved choices; normal tabs never see these.
     private static var unsaved: [String: HostSettings] = [:]
 
-    static func settings(forHost host: String?) -> HostSettings {
+    static func settings(forHost host: String?, isPrivate: Bool) -> HostSettings {
         guard let host else { return HostSettings() }
-        if let value = unsaved[host] { return value }
+        if isPrivate, let value = unsaved[host] { return value }
         return saved()[host] ?? HostSettings()
     }
 
-    static func settings(for url: URL?) -> HostSettings { settings(forHost: url?.host()) }
+    static func settings(for url: URL?, isPrivate: Bool) -> HostSettings {
+        settings(forHost: url?.host(), isPrivate: isPrivate)
+    }
 
-    static func update(forHost host: String?, remember: Bool, _ change: (inout HostSettings) -> Void) {
+    static func update(forHost host: String?, isPrivate: Bool, _ change: (inout HostSettings) -> Void) {
         guard let host else { return }
-        var value = settings(forHost: host)
+        var value = settings(forHost: host, isPrivate: isPrivate)
         change(&value)
-        if remember {
+        if isPrivate {
+            unsaved[host] = value
+        } else {
             var all = saved()
             all[host] = value
             save(all)
-            unsaved[host] = nil
-        } else {
-            unsaved[host] = value
         }
     }
 
-    /// Applies this host's desktop/mobile choice to a live page: the user agent takes effect at once;
-    /// `preferredContentMode` is set per navigation by `BoazNavigationDecider`.
-    static func applyDesktopSite(to page: WebPage) {
-        page.customUserAgent = settings(for: page.url).desktopSite ? desktopUserAgent : nil
+    /// Called when Incognito ends.
+    static func forgetPrivateChoices() { unsaved = [:] }
+
+    /// The user agent for a main-frame load of `host`: Mac Safari's for a desktop-site host, otherwise WebKit's own.
+    static func userAgent(forHost host: String?, isPrivate: Bool) -> String? {
+        settings(forHost: host, isPrivate: isPrivate).desktopSite ? desktopUserAgent : nil
     }
 
     /// Combines camera + microphone for `WKMediaCaptureType.cameraAndMicrophone`: denies if either is
@@ -77,8 +95,8 @@ enum PageSettings {
 
     /// The `WebPage.Configuration.deviceSensorAuthorization` decision for a camera/microphone request.
     /// WebPage has no such hook for geolocation, so there is no per-site Location setting.
-    static func mediaCaptureDecision(_ type: WKMediaCaptureType, host: String?) -> WKPermissionDecision {
-        let settings = settings(forHost: host)
+    static func mediaCaptureDecision(_ type: WKMediaCaptureType, host: String?, isPrivate: Bool) -> WKPermissionDecision {
+        let settings = settings(forHost: host, isPrivate: isPrivate)
         let permission: Permission = switch type {
         case .camera: settings.camera
         case .microphone: settings.microphone

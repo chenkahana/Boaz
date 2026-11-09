@@ -220,6 +220,12 @@ struct TabBrowser: View {
         }
     }
 
+    /// Text Size is CSS on the document, so each new document needs it again.
+    private func applyTextSize(to page: WebPage) {
+        let isPrivate = model.isPrivate(tab)
+        if PageZoom.level(for: page.url, isPrivate: isPrivate) != 1 { PageZoom.apply(to: page, isPrivate: isPrivate) }
+    }
+
     /// The single subscriber to this page's `navigations` (the async sequence supports only one
     /// consumer): on every finished load it tells the model to snapshot the tab and refreshes the
     /// cheap text-length probe used to enable/disable the Reader button. A failed load is shown.
@@ -229,9 +235,13 @@ struct TabBrowser: View {
             do {
                 for try await event in page.navigations {
                     switch event {
-                    case .startedProvisionalNavigation, .committed:
+                    case .startedProvisionalNavigation:
                         loadFailure = nil
+                    case .committed:
+                        loadFailure = nil
+                        applyTextSize(to: page)
                     case .finished:
+                        applyTextSize(to: page)
                         model.pageDidFinishLoading(tab)
                         readableLength = await Reader.estimatedReadableLength(of: page)
                     default:
@@ -529,7 +539,7 @@ private struct BrowserBar: View {
         }
         .buttonStyle(PressableStyle())
         .accessibilityLabel("More")
-        .sheet(isPresented: $showingWebsiteSettings) { WebsiteSettingsSheet(tab: tab, host: settingsHost) }
+        .sheet(isPresented: $showingWebsiteSettings) { WebsiteSettingsSheet(host: settingsHost, isPrivate: model.isPrivate(tab)) }
         .translationPresentation(isPresented: Binding(get: { translationText != nil },
                                                         set: { if !$0 { translationText = nil } }),
                                   text: translationText ?? "")
@@ -537,16 +547,16 @@ private struct BrowserBar: View {
 
     /// The host `PageSettings` and `PageZoom` key choices by; nil for a page with no address yet.
     private var settingsHost: String? { page.url?.host() ?? tab.url?.host() }
-    private var desktopSite: Bool { PageSettings.settings(forHost: settingsHost).desktopSite }
+    private var desktopSite: Bool { PageSettings.settings(forHost: settingsHost, isPrivate: model.isPrivate(tab)).desktopSite }
 
+    /// The reload goes through `BoazNavigationDecider`, which picks the user agent and content mode.
     private func toggleDesktopSite() {
-        PageSettings.update(forHost: settingsHost, remember: !model.isPrivate(tab)) { $0.desktopSite.toggle() }
-        PageSettings.applyDesktopSite(to: page)
+        PageSettings.update(forHost: settingsHost, isPrivate: model.isPrivate(tab)) { $0.desktopSite.toggle() }
         _ = page.reload()
     }
 
     private func zoomText(_ change: PageZoom.Change) {
-        PageZoom.change(change, for: page, remember: !model.isPrivate(tab))
+        PageZoom.change(change, for: page, isPrivate: model.isPrivate(tab))
     }
 
     private func translate() {

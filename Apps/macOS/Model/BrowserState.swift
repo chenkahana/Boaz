@@ -342,7 +342,7 @@ final class BrowserState {
 
     func zoom(_ change: PageZoom.Change) {
         guard let page = activePage else { return }
-        PageZoom.change(change, for: page, remember: !isIncognito)
+        PageZoom.change(change, for: page, isPrivate: isIncognito)
     }
 
     /// Prints the active page through a PDF of it, split across sheets at the paper's width.
