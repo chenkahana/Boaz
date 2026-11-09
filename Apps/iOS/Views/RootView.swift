@@ -13,6 +13,9 @@ struct RootView: View {
     /// but keeps the folded layout.
     private var isUnfolded: Bool { sizeClass == .regular && (model.hinge != nil || hasFold) }
 
+    /// The folded layout's page cover is up. It has its own search panel and toast, so these stay unmounted under it.
+    private var isCoverUp: Bool { !isUnfolded && model.activeTabID != nil }
+
     var body: some View {
         @Bindable var model = model
         Group {
@@ -25,10 +28,10 @@ struct RootView: View {
             }
         }
         .overlay(alignment: .top) {
-            if let toast = model.toast { ToastView(toast: toast).padding(.top, model.showsCoverFlow ? 64 : 8) }
+            if let toast = model.toast, !isCoverUp { ToastView(toast: toast).padding(.top, model.showsCoverFlow ? 64 : 8) }
         }
         .overlay {
-            if model.searchTarget != nil { SearchPanel() }
+            if model.searchTarget != nil, !isCoverUp { SearchPanel() }
         }
         .environment(\.isPrivateBrowsing, model.isIncognito)
         .confetti(trigger: Celebration.shared.bursts)
@@ -36,8 +39,7 @@ struct RootView: View {
         .animation(BottomPanelStyle.motion, value: model.searchTarget)
         .sensoryFeedback(.impact(weight: .medium), trigger: model.toast) { _, new in new?.canUndo == true }
         // While the folded layout's page cover or a sheet is up, the alert has to come from there instead.
-        .modifier(ShakeToUndo(isEnabled: model.sheet == nil && !model.showOnboarding
-                                         && (isUnfolded || model.activeTabID == nil)))
+        .modifier(ShakeToUndo(isEnabled: model.sheet == nil && !model.showOnboarding && !isCoverUp))
         .onGeometryChange(for: Bool.self, of: { !$0.reservedRegions(kind: .division, options: .includeInactive).isEmpty }) {
             hasFold = $0
         }
