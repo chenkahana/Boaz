@@ -52,6 +52,10 @@ enum AIFeatures {
     // MARK: Context
 
     /// Tokens the model can read and write in one session (4096 on today's model).
+    /// The model for reading pages. The default guardrails refuse ordinary pages such as news articles; Apple's
+    /// guardrails for transforming content allow summarizing them, and apply to plain-text replies.
+    static let pageModel = SystemLanguageModel(guardrails: .permissiveContentTransformations)
+
     static var contextSize: Int { SystemLanguageModel.default.contextSize }
 
     /// Trims `text` to about `budget` tokens. Counts tokens where the OS can (iOS and macOS 26.4 and later), else

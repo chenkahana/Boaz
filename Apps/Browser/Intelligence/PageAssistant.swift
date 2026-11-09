@@ -3,12 +3,22 @@ import FoundationModels
 import Observation
 import WebKit
 
-@Generable
-nonisolated struct PageSummary {
-    @Guide(description: "One sentence, at most 25 words, saying what the page is about")
-    var gist: String
-    @Guide(description: "The page's key points, each one short sentence of at most 20 words", .count(3...5))
-    var points: [String]
+/// A summary read from the model's plain-text reply: the first line is the gist, "- " lines are the points.
+/// Plain text rather than guided generation, because only text replies get the guardrails meant for summarizing.
+struct PageSummary {
+    var gist: String?
+    var points: [String]?
+
+    init(parsing reply: String) {
+        let lines = reply.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let bullets = ["- ", "• ", "* "]
+        func point(_ line: String) -> String? {
+            bullets.first { line.hasPrefix($0) }.map { String(line.dropFirst($0.count)) }
+        }
+        gist = lines.first(where: { point($0) == nil })
+        let points = lines.compactMap(point)
+        self.points = points.isEmpty ? nil : points
+    }
 }
 
 /// Summarizes one page and answers questions about it. One instance per page conversation: questions reuse a
@@ -24,7 +34,7 @@ final class PageAssistant {
 
     private(set) var title: String
     private(set) var host: String
-    private(set) var summary: PageSummary.PartiallyGenerated?
+    private(set) var summary: PageSummary?
     private(set) var summaryError: String?
     private(set) var isSummarizing = false
     private(set) var turns: [Turn] = []
@@ -72,15 +82,17 @@ final class PageAssistant {
             summaryError = "This page has no text to summarize."
             return
         }
-        let session = LanguageModelSession(model: .default, instructions: Self.summaryInstructions)
+        let session = LanguageModelSession(model: AIFeatures.pageModel, instructions: Self.summaryInstructions)
         let prompt = """
             \(AIFeatures.delimited(content))
 
-            Summarize the page above in one sentence, then give its three to five most important points.
+            Summarize the page above. On the first line, write one sentence of at most 25 words saying what the page \
+            is about. Then write its three to five most important points, each on its own line starting with "- ", \
+            each one short sentence of at most 20 words.
             """
         do {
-            for try await snapshot in session.streamResponse(to: prompt, generating: PageSummary.self) {
-                summary = snapshot.content
+            for try await snapshot in session.streamResponse(to: prompt) {
+                summary = PageSummary(parsing: snapshot.content)
             }
         } catch {
             summaryError = AIFeatures.message(for: error)
@@ -92,7 +104,7 @@ final class PageAssistant {
     /// Loads the question session ahead of the first question.
     func prepareToAsk() {
         guard askSession == nil else { return }
-        let session = LanguageModelSession(model: .default, instructions: Self.askInstructions)
+        let session = LanguageModelSession(model: AIFeatures.pageModel, instructions: Self.askInstructions)
         session.prewarm()
         askSession = session
         askSessionHasPage = false
