@@ -54,8 +54,9 @@ final class MacModel {
         started = true
         // Compiling EasyList the first time takes a few seconds; the library loads meanwhile.
         Task { contentBlockLists = await ContentBlocking.compiledLists() }
+        let store: BoazStore
         do {
-            let store = try BoazStore.onDisk()
+            store = try BoazStore.onDisk()
             self.store = store
             let sync = LibrarySync(store: store)
             self.sync = sync
@@ -82,9 +83,30 @@ final class MacModel {
                     Task { await sync.syncNow() }
                 }
             }
-            for try await snapshot in store.sidebarUpdates() { sidebar = snapshot }
         } catch {
             loadError = String(describing: error)
+            return
+        }
+        await observeSidebar(store)
+    }
+
+    /// Follows the library for the life of the app. Any database error ends an observation, so it starts again,
+    /// backing off while the errors persist.
+    private func observeSidebar(_ store: BoazStore) async {
+        var failures = 0
+        while !Task.isCancelled {
+            do {
+                for try await snapshot in store.sidebarUpdates() {
+                    failures = 0
+                    sidebar = snapshot
+                }
+                return
+            } catch {
+                failures += 1
+                // Windows waiting for a library that never loaded stop waiting.
+                if sidebar.spaces.isEmpty { loadError = String(describing: error) }
+                try? await Task.sleep(for: .seconds(min(1 << min(failures, 5), 30)))
+            }
         }
     }
 

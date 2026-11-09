@@ -79,9 +79,11 @@ final class AppModel {
     func start() async {
         // Compiling EasyList the first time takes a few seconds; the library loads meanwhile.
         Task { contentBlockLists = await ContentBlocking.compiledLists() }
+        let store: BoazStore
         do {
             let sync = try prepareSync()
-            guard let store = self.store else { return }
+            guard let opened = self.store else { return }
+            store = opened
             // A device joining an existing library gets it from there; a lone device starts with a Personal space.
             if try store.isEmpty() {
                 // Welcome goes up at once; the library (joined or starter) lands behind it.
@@ -94,16 +96,36 @@ final class AppModel {
             Task { await sync.start() }
             archiveStaleTabs()
             registerDevice()
-            for try await snapshot in store.sidebarUpdates() {
-                sidebar = snapshot
-                sidebarGeneration += 1
-                // Also how the stale-tab sweep's archived tabs lose their previews: the sweep lands as an update.
-                pruneSnapshots()
-                if currentSpace == nil { currentSpaceID = snapshot.spaces.first?.id }
-            }
         } catch {
             Self.log.error("Opening the library failed: \(String(describing: error))")
             showToast("Couldn't open your library. Try reopening Boaz.")
+            return
+        }
+        await observeSidebar(store)
+    }
+
+    /// Follows the library for the life of the app. Any database error ends an observation (a fetch interrupted
+    /// by the background suspension, say), so it starts again, backing off while the errors persist.
+    private func observeSidebar(_ store: BoazStore) async {
+        var failures = 0
+        while !Task.isCancelled {
+            do {
+                for try await snapshot in store.sidebarUpdates() {
+                    failures = 0
+                    sidebar = snapshot
+                    sidebarGeneration += 1
+                    // Also how the stale-tab sweep's archived tabs lose their previews: the sweep lands as an update.
+                    pruneSnapshots()
+                    if currentSpace == nil { currentSpaceID = snapshot.spaces.first?.id }
+                }
+                return
+            } catch {
+                failures += 1
+                Self.log.error("Following the library failed: \(String(describing: error))")
+                // Only a library that never showed up is worth telling the user about.
+                if failures == 1, sidebarGeneration == 0 { showToast("Couldn't open your library. Try reopening Boaz.") }
+                try? await Task.sleep(for: .seconds(min(1 << min(failures, 5), 30)))
+            }
         }
     }
 
