@@ -53,6 +53,7 @@ struct RootView: View {
             if phase == .active {
                 model.reloadSidebar()
                 model.archiveStaleTabs()
+                model.registerDevice()
                 Task { await model.sync?.syncNow() }
             }
         }

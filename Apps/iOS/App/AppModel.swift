@@ -50,6 +50,8 @@ final class AppModel {
     /// Runs once the current sheet has finished dismissing (a tab can't present while a sheet is leaving).
     @ObservationIgnored private var afterSheet: (() -> Void)?
     private let maxLivePages = 8
+    /// This iPhone, in the device list: Today shows only the tabs opened here (see `SidebarItem.deviceID`).
+    let deviceID = Device.localID(in: UserDefaults(suiteName: BoazStore.appGroup) ?? .standard)
     /// Archived by closing, newest last; observed so the More menu's Reopen Closed Tab stays current.
     private var closedTabs: [(tab: SidebarItem, archiveID: String?)] = []
     private static let log = Logger(subsystem: "com.chenkahana.boaz", category: "app")
@@ -81,6 +83,7 @@ final class AppModel {
             showOnboarding = showOnboarding || Onboarding.shouldShow(store)
             Task { await sync.start() }
             archiveStaleTabs()
+            registerDevice()
             for try await snapshot in store.sidebarUpdates() {
                 sidebar = snapshot
                 sidebarGeneration += 1
@@ -129,11 +132,23 @@ final class AppModel {
         guard interval != .never, let store else { return }
         Task {
             do {
-                let count = try await store.archiveStaleTabs(olderThan: TimeInterval(interval.rawValue))
+                let count = try await store.archiveStaleTabs(olderThan: TimeInterval(interval.rawValue), onDevice: deviceID)
                 if count > 0 { showToast("Archived \(count) inactive tab\(count == 1 ? "" : "s")") }
             } catch {
                 Self.log.error("Archiving stale tabs failed: \(String(describing: error))")
                 showToast("Couldn't archive inactive tabs.")
+            }
+        }
+    }
+
+    /// Refreshes this iPhone's name and last-seen time for the user's other devices.
+    func registerDevice() {
+        guard let store else { return }
+        Task {
+            do {
+                try await store.registerDevice(id: deviceID, name: UIDevice.current.name, platform: .iOS)
+            } catch {
+                Self.log.error("Recording this device failed: \(String(describing: error))")
             }
         }
     }
@@ -147,10 +162,7 @@ final class AppModel {
     }
     var isDeskPosture: Bool { hinge?.status == .partiallyOpen }
 
-    func todayTabs(in space: Space) -> [SidebarItem] {
-        guard let box = sidebar.container(.unpinned, in: space.id) else { return [] }
-        return sidebar.children(of: box.id).filter { $0.kind == .tab }
-    }
+    func todayTabs(in space: Space) -> [SidebarItem] { sidebar.todayTabs(in: space.id, onDevice: deviceID) }
 
     func pinnedItems(in space: Space) -> [SidebarItem] {
         guard let box = sidebar.container(.pinned, in: space.id) else { return [] }
@@ -347,7 +359,7 @@ final class AppModel {
         guard let space = currentSpace, let box = sidebar.container(.unpinned, in: space.id) else { return }
         let tab = SidebarItem(id: UUID().uuidString, spaceID: space.id, profileID: space.profileID, parentID: box.id,
                               kind: .tab, title: title ?? url.host(), url: url,
-                              position: sidebar.nextPosition(in: box.id), lastActiveAt: .now)
+                              position: sidebar.nextPosition(in: box.id), lastActiveAt: .now, deviceID: deviceID)
         commit(tab)
         activate(tab)
     }
@@ -432,6 +444,8 @@ final class AppModel {
         }
         item.parentID = target.id
         item.position = sidebar.nextPosition(in: target.id)
+        // Pinned tabs are every device's; an unpinned one joins this iPhone's Today.
+        item.deviceID = isPinned(tab) ? deviceID : nil
         commit(item)
         showToast(isPinned(item) ? "Pinned" : "Unpinned")
     }
@@ -469,8 +483,7 @@ final class AppModel {
     @discardableResult
     func pageTab(by offset: Int) -> Bool {
         guard let tab = activeTab else { return false }
-        let siblings = isPrivate(tab) ? incognitoTabs
-            : sidebar.children(of: tab.parentID ?? "").filter { $0.kind == .tab }
+        let siblings = siblings(of: tab)
         guard let index = siblings.firstIndex(where: { $0.id == tab.id }),
               siblings.indices.contains(index + offset) else { return false }
         activate(siblings[index + offset])
@@ -502,9 +515,15 @@ final class AppModel {
             ? (try? store?.historySuggestions(matching: query, limit: 4)) ?? [] : []
     }
 
+    /// The tabs listed alongside `tab`; another device's Today tabs aren't listed here.
+    private func siblings(of tab: SidebarItem) -> [SidebarItem] {
+        isPrivate(tab) ? incognitoTabs : sidebar.children(of: tab.parentID ?? "").filter {
+            $0.kind == .tab && ($0.deviceID == nil || $0.deviceID == deviceID)
+        }
+    }
+
     private func neighbor(of tab: SidebarItem) -> SidebarItem? {
-        let siblings = isPrivate(tab) ? incognitoTabs
-            : sidebar.children(of: tab.parentID ?? "").filter { $0.kind == .tab }
+        let siblings = siblings(of: tab)
         guard let index = siblings.firstIndex(where: { $0.id == tab.id }) else { return nil }
         return siblings.indices.contains(index + 1) ? siblings[index + 1]
             : siblings.indices.contains(index - 1) ? siblings[index - 1] : nil
