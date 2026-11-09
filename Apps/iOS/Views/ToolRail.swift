@@ -77,14 +77,10 @@ private struct ToolRailModifier<Rail: View>: ViewModifier {
                 .offset(x: pull)
         }
         .frame(width: insets.trailing)
-        // The page's own colors down its right-hand edge, so the page seems to run under the camera and status
-        // icons (which pick their contrast from what's under them).
+        // The page's own background, so the page seems to run under the camera and status icons (which pick
+        // their contrast from what's under them). It holds still while the page scrolls.
         .background {
-            if let edges {
-                LinearGradient(stops: edges.trailingStops, startPoint: .top, endPoint: .bottom)
-                    .id(edges.trailing)
-                    .transition(.opacity)
-            }
+            if let edges { Rectangle().fill(edges.page.color).transition(.opacity) }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
         .simultaneousGesture(tuckAndPull)
@@ -192,26 +188,26 @@ struct RailColumn<Top: View, Bottom: View, Nub: View>: View {
     @ViewBuilder var nub: Nub
 
     var body: some View {
-        // Each dock sits on the strip of page color beside it: the top one near the top, the other at the bottom.
-        let upper = edges?.trailing(at: 0.25), lower = edges?.trailing(at: 1)
+        // Both docks sit on the page's background.
+        let site = edges?.page
         GlassEffectContainer(spacing: 24) {
             VStack(spacing: 0) {
                 if state.isCollapsed {
                     nub
                         .padding(5)
-                        .glassEffect(.chrome(upper?.color ?? tint), in: .capsule)
+                        .glassEffect(.chrome(site?.color ?? tint), in: .capsule)
                         .glassEffectID("top", in: glass)
                         .contentShape(.capsule)
                         .onTapGesture { state.expand() }
                         .accessibilityAddTraits(.isButton)
                         .accessibilityLabel("Show Toolbar")
-                        .chromeScheme(upper)
+                        .chromeScheme(site)
                 } else {
-                    dock(top, on: upper).glassEffectID("top", in: glass)
+                    dock(top, on: site).glassEffectID("top", in: glass)
                 }
                 Spacer(minLength: 16)
                 if !state.isCollapsed {
-                    dock(bottom, on: lower).glassEffectID("bottom", in: glass)
+                    dock(bottom, on: site).glassEffectID("bottom", in: glass)
                 }
             }
         }
