@@ -342,7 +342,7 @@ final class BrowserState {
 
     func zoom(_ change: PageZoom.Change) {
         guard let page = activePage else { return }
-        PageZoom.change(change, for: page, remember: !isIncognito)
+        PageZoom.change(change, for: page, isPrivate: isIncognito)
     }
 
     /// Prints the active page through a PDF of it, split across sheets at the paper's width.
@@ -380,7 +380,10 @@ final class BrowserState {
 
     private func neighbor(of tab: SidebarItem) -> SidebarItem? {
         let siblings = isPrivate(tab) ? incognitoTabs
-            : model.sidebar.children(of: tab.parentID ?? "").filter { $0.kind == .tab }
+            : model.sidebar.children(of: tab.parentID ?? "").filter {
+                // Another device's Today tabs aren't in this Mac's sidebar.
+                $0.kind == .tab && ($0.deviceID == nil || $0.deviceID == model.deviceID)
+            }
         guard let index = siblings.firstIndex(where: { $0.id == tab.id }) else { return nil }
         return siblings.indices.contains(index + 1) ? siblings[index + 1]
             : siblings.indices.contains(index - 1) ? siblings[index - 1] : nil

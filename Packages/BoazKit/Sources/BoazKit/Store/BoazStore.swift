@@ -154,24 +154,9 @@ public final class BoazStore: Sendable {
             try db.create(table: "syncSuppress") { t in
                 t.primaryKey("id", .integer)
             }
-            for type in SyncRecordType.allCases {
-                let table = type.tableName, name = type.rawValue
-                let enqueue = "INSERT OR REPLACE INTO syncPending(recordType, recordID, isDeletion)"
-                try db.execute(sql: """
-                    CREATE TRIGGER sync_\(table)_insert AFTER INSERT ON \(table)
-                    WHEN NOT EXISTS (SELECT 1 FROM syncSuppress)
-                    BEGIN \(enqueue) VALUES ('\(name)', NEW.id, 0); END;
-                    CREATE TRIGGER sync_\(table)_update AFTER UPDATE ON \(table)
-                    WHEN NOT EXISTS (SELECT 1 FROM syncSuppress)
-                    BEGIN
-                        \(enqueue) SELECT '\(name)', OLD.id, 1 WHERE OLD.id IS NOT NEW.id;
-                        \(enqueue) VALUES ('\(name)', NEW.id, 0);
-                    END;
-                    CREATE TRIGGER sync_\(table)_delete AFTER DELETE ON \(table)
-                    WHEN NOT EXISTS (SELECT 1 FROM syncSuppress)
-                    BEGIN \(enqueue) VALUES ('\(name)', OLD.id, 1); END;
-                    INSERT INTO syncPending(recordType, recordID, isDeletion) SELECT '\(name)', id, 0 FROM \(table);
-                    """)
+            // The tables that existed at v3; later synced tables add their triggers in their own migration.
+            for type in [SyncRecordType.profile, .space, .sidebarItem, .archiveItem] {
+                try createSyncTriggers(for: type, in: db)
             }
         }
         // Folder transport: per-field stamped state of every synced record, and how far each peer's log was read.
@@ -187,7 +172,41 @@ public final class BoazStore: Sendable {
                 t.column("cursor", .integer).notNull()
             }
         }
+        // Today tabs belong to the device they were opened on; devices sync so the others can name them.
+        migrator.registerMigration("v5-devices") { db in
+            try db.alter(table: "sidebarItem") { t in t.add(column: "deviceID", .text) }
+            try db.create(table: "device") { t in
+                t.primaryKey("id", .text)
+                t.column("name", .text).notNull()
+                t.column("platform", .text).notNull()
+                t.column("lastSeenAt", .datetime).notNull()
+                t.column("modifiedAt", .datetime).notNull()
+                t.column("deletedAt", .datetime)
+            }
+            try createSyncTriggers(for: .device, in: db)
+        }
         return migrator
+    }
+
+    /// Queues every local change to `type`'s table for upload (see `v3-sync`), and its existing rows.
+    private static func createSyncTriggers(for type: SyncRecordType, in db: Database) throws {
+        let table = type.tableName, name = type.rawValue
+        let enqueue = "INSERT OR REPLACE INTO syncPending(recordType, recordID, isDeletion)"
+        try db.execute(sql: """
+            CREATE TRIGGER sync_\(table)_insert AFTER INSERT ON \(table)
+            WHEN NOT EXISTS (SELECT 1 FROM syncSuppress)
+            BEGIN \(enqueue) VALUES ('\(name)', NEW.id, 0); END;
+            CREATE TRIGGER sync_\(table)_update AFTER UPDATE ON \(table)
+            WHEN NOT EXISTS (SELECT 1 FROM syncSuppress)
+            BEGIN
+                \(enqueue) SELECT '\(name)', OLD.id, 1 WHERE OLD.id IS NOT NEW.id;
+                \(enqueue) VALUES ('\(name)', NEW.id, 0);
+            END;
+            CREATE TRIGGER sync_\(table)_delete AFTER DELETE ON \(table)
+            WHEN NOT EXISTS (SELECT 1 FROM syncSuppress)
+            BEGIN \(enqueue) VALUES ('\(name)', OLD.id, 1); END;
+            INSERT INTO syncPending(recordType, recordID, isDeletion) SELECT '\(name)', id, 0 FROM \(table);
+            """)
     }
 }
 
@@ -279,17 +298,31 @@ public struct Sidebar: Equatable, Sendable {
     public var profiles: [Profile]
     public var spaces: [Space]
     public var items: [SidebarItem]
+    public var devices: [Device]
 
-    public init(profiles: [Profile] = [], spaces: [Space] = [], items: [SidebarItem] = []) {
-        self.profiles = profiles; self.spaces = spaces; self.items = items
+    public init(profiles: [Profile] = [], spaces: [Space] = [], items: [SidebarItem] = [], devices: [Device] = []) {
+        self.profiles = profiles; self.spaces = spaces; self.items = items; self.devices = devices
     }
 
     static func fetch(_ db: Database) throws -> Sidebar {
         Sidebar(
             profiles: try Profile.filter(Column("deletedAt") == nil).fetchAll(db),
             spaces: try Space.filter(Column("deletedAt") == nil).order(Column("position"), Column("id")).fetchAll(db),
-            items: try SidebarItem.filter(Column("deletedAt") == nil).order(Column("position"), Column("id")).fetchAll(db)
+            items: try SidebarItem.filter(Column("deletedAt") == nil).order(Column("position"), Column("id")).fetchAll(db),
+            devices: try Device.filter(Column("deletedAt") == nil).order(Column("name"), Column("id")).fetchAll(db)
         )
+    }
+
+    /// A space's Today tabs as `deviceID` lists them: its own, plus those that recorded no device.
+    public func todayTabs(in spaceID: String, onDevice deviceID: String) -> [SidebarItem] {
+        guard let box = container(.unpinned, in: spaceID) else { return [] }
+        return children(of: box.id).filter { $0.kind == .tab && ($0.deviceID == nil || $0.deviceID == deviceID) }
+    }
+
+    /// Every Today tab opened on `deviceID`, across spaces.
+    public func todayTabs(openedOn deviceID: String) -> [SidebarItem] {
+        let boxes = Set(items.lazy.filter { $0.containerKind == .unpinned }.map(\.id))
+        return items.filter { $0.kind == .tab && $0.deviceID == deviceID && $0.parentID.map(boxes.contains) == true }
     }
 
     public func children(of parentID: String) -> [SidebarItem] {

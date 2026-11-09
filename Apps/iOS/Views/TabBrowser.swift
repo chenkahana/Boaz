@@ -1,6 +1,7 @@
 import BoazKit
 import SwiftUI
 import TipKit
+import Translation
 import WebKit
 
 /// A tab's web page with Arc-style chrome: a bottom bar you swipe to change tabs, which shrinks while reading.
@@ -219,6 +220,12 @@ struct TabBrowser: View {
         }
     }
 
+    /// Text Size is CSS on the document, so each new document needs it again.
+    private func applyTextSize(to page: WebPage) {
+        let isPrivate = model.isPrivate(tab)
+        if PageZoom.level(for: page.url, isPrivate: isPrivate) != 1 { PageZoom.apply(to: page, isPrivate: isPrivate) }
+    }
+
     /// The single subscriber to this page's `navigations` (the async sequence supports only one
     /// consumer): on every finished load it tells the model to snapshot the tab and refreshes the
     /// cheap text-length probe used to enable/disable the Reader button. A failed load is shown.
@@ -228,9 +235,13 @@ struct TabBrowser: View {
             do {
                 for try await event in page.navigations {
                     switch event {
-                    case .startedProvisionalNavigation, .committed:
+                    case .startedProvisionalNavigation:
                         loadFailure = nil
+                    case .committed:
+                        loadFailure = nil
+                        applyTextSize(to: page)
                     case .finished:
+                        applyTextSize(to: page)
                         model.pageDidFinishLoading(tab)
                         readableLength = await Reader.estimatedReadableLength(of: page)
                     default:
@@ -296,6 +307,9 @@ private struct BrowserBar: View {
         SwipeTabsTip()
         TuckRailTip()
     }
+    @State private var showingWebsiteSettings = false
+    /// Non-nil while Translate's sheet is up; its presence is the sheet's `isPresented`.
+    @State private var translationText: String?
 
     var body: some View {
         bar.onChange(of: tabCount, initial: true) { SwipeTabsTip.openTabs = tabCount }
@@ -311,17 +325,23 @@ private struct BrowserBar: View {
                 RailButton(symbol: page.isLoading ? "xmark" : "arrow.clockwise",
                            label: page.isLoading ? "Stop" : "Reload") { reloadOrStop() }
             } bottom: {
+                // Folded: the stack of Today tabs leads the dock. Incognito keeps its own grid at home.
+                if sidebar == nil, !homeControlsElsewhere {
+                    if model.isIncognito {
+                        Button { model.goHome() } label: {
+                            RailGlyph(symbol: "square.grid.2x2").overlay(alignment: .topTrailing) { RailBadge(count: tabCount) }
+                        }
+                        .buttonStyle(PressableStyle())
+                        .accessibilityLabel("Tabs")
+                        .accessibilityValue("\(tabCount) open")
+                    } else {
+                        TabStack(space: model.currentSpace, cardSize: CGSize(width: 26, height: 36)).padding(.vertical, 4)
+                    }
+                }
                 RailButton(symbol: "plus", label: "New Tab") { model.beginSearch(.newTab) }
                 if let sidebar {
                     SidebarRailButton(sidebar: sidebar)
-                } else if !homeControlsElsewhere {
-                    Button { model.goHome() } label: {
-                        RailGlyph(symbol: "square.grid.2x2").overlay(alignment: .topTrailing) { RailBadge(count: tabCount) }
-                    }
-                    .buttonStyle(PressableStyle())
-                    .accessibilityLabel("Tabs")
-                    .accessibilityValue("\(tabCount) open")
-                } else {
+                } else if homeControlsElsewhere {
                     forwardButton
                 }
                 menu
@@ -481,6 +501,35 @@ private struct BrowserBar: View {
             Button("Reopen Closed Tab", systemImage: "arrow.uturn.backward") { model.undoClose() }
                 .disabled(!model.canReopenClosedTab)
             Button("Archive Tab", systemImage: "archivebox") { model.close(tab) }
+
+            Divider()
+            Button(desktopSite ? "Request Mobile Website" : "Request Desktop Website",
+                   systemImage: desktopSite ? "iphone" : "desktopcomputer") { toggleDesktopSite() }
+                .disabled(settingsHost == nil)
+            Menu("Text Size", systemImage: "textformat.size") {
+                Button("Make Text Larger", systemImage: "textformat.size.larger") { zoomText(.in) }
+                Button("Reset Text Size", systemImage: "arrow.counterclockwise") { zoomText(.reset) }
+                Button("Make Text Smaller", systemImage: "textformat.size.smaller") { zoomText(.out) }
+            }
+            Button("Website Settings", systemImage: "switch.2") { showingWebsiteSettings = true }
+                .disabled(settingsHost == nil)
+
+            Divider()
+            Button("Translate", systemImage: "translate", action: translate)
+            Button("Print", systemImage: "printer") { Task { await PagePrint.present(page) } }
+            if let url = page.url {
+                Button("Copy Link", systemImage: "link") {
+                    UIPasteboard.general.url = url
+                    model.showToast("Link copied")
+                }
+            }
+            if !model.isPrivate(tab), !model.isFavorite(tab) {
+                Button("Add to Favorites", systemImage: "star") { model.addToFavorites(tab) }
+            }
+            Button(PageSpeech.shared.isSpeaking ? "Stop Listening" : "Listen to Page",
+                   systemImage: PageSpeech.shared.isSpeaking ? "stop.circle" : "speaker.wave.2", action: toggleListening)
+                .disabled(!PageSpeech.shared.isSpeaking && readableLength < Reader.minimumCharacters)
+
             if homeControlsElsewhere {
                 Divider()
                 HomeMenuItems()
@@ -490,6 +539,45 @@ private struct BrowserBar: View {
         }
         .buttonStyle(PressableStyle())
         .accessibilityLabel("More")
+        .sheet(isPresented: $showingWebsiteSettings) { WebsiteSettingsSheet(host: settingsHost, isPrivate: model.isPrivate(tab)) }
+        .translationPresentation(isPresented: Binding(get: { translationText != nil },
+                                                        set: { if !$0 { translationText = nil } }),
+                                  text: translationText ?? "")
+    }
+
+    /// The host `PageSettings` and `PageZoom` key choices by; nil for a page with no address yet.
+    private var settingsHost: String? { page.url?.host() ?? tab.url?.host() }
+    private var desktopSite: Bool { PageSettings.settings(forHost: settingsHost, isPrivate: model.isPrivate(tab)).desktopSite }
+
+    /// The reload goes through `BoazNavigationDecider`, which picks the user agent and content mode.
+    private func toggleDesktopSite() {
+        PageSettings.update(forHost: settingsHost, isPrivate: model.isPrivate(tab)) { $0.desktopSite.toggle() }
+        _ = page.reload()
+    }
+
+    private func zoomText(_ change: PageZoom.Change) {
+        PageZoom.change(change, for: page, isPrivate: model.isPrivate(tab))
+    }
+
+    private func translate() {
+        Task {
+            guard let text = await PageText.extract(from: page) else {
+                model.showToast("Nothing to translate")
+                return
+            }
+            translationText = text
+        }
+    }
+
+    private func toggleListening() {
+        if PageSpeech.shared.isSpeaking {
+            PageSpeech.shared.stop()
+        } else {
+            Task {
+                guard let article = await Reader.extract(from: page) else { return }
+                PageSpeech.shared.speak(article)
+            }
+        }
     }
 
     private func reloadOrStop() {

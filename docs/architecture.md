@@ -73,8 +73,9 @@ sequenceDiagram
 - **Deletes** are kept as tombstones for 30 days so slower devices learn about them, then purged; the purge is
   queued like any change, so the CloudKit record goes too. Arc-imported rows keep their tombstones, so re-importing
   from Arc doesn't bring back what was removed in Boaz.
-- **What syncs:** profiles, spaces, sidebar items and the archive (`SyncRecordType`). History, Incognito tabs, page
-  snapshots and cookies never leave the device.
+- **What syncs:** profiles, spaces, sidebar items, the archive and the device list (`SyncRecordType`). Each Today
+  tab records the device it was opened on; each device lists and archives only its own. History, Incognito tabs,
+  page snapshots and cookies never leave the device.
 
 ## Browsing
 

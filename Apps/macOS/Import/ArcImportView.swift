@@ -218,10 +218,11 @@ struct ArcImportView: View {
         do {
             let store = try self.store ?? BoazStore.onDisk()
             status = "Importing spaces…"
+            let deviceID = MacModel.shared.deviceID
             let (summary, parsed, icons) = try await Task.detached {
                 let importer = try ArcSidebarImporter(arcFolder: folder)
                 let snapshot = try importer.parse()
-                let summary = try importer.importInto(store, snapshot: snapshot)
+                let summary = try importer.importInto(store, snapshot: snapshot, deviceID: deviceID)
                 return (summary, snapshot, importer.cachedFavicons(for: snapshot))
             }.value
             snapshot = parsed

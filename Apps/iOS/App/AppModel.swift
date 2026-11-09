@@ -32,8 +32,10 @@ final class AppModel {
     var hinge: DeviceHinge?
     var isIncognito = false
     private(set) var incognitoTabs: [SidebarItem] = []
-    /// Last rendered image of each tab, shown on its Today card. Memory only.
+    /// Last rendered image of each tab, shown on its card. Saved in Caches (`SnapshotCache`), except private tabs'.
     var snapshots: [String: UIImage] = [:]
+    /// The folded layout's cover flow of Today tabs, over the page or the home screen.
+    var showsCoverFlow = false
     /// Each tab's site color, which the browser chrome takes on. Private tabs are never sampled.
     private(set) var siteColors: [String: SiteColor] = [:]
     /// Bumped on every edge-swipe back/forward commit; `TabBrowser` fires a haptic off it.
@@ -50,6 +52,8 @@ final class AppModel {
     /// Runs once the current sheet has finished dismissing (a tab can't present while a sheet is leaving).
     @ObservationIgnored private var afterSheet: (() -> Void)?
     private let maxLivePages = 8
+    /// This iPhone, in the device list: Today shows only the tabs opened here (see `SidebarItem.deviceID`).
+    let deviceID = Device.localID(in: UserDefaults(suiteName: BoazStore.appGroup) ?? .standard)
     /// Archived by closing, newest last; observed so the More menu's Reopen Closed Tab stays current.
     private var closedTabs: [(tab: SidebarItem, archiveID: String?)] = []
     private static let log = Logger(subsystem: "com.chenkahana.boaz", category: "app")
@@ -79,11 +83,15 @@ final class AppModel {
             }
             try StarterLibrary.seedIfEmpty(store)
             showOnboarding = showOnboarding || Onboarding.shouldShow(store)
+            Task { await restoreSnapshots(from: store) }
             Task { await sync.start() }
             archiveStaleTabs()
+            registerDevice()
             for try await snapshot in store.sidebarUpdates() {
                 sidebar = snapshot
                 sidebarGeneration += 1
+                // Also how the stale-tab sweep's archived tabs lose their previews: the sweep lands as an update.
+                pruneSnapshots()
                 if currentSpace == nil { currentSpaceID = snapshot.spaces.first?.id }
             }
         } catch {
@@ -120,6 +128,7 @@ final class AppModel {
         Task {
             guard let fresh = try? await store.loadSidebar(), generation == sidebarGeneration else { return }
             sidebar = fresh
+            pruneSnapshots()
         }
     }
 
@@ -129,11 +138,30 @@ final class AppModel {
         guard interval != .never, let store else { return }
         Task {
             do {
-                let count = try await store.archiveStaleTabs(olderThan: TimeInterval(interval.rawValue))
+                let count = try await store.archiveStaleTabs(olderThan: TimeInterval(interval.rawValue), onDevice: deviceID)
                 if count > 0 { showToast("Archived \(count) inactive tab\(count == 1 ? "" : "s")") }
             } catch {
                 Self.log.error("Archiving stale tabs failed: \(String(describing: error))")
                 showToast("Couldn't archive inactive tabs.")
+            }
+        }
+    }
+
+    /// Brings back the previews saved before the last quit, and forgets those of tabs that are gone.
+    private func restoreSnapshots(from store: BoazStore) async {
+        guard let ids = try? await store.loadSidebar().items.map(\.id) else { return }
+        let saved = await SnapshotCache.load(keeping: Set(ids))
+        snapshots.merge(saved) { live, _ in live }
+    }
+
+    /// Refreshes this iPhone's name and last-seen time for the user's other devices.
+    func registerDevice() {
+        guard let store else { return }
+        Task {
+            do {
+                try await store.registerDevice(id: deviceID, name: UIDevice.current.name, platform: .iOS)
+            } catch {
+                Self.log.error("Recording this device failed: \(String(describing: error))")
             }
         }
     }
@@ -147,10 +175,7 @@ final class AppModel {
     }
     var isDeskPosture: Bool { hinge?.status == .partiallyOpen }
 
-    func todayTabs(in space: Space) -> [SidebarItem] {
-        guard let box = sidebar.container(.unpinned, in: space.id) else { return [] }
-        return sidebar.children(of: box.id).filter { $0.kind == .tab }
-    }
+    func todayTabs(in space: Space) -> [SidebarItem] { sidebar.todayTabs(in: space.id, onDevice: deviceID) }
 
     func pinnedItems(in space: Space) -> [SidebarItem] {
         guard let box = sidebar.container(.pinned, in: space.id) else { return [] }
@@ -172,22 +197,34 @@ final class AppModel {
         pageRecency.removeAll { $0 == tab.id }
         pageRecency.append(tab.id)
         if let page = pages[tab.id] { return page }
+        let tabIsPrivate = isPrivate(tab)
         var configuration = WebPage.Configuration()
-        if isPrivate(tab) { configuration.websiteDataStore = .nonPersistent() }
-        if Preferences.blockTrackers {
+        if tabIsPrivate { configuration.websiteDataStore = .nonPersistent() }
+        if Preferences.blockTrackers, PageSettings.settings(for: tab.url, isPrivate: tabIsPrivate).contentBlocking {
             contentBlockLists.forEach(configuration.userContentController.add)
         }
         if Preferences.hideCookieBanners {
             configuration.userContentController.addUserScript(CookieBanners.userScript())
         }
+        // Website Settings' camera/microphone pickers, per host; re-read on every request, so a change
+        // made while the tab is open takes effect on the site's next request, not just its next open. Keyed by
+        // the page's host, as the sheet is: an embedded frame doesn't get its own say.
+        configuration.deviceSensorAuthorization = .init { [weak self] permission, _, _ in
+            guard case .mediaCapture(let type) = permission else { return .prompt }
+            let host = self?.pages[tab.id]?.url?.host() ?? tab.url?.host()
+            return PageSettings.mediaCaptureDecision(type, host: host, isPrivate: tabIsPrivate)
+        }
         let dataStore = configuration.websiteDataStore
         let decider = BoazNavigationDecider(
+            isPrivate: tabIsPrivate,
+            page: { [weak self] in self?.pages[tab.id] },
             onBackForward: { [weak self] in self?.backForwardHaptic += 1 },
             onDownload: { [weak self] response in
                 self?.discardIfDownloadOnly(tab.id)
                 self?.handleDownload(response, dataStore: dataStore)
             })
         let page = WebPage(configuration: configuration, navigationDecider: decider)
+        page.customUserAgent = PageSettings.userAgent(forHost: tab.url?.host(), isPrivate: tabIsPrivate)
         if let url = tab.url { page.load(URLRequest(url: url)) }
         pages[tab.id] = page
         while pageRecency.count > maxLivePages {
@@ -202,11 +239,7 @@ final class AppModel {
         guard let page = pages[tab.id] else { return }
         updateSiteColor(for: tab)
         let tabIsPrivate = isPrivate(tab)
-        Task { [weak self] in
-            guard let data = try? await page.exported(as: .image(snapshotWidth: 400)),
-                  let image = UIImage(data: data) else { return }
-            self?.snapshots[tab.id] = image
-        }
+        captureSnapshot(of: page, tab: tab)
         Task {
             guard let pageURL = page.url,
                   let href = try? await page.callJavaScript(Favicons.discoveryScript, contentWorld: .defaultClient) as? String,
@@ -228,12 +261,28 @@ final class AppModel {
         }
     }
 
-    /// Downscaled render of a tab's current page, kept only in memory and dropped when the tab closes.
-    private func captureSnapshot(of page: WebPage, tabID: String) {
+    /// Downscaled render of a tab's current page, dropped when the tab closes.
+    private func captureSnapshot(of page: WebPage, tab: SidebarItem) {
+        let persist = !isPrivate(tab)
         Task { [weak self] in
             guard let data = try? await page.exported(as: .image(snapshotWidth: 400)),
-                  let image = UIImage(data: data) else { return }
-            self?.snapshots[tabID] = image
+                  let image = UIImage(data: data),
+                  // The tab may have closed while the page rendered.
+                  let self, self.isLive(tab.id) else { return }
+            self.snapshots[tab.id] = image
+            if persist { SnapshotCache.save(data, for: tab.id) }
+        }
+    }
+
+    private func isLive(_ tabID: String) -> Bool {
+        sidebar.items.contains { $0.id == tabID } || incognitoTabs.contains { $0.id == tabID }
+    }
+
+    /// Forgets the previews of tabs that are gone: archived by the stale-tab sweep, or closed on another device.
+    private func pruneSnapshots() {
+        for id in snapshots.keys where !isLive(id) {
+            snapshots[id] = nil
+            SnapshotCache.remove(id)
         }
     }
 
@@ -277,6 +326,7 @@ final class AppModel {
         pages[tabID] = nil
         pageRecency.removeAll { $0 == tabID }
         snapshots[tabID] = nil
+        SnapshotCache.remove(tabID)
         if isPrivate(tab) {
             incognitoTabs.removeAll { $0.id == tabID }
         } else {
@@ -347,7 +397,7 @@ final class AppModel {
         guard let space = currentSpace, let box = sidebar.container(.unpinned, in: space.id) else { return }
         let tab = SidebarItem(id: UUID().uuidString, spaceID: space.id, profileID: space.profileID, parentID: box.id,
                               kind: .tab, title: title ?? url.host(), url: url,
-                              position: sidebar.nextPosition(in: box.id), lastActiveAt: .now)
+                              position: sidebar.nextPosition(in: box.id), lastActiveAt: .now, deviceID: deviceID)
         commit(tab)
         activate(tab)
     }
@@ -356,7 +406,7 @@ final class AppModel {
         guard tab.kind == .tab else { return }
         searchTarget = nil
         if let previous = activeTab, previous.id != tab.id, let page = pages[previous.id] {
-            captureSnapshot(of: page, tabID: previous.id)
+            captureSnapshot(of: page, tab: previous)
         }
         var item = tab
         item.lastActiveAt = .now
@@ -367,8 +417,14 @@ final class AppModel {
     }
 
     func goHome() {
-        if let tab = activeTab, let page = pages[tab.id] { captureSnapshot(of: page, tabID: tab.id) }
+        if let tab = activeTab, let page = pages[tab.id] { captureSnapshot(of: page, tab: tab) }
         activeTabID = nil
+    }
+
+    func openCoverFlow() {
+        // The page's card should show it as it is now, not as it first loaded.
+        if let tab = activeTab, let page = pages[tab.id] { captureSnapshot(of: page, tab: tab) }
+        showsCoverFlow = true
     }
 
     /// Closing sends a tab to the archive (like Arc); undo brings it back and removes the archive entry.
@@ -377,6 +433,7 @@ final class AppModel {
         pages[tab.id] = nil
         pageRecency.removeAll { $0 == tab.id }
         snapshots[tab.id] = nil
+        SnapshotCache.remove(tab.id)
         if isPrivate(tab) {
             incognitoTabs.removeAll { $0.id == tab.id }
             return
@@ -432,8 +489,25 @@ final class AppModel {
         }
         item.parentID = target.id
         item.position = sidebar.nextPosition(in: target.id)
+        // Pinned tabs are every device's; an unpinned one joins this iPhone's Today.
+        item.deviceID = isPinned(tab) ? deviceID : nil
         commit(item)
         showToast(isPinned(item) ? "Pinned" : "Unpinned")
+    }
+
+    func isFavorite(_ tab: SidebarItem) -> Bool {
+        guard let parent = tab.parentID, !isPrivate(tab) else { return false }
+        return ancestorContainer(of: parent)?.containerKind == .favorites
+    }
+
+    /// Moves a tab into this profile's Favorites, as the page settings menu's "Add to Favorites" does.
+    func addToFavorites(_ tab: SidebarItem) {
+        guard let box = sidebar.favoritesContainer(profileID: tab.profileID) else { return }
+        var item = tab
+        item.parentID = box.id
+        item.position = sidebar.nextPosition(in: box.id)
+        commit(item)
+        showToast("Added to Favorites")
     }
 
     /// Whether a pinned tab's page has browsed away from where it was pinned.
@@ -459,6 +533,8 @@ final class AppModel {
             for tab in incognitoTabs { pages[tab.id] = nil }
             pageRecency.removeAll { id in incognitoTabs.contains { $0.id == id } }
             incognitoTabs = []
+            PageSettings.forgetPrivateChoices()
+            PageZoom.forgetPrivateLevels()
             if let id = activeTabID, sidebar.items.first(where: { $0.id == id }) == nil { activeTabID = nil }
         }
         isIncognito = on
@@ -469,8 +545,7 @@ final class AppModel {
     @discardableResult
     func pageTab(by offset: Int) -> Bool {
         guard let tab = activeTab else { return false }
-        let siblings = isPrivate(tab) ? incognitoTabs
-            : sidebar.children(of: tab.parentID ?? "").filter { $0.kind == .tab }
+        let siblings = siblings(of: tab)
         guard let index = siblings.firstIndex(where: { $0.id == tab.id }),
               siblings.indices.contains(index + offset) else { return false }
         activate(siblings[index + offset])
@@ -502,9 +577,15 @@ final class AppModel {
             ? (try? store?.historySuggestions(matching: query, limit: 4)) ?? [] : []
     }
 
+    /// The tabs listed alongside `tab`; another device's Today tabs aren't listed here.
+    private func siblings(of tab: SidebarItem) -> [SidebarItem] {
+        isPrivate(tab) ? incognitoTabs : sidebar.children(of: tab.parentID ?? "").filter {
+            $0.kind == .tab && ($0.deviceID == nil || $0.deviceID == deviceID)
+        }
+    }
+
     private func neighbor(of tab: SidebarItem) -> SidebarItem? {
-        let siblings = isPrivate(tab) ? incognitoTabs
-            : sidebar.children(of: tab.parentID ?? "").filter { $0.kind == .tab }
+        let siblings = siblings(of: tab)
         guard let index = siblings.firstIndex(where: { $0.id == tab.id }) else { return nil }
         return siblings.indices.contains(index + 1) ? siblings[index + 1]
             : siblings.indices.contains(index - 1) ? siblings[index - 1] : nil

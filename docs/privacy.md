@@ -9,7 +9,9 @@ collect, see or sell any of it.
 
 - **Your library** (spaces, pinned tabs, favorites, Today tabs and the Archive) is stored on your device. If you
   are signed in to iCloud, Boaz keeps it in step between your devices through your own **private iCloud
-  database**. Apple stores it under your Apple Account; the developer has no access to it.
+  database**. Apple stores it under your Apple Account; the developer has no access to it. The library also
+  records each of your devices' names (such as "MacBook Pro") and when Boaz was last used on it, so your iPhone can
+  show which Mac a tab is open on.
 - **Browsing history, private (Incognito) tabs and page snapshots** stay on the device they were made on. They are
   never synced or uploaded.
 - **Optional sync folder.** If iCloud isn't available you can choose a folder (for example in iCloud Drive) to sync
