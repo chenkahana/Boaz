@@ -13,7 +13,7 @@ a Today list that tidies itself, and a layout that follows every posture of iPho
 ![iOS 27.1+](https://img.shields.io/badge/iOS-27.1%2B-000000?logo=apple)
 ![macOS 26+](https://img.shields.io/badge/macOS-26%2B-000000?logo=apple)
 ![Swift 6](https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white)
-[![License](https://img.shields.io/badge/license-proprietary-lightgrey)](LICENSE)
+[![License](https://img.shields.io/badge/license-MPL--2.0-brightgreen)](LICENSE)
 
 [Features](#features) · [Screenshots](#screenshots) · [Architecture](#architecture) · [Getting started](#getting-started) · [Privacy](#privacy) · [Contributing](#contributing)
 
@@ -164,5 +164,5 @@ opening a pull request, and report security issues as described in [SECURITY.md]
 
 ## License
 
-Copyright © 2026 Chen Kahana. All rights reserved. The source is published for reference; see [LICENSE](LICENSE).
+Copyright © 2026 Chen Kahana. Folio is licensed under the [Mozilla Public License 2.0](LICENSE).
 Third-party components and their licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
