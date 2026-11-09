@@ -1,8 +1,8 @@
-import FolioKit
+import BoazKit
 import Foundation
 import UniformTypeIdentifiers
 
-/// Loads the shared page from the host app's extension item, and writes "Add to Folio" straight
+/// Loads the shared page from the host app's extension item, and writes "Add to Boaz" straight
 /// into the store via the App Group — the main app picks it up through its live observation.
 @Observable
 final class ShareModel {
@@ -14,11 +14,11 @@ final class ShareModel {
     var errorMessage: String?
 
     @ObservationIgnored private let context: NSExtensionContext?
-    @ObservationIgnored private let store: FolioStore?
+    @ObservationIgnored private let store: BoazStore?
 
     init(context: NSExtensionContext?) {
         self.context = context
-        self.store = try? FolioStore.onDisk(appGroup: FolioStore.appGroup, migrate: false)
+        self.store = try? BoazStore.onDisk(appGroup: BoazStore.appGroup, migrate: false)
         Task { await loadSpaces() }
         loadSharedItem()
     }
@@ -26,7 +26,7 @@ final class ShareModel {
     private func loadSpaces() async {
         guard let store, let sidebar = try? await store.loadSidebar() else { return }
         spaces = sidebar.spaces
-        let defaults = UserDefaults(suiteName: FolioStore.appGroup)
+        let defaults = UserDefaults(suiteName: BoazStore.appGroup)
         if let saved = defaults?.string(forKey: "currentSpaceID"), spaces.contains(where: { $0.id == saved }) {
             selectedSpaceID = saved
         } else {
@@ -71,7 +71,7 @@ final class ShareModel {
     }
 
     func cancel() {
-        context?.cancelRequest(withError: NSError(domain: "com.chenkahana.folio.share", code: 0))
+        context?.cancelRequest(withError: NSError(domain: "com.chenkahana.boaz.share", code: 0))
     }
 
     func complete() {

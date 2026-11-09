@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 import GRDB
 
-/// A bookmark or folder from another browser, before it becomes a Folio pinned tab or folder.
+/// A bookmark or folder from another browser, before it becomes a Boaz pinned tab or folder.
 public struct BookmarkNode: Sendable, Equatable {
     /// Stable within its source, so re-importing finds the same row.
     public var id: String
@@ -21,7 +21,7 @@ public struct BookmarkNode: Sendable, Equatable {
 /// Imports another browser's bookmarks into a space's pinned section: the bookmarks bar becomes pinned tabs and
 /// folders, everything else pinned folders.
 ///
-/// Like `ArcSidebarImporter`, import is idempotent: Folio ids are `<source>-<source id>`, re-import updates rows in
+/// Like `ArcSidebarImporter`, import is idempotent: Boaz ids are `<source>-<source id>`, re-import updates rows in
 /// place (keeping where the user moved or expanded them). A live source (a Chromium profile) also tombstones rows it
 /// no longer has; a one-off export file only adds and updates, since one export says nothing about another.
 public struct BookmarkImporter: Sendable {
@@ -39,7 +39,7 @@ public struct BookmarkImporter: Sendable {
     // MARK: Import
 
     @discardableResult
-    public func importInto(_ store: FolioStore, spaceID: String, now: Date = .now) throws -> BookmarkImportSummary {
+    public func importInto(_ store: BoazStore, spaceID: String, now: Date = .now) throws -> BookmarkImportSummary {
         let items = Self.importable(items)
         let prefix = source + "-"
         return try store.writer.write { db in
@@ -71,7 +71,7 @@ public struct BookmarkImporter: Sendable {
                     if node.isFolder { summary.folders += 1 } else { summary.bookmarks += 1 }
 
                     if let existing = try SidebarItem.fetchOne(db, key: id) {
-                        // Keep what the user changed in Folio: order, expansion, activity.
+                        // Keep what the user changed in Boaz: order, expansion, activity.
                         if existing.parentID == parentID && existing.deletedAt == nil { item.position = existing.position }
                         else if isTop { item.position = nextTopPosition; nextTopPosition += 1 }
                         item.isExpanded = existing.isExpanded
@@ -121,7 +121,7 @@ public struct BookmarkImporter: Sendable {
         }
     }
 
-    /// Drops links Folio can't open (bookmarklets, `chrome://` pages) and folders left empty.
+    /// Drops links Boaz can't open (bookmarklets, `chrome://` pages) and folders left empty.
     static func importable(_ nodes: [BookmarkNode]) -> [BookmarkNode] {
         nodes.compactMap { node in
             if node.isFolder {
@@ -139,7 +139,7 @@ public struct BookmarkImporter: Sendable {
 
 public struct BookmarkImportSummary: Sendable, Equatable {
     public var folders = 0, bookmarks = 0
-    /// Links Folio can't open, e.g. `javascript:` bookmarklets.
+    /// Links Boaz can't open, e.g. `javascript:` bookmarklets.
     public var skipped = 0
     public var inserted = 0, updated = 0, unchanged = 0, removed = 0
 }
@@ -152,7 +152,7 @@ public enum BookmarkImportError: Error, LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .missingFile: "That folder has no bookmarks file. Choose the browser's folder in Library › Application Support."
-        case .unsupportedFormat: "That file isn't a bookmarks file Folio understands."
+        case .unsupportedFormat: "That file isn't a bookmarks file Boaz understands."
         case .noSpace: "There's no space to import into."
         }
     }

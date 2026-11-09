@@ -1,4 +1,4 @@
-import FolioKit
+import BoazKit
 import SwiftUI
 
 /// Address/search entry that slides up over whatever is on screen.

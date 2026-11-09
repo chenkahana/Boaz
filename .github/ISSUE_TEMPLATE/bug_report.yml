@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in Folio doesn't work as expected.
+description: Something in Boaz doesn't work as expected.
 labels: [bug, needs-triage]
 body:
   - type: markdown
@@ -18,7 +18,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: Folio version
+      label: Boaz version
       description: Settings › About shows it.
       placeholder: "1.0 (1)"
     validations:

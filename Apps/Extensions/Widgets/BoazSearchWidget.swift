@@ -1,29 +1,29 @@
-import FolioKit
+import BoazKit
 import SwiftUI
 import WidgetKit
 
-struct FolioWidgetEntry: TimelineEntry {
+struct BoazWidgetEntry: TimelineEntry {
     let date: Date
     let favorites: [SidebarItem]
 }
 
-struct FolioWidgetProvider: TimelineProvider {
-    func placeholder(in context: Context) -> FolioWidgetEntry {
-        FolioWidgetEntry(date: .now, favorites: [])
+struct BoazWidgetProvider: TimelineProvider {
+    func placeholder(in context: Context) -> BoazWidgetEntry {
+        BoazWidgetEntry(date: .now, favorites: [])
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (FolioWidgetEntry) -> Void) {
-        completion(FolioWidgetEntry(date: .now, favorites: loadFavorites()))
+    func getSnapshot(in context: Context, completion: @escaping (BoazWidgetEntry) -> Void) {
+        completion(BoazWidgetEntry(date: .now, favorites: loadFavorites()))
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<FolioWidgetEntry>) -> Void) {
-        let entry = FolioWidgetEntry(date: .now, favorites: loadFavorites())
+    func getTimeline(in context: Context, completion: @escaping (Timeline<BoazWidgetEntry>) -> Void) {
+        let entry = BoazWidgetEntry(date: .now, favorites: loadFavorites())
         completion(Timeline(entries: [entry], policy: .after(.now.addingTimeInterval(900))))
     }
 
     /// Read-only: the store is opened fresh each refresh since widgets run in their own process.
     private func loadFavorites() -> [SidebarItem] {
-        guard let store = try? FolioStore.onDisk(appGroup: FolioStore.appGroup, migrate: false),
+        guard let store = try? BoazStore.onDisk(appGroup: BoazStore.appGroup, migrate: false),
               let sidebar = try? store.sidebar(),
               let profileID = (sidebar.profiles.first { $0.isDefault } ?? sidebar.profiles.first)?.id
         else { return [] }
@@ -31,22 +31,22 @@ struct FolioWidgetProvider: TimelineProvider {
     }
 }
 
-struct FolioSearchWidget: Widget {
-    let kind = "FolioSearchWidget"
+struct BoazSearchWidget: Widget {
+    let kind = "BoazSearchWidget"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: FolioWidgetProvider()) { entry in
-            FolioWidgetView(entry: entry)
+        StaticConfiguration(kind: kind, provider: BoazWidgetProvider()) { entry in
+            BoazWidgetView(entry: entry)
         }
-        .configurationDisplayName("Search Folio")
+        .configurationDisplayName("Search Boaz")
         .description("Jump straight into a search, or one of your favorites.")
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryCircular])
     }
 }
 
-struct FolioWidgetView: View {
+struct BoazWidgetView: View {
     @Environment(\.widgetFamily) private var family
-    let entry: FolioWidgetEntry
+    let entry: BoazWidgetEntry
 
     var body: some View {
         switch family {
@@ -56,14 +56,14 @@ struct FolioWidgetView: View {
                 AccessoryWidgetBackground()
                 Image(systemName: "magnifyingglass").font(.title2).widgetAccentable()
             }
-            .widgetURL(FolioLink.search())
+            .widgetURL(BoazLink.search())
             .containerBackground(for: .widget) { Color.clear }
-            .accessibilityLabel("Search Folio")
+            .accessibilityLabel("Search Boaz")
         case .systemMedium:
             VStack(alignment: .leading, spacing: 10) {
                 searchPill
                 if entry.favorites.isEmpty {
-                    Text("Add favorites in Folio to see them here.")
+                    Text("Add favorites in Boaz to see them here.")
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.8))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -71,7 +71,7 @@ struct FolioWidgetView: View {
                     HStack(spacing: 8) {
                         ForEach(entry.favorites) { favorite in
                             if let url = favorite.url {
-                                Link(destination: FolioLink.open(url)) { FavoriteTile(item: favorite) }
+                                Link(destination: BoazLink.open(url)) { FavoriteTile(item: favorite) }
                             }
                         }
                     }
@@ -82,18 +82,18 @@ struct FolioWidgetView: View {
         default:
             VStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").font(.title2).widgetAccentable()
-                Text("Search Folio").font(.caption).bold()
+                Text("Search Boaz").font(.caption).bold()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .foregroundStyle(.white)
-            .widgetURL(FolioLink.search())
+            .widgetURL(BoazLink.search())
             .containerBackground(for: .widget) { Theme.hero }
         }
     }
 
     private var searchPill: some View {
-        Link(destination: FolioLink.search()) {
-            Label("Search Folio", systemImage: "magnifyingglass")
+        Link(destination: BoazLink.search()) {
+            Label("Search Boaz", systemImage: "magnifyingglass")
                 .font(.subheadline.bold())
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)

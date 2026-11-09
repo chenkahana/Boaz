@@ -1,14 +1,14 @@
-import FolioKit
+import BoazKit
 import SwiftUI
 
 /// First-run setup, shared by the Mac and iPhone flows.
 enum Onboarding {
     static let completedKey = "onboardingCompleted"
-    /// `-FolioResetOnboarding YES` shows the flow again without touching the library.
-    static let resetArgument = "FolioResetOnboarding"
+    /// `-BoazResetOnboarding YES` shows the flow again without touching the library.
+    static let resetArgument = "BoazResetOnboarding"
 
     /// Shown once, and never to people who already have their own spaces or tabs.
-    static func shouldShow(_ store: FolioStore) -> Bool {
+    static func shouldShow(_ store: BoazStore) -> Bool {
         let defaults = UserDefaults.standard
         if defaults.bool(forKey: resetArgument) { return true }
         guard !defaults.bool(forKey: completedKey) else { return false }

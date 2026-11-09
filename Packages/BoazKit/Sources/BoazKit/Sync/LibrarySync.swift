@@ -3,7 +3,7 @@ import Observation
 import os
 
 /// The one sync object the apps use. iCloud (`CloudKitSync`) is the transport whenever this build is entitled and
-/// an iCloud account is signed in; a user-picked folder (`FolioSync`) is the fallback only while it isn't.
+/// an iCloud account is signed in; a user-picked folder (`BoazSync`) is the fallback only while it isn't.
 /// Both drain the same pending queue, so at most one runs at a time.
 @MainActor @Observable
 public final class LibrarySync {
@@ -16,17 +16,17 @@ public final class LibrarySync {
         case error(String)
     }
 
-    @ObservationIgnored private let store: FolioStore
+    @ObservationIgnored private let store: BoazStore
     private let cloud: CloudKitSync
     /// The folder transport, only while iCloud can't sync here and a folder was picked.
-    private var folder: FolioSync?
+    private var folder: BoazSync?
     @ObservationIgnored private var started = false
     /// Bumped whenever the folder is retired, so a `setFolder` that was waiting gives up.
     @ObservationIgnored private var folderGeneration = 0
 
-    private static let log = Logger(subsystem: "com.chenkahana.folio", category: "sync")
+    private static let log = Logger(subsystem: "com.chenkahana.boaz", category: "sync")
 
-    public init(store: FolioStore) {
+    public init(store: BoazStore) {
         self.store = store
         cloud = CloudKitSync(store: store)
         cloud.willStartEngine = { [weak self] in await self?.retireFolder() }
@@ -73,13 +73,13 @@ public final class LibrarySync {
         await cloud.start()
         if cloud.isRunning {
             await waitAtMost(.seconds(10)) { await self.cloud.syncNow() }
-        } else if store.syncSetting(FolioSync.bookmarkKey) != nil {
+        } else if store.syncSetting(BoazSync.bookmarkKey) != nil {
             await folderTransport().start()
         }
     }
 
     /// Re-checks iCloud (switching to it if it became available), then fetches and sends right away.
-    /// `userInitiated` (the Sync Now button) also turns sync back on after the user deleted Folio's iCloud data.
+    /// `userInitiated` (the Sync Now button) also turns sync back on after the user deleted Boaz's iCloud data.
     public func syncNow(userInitiated: Bool = false) async {
         if userInitiated { await cloud.resumeAfterPurge() }
         await cloud.start()
@@ -99,9 +99,9 @@ public final class LibrarySync {
 
     // MARK: Private
 
-    private func folderTransport() -> FolioSync {
+    private func folderTransport() -> BoazSync {
         if let folder { return folder }
-        let folder = FolioSync(store: store)
+        let folder = BoazSync(store: store)
         self.folder = folder
         return folder
     }
@@ -109,7 +109,7 @@ public final class LibrarySync {
     /// Before iCloud takes over: one last folder pass (other devices' edits in, this device's unsent edits out),
     /// then the folder is stopped and forgotten. `CloudKitSync` then uploads every local record.
     private func retireFolder() async {
-        guard folder != nil || store.syncSetting(FolioSync.bookmarkKey) != nil else { return }
+        guard folder != nil || store.syncSetting(BoazSync.bookmarkKey) != nil else { return }
         Self.log.notice("Moving from folder sync to iCloud")
         folderGeneration += 1
         let folder = folderTransport()

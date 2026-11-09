@@ -1,10 +1,10 @@
-import FolioKit
+import BoazKit
 import SwiftUI
 #if os(iOS)
 import UIKit
 #endif
 
-/// The iCloud account behind sync, as setup and Settings present it. Folio has no account of its own: signing in
+/// The iCloud account behind sync, as setup and Settings present it. Boaz has no account of its own: signing in
 /// means signing in to iCloud, which only the system can do, so "Sign In" opens Settings.
 enum ICloudSignIn {
     /// The device's own name for where the Apple Account lives.
@@ -51,14 +51,14 @@ enum ICloudSignIn {
     /// One line under the title; `library` describes what's synced, e.g. "3 spaces, 24 tabs".
     static func detail(_ status: LibrarySync.Status, library: String?) -> String {
         switch status {
-        case .starting: "Folio syncs through your private iCloud. Nobody else, including us, can see it."
+        case .starting: "Boaz syncs through your private iCloud. Nobody else, including us, can see it."
         case .syncing: "Bringing your library up to date…"
         case .upToDate: library.map { "In step with your \(otherDevice) · \($0)" } ?? "In step with your \(otherDevice)."
         case .signedOut:
             #if os(macOS)
             "Sign in with your Apple Account in System Settings, then come back here."
             #else
-            "In Settings, tap Apple Account at the top and sign in, then come back to Folio."
+            "In Settings, tap Apple Account at the top and sign in, then come back to Boaz."
             #endif
         case .unavailable(let reason): reason
         case .error(let message): message

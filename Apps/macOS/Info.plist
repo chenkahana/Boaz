@@ -22,7 +22,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
 			<key>CFBundleURLName</key>
-			<string>com.chenkahana.folio.web</string>
+			<string>com.chenkahana.boaz.web</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>http</string>

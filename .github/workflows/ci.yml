@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   build:
-    name: Build FolioKit, iPhone and Mac apps
+    name: Build BoazKit, iPhone and Mac apps
     # The iOS 27.1 SDK ships with Xcode 27, which GitHub offers on this runner image.
     runs-on: xcode-27
     timeout-minutes: 45
@@ -35,11 +35,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            Packages/FolioKit/.build
+            Packages/BoazKit/.build
             build/DerivedData/SourcePackages
-          key: spm-${{ runner.os }}-${{ hashFiles('Packages/FolioKit/Package.resolved') }}
+          key: spm-${{ runner.os }}-${{ hashFiles('Packages/BoazKit/Package.resolved') }}
 
-      - name: Build FolioKit
+      - name: Build BoazKit
         run: make kit
 
       - name: Build iPhone app and extensions

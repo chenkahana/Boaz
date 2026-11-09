@@ -1,13 +1,13 @@
-import FolioKit
+import BoazKit
 import Foundation
 
-/// Parses and dispatches `folio://` deep links from `.onOpenURL`, App Intents and the widgets'
+/// Parses and dispatches `boaz://` deep links from `.onOpenURL`, App Intents and the widgets'
 /// `Link` destinations.
 ///
 /// Supported links:
-/// - `folio://open?url=<encoded http(s) URL>` opens (or switches to) that address in a new tab.
-/// - `folio://search?q=<encoded text>` runs a search and opens the results in a new tab.
-/// - `folio://search` focuses the search overlay without a query.
+/// - `boaz://open?url=<encoded http(s) URL>` opens (or switches to) that address in a new tab.
+/// - `boaz://search?q=<encoded text>` runs a search and opens the results in a new tab.
+/// - `boaz://search` focuses the search overlay without a query.
 enum DeepLink {
     enum Intent: Equatable {
         case open(URL)
@@ -16,7 +16,7 @@ enum DeepLink {
     }
 
     static func parse(_ url: URL) -> Intent? {
-        guard url.scheme == "folio", let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        guard url.scheme == "boaz", let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         else { return nil }
         func value(_ name: String) -> String? { components.queryItems?.first { $0.name == name }?.value }
         switch components.host {
@@ -35,7 +35,7 @@ enum DeepLink {
 
     static func url(forOpening target: URL) -> URL? {
         var components = URLComponents()
-        components.scheme = "folio"
+        components.scheme = "boaz"
         components.host = "open"
         components.queryItems = [URLQueryItem(name: "url", value: target.absoluteString)]
         return components.url
@@ -43,7 +43,7 @@ enum DeepLink {
 
     static func url(forSearching query: String) -> URL? {
         var components = URLComponents()
-        components.scheme = "folio"
+        components.scheme = "boaz"
         components.host = "search"
         if !query.isEmpty { components.queryItems = [URLQueryItem(name: "q", value: query)] }
         return components.url

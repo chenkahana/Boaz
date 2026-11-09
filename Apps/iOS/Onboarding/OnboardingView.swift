@@ -1,4 +1,4 @@
-import FolioKit
+import BoazKit
 import SwiftUI
 import UIKit
 
@@ -6,7 +6,7 @@ import UIKit
 /// the library reaches the Mac and back; Arc, Chrome and Safari data comes to the iPhone through that sync.
 struct OnboardingView: View {
     // No default-browser step yet: iOS only offers "Default Browser App" to apps Apple has granted the
-    // com.apple.developer.web-browser entitlement, which Folio doesn't have.
+    // com.apple.developer.web-browser entitlement, which Boaz doesn't have.
     enum Step: Int, CaseIterable { case signIn, done }
 
     @Environment(AppModel.self) private var model
@@ -47,7 +47,7 @@ struct OnboardingView: View {
             switch step {
             case .signIn:
                 OnboardingHero(size: heroSize(large: true))
-                OnboardingHeading(title: "Welcome to Folio",
+                OnboardingHeading(title: "Welcome to Boaz",
                                   message: "Sign in to iCloud to keep your spaces, pins and tabs in step on your iPhone and Mac.")
                 SignInCard()
             case .done:
