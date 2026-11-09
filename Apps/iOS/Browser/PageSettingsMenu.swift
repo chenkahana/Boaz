@@ -25,15 +25,8 @@ struct WebsiteSettingsSheet: View {
                     Picker("Microphone", selection: $settings.microphone) {
                         ForEach(PageSettings.Permission.allCases) { Text($0.label).tag($0) }
                     }
-                    Picker("Location", selection: $settings.location) {
-                        ForEach(PageSettings.Permission.allCases) { Text($0.label).tag($0) }
-                    }
                 } header: {
                     Text("Permissions")
-                } footer: {
-                    // WebPage has no permission hook for geolocation (only camera and microphone), so
-                    // this site can't be stopped from asking iOS for location the way it can for those.
-                    Text("Camera and microphone requests from this site are granted or denied as chosen here. Location can't be enforced the same way; iOS still asks on the site's behalf.")
                 }
                 Section("Pop-ups") {
                     Picker("Pop-ups", selection: $settings.popups) {

@@ -27,7 +27,6 @@ enum PageSettings {
         var desktopSite = false
         var camera: Permission = .ask
         var microphone: Permission = .ask
-        var location: Permission = .ask
         var popups: PopupPolicy = .block
         var contentBlocking = true
     }
@@ -77,8 +76,7 @@ enum PageSettings {
     }
 
     /// The `WebPage.Configuration.deviceSensorAuthorization` decision for a camera/microphone request.
-    /// WebPage has no equivalent hook for geolocation (that's `WKUIDelegate`, which the SwiftUI `WebPage`
-    /// API doesn't use), so the Location setting is remembered and shown but can't be enforced here.
+    /// WebPage has no such hook for geolocation, so there is no per-site Location setting.
     static func mediaCaptureDecision(_ type: WKMediaCaptureType, host: String?) -> WKPermissionDecision {
         let settings = settings(forHost: host)
         let permission: Permission = switch type {
