@@ -153,7 +153,9 @@ final class BrowserState {
         model.applyContentBlocking(to: &configuration)
         let page = WebPage(configuration: configuration, navigationDecider: NavigationRouter(browser: self, context: context),
                            dialogPresenter: MacDialogs())
+        #if DEBUG
         page.isInspectable = true
+        #endif
         return page
     }
 
