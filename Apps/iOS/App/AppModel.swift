@@ -62,7 +62,10 @@ final class AppModel {
     /// iCloud sync with the user's other devices (a picked folder only when iCloud isn't available).
     @ObservationIgnored private(set) var sync: LibrarySync?
     /// Compiled once at launch; `nil` until ready, so the very first page or two may load unblocked.
-    @ObservationIgnored private var contentBlockLists: [WKContentRuleList] = []
+    /// `nil` until compiled. Pages opened before then (the tab reopened at launch) hold their first load until they
+    /// have the lists, so no page loads with its ads.
+    @ObservationIgnored private var contentBlockLists: [WKContentRuleList]?
+    @ObservationIgnored private var awaitingBlockLists: [(controller: WKUserContentController, load: () -> Void)] = []
     /// Runs once the current sheet has finished dismissing (a tab can't present while a sheet is leaving).
     @ObservationIgnored private var afterSheet: (() -> Void)?
     private let maxLivePages = 8
@@ -86,7 +89,15 @@ final class AppModel {
 
     func start() async {
         // Compiling EasyList the first time takes a few seconds; the library loads meanwhile.
-        Task { contentBlockLists = await ContentBlocking.compiledLists() }
+        Task {
+            let lists = await ContentBlocking.compiledLists()
+            contentBlockLists = lists
+            for page in awaitingBlockLists {
+                lists.forEach(page.controller.add)
+                page.load()
+            }
+            awaitingBlockLists = []
+        }
         do {
             let sync = try prepareSync()
             guard let store = self.store else { return }
@@ -216,9 +227,9 @@ final class AppModel {
         let tabIsPrivate = isPrivate(tab)
         var configuration = WebPage.Configuration()
         if tabIsPrivate { configuration.websiteDataStore = .nonPersistent() }
-        if Preferences.blockTrackers, PageSettings.settings(for: tab.url, isPrivate: tabIsPrivate).contentBlocking {
-            contentBlockLists.forEach(configuration.userContentController.add)
-        }
+        let blocksContent = Preferences.blockTrackers
+            && PageSettings.settings(for: tab.url, isPrivate: tabIsPrivate).contentBlocking
+        if blocksContent, let contentBlockLists { contentBlockLists.forEach(configuration.userContentController.add) }
         if Preferences.hideCookieBanners {
             configuration.userContentController.addUserScript(CookieBanners.userScript())
         }
@@ -245,7 +256,16 @@ final class AppModel {
             })
         let page = WebPage(configuration: configuration, navigationDecider: decider)
         page.customUserAgent = PageSettings.userAgent(forHost: tab.url?.host(), isPrivate: tabIsPrivate)
-        if let url = tab.url { page.load(URLRequest(url: url)) }
+        if let url = tab.url {
+            if blocksContent, contentBlockLists == nil {
+                awaitingBlockLists.append((configuration.userContentController, { [weak page] in
+                    // Unless the page went somewhere else in the meantime.
+                    if let page, page.url == nil { page.load(URLRequest(url: url)) }
+                }))
+            } else {
+                page.load(URLRequest(url: url))
+            }
+        }
         pages[tab.id] = page
         while pageRecency.count > maxLivePages {
             pages[pageRecency.removeFirst()] = nil
