@@ -21,6 +21,8 @@ import WebKit
 /// Puts a toolbar in the screen's right-hand column — the strip iPhone Duo reserves for the camera, time and
 /// status icons — stacked vertically below those icons. Falls back to a bottom bar where there's no such column.
 private struct ToolRailModifier<Rail: View>: ViewModifier {
+    /// Whether content scrolling under the bottom bar gets the system's scroll-edge effect.
+    let edgeEffect: Bool
     let rail: (Axis) -> Rail
     @State private var state = ToolRailState()
     /// The content's safe-area insets. Measured here because a reader that ignores the safe area sees none.
@@ -34,13 +36,7 @@ private struct ToolRailModifier<Rail: View>: ViewModifier {
         // One structural position for `content` in both layouts: switching branches around it would rebuild the
         // content (and re-host its web view) whenever the measured insets change.
         let hasColumn = insets.trailing >= 44
-        content
-            // A bar rather than an inset, so content scrolling under it gets the system's scroll-edge effect.
-            .safeAreaBar(edge: .bottom, spacing: 0) {
-                if !hasColumn {
-                    rail(.horizontal).animation(motion, value: state.isCollapsed)
-                }
-            }
+        bottomBar(content, shown: !hasColumn)
             .overlay {
                 if hasColumn {
                     GeometryReader { proxy in column(in: proxy) }
@@ -51,6 +47,19 @@ private struct ToolRailModifier<Rail: View>: ViewModifier {
         .onGeometryChange(for: EdgeInsets.self, of: { $0.safeAreaInsets }) { insets = $0 }
         // Only a deliberate tuck; scrolling collapses the rail too often for a tap each time.
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: state.tucked) { _, tucked in tucked }
+    }
+
+    /// A bar gives content scrolling under it the system's scroll-edge effect. A web page fills that effect with
+    /// its own background color, which can be far from what's showing (a pale band across a dark hero image), so
+    /// pages take an inset and run on under the bar's glass buttons, as in Safari. `edgeEffect` never changes for
+    /// a given use, so `content` keeps its place.
+    @ViewBuilder private func bottomBar(_ content: Content, shown: Bool) -> some View {
+        let bar = ZStack { if shown { rail(.horizontal).animation(motion, value: state.isCollapsed) } }
+        if edgeEffect {
+            content.safeAreaBar(edge: .bottom, spacing: 0) { bar }
+        } else {
+            content.safeAreaInset(edge: .bottom, spacing: 0) { bar }
+        }
     }
 
     private func column(in proxy: GeometryProxy) -> some View {
@@ -125,8 +134,8 @@ private struct ToolRailModifier<Rail: View>: ViewModifier {
 }
 
 extension View {
-    func toolRail<Rail: View>(@ViewBuilder _ rail: @escaping (Axis) -> Rail) -> some View {
-        modifier(ToolRailModifier(rail: rail))
+    func toolRail<Rail: View>(edgeEffect: Bool = true, @ViewBuilder _ rail: @escaping (Axis) -> Rail) -> some View {
+        modifier(ToolRailModifier(edgeEffect: edgeEffect, rail: rail))
     }
 
     /// Scrolling this view down collapses the enclosing tool rail; scrolling back up restores it.
