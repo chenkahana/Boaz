@@ -77,7 +77,7 @@ private struct BlockView: View {
         case .blockquote:
             HStack(spacing: 12) {
                 Capsule().fill(.secondary).frame(width: 3)
-                Text(block.text ?? "").font(.system(.body, design: .serif).italic()).foregroundStyle(.secondary)
+                Text(block.text ?? "").font(.system(.body, design: .serif).italic()).foregroundStyle(Theme.textSecondary)
             }
         case .li:
             HStack(alignment: .top, spacing: 8) {
@@ -95,7 +95,7 @@ private struct BlockView: View {
                 .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.row))
             }
         case .figcaption:
-            Text(block.text ?? "").font(.caption).foregroundStyle(.secondary)
+            Text(block.text ?? "").font(.caption).foregroundStyle(Theme.textSecondary)
         }
     }
 }

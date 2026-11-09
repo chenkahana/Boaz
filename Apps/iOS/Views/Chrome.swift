@@ -1,112 +1,179 @@
 import BoazKit
 import SwiftUI
 
-/// Address/search entry that slides up over whatever is on screen.
-struct SearchOverlay: View {
+/// Address and search entry: a panel in the page area, riding above the keyboard, with the field on top and
+/// suggestions below it. Local matches (completion, open tabs, history) update on every keystroke; the search
+/// engine's suggestions follow as they arrive (`SearchSuggestions`).
+struct SearchPanel: View {
     @Environment(AppModel.self) private var model
+    @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
     @FocusState private var focused: Bool
     /// Off right after a deletion, so backspacing over a completion doesn't bring it straight back.
     @State private var completes = true
 
     var body: some View {
-        @Bindable var model = model
-        ZStack(alignment: .bottom) {
-            Color.black.opacity(0.25).ignoresSafeArea()
-                .onTapGesture { model.searchTarget = nil }
-                // Cancel and the escape gesture cover this for VoiceOver.
-                .accessibilityHidden(true)
-            VStack(spacing: 8) {
-                ForEach(historySuggestions) { visit in
-                    Button { model.openNewTab(visit.url, title: visit.title) } label: {
-                        HStack(spacing: 10) {
-                            Image(systemName: "clock.arrow.circlepath").frame(width: 24).foregroundStyle(.secondary)
-                            VStack(alignment: .leading) {
-                                Text(visit.title ?? visit.url.host() ?? "").lineLimit(1)
-                                Text(visit.url.host() ?? "").font(.caption).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                        }
-                        .padding(.horizontal, 16).padding(.vertical, 10)
-                        .contentShape(.rect)
+        BottomPanel(site: site, maxHeight: 0.85, onDismiss: dismiss) {
+            VStack(spacing: 4) {
+                field
+                if expanded {
+                    ScrollView { VStack(spacing: 0) { rows } }
+                        .scrollBounceBehavior(.basedOnSize)
+                        .transition(.opacity)
+                } else if !query.isEmpty {
+                    ViewThatFits(in: .vertical) {
+                        VStack(spacing: 0) { rows }
+                        ScrollView { VStack(spacing: 0) { rows } }
                     }
-                    .buttonStyle(.plain)
-                }
-                ForEach(suggestions) { item in
-                    Button {
-                        model.searchTarget = nil
-                        model.activate(item)
-                    } label: {
-                        HStack(spacing: 10) {
-                            Monogram(url: item.url, tint: Theme.brand, size: 24)
-                            VStack(alignment: .leading) {
-                                Text(item.title ?? "").lineLimit(1)
-                                Text(item.url?.host() ?? "").font(.caption).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Image(systemName: "arrow.up.right").font(.caption).foregroundStyle(.secondary)
-                        }
-                        .padding(.horizontal, 16).padding(.vertical, 10)
-                        .contentShape(.rect)
-                    }
-                    .buttonStyle(.plain)
-                }
-                if let completion {
-                    Button(action: submit) {
-                        HStack(spacing: 10) {
-                            Monogram(url: URL(string: "https://" + completion), tint: Theme.brand, size: 24)
-                            let typed = typedPart(of: completion)
-                            Text("\(typed)\(Text(completion.dropFirst(typed.count)).foregroundStyle(.secondary))")
-                                .lineLimit(1)
-                            Spacer()
-                            Image(systemName: "return").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                        }
-                        .padding(.horizontal, 16).padding(.vertical, 10)
-                        .background(Theme.brand.opacity(0.12), in: .rect(cornerRadius: 16))
-                        .contentShape(.rect)
-                    }
-                    .buttonStyle(.plain)
                     .transition(.opacity)
                 }
-                HStack(spacing: 4) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                        TextField("Search or enter address", text: $model.searchText)
-                            .focused($focused)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .keyboardType(.webSearch)
-                            .submitLabel(.go)
-                            .onSubmit(submit)
-                        if !model.searchText.isEmpty {
-                            Button { model.searchText = "" } label: { Image(systemName: "xmark.circle.fill") }
-                                .foregroundStyle(.secondary)
-                                .accessibilityLabel("Clear Text")
-                        }
-                    }
-                    .padding(.horizontal, 18).padding(.vertical, 14)
-                    // Flat inside the glass card: glass doesn't stack on glass.
-                    .background(Color.primary.opacity(0.06), in: .capsule)
-                    Button { model.searchTarget = nil } label: {
-                        Text("Cancel").fontWeight(.medium)
-                            .padding(.horizontal, 10)
-                            .frame(minHeight: 44)
-                            .contentShape(.rect)
-                    }
-                }
             }
-            .padding(12)
-            .glassEffect(.regular, in: .rect(cornerRadius: 30))
-            // VoiceOver stays in the card, and the two-finger scrub dismisses it.
-            .accessibilityElement(children: .contain)
-            .accessibilityAddTraits(.isModal)
-            .accessibilityAction(.escape) { model.searchTarget = nil }
-            .padding(.horizontal, 10)
-            .padding(.bottom, 6)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .padding(8)
         }
         .onAppear { focused = true }
         .onChange(of: model.searchText) { old, new in completes = new.count >= old.count }
-        .animation(.snappy(duration: 0.2), value: completion)
+        .animation(BottomPanelStyle.motion, value: expanded)
+    }
+
+    /// A query grows the panel to its full height on the first keystroke and keeps it there, so the field doesn't
+    /// jump as suggestions come and go. Without engine suggestions (an address, Incognito, turned off) the panel
+    /// fits its few local rows.
+    private var expanded: Bool {
+        !query.isEmpty && model.asksSearchEngine && !SearchSuggestions.looksLikeAddress(query)
+    }
+
+    private var query: String { model.searchText.trimmingCharacters(in: .whitespaces) }
+
+    private var site: SiteColor? {
+        guard tintWithSiteColors, let id = model.activeTabID else { return nil }
+        return model.siteEdges[id]?.bottom
+    }
+
+    private var field: some View {
+        @Bindable var model = model
+        return HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass").foregroundStyle(Theme.textSecondary)
+            TextField("Search or enter address", text: $model.searchText)
+                .focused($focused)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .keyboardType(.webSearch)
+                .submitLabel(.go)
+                .onSubmit(submit)
+            if !model.searchText.isEmpty {
+                Button { model.searchText = "" } label: {
+                    Image(systemName: "xmark.circle.fill").frame(minWidth: 28, minHeight: 28).contentShape(.rect)
+                }
+                .foregroundStyle(Theme.textSecondary)
+                .accessibilityLabel("Clear Text")
+            }
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        // Flat inside the glass panel: glass doesn't stack on glass.
+        .background(Color.primary.opacity(0.07), in: .capsule)
+    }
+
+    @ViewBuilder private var rows: some View {
+        if let completion {
+            Button(action: submit) {
+                row {
+                    Monogram(url: URL(string: "https://" + completion), tint: Theme.brand, size: 24)
+                    let typed = typedPart(of: completion)
+                    Text("\(typed)\(Text(completion.dropFirst(typed.count)).foregroundStyle(Theme.textSecondary))")
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    Image(systemName: "return").font(.caption.weight(.semibold)).foregroundStyle(Theme.textSecondary)
+                }
+                .background(Theme.brand.opacity(0.12), in: .rect(cornerRadius: 18))
+            }
+            .buttonStyle(.plain)
+        } else {
+            // What was typed, as typed: the list is never empty while there's text.
+            Button(action: submit) {
+                row {
+                    let isAddress = SearchSuggestions.looksLikeAddress(query)
+                    Image(systemName: isAddress ? "globe" : "magnifyingglass").frame(width: 24).foregroundStyle(Theme.textSecondary)
+                    Text(query).lineLimit(1)
+                    Spacer(minLength: 0)
+                    Image(systemName: "return").font(.caption.weight(.semibold)).foregroundStyle(Theme.textSecondary)
+                }
+            }
+            .buttonStyle(.plain)
+        }
+        ForEach(tabSuggestions) { item in
+            Button {
+                model.searchTarget = nil
+                model.activate(item)
+            } label: {
+                row {
+                    Monogram(url: item.url, tint: Theme.brand, size: 24)
+                    titleAndHost(item.title, item.url)
+                    Spacer(minLength: 0)
+                    Text("Switch to Tab").font(.caption).foregroundStyle(Theme.textSecondary)
+                    Image(systemName: "arrow.right.circle").foregroundStyle(Theme.textSecondary)
+                }
+            }
+            .buttonStyle(.plain)
+        }
+        ForEach(historySuggestions) { visit in
+            Button { model.openNewTab(visit.url, title: visit.title) } label: {
+                row {
+                    Image(systemName: "clock.arrow.circlepath").frame(width: 24).foregroundStyle(Theme.textSecondary)
+                    titleAndHost(visit.title, visit.url)
+                    Spacer(minLength: 0)
+                }
+            }
+            .buttonStyle(.plain)
+        }
+        ForEach(remoteSuggestions, id: \.self) { suggestion in
+            HStack(spacing: 0) {
+                Button { search(suggestion) } label: {
+                    row {
+                        Image(systemName: "magnifyingglass").frame(width: 24).foregroundStyle(Theme.textSecondary)
+                        highlighted(suggestion).lineLimit(1)
+                        Spacer(minLength: 0)
+                    }
+                }
+                .buttonStyle(.plain)
+                Button { model.searchText = suggestion + " " } label: {
+                    Image(systemName: "arrow.up.left")
+                        .foregroundStyle(Theme.textSecondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Fill In \(suggestion)")
+            }
+        }
+    }
+
+    private func row(@ViewBuilder _ content: () -> some View) -> some View {
+        HStack(spacing: 12) { content() }
+            .padding(.horizontal, 12)
+            .frame(minHeight: 44)
+            .contentShape(.rect)
+    }
+
+    private func titleAndHost(_ title: String?, _ url: URL?) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(title ?? url?.host() ?? "").lineLimit(1)
+            Text(url?.host() ?? "").font(.caption).foregroundStyle(Theme.textSecondary).lineLimit(1)
+        }
+    }
+
+    /// The typed part in regular weight, the rest of the suggestion bold.
+    private func highlighted(_ suggestion: String) -> Text {
+        let typed = model.searchText.drop(while: \.isWhitespace)
+        guard let range = suggestion.range(of: typed, options: [.caseInsensitive, .anchored]) else {
+            return Text(suggestion).fontWeight(.semibold)
+        }
+        return Text("\(Text(suggestion[range]))\(Text(suggestion[range.upperBound...]).fontWeight(.semibold))")
+    }
+
+    private func dismiss() { model.searchTarget = nil }
+
+    private func search(_ suggestion: String) {
+        model.searchText = suggestion
+        model.submitSearch()
     }
 
     /// Host the typed text completes to, from history hosts first, then popular domains.
@@ -125,20 +192,26 @@ struct SearchOverlay: View {
         model.submitSearch()
     }
 
-    /// History matches, minus addresses already open as a tab (those show as "switch to tab" below).
+    /// The engine's suggestions, minus repeats of the row above them.
+    private var remoteSuggestions: [String] {
+        let typed = query.lowercased()
+        return model.remoteSuggestions.suggestions.filter { $0 != completion && $0.lowercased() != typed }
+    }
+
+    /// History matches, minus addresses already open as a tab (those show as "switch to tab" above).
     private var historySuggestions: [HistoryVisit] {
-        let open = Set(suggestions.compactMap(\.url))
-        return model.historySuggestions.filter { !open.contains($0.url) }
+        let open = Set(tabSuggestions.compactMap(\.url))
+        return model.historySuggestions.filter { !open.contains($0.url) }.prefix(3).map { $0 }
     }
 
     /// Open and pinned tabs whose title or address matches what's typed.
-    private var suggestions: [SidebarItem] {
-        let query = model.searchText.lowercased()
+    private var tabSuggestions: [SidebarItem] {
+        let query = query.lowercased()
         guard query.count > 1, model.searchTarget == .newTab, !model.isIncognito else { return [] }
         return model.sidebar.items
             .filter { $0.kind == .tab && (($0.title ?? "").lowercased().contains(query)
                                            || ($0.url?.absoluteString.lowercased().contains(query) ?? false)) }
-            .prefix(4)
+            .prefix(3)
             .map { $0 }
     }
 }

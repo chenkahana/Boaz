@@ -23,9 +23,11 @@ final class AppModel {
         }
     }
     var activeTabID: String?
-    var searchTarget: SearchTarget?
-    var searchText = "" { didSet { refreshHistorySuggestions() } }
+    var searchTarget: SearchTarget? { didSet { if searchTarget == nil { remoteSuggestions.clear() } } }
+    var searchText = "" { didSet { refreshHistorySuggestions(); refreshRemoteSuggestions() } }
     var historySuggestions: [HistoryVisit] = []
+    /// The search engine's suggestions for `searchText`.
+    let remoteSuggestions = SearchSuggestions()
     var sheet: Sheet?
     var showOnboarding = false
     var toast: Toast?
@@ -34,10 +36,14 @@ final class AppModel {
     private(set) var incognitoTabs: [SidebarItem] = []
     /// Last rendered image of each tab, shown on its card. Saved in Caches (`SnapshotCache`), except private tabs'.
     var snapshots: [String: UIImage] = [:]
-    /// The folded layout's cover flow of Today tabs, over the page or the home screen.
+    /// The folded layout's tab carousel of Today tabs, over the page or the home screen.
     var showsCoverFlow = false
-    /// Each tab's site color, which the browser chrome takes on. Private tabs are never sampled.
-    private(set) var siteColors: [String: SiteColor] = [:]
+    /// Counts requests to open the carousel, so one made while it is still closing brings it back.
+    private(set) var coverFlowRequests = 0
+    /// The page's settings panel, from the rail's "…" (the search panel is `searchTarget`; one panel at a time).
+    var showsPageSettings = false
+    /// Each tab's page colors along the viewport's edges, which the screen edges and chrome take on.
+    private(set) var siteEdges: [String: SiteEdges] = [:]
     /// Bumped on every edge-swipe back/forward commit; `TabBrowser` fires a haptic off it.
     var backForwardHaptic = 0
 
@@ -62,6 +68,7 @@ final class AppModel {
         UserDefaults.standard.register(defaults: [
             Preferences.archiveAfterKey: ArchiveInterval.day.rawValue,
             Preferences.searchEngineKey: SearchEngine.duckDuckGo.rawValue,
+            Preferences.searchSuggestionsKey: true,
             Preferences.blockTrackersKey: true,
             Preferences.hideCookieBannersKey: true,
         ])
@@ -206,6 +213,10 @@ final class AppModel {
         if Preferences.hideCookieBanners {
             configuration.userContentController.addUserScript(CookieBanners.userScript())
         }
+        configuration.userContentController.addUserScript(SiteEdges.userScript())
+        configuration.userContentController.add(SiteEdges.Messages { [weak self] edges, url in
+            self?.didSampleEdges(edges, at: url, tabID: tab.id, isPrivate: tabIsPrivate)
+        }, contentWorld: .defaultClient, name: SiteEdges.messageName)
         // Website Settings' camera/microphone pickers, per host; re-read on every request, so a change
         // made while the tab is open takes effect on the site's next request, not just its next open. Keyed by
         // the page's host, as the sheet is: an embedded frame doesn't get its own say.
@@ -237,7 +248,6 @@ final class AppModel {
     /// async sequence only supports one consumer, so AppModel never subscribes to it directly.
     func pageDidFinishLoading(_ tab: SidebarItem) {
         guard let page = pages[tab.id] else { return }
-        updateSiteColor(for: tab)
         let tabIsPrivate = isPrivate(tab)
         captureSnapshot(of: page, tab: tab)
         Task {
@@ -248,17 +258,17 @@ final class AppModel {
         }
     }
 
-    /// Samples the tab's site color once its page has loaded; while it loads, uses the color last seen for the host.
-    func updateSiteColor(for tab: SidebarItem) {
-        guard !isPrivate(tab), let page = pages[tab.id] else { return }
-        if page.isLoading {
-            if let cached = SiteColor.cached(for: page.url), siteColors[tab.id] != cached { siteColors[tab.id] = cached }
-            return
-        }
-        Task { [weak self] in
-            let color = await SiteColor.sample(page)
-            if let self, self.siteColors[tab.id] != color { self.siteColors[tab.id] = color }
-        }
+    /// Until the new page reports its own edge colors, a page or site seen before shows the colors it had.
+    func restoreSiteEdges(for tab: SidebarItem) {
+        guard !isPrivate(tab), let cached = SiteEdges.cached(for: pages[tab.id]?.url), siteEdges[tab.id] != cached
+        else { return }
+        siteEdges[tab.id] = cached
+    }
+
+    /// The page's live edge sampler (`SiteEdges.userScript`) reports only changes. Private tabs' colors aren't cached.
+    private func didSampleEdges(_ edges: SiteEdges, at url: URL?, tabID: String, isPrivate: Bool) {
+        if !isPrivate, let url { SiteEdges.remember(edges, for: url) }
+        if siteEdges[tabID] != edges { siteEdges[tabID] = edges }
     }
 
     /// Downscaled render of a tab's current page, dropped when the tab closes.
@@ -372,6 +382,7 @@ final class AppModel {
     func beginSearch(_ target: SearchTarget) {
         searchText = target == .currentTab ? (activeTab?.url?.absoluteString ?? "") : ""
         searchTarget = target
+        if asksSearchEngine { remoteSuggestions.warm(Preferences.searchEngine) }
     }
 
     func submitSearch() {
@@ -418,13 +429,17 @@ final class AppModel {
 
     func goHome() {
         if let tab = activeTab, let page = pages[tab.id] { captureSnapshot(of: page, tab: tab) }
+        showsPageSettings = false
         activeTabID = nil
     }
 
     func openCoverFlow() {
         // The page's card should show it as it is now, not as it first loaded.
         if let tab = activeTab, let page = pages[tab.id] { captureSnapshot(of: page, tab: tab) }
+        showsPageSettings = false
+        searchTarget = nil
         showsCoverFlow = true
+        coverFlowRequests += 1
     }
 
     /// Closing sends a tab to the archive (like Arc); undo brings it back and removes the archive entry.
@@ -577,6 +592,16 @@ final class AppModel {
             ? (try? store?.historySuggestions(matching: query, limit: 4)) ?? [] : []
     }
 
+    /// Whether typing may be sent to the search engine for suggestions: never in private browsing.
+    var asksSearchEngine: Bool {
+        searchTarget != nil && Preferences.searchSuggestions && !isIncognito && activeTab.map(isPrivate) != true
+    }
+
+    private func refreshRemoteSuggestions() {
+        guard asksSearchEngine, !SearchSuggestions.looksLikeAddress(searchText) else { return remoteSuggestions.clear() }
+        remoteSuggestions.update(searchText, engine: Preferences.searchEngine)
+    }
+
     /// The tabs listed alongside `tab`; another device's Today tabs aren't listed here.
     private func siblings(of tab: SidebarItem) -> [SidebarItem] {
         isPrivate(tab) ? incognitoTabs : sidebar.children(of: tab.parentID ?? "").filter {
@@ -631,6 +656,7 @@ enum Preferences {
     static let searchEngineKey = "searchEngine"
     static let blockTrackersKey = "blockTrackers"
     static let hideCookieBannersKey = "hideCookieBanners"
+    static let searchSuggestionsKey = "searchSuggestions"
     /// Read through `@AppStorage` (default on) by the views that tint.
     static let tintWithSiteColorsKey = "tintWithSiteColors"
 
@@ -640,6 +666,7 @@ enum Preferences {
     static var searchEngine: SearchEngine {
         SearchEngine(rawValue: UserDefaults.standard.string(forKey: searchEngineKey) ?? "") ?? .duckDuckGo
     }
+    static var searchSuggestions: Bool { UserDefaults.standard.bool(forKey: searchSuggestionsKey) }
     static var blockTrackers: Bool { UserDefaults.standard.bool(forKey: blockTrackersKey) }
     static var hideCookieBanners: Bool { UserDefaults.standard.bool(forKey: hideCookieBannersKey) }
 }

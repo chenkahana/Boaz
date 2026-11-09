@@ -82,6 +82,8 @@ struct OnboardingView: View {
                     Text(primary).font(.headline).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.glassProminent)
+                // White on the brand color in both appearances (the app's tint is lighter in Dark Mode).
+                .tint(Theme.brand)
             }
             .controlSize(.large)
             if let secondary {

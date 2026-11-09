@@ -24,7 +24,6 @@ struct BoazApp: App {
         WindowGroup {
             RootView()
                 .environment(model)
-                .tint(Theme.brand)
                 .task { await model.start() }
                 .onOpenURL { url in DeepLink.handle(url, model: model) }
         }

@@ -28,7 +28,7 @@ private struct ToolRailModifier<Rail: View>: ViewModifier {
     /// Live horizontal pull on the rail, toward the edge (tuck) or out of it (pop back).
     @State private var pull: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.chromeTint) private var tint
+    @Environment(\.siteEdges) private var edges
 
     func body(content: Content) -> some View {
         // One structural position for `content` in both layouts: switching branches around it would rebuild the
@@ -68,9 +68,15 @@ private struct ToolRailModifier<Rail: View>: ViewModifier {
                 .offset(x: pull)
         }
         .frame(width: insets.trailing)
-        // A light wash of the site's color: WebKit paints the page's white under the column on the cover screen,
-        // so this keeps the column the site's without hurting the status icons' contrast.
-        .background { if let tint { tint.opacity(0.32).transition(.opacity) } }
+        // The page's own colors down its right-hand edge, so the page seems to run under the camera and status
+        // icons (which pick their contrast from what's under them).
+        .background {
+            if let edges {
+                LinearGradient(stops: edges.trailingStops, startPoint: .top, endPoint: .bottom)
+                    .id(edges.trailing)
+                    .transition(.opacity)
+            }
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
         .simultaneousGesture(tuckAndPull)
         .animation(motion, value: state.isCollapsed)
@@ -170,38 +176,43 @@ private struct RailScrollCollapse<Key: Equatable>: ViewModifier {
 struct RailColumn<Top: View, Bottom: View, Nub: View>: View {
     @Environment(ToolRailState.self) private var state
     @Environment(\.chromeTint) private var tint
+    @Environment(\.siteEdges) private var edges
     @Namespace private var glass
     @ViewBuilder var top: Top
     @ViewBuilder var bottom: Bottom
     @ViewBuilder var nub: Nub
 
     var body: some View {
+        // Each dock sits on the strip of page color beside it: the top one near the top, the other at the bottom.
+        let upper = edges?.trailing(at: 0.25), lower = edges?.trailing(at: 1)
         GlassEffectContainer(spacing: 24) {
             VStack(spacing: 0) {
                 if state.isCollapsed {
                     nub
                         .padding(5)
-                        .glassEffect(.chrome(tint), in: .capsule)
+                        .glassEffect(.chrome(upper?.color ?? tint), in: .capsule)
                         .glassEffectID("top", in: glass)
                         .contentShape(.capsule)
                         .onTapGesture { state.expand() }
                         .accessibilityAddTraits(.isButton)
                         .accessibilityLabel("Show Toolbar")
+                        .chromeScheme(upper)
                 } else {
-                    dock(top).glassEffectID("top", in: glass)
+                    dock(top, on: upper).glassEffectID("top", in: glass)
                 }
                 Spacer(minLength: 16)
                 if !state.isCollapsed {
-                    dock(bottom).glassEffectID("bottom", in: glass)
+                    dock(bottom, on: lower).glassEffectID("bottom", in: glass)
                 }
             }
         }
     }
 
-    private func dock(_ content: some View) -> some View {
+    private func dock(_ content: some View, on site: SiteColor?) -> some View {
         VStack(spacing: 4) { content }
             .padding(5)
-            .glassEffect(.chrome(tint), in: .capsule)
+            .glassEffect(.chrome(site?.color ?? tint), in: .capsule)
+            .chromeScheme(site)
     }
 }
 
@@ -216,12 +227,27 @@ extension Axis {
 struct RailButton: View {
     let symbol: String
     var label: String?
+    /// Shown pressed: the panel or screen this button opens is up.
+    var isSelected = false
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) { RailGlyph(symbol: symbol) }
+        Button(action: action) { RailGlyph(symbol: symbol).railSelection(isSelected) }
             .buttonStyle(PressableStyle())
             .accessibilityLabel(label ?? symbol)
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+extension View {
+    /// The pressed look of a rail or bar button whose panel is open.
+    func railSelection(_ isSelected: Bool) -> some View {
+        background {
+            if isSelected {
+                Circle().fill(.primary.opacity(0.16)).transition(.scale(scale: 0.6).combined(with: .opacity))
+            }
+        }
+        .animation(.snappy(duration: 0.25), value: isSelected)
     }
 }
 
@@ -285,6 +311,21 @@ extension EnvironmentValues {
     @Entry var sidebar: SidebarControl?
     /// The current site's color, which toolbar glass picks up (`nil`: plain glass).
     @Entry var chromeTint: Color?
+    /// The current page's edge colors, which the rail's column takes on (`nil`: no page, or tinting is off).
+    @Entry var siteEdges: SiteEdges?
+}
+
+extension View {
+    /// Chrome drawn over a site color takes the appearance legible on it: dark glyphs and light glass on a light
+    /// color, and the reverse. Unchanged without one. The glyph color is explicit because glass otherwise picks
+    /// its content's vibrancy from the system appearance.
+    @ViewBuilder func chromeScheme(_ site: SiteColor?) -> some View {
+        if let site {
+            foregroundStyle(site.isLight ? Color.black : Color.white).environment(\.colorScheme, site.colorScheme)
+        } else {
+            self
+        }
+    }
 }
 
 extension Glass {

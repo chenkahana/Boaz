@@ -81,7 +81,7 @@ struct AppIconPicker: View {
             icon(choice, selected: selected)
             VStack(alignment: .leading, spacing: 2) {
                 Text(choice.label).font(.body.weight(selected ? .semibold : .regular)).foregroundStyle(.primary)
-                Text(choice.detail).font(.caption).foregroundStyle(.secondary)
+                Text(choice.detail).font(.caption).foregroundStyle(Theme.textSecondary)
             }
             Spacer(minLength: 0)
         }

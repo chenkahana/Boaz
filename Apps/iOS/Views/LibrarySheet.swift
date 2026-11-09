@@ -131,10 +131,10 @@ private struct Row: View {
                 Monogram(url: url, tint: Theme.brand, size: 28)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title ?? url.host() ?? url.absoluteString).lineLimit(1)
-                    Text(url.host() ?? "").font(.caption).foregroundStyle(.secondary)
+                    Text(url.host() ?? "").font(.caption).foregroundStyle(Theme.textSecondary)
                 }
                 Spacer()
-                Text(detail).font(.caption2).foregroundStyle(.tertiary)
+                Text(detail).font(.caption2).foregroundStyle(Theme.textSecondary)
             }
         }
         .foregroundStyle(.primary)
@@ -145,6 +145,7 @@ struct SettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(Preferences.archiveAfterKey) private var archiveAfter = ArchiveInterval.day.rawValue
     @AppStorage(Preferences.searchEngineKey) private var searchEngine = SearchEngine.duckDuckGo.rawValue
+    @AppStorage(Preferences.searchSuggestionsKey) private var searchSuggestions = true
     @AppStorage("blockTrackers") private var blockTrackers = true
     @AppStorage("hideCookieBanners") private var hideCookieBanners = true
     @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
@@ -159,10 +160,15 @@ struct SettingsSheet: View {
                 } footer: {
                     Text("Tabs you haven't opened in this long move to the Archive. Pinned tabs and favorites stay put.")
                 }
-                Section("Search") {
+                Section {
                     Picker("Search engine", selection: $searchEngine) {
                         ForEach(SearchEngine.allCases) { Text($0.name).tag($0.rawValue) }
                     }
+                    Toggle("Search Engine Suggestions", isOn: $searchSuggestions)
+                } header: {
+                    Text("Search")
+                } footer: {
+                    Text("As you type, what you've typed so far is sent to your search engine to suggest searches. Never in Incognito, and never for web addresses.")
                 }
                 Section {
                     Toggle("Block ads and trackers", isOn: $blockTrackers)
@@ -211,7 +217,7 @@ private struct SyncSettingsSection: View {
                 if sync.offersFolder {
                     LabeledContent("Sync Folder", value: sync.folderURL?.lastPathComponent ?? "None")
                     Button(sync.folderURL == nil ? "Sync Through a Folder…" : "Change Folder…") { picking = true }
-                    if let pickError { Text(pickError).font(.footnote).foregroundStyle(.secondary) }
+                    if let pickError { Text(pickError).font(.footnote).foregroundStyle(Theme.textSecondary) }
                 }
             } header: {
                 Text("iCloud Sync")
