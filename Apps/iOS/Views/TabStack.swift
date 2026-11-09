@@ -12,8 +12,7 @@ struct TabStack: View {
 
     var body: some View {
         let tabs = todayTabs
-        let recent = tabs.filter { $0.id != model.activeTabID }
-            .sorted { ($0.lastActiveAt ?? $0.createdAt) > ($1.lastActiveAt ?? $1.createdAt) }.prefix(2)
+        let recent = tabs.filter { $0.id != model.activeTabID }.sorted { $0.lastUsed > $1.lastUsed }.prefix(2)
         Button { model.openCoverFlow() } label: {
             ZStack {
                 if recent.isEmpty {
@@ -61,8 +60,8 @@ struct TabStack: View {
     }
 }
 
-/// Today's tabs as a deck in the page area, beside the rail: the focused tab large and in front at the right,
-/// earlier tabs peeking out to its left. Swipe sideways to move through them, tap one to open it, swipe one up to
+/// Today's tabs as a deck in the page area, beside the rail: the current tab large and in front at the right, the
+/// ones used before it peeking out to its left, most recent first. Swipe sideways to move through them, tap one to open it, swipe one up to
 /// archive it. The rail switches to Tabs on Your Mac, New Tab and Settings. Folded layout only, over the page. It
 /// grows out of the page as it opens and back into it as it closes, then clears `showsCoverFlow` itself.
 struct TabCarousel: View {
@@ -82,6 +81,9 @@ struct TabCarousel: View {
     @State private var sheet: Sheet?
     /// A Mac tab picked in the sheet, opened once the sheet has gone.
     @State private var macTab: SidebarItem?
+    /// The deck's order, fixed as it opens so picking a tab doesn't reshuffle it on the way out. The next time
+    /// it opens, that tab is in front.
+    @State private var order: [String] = []
 
     private enum Sheet: String, Identifiable { case macTabs, settings; var id: String { rawValue } }
     private enum DragMode: Equatable { case paging(from: Double), lifting, ignored }
@@ -129,6 +131,7 @@ struct TabCarousel: View {
         .allowsHitTesting(presented)
         .sensoryFeedback(.selection, trigger: Int(position.rounded()))
         .onAppear {
+            order = tabs.map(\.id)
             let index = tabs.firstIndex { $0.id == model.activeTabID } ?? tabs.count - 1
             position = Double(max(index, 0))
             focusedID = tabs.indices.contains(index) ? tabs[index].id : nil
@@ -158,8 +161,11 @@ struct TabCarousel: View {
 
     private var presentation: Double { presented ? 1 : 0 }
 
+    /// By last use, the current tab last (in front). Tabs opened while the deck is up go in front of the rest.
     private var todayTabs: [SidebarItem] {
-        model.isIncognito ? model.incognitoTabs : model.currentSpace.map(model.todayTabs(in:)) ?? []
+        let tabs = model.isIncognito ? model.incognitoTabs : model.currentSpace.map(model.todayTabs(in:)) ?? []
+        let rank = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0) })
+        return tabs.sorted { (rank[$0.id] ?? .max, $0.lastUsed) < (rank[$1.id] ?? .max, $1.lastUsed) }
     }
 
     private var hasMac: Bool { model.sidebar.devices.contains { $0.platform == .macOS } }
@@ -586,4 +592,8 @@ private struct MacTabsSheet: View {
         }
         .contentShape(.rect)
     }
+}
+
+private extension SidebarItem {
+    var lastUsed: Date { lastActiveAt ?? createdAt }
 }
