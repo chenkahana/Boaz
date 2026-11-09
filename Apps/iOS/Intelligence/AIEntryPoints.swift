@@ -2,8 +2,7 @@ import BoazKit
 import SwiftUI
 import WebKit
 
-/// Which AI sheet is up. The page sheet presents from the tab's browser (it can sit in a full-screen cover);
-/// the tidy sheets present from the root.
+/// Which AI sheet is up. The page sheet presents from the tab's browser; the tidy sheets present from the root.
 @Observable
 final class AIPresenter {
     static let shared = AIPresenter()
@@ -29,7 +28,7 @@ struct PageAIMenuItems: View {
     }
 }
 
-/// Tidy Tabs and Tidy Tab Titles for the current space, for the home menu and the Today header.
+/// Tidy Tabs and Tidy Tab Titles for the current space, for the menu.
 struct SpaceAIMenuItems: View {
     @Environment(AppModel.self) private var model
     @AppStorage(AIFeatures.preferenceKey) private var showAIFeatures = true
@@ -43,23 +42,6 @@ struct SpaceAIMenuItems: View {
                     AIPresenter.shared.request = .tidyTitles(spaceID: space.id)
                 }
             }
-        }
-    }
-}
-
-/// The Today header's sparkles menu.
-struct TodayAIMenu: View {
-    @AppStorage(AIFeatures.preferenceKey) private var showAIFeatures = true
-
-    var body: some View {
-        if AIFeatures.showsEntryPoints(preference: showAIFeatures) {
-            Menu {
-                SpaceAIMenuItems()
-            } label: {
-                Image(systemName: "sparkles").font(.footnote.weight(.semibold))
-                    .frame(width: 44, height: 28).contentShape(.rect)
-            }
-            .accessibilityLabel("Tidy with Apple Intelligence")
         }
     }
 }

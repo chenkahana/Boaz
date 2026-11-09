@@ -286,27 +286,6 @@ struct RailIcon: View {
     }
 }
 
-/// Small count bubble pinned to a rail button's corner.
-struct RailBadge: View {
-    let count: Int
-
-    var body: some View {
-        if count > 0 {
-            Text("\(count)")
-                .font(.system(.caption2, design: .rounded, weight: .bold))
-                .monospacedDigit()
-                .contentTransition(.numericText(value: Double(count)))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 4)
-                .frame(minWidth: 17, minHeight: 17)
-                .background(Theme.brand.gradient, in: .capsule)
-                .offset(x: 4, y: -2)
-                .allowsHitTesting(false)
-                .transition(.scale.combined(with: .opacity))
-        }
-    }
-}
-
 extension EnvironmentValues {
     /// Set when another pane's rail carries the home controls (unfolded: the browser pane's rail).
     @Entry var homeControlsElsewhere = false

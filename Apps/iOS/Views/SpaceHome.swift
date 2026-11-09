@@ -1,35 +1,22 @@
 import BoazKit
 import SwiftUI
 
-/// Home: spaces page horizontally, each on its own themed gradient, with favorites, pins and today's tabs.
+/// The unfolded layout's sidebar: the current space's favorites, pins and today's tabs, or Incognito's private
+/// tabs. Mobile shows one space; switching between spaces is a desktop thing.
 struct SpaceHome: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var scheme
-    @Environment(\.homeControlsElsewhere) private var homeControlsElsewhere
-    var zoom: Namespace.ID?
 
     var body: some View {
-        @Bindable var model = model
         Group {
             if model.isIncognito {
-                IncognitoPage(zoom: zoom).transition(.opacity)
-            } else {
-                TabView(selection: $model.currentSpaceID) {
-                    ForEach(model.spaces) { space in
-                        SpacePage(space: space, zoom: zoom).tag(Optional(space.id))
-                    }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                .transition(.opacity)
+                IncognitoPage().transition(.opacity)
+            } else if let space = model.currentSpace {
+                SpacePage(space: space).transition(.opacity)
             }
         }
         .ignoresSafeArea(edges: .bottom)
-        .toolRail { axis in
-            if !homeControlsElsewhere {
-                HomeBar(axis: axis).environment(\.colorScheme, model.isIncognito ? .dark : scheme)
-            }
-        }
-        // One full-bleed backdrop so the colour reaches under the sensor column and the bar; content stays in the safe area.
+        // One full-bleed backdrop so the colour reaches under the sensor column; content stays in the safe area.
         .background {
             Group {
                 if model.isIncognito {
@@ -43,14 +30,12 @@ struct SpaceHome: View {
             .animation(.smooth(duration: 0.45), value: model.currentSpaceID)
         }
         .animation(.easeInOut(duration: 0.35), value: model.isIncognito)
-        .sensoryFeedback(.selection, trigger: model.currentSpaceID)
     }
 }
 
 /// Private mode: tabs live only in memory with a non-persistent website data store.
 private struct IncognitoPage: View {
     @Environment(AppModel.self) private var model
-    let zoom: Namespace.ID?
 
     var body: some View {
         ScrollView {
@@ -61,7 +46,7 @@ private struct IncognitoPage: View {
                 }
                 Text("Private tabs don't save history, cookies or site data, and close when you leave Incognito.")
                     .font(.callout).foregroundStyle(.white.opacity(0.7))
-                TodayGrid(tabs: model.incognitoTabs, tint: Theme.violet, zoom: zoom)
+                TodayGrid(tabs: model.incognitoTabs, tint: Theme.violet)
                 Button("Leave Incognito") { model.setIncognito(false) }
                     .buttonStyle(.bordered).tint(.white)
             }
@@ -76,33 +61,16 @@ private struct IncognitoPage: View {
 private struct SpacePage: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var scheme
-    @Environment(\.isSidebar) private var isSidebar
     @Environment(\.sidebar) private var sidebar
     let space: Space
-    let zoom: Namespace.ID?
 
     var body: some View {
         let style = SpaceStyle(space, scheme: scheme)
         ScrollView {
-            VStack(alignment: .leading, spacing: isSidebar ? 14 : 20) {
-                HStack(spacing: isSidebar ? 8 : 10) {
-                    // Tapping the name switches, adds, edits or reorders spaces.
-                    SpaceTitleMenu(space: space) {
-                        HStack(spacing: isSidebar ? 8 : 10) {
-                            Text(space.icon ?? "✦").font(isSidebar ? .title3 : .title)
-                            Text(space.title).font(.system(isSidebar ? .title2 : .largeTitle, design: .rounded, weight: .bold))
-                                .lineLimit(1)
-                            Image(systemName: "chevron.down")
-                                .font((isSidebar ? Font.footnote : .callout).weight(.bold))
-                                .foregroundStyle(.secondary)
-                        }
-                        .contentShape(.rect)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityElement(children: .combine)
-                    .accessibilityAddTraits(.isHeader)
-                    if isSidebar, let sidebar {
-                        Spacer(minLength: 4)
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 8) {
+                    searchField(style)
+                    if let sidebar {
                         Button("Hide Sidebar", systemImage: "sidebar.left", action: sidebar.toggle)
                             .labelStyle(.iconOnly)
                             .font(.body.weight(.semibold))
@@ -113,12 +81,10 @@ private struct SpacePage: View {
                 }
                 .padding(.top, 8)
 
-                if isSidebar { searchField(style) }
-
                 let favorites = model.favorites(for: space)
                 if !favorites.isEmpty {
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: isSidebar ? 8 : 12), count: 4),
-                              spacing: isSidebar ? 8 : 12) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4),
+                              spacing: 8) {
                         ForEach(favorites) { FavoriteTile(tab: $0, tint: style.tint) }
                     }
                 }
@@ -128,46 +94,25 @@ private struct SpacePage: View {
                     VStack(spacing: 0) {
                         ForEach(pinned) { PinnedRow(item: $0, tint: style.tint, depth: 0) }
                     }
-                    .padding(isSidebar ? 4 : 8)
+                    .padding(4)
                     .background(.ultraThinMaterial, in: .rect(cornerRadius: Theme.Radius.tile))
                 }
 
                 TodayFolders(space: space, tint: style.tint)
 
                 let today = model.todayTabs(in: space)
-                if isSidebar {
-                    // The sidebar lists Today like Arc: a new-tab row, then one row per tab.
-                    VStack(spacing: 0) {
-                        Capsule().fill(style.foreground.opacity(0.12)).frame(height: 1)
-                            .padding(.horizontal, 10).padding(.bottom, 6)
-                        TodayRow.newTab(tint: style.tint)
-                        ForEach(today) { TodayRow(tab: $0, tint: style.tint) }
-                    }
-                    .animation(.snappy, value: today.map(\.id))
-                } else if today.isEmpty {
-                    searchField(style)
-                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
-                } else {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            Text("Today")
-                                .font(.footnote.weight(.semibold)).textCase(.uppercase)
-                                .foregroundStyle(.secondary)
-                                .accessibilityAddTraits(.isHeader)
-                            Spacer()
-                            TodayAIMenu().foregroundStyle(.secondary)
-                        }
-                        // The open page zooms back into the stack, unless the cover flow is the one showing.
-                        TabStack(space: space, cardSize: CGSize(width: 116, height: 160), zoom: model.showsCoverFlow ? nil : zoom)
-                            .frame(maxWidth: .infinity)
-                    }
-                    .transition(.opacity)
+                // Today like Arc: a new-tab row, then one row per tab.
+                VStack(spacing: 0) {
+                    Capsule().fill(style.foreground.opacity(0.12)).frame(height: 1)
+                        .padding(.horizontal, 10).padding(.bottom, 6)
+                    TodayRow.newTab(tint: style.tint)
+                    ForEach(today) { TodayRow(tab: $0, tint: style.tint) }
                 }
+                .animation(.snappy, value: today.map(\.id))
             }
-            .padding(.horizontal, isSidebar ? 14 : 20)
-            .padding(.top, isSidebar ? 12 : 24)
-            .padding(.bottom, isSidebar ? 40 : 120)
-            .animation(.snappy, value: model.todayTabs(in: space).isEmpty)
+            .padding(.horizontal, 14)
+            .padding(.top, 12)
+            .padding(.bottom, 40)
         }
         .scrollIndicators(.hidden)
         .collapsesToolRail()
@@ -182,7 +127,7 @@ private struct SpacePage: View {
                 .lineLimit(1)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, isSidebar ? 14 : 18).padding(.vertical, isSidebar ? 11 : 15)
+                .padding(.horizontal, 14).padding(.vertical, 11)
                 .glassEffect(.regular.interactive(), in: .capsule)
         }
         .buttonStyle(.plain)
@@ -252,7 +197,7 @@ private struct NewTabRow: View {
     }
 }
 
-/// Home toolbar: search, space dots and the menu. Runs down the right-hand rail, or across the bottom.
+/// The empty browser's toolbar: search and the menu. Runs down the right-hand rail, or across the bottom.
 struct HomeBar: View {
     @Environment(AppModel.self) private var model
     @Environment(\.sidebar) private var sidebar
@@ -269,7 +214,6 @@ struct HomeBar: View {
                 }
                 .buttonStyle(PressableStyle())
                 .accessibilityLabel("Search")
-                spaceDots.padding(.vertical, 8)
             } bottom: {
                 if let sidebar { SidebarRailButton(sidebar: sidebar) }
                 HomeMenu(inDock: true)
@@ -281,10 +225,6 @@ struct HomeBar: View {
             }
         } else {
             VStack(spacing: 8) {
-                // Its own glass capsule, so the dots don't float over the cards scrolling beneath.
-                spaceDots
-                    .padding(.horizontal, 6)
-                    .glassEffect(.regular, in: .capsule)
                 HStack(spacing: 10) {
                     if let sidebar {
                         Button(action: sidebar.toggle) { RailIcon(symbol: "sidebar.left", size: 50) }
@@ -312,39 +252,6 @@ struct HomeBar: View {
     }
 
     private var searchSymbol: String { model.isIncognito ? "eyeglasses" : "magnifyingglass" }
-
-    @ViewBuilder private var spaceDots: some View {
-        if model.spaces.count > 1, !model.isIncognito {
-            let stack = axis.stack(spacing: 0)
-            stack {
-                ForEach(model.spaces) { space in
-                    let current = space.id == model.currentSpaceID
-                    Button { withAnimation(.smooth) { model.currentSpaceID = space.id } } label: {
-                        Capsule()
-                            .fill(.primary.opacity(current ? 0.8 : 0.25))
-                            .frame(width: axis == .horizontal && current ? 18 : 6,
-                                   height: axis == .vertical && current ? 18 : 6)
-                            // Padding widens each dot's hit area without moving the dots apart.
-                            .padding(axis == .horizontal ? .horizontal : .vertical, 3)
-                            .padding(axis == .horizontal ? .vertical : .horizontal, 7)
-                            .contentShape(.rect)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .animation(.bouncy(duration: 0.35, extraBounce: 0.1), value: model.currentSpaceID)
-            // VoiceOver reads the strip as one control and swipes up or down to change space.
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Space")
-            .accessibilityValue(model.spaces.first { $0.id == model.currentSpaceID }?.title ?? "")
-            .accessibilityAdjustableAction { direction in
-                guard let index = model.spaces.firstIndex(where: { $0.id == model.currentSpaceID }) else { return }
-                let next = direction == .increment ? index + 1 : direction == .decrement ? index - 1 : index
-                guard model.spaces.indices.contains(next) else { return }
-                withAnimation(.smooth) { model.currentSpaceID = model.spaces[next].id }
-            }
-        }
-    }
 }
 
 /// Library, Incognito and Settings.
@@ -365,17 +272,8 @@ struct HomeMenu: View {
 
 struct HomeMenuItems: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.spaceEditing) private var spaceEditing
 
     var body: some View {
-        if !model.isIncognito, let space = model.currentSpace {
-            Section {
-                Button("New Space…", systemImage: "plus.rectangle.on.rectangle") {
-                    spaceEditing.request = .create(profileID: space.profileID)
-                }
-                Button("Edit Space…", systemImage: "paintpalette") { spaceEditing.request = .edit(space) }
-            }
-        }
         SpaceAIMenuItems()
         Button("Library", systemImage: "archivebox") { model.sheet = .library }
         Button(model.isIncognito ? "Leave Incognito" : "Incognito",
@@ -388,7 +286,6 @@ struct HomeMenuItems: View {
 private struct TodayGrid: View {
     let tabs: [SidebarItem]
     let tint: Color
-    let zoom: Namespace.ID?
     @Environment(\.dynamicTypeSize) private var typeSize
     @ScaledMetric(relativeTo: .subheadline) private var minCardWidth: CGFloat = 100
 
@@ -400,7 +297,6 @@ private struct TodayGrid: View {
         LazyVGrid(columns: columns, spacing: 10) {
             ForEach(tabs) { tab in
                 TabCard(tab: tab, tint: tint)
-                    .matchedTransitionSourceIfPresent(id: tab.id, in: zoom)
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: tabs.map(\.id))
@@ -631,9 +527,4 @@ private struct SelectedRowBackground: ViewModifier {
 
 extension View {
     fileprivate func selectedRowBackground(_ active: Bool) -> some View { modifier(SelectedRowBackground(active: active)) }
-
-    @ViewBuilder
-    func matchedTransitionSourceIfPresent(id: String, in namespace: Namespace.ID?) -> some View {
-        if let namespace { matchedTransitionSource(id: id, in: namespace) } else { self }
-    }
 }
