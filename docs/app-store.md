@@ -6,7 +6,7 @@ Everything needed to submit Boaz for iPhone and Mac. Facts here match the code a
 
 | Field | Value |
 |---|---|
-| Name | Boaz (if taken: "Boaz Browser") |
+| Name | Boaz Browser ("Boaz" is taken) |
 | Bundle ID | `com.chenkahana.boaz` (iPhone and Mac share it: one record, universal purchase) |
 | Platforms | iOS (iPhone; runs on iPad in compatibility mode) and macOS |
 | SKU | `boaz` |
@@ -97,7 +97,7 @@ iPad screenshots aren't needed for an iPhone-only app.
 
 1. **CloudKit Console** (icloud.developer.apple.com) › container `iCloud.com.chenkahana.boaz` › *Deploy Schema
    Changes* to Production. Without this, App Store builds can't sync (they use the production environment).
-2. **App Store Connect** › Apps › New App: iOS and macOS, name Boaz, bundle ID `com.chenkahana.boaz`, SKU `boaz`.
+2. **App Store Connect** › Apps › New App: iOS and macOS, name Boaz Browser, bundle ID `com.chenkahana.boaz`, SKU `boaz`.
 3. **Upload builds**: double-click `build/archives/Boaz-iOS.xcarchive` and `Boaz-macOS.xcarchive` (opens them in
    Xcode's Organizer) › Distribute App › App Store Connect › Upload. To rebuild them first, run `make archive`.
    Raise `CURRENT_PROJECT_VERSION` in `project.yml` for every new upload, and add the release to `CHANGELOG.md`.
