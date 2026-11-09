@@ -1,4 +1,4 @@
-import FolioKit
+import BoazKit
 import SwiftUI
 
 /// Layout comes from size class and hinge *status*; the raw angle only drives effects (Apple's iPhone Duo guidance).

@@ -3,10 +3,10 @@ import Foundation
 import GRDB
 import WebKit
 
-/// Copies Arc's cookies for one profile into that profile's Folio website data store.
+/// Copies Arc's cookies for one profile into that profile's Boaz website data store.
 ///
 /// SECURITY: cookies are session credentials. They go only into the local `WKWebsiteDataStore`
-/// (`Profile.dataStoreID`); they are never written to the Folio store and never synced.
+/// (`Profile.dataStoreID`); they are never written to the Boaz store and never synced.
 public enum ArcCookieImporter {
     public struct Result: Sendable, Equatable {
         public var imported = 0, expired = 0, failed = 0
@@ -71,7 +71,7 @@ enum ChromiumDatabase {
     static func withCopy<T>(of database: URL, _ body: (Database) throws -> T) throws -> T {
         let fm = FileManager.default
         guard fm.isReadableFile(atPath: database.path) else { throw ArcImportError.missingFile(database.lastPathComponent) }
-        let dir = fm.temporaryDirectory.appendingPathComponent("folio-arc-\(UUID().uuidString)", isDirectory: true)
+        let dir = fm.temporaryDirectory.appendingPathComponent("boaz-arc-\(UUID().uuidString)", isDirectory: true)
         try fm.createDirectory(at: dir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         defer { try? fm.removeItem(at: dir) }
         let copy = dir.appendingPathComponent(database.lastPathComponent)

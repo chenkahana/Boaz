@@ -1,19 +1,19 @@
 import BackgroundTasks
 import CloudKit
-import FolioKit
+import BoazKit
 import SwiftUI
 import TipKit
 import UIKit
 
 @main
-struct FolioApp: App {
-    @UIApplicationDelegateAdaptor(FolioAppDelegate.self) private var delegate
+struct BoazApp: App {
+    @UIApplicationDelegateAdaptor(BoazAppDelegate.self) private var delegate
     @Environment(\.scenePhase) private var scenePhase
 
     private var model: AppModel { delegate.model }
 
     /// Background refresh that pulls other devices' changes.
-    static let syncTaskID = "com.chenkahana.folio.sync"
+    static let syncTaskID = "com.chenkahana.boaz.sync"
 
     init() {
         // Gesture tips: each shows once, and at most one a day, so they stay out of the way.
@@ -32,9 +32,9 @@ struct FolioApp: App {
             // The database lives in the App Group container: never hold a lock on it while suspended.
             if phase == .background {
                 Self.scheduleSyncRefresh()
-                FolioStore.suspendDatabases()
+                BoazStore.suspendDatabases()
             } else {
-                FolioStore.resumeDatabases()
+                BoazStore.resumeDatabases()
             }
         }
         .backgroundTask(.appRefresh(Self.syncTaskID)) {
@@ -51,7 +51,7 @@ struct FolioApp: App {
 }
 
 /// Owns the app model so iCloud change pushes can reach sync.
-final class FolioAppDelegate: NSObject, UIApplicationDelegate {
+final class BoazAppDelegate: NSObject, UIApplicationDelegate {
     let model = AppModel()
 
     func application(_ application: UIApplication,

@@ -1,5 +1,5 @@
 import AppKit
-import FolioKit
+import BoazKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -57,7 +57,7 @@ struct OnboardingView: View {
             VStack(spacing: 24) {
                 Spacer(minLength: 0)
                 OnboardingHero(size: 112)
-                OnboardingHeading(title: "Welcome to Folio",
+                OnboardingHeading(title: "Welcome to Boaz",
                                   message: "Sign in to iCloud to keep your spaces, pins and tabs in step on your Mac and iPhone.")
                 SyncPanel()
                 Spacer(minLength: 0)
@@ -66,14 +66,14 @@ struct OnboardingView: View {
             VStack(spacing: 24) {
                 OnboardingHero(size: 64)
                 OnboardingHeading(title: "Bring your browser",
-                                  message: "Import your sidebar or bookmarks. Folio only reads them, and running it again won't make duplicates.")
+                                  message: "Import your sidebar or bookmarks. Boaz only reads them, and running it again won't make duplicates.")
                 BrowserImportList(imports: imports, spaceID: browser.spaceID)
             }
         case .defaultBrowser:
             VStack(spacing: 24) {
                 OnboardingHero(size: 64)
-                OnboardingHeading(title: "Make Folio your default",
-                                  message: "Links you click in Mail, Messages and other apps open in Little Folio, ready to keep or toss.")
+                OnboardingHeading(title: "Make Boaz your default",
+                                  message: "Links you click in Mail, Messages and other apps open in Little Boaz, ready to keep or toss.")
                 DefaultBrowserPanel()
             }
         case .done:
@@ -330,7 +330,7 @@ private struct BrowserImportRow: View {
         let key = "bookmarksFolder.\(source.id)"
         let folder = ReadOnlyFolder.restore(key) ?? {
             let panel = NSOpenPanel()
-            panel.message = "Folio needs to read \(source.name)'s bookmarks. Choose its folder in Library › Application Support."
+            panel.message = "Boaz needs to read \(source.name)'s bookmarks. Choose its folder in Library › Application Support."
             panel.prompt = "Allow Access"
             panel.canChooseDirectories = true
             panel.canChooseFiles = false
@@ -449,7 +449,7 @@ extension LibrarySync {
     /// Asks for the fallback sync folder, starting in iCloud Drive, and syncs through it. Returns a message if that failed.
     func chooseFolder() async -> String? {
         let panel = NSOpenPanel()
-        panel.message = "Choose a folder to sync Folio through, e.g. iCloud Drive › Folio. Use the same one on your iPhone."
+        panel.message = "Choose a folder to sync Boaz through, e.g. iCloud Drive › Boaz. Use the same one on your iPhone."
         panel.prompt = "Use Folder"
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
@@ -487,12 +487,12 @@ private struct DefaultBrowserPanel: View {
             .frame(width: 32, height: 32)
             .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                Text(current.isFolio ? "Folio is your default browser" : "Links open in \(current.name)").font(.headline)
-                Text(message ?? (current.isFolio ? "You're good to go." : "macOS will ask you to confirm."))
+                Text(current.isBoaz ? "Boaz is your default browser" : "Links open in \(current.name)").font(.headline)
+                Text(message ?? (current.isBoaz ? "You're good to go." : "macOS will ask you to confirm."))
                     .font(.callout).foregroundStyle(.secondary)
             }
             Spacer(minLength: 12)
-            if current.isFolio {
+            if current.isBoaz {
                 Image(systemName: "checkmark.circle.fill").font(.title2).foregroundStyle(.green)
                     .accessibilityHidden(true)
             } else {
@@ -502,17 +502,17 @@ private struct DefaultBrowserPanel: View {
         .padding(16)
         .glassEffect(.regular, in: .rect(cornerRadius: 20))
         .accessibilityElement(children: .contain)
-        .animation(Onboarding.spring, value: current.isFolio)
+        .animation(Onboarding.spring, value: current.isBoaz)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             current = DefaultBrowser.current()
         }
     }
 
-    /// Asks macOS, which shows its own confirmation; Folio never changes the setting itself.
+    /// Asks macOS, which shows its own confirmation; Boaz never changes the setting itself.
     private func makeDefault() {
         Task {
             do {
-                try await DefaultBrowser.makeFolioDefault()
+                try await DefaultBrowser.makeBoazDefault()
                 message = nil
             } catch {
                 message = "Your default browser didn't change."
@@ -525,9 +525,9 @@ private struct DefaultBrowserPanel: View {
 struct DefaultBrowser: Equatable {
     var appURL: URL?
     var name: String
-    var isFolio: Bool
+    var isBoaz: Bool
 
-    static func makeFolioDefault() async throws {
+    static func makeBoazDefault() async throws {
         for scheme in ["http", "https"] {
             try await NSWorkspace.shared.setDefaultApplication(at: Bundle.main.bundleURL, toOpenURLsWithScheme: scheme)
         }
@@ -535,9 +535,9 @@ struct DefaultBrowser: Equatable {
 
     static func current() -> DefaultBrowser {
         guard let app = NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!) else {
-            return DefaultBrowser(appURL: nil, name: "another browser", isFolio: false)
+            return DefaultBrowser(appURL: nil, name: "another browser", isBoaz: false)
         }
         return DefaultBrowser(appURL: app, name: FileManager.default.displayName(atPath: app.path),
-                              isFolio: Bundle(url: app)?.bundleIdentifier == Bundle.main.bundleIdentifier)
+                              isBoaz: Bundle(url: app)?.bundleIdentifier == Bundle.main.bundleIdentifier)
     }
 }

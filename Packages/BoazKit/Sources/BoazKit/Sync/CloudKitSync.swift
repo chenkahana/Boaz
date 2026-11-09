@@ -4,10 +4,10 @@ import GRDB
 import Observation
 import os
 
-/// Mirrors the store to the user's private CloudKit database (zone "Folio") with `CKSyncEngine`.
+/// Mirrors the store to the user's private CloudKit database (zone "Boaz") with `CKSyncEngine`.
 ///
 /// Local writes are queued by database triggers, so every write path syncs without extra calls. Server changes are
-/// applied through `FolioStore.applyServerChanges`, which merges with unsent local edits (`SyncMerge`).
+/// applied through `BoazStore.applyServerChanges`, which merges with unsent local edits (`SyncMerge`).
 /// Without the iCloud entitlement or an iCloud account it stays idle and says why in `status`.
 @MainActor @Observable
 public final class CloudKitSync {
@@ -21,7 +21,7 @@ public final class CloudKitSync {
         case upToDate(Date)
     }
 
-    public static let defaultContainerIdentifier = "iCloud.com.chenkahana.folio"
+    public static let defaultContainerIdentifier = "iCloud.com.chenkahana.boaz"
 
     public private(set) var status: Status = .idle
     public let containerIdentifier: String
@@ -29,7 +29,7 @@ public final class CloudKitSync {
     /// transport that drains the same pending queue.
     @ObservationIgnored public var willStartEngine: (@MainActor () async -> Void)?
 
-    @ObservationIgnored private let store: FolioStore
+    @ObservationIgnored private let store: BoazStore
     @ObservationIgnored private var engine: CKSyncEngine?
     @ObservationIgnored private var container: CKContainer?
     @ObservationIgnored private var queueTask: Task<Void, Never>?
@@ -38,9 +38,9 @@ public final class CloudKitSync {
     /// The engine started without saved state, so `startEngine` already queued what this account should get.
     @ObservationIgnored private var startedFresh = false
 
-    private static let log = Logger(subsystem: "com.chenkahana.folio", category: "sync")
+    private static let log = Logger(subsystem: "com.chenkahana.boaz", category: "sync")
 
-    public init(store: FolioStore, containerIdentifier: String = CloudKitSync.defaultContainerIdentifier) {
+    public init(store: BoazStore, containerIdentifier: String = CloudKitSync.defaultContainerIdentifier) {
         self.store = store
         self.containerIdentifier = containerIdentifier
     }
@@ -84,12 +84,12 @@ public final class CloudKitSync {
             // Never upload one Apple ID's library into another (Apple's CKSyncEngine sample deletes local data on
             // sign-out and account switch). The same account signing back in just re-fetches; a different one
             // starts this device clean and takes that account's library.
-            let previous = store.syncSetting(FolioStore.cloudUserKey)
+            let previous = store.syncSetting(BoazStore.cloudUserKey)
             do {
                 if let previous, previous != user { try startClean() }
-                try store.setSyncSetting(user, for: FolioStore.cloudUserKey)
+                try store.setSyncSetting(user, for: BoazStore.cloudUserKey)
             } catch { return report(error) }
-            guard store.syncSetting(FolioStore.cloudPurgedKey) == nil else {
+            guard store.syncSetting(BoazStore.cloudPurgedKey) == nil else {
                 status = .error(Self.purgedMessage)
                 return
             }
@@ -118,7 +118,7 @@ public final class CloudKitSync {
         do {
             try await engine.fetchChanges()
             // A plain fetch only visits zones the engine already knows changed, and that knowledge arrives by push.
-            // Pushes can be late or missing (macOS debug builds, a sleeping Mac), so ask for Folio's zone directly.
+            // Pushes can be late or missing (macOS debug builds, a sleeping Mac), so ask for Boaz's zone directly.
             try await engine.fetchChanges(.init(scope: .zoneIDs([SyncMapping.zoneID])))
             try await engine.sendChanges()
             // An error or a sign-out reported meanwhile stands.
@@ -129,12 +129,12 @@ public final class CloudKitSync {
         }
     }
 
-    /// After the user deleted Folio's iCloud data, sync stays off until they ask; this uploads this device's whole
+    /// After the user deleted Boaz's iCloud data, sync stays off until they ask; this uploads this device's whole
     /// library again. Does nothing otherwise.
     public func resumeAfterPurge() async {
-        guard store.syncSetting(FolioStore.cloudPurgedKey) != nil else { return }
+        guard store.syncSetting(BoazStore.cloudPurgedKey) != nil else { return }
         do {
-            try store.setSyncSetting(nil, for: FolioStore.cloudPurgedKey)
+            try store.setSyncSetting(nil, for: BoazStore.cloudPurgedKey)
             try store.queueAllForUpload()
         } catch { return report(error) }
         status = .idle
@@ -246,7 +246,7 @@ public final class CloudKitSync {
         try store.resetSyncState(reuploadAll: false)
     }
 
-    static let purgedMessage = "Folio's iCloud data was deleted, so sync is off. Choose Sync Now to upload this library again."
+    static let purgedMessage = "Boaz's iCloud data was deleted, so sync is off. Choose Sync Now to upload this library again."
 
     private func report(_ error: any Error) {
         Self.log.error("Sync error: \(error, privacy: .public)")
@@ -289,13 +289,13 @@ extension CloudKitSync: CKSyncEngineDelegate {
             for deletion in changes.deletions where deletion.zoneID == SyncMapping.zoneID {
                 switch deletion.reason {
                 case .purged:
-                    // The user deleted Folio's iCloud data in Settings: keep local data, drop everything pending and
+                    // The user deleted Boaz's iCloud data in Settings: keep local data, drop everything pending and
                     // stop, so nothing (not even a partial library) reappears until they choose Sync Now.
                     syncEngine.state.remove(pendingRecordZoneChanges: syncEngine.state.pendingRecordZoneChanges)
                     syncEngine.state.remove(pendingDatabaseChanges: syncEngine.state.pendingDatabaseChanges)
                     do {
                         try store.resetSyncState(reuploadAll: false)
-                        try store.setSyncSetting("1", for: FolioStore.cloudPurgedKey)
+                        try store.setSyncSetting("1", for: BoazStore.cloudPurgedKey)
                     } catch { report(error) }
                     tearDownEngine()
                     status = .error(Self.purgedMessage)

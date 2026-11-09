@@ -1,4 +1,4 @@
-import FolioKit
+import BoazKit
 import SwiftUI
 
 /// The live sync state: an iCloud symbol and one line of status.

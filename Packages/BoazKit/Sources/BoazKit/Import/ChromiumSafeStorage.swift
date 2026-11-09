@@ -36,7 +36,7 @@ public struct ChromiumSafeStorage: Sendable {
     }
 
     /// Decrypts a "v10" blob. Blobs without a version prefix are returned as stored (pre-encryption plaintext);
-    /// any other version ("v11", "v20", …) is a scheme Folio doesn't know, so it fails rather than pass ciphertext on.
+    /// any other version ("v11", "v20", …) is a scheme Boaz doesn't know, so it fails rather than pass ciphertext on.
     public func decrypt(_ blob: Data) throws -> Data {
         guard blob.starts(with: Self.versionPrefix) else {
             let prefix = blob.prefix(3)
@@ -48,7 +48,7 @@ public struct ChromiumSafeStorage: Sendable {
         return try crypt(CCOperation(kCCDecrypt), blob.dropFirst(Self.versionPrefix.count))
     }
 
-    /// Encrypts like Chromium does. Used to build synthetic test vectors; Folio never writes Arc's data.
+    /// Encrypts like Chromium does. Used to build synthetic test vectors; Boaz never writes Arc's data.
     public func encrypt(_ plaintext: Data) throws -> Data {
         Self.versionPrefix + (try crypt(CCOperation(kCCEncrypt), plaintext))
     }

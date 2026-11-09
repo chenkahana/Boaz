@@ -1,8 +1,8 @@
 import Foundation
 import GRDB
 
-/// Local source of truth. Both apps read and write here; `FolioSync` mirrors it to CloudKit.
-public final class FolioStore: Sendable {
+/// Local source of truth. Both apps read and write here; `BoazSync` mirrors it to CloudKit.
+public final class BoazStore: Sendable {
     public let writer: any DatabaseWriter
 
     /// `migrate: false` is for app extensions: only the app process migrates the shared database.
@@ -11,33 +11,33 @@ public final class FolioStore: Sendable {
         if migrate { try Self.migrator.migrate(writer) }
     }
 
-    /// On-disk store in Application Support/Folio.
+    /// On-disk store in Application Support/Boaz.
     /// iOS app, widgets and share extension share one database through this App Group.
-    public static let appGroup = "group.com.chenkahana.folio"
+    public static let appGroup = "group.com.chenkahana.boaz"
 
     /// Opens the database in the App Group container when the entitlement is present, else in Application Support.
     /// Configured per GRDB's "Sharing a Database": the app and its extensions wait for each other's writes instead
     /// of failing with `SQLITE_BUSY`, and the iOS app suspends the database in the background
     /// (`Database.suspendNotification`) so it is never killed for holding a lock. Extensions pass `migrate: false`.
-    public static func onDisk(appGroup: String? = nil, migrate: Bool = true) throws -> FolioStore {
+    public static func onDisk(appGroup: String? = nil, migrate: Bool = true) throws -> BoazStore {
         let base = try appGroup.flatMap { FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: $0) }
             ?? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                        appropriateFor: nil, create: true)
-        let dir = base.appendingPathComponent("Folio", isDirectory: true)
+        let dir = base.appendingPathComponent("Boaz", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         var configuration = Configuration()
         configuration.busyMode = .timeout(5)
         configuration.observesSuspensionNotifications = true
-        let pool = try DatabasePool(path: dir.appendingPathComponent("folio.sqlite").path, configuration: configuration)
-        return try FolioStore(writer: pool, migrate: migrate)
+        let pool = try DatabasePool(path: dir.appendingPathComponent("boaz.sqlite").path, configuration: configuration)
+        return try BoazStore(writer: pool, migrate: migrate)
     }
 
     /// Stops on-disk stores from taking new locks (iOS app going to the background), and lets them again.
     public static func suspendDatabases() { NotificationCenter.default.post(name: Database.suspendNotification, object: nil) }
     public static func resumeDatabases() { NotificationCenter.default.post(name: Database.resumeNotification, object: nil) }
 
-    public static func inMemory() throws -> FolioStore {
-        try FolioStore(writer: DatabaseQueue())
+    public static func inMemory() throws -> BoazStore {
+        try BoazStore(writer: DatabaseQueue())
     }
 
     // MARK: Reads
@@ -193,7 +193,7 @@ public final class FolioStore: Sendable {
 
 // MARK: - Ordering
 
-extension FolioStore {
+extension BoazStore {
     /// Siblings closer than this get renumbered: repeated midpoint inserts eventually run out of `Double` precision.
     public static let minimumPositionGap = 1e-9
 

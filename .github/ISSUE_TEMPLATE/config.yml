@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Report a security vulnerability
-    url: https://github.com/chenkahana/Folio/security/advisories/new
+    url: https://github.com/chenkahana/Boaz/security/advisories/new
     about: Please report security issues privately, not as public issues.
   - name: Privacy policy
-    url: https://github.com/chenkahana/Folio/blob/master/docs/privacy.md
-    about: How Folio handles your data.
+    url: https://github.com/chenkahana/Boaz/blob/master/docs/privacy.md
+    about: How Boaz handles your data.

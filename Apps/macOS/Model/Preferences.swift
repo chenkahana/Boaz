@@ -1,4 +1,4 @@
-import FolioKit
+import BoazKit
 import Foundation
 
 /// Same UserDefaults keys and values as the iOS app, so the settings mean the same thing on both.

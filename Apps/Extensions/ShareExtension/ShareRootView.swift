@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// "Add to Folio" sheet shown by the share extension — Arc-styled like the rest of the app.
+/// "Add to Boaz" sheet shown by the share extension — Arc-styled like the rest of the app.
 struct ShareRootView: View {
     @State private var model: ShareModel
 
@@ -45,7 +45,7 @@ struct ShareRootView: View {
                 }
             }
             .padding(20)
-            .navigationTitle("Add to Folio")
+            .navigationTitle("Add to Boaz")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -59,7 +59,7 @@ struct ShareRootView: View {
                         .foregroundStyle(.white, Theme.brand)
                         .symbolEffect(.bounce, options: .nonRepeating, value: model.didSave)
                         .transition(.scale.combined(with: .opacity))
-                        .accessibilityLabel("Added to Folio")
+                        .accessibilityLabel("Added to Boaz")
                 }
             }
             .animation(.snappy, value: model.didSave)

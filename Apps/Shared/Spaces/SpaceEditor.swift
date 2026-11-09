@@ -1,4 +1,4 @@
-import FolioKit
+import BoazKit
 import SwiftUI
 
 /// Creates or edits a space: name, emoji and color, with a live preview. Shared by the iPhone and Mac apps.

@@ -155,7 +155,7 @@ final class KeyBindings {
     }
 
     /// Reads Arc's `StorableKeyBindings.json` (`{"version":1,"userOverrides":[…]}`) and applies every override
-    /// that maps to a Folio command. Returns how many were applied. Works with a security-scoped URL.
+    /// that maps to a Boaz command. Returns how many were applied. Works with a security-scoped URL.
     @discardableResult
     func applyArcKeyBindings(fileURL: URL) throws -> Int {
         let scoped = fileURL.startAccessingSecurityScopedResource()
