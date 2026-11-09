@@ -275,7 +275,6 @@ struct HomeBar: View {
                 HomeMenu(inDock: true)
             } nub: {
                 RailGlyph(symbol: searchSymbol, size: 30)
-                    .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(.white)
                     .background(Theme.brand.gradient, in: .circle)
             }

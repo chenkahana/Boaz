@@ -527,7 +527,7 @@ private struct CarouselRail: View {
             } bottom: {
                 RailButton(symbol: "gearshape", label: "Settings", action: onSettings)
             } nub: {
-                RailGlyph(symbol: "square.on.square", size: 30).font(.system(size: 13, weight: .bold))
+                RailGlyph(symbol: "square.on.square", size: 30)
             }
         } else {
             HStack(spacing: 10) {
