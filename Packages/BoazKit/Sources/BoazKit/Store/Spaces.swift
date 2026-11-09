@@ -2,7 +2,7 @@ import Foundation
 import GRDB
 
 /// A curated space color: a light background, a deep dark-mode background and an accent. Written in Arc's
-/// `windowTheme` shape, so imported Arc themes and Folio's own read the same way everywhere.
+/// `windowTheme` shape, so imported Arc themes and Boaz's own read the same way everywhere.
 public struct SpacePalette: Identifiable, Hashable, Sendable {
     public typealias RGB = (red: Double, green: Double, blue: Double)
 
@@ -61,7 +61,7 @@ public struct SpacePalette: Identifiable, Hashable, Sendable {
 }
 
 /// Space management shared by both apps: every write is an ordinary local edit, so sync carries it to other devices.
-extension FolioStore {
+extension BoazStore {
     /// Adds a space at the end of the profile's list, with its Pinned and Today sections.
     @discardableResult
     public func createSpace(title: String, icon: String?, palette: SpacePalette, profileID: String,

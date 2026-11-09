@@ -61,7 +61,7 @@ public enum SyncMappingError: Error, Equatable {
 
 /// Pure CKRecord <-> store record conversions.
 public enum SyncMapping {
-    public static let zoneName = "Folio"
+    public static let zoneName = "Boaz"
     public static var zoneID: CKRecordZone.ID { CKRecordZone.ID(zoneName: zoneName, ownerName: CKCurrentUserDefaultName) }
 
     /// Record names are "<Type>:<id>" so a pending change identifies its table.

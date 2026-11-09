@@ -3,7 +3,7 @@ import Foundation
 import GRDB
 import Security
 
-/// Imports Arc desktop's sidebar (`StorableSidebar.json`) into the Folio store.
+/// Imports Arc desktop's sidebar (`StorableSidebar.json`) into the Boaz store.
 ///
 /// Arc keeps the sidebar in `sidebar.containers[1]`: `spaces` and `items` are flat arrays that alternate
 /// `id, object, id, object`. Items form a tree through `parentID` / `childrenIds` (the order source).
@@ -11,9 +11,9 @@ import Security
 /// space's `containerIDs`) and `topApps` (favorites, one per profile and Mac).
 /// Folder expansion lives in `StorableWindows.json` (`expandedItems`); profile names in `User Data/Local State`.
 ///
-/// Import is idempotent: every Folio id is derived from the Arc id (`arc-<id>`), re-import updates rows in
+/// Import is idempotent: every Boaz id is derived from the Arc id (`arc-<id>`), re-import updates rows in
 /// place, unchanged rows are not rewritten, and Arc-derived rows that vanished from Arc are tombstoned.
-/// Rows created in Folio (ids without the `arc-` prefix) are never touched.
+/// Rows created in Boaz (ids without the `arc-` prefix) are never touched.
 public struct ArcSidebarImporter: Sendable {
     public static let idPrefix = "arc-"
 
@@ -38,9 +38,9 @@ public struct ArcSidebarImporter: Sendable {
                   arcFolder: arcFolder)
     }
 
-    public static func folioID(_ arcID: String) -> String { idPrefix + arcID }
+    public static func boazID(_ arcID: String) -> String { idPrefix + arcID }
 
-    /// Folio profile id for an Arc profile directory ("Default", "Profile 1", …). The same on every Mac, so a
+    /// Boaz profile id for an Arc profile directory ("Default", "Profile 1", …). The same on every Mac, so a
     /// space keeps its profile whichever Mac imports it.
     public static func profileID(directory: String) -> String {
         idPrefix + "profile-" + directory.lowercased().replacingOccurrences(of: " ", with: "-")
@@ -88,7 +88,7 @@ public struct ArcSidebarImporter: Sendable {
         // (this Mac didn't look at that machine's own data this run, so it can't tell they're still live there).
         var foreignFavoritesIDs = Set<String>()
         for (item, _, local) in candidates.values.flatMap({ $0 }) where !local {
-            if let id = item["id"] as? String { foreignFavoritesIDs.formUnion(Self.descendantIDs(of: id, byID: byID).map(Self.folioID)) }
+            if let id = item["id"] as? String { foreignFavoritesIDs.formUnion(Self.descendantIDs(of: id, byID: byID).map(Self.boazID)) }
         }
 
         var snapshot = ArcSnapshot()
@@ -109,7 +109,7 @@ public struct ArcSidebarImporter: Sendable {
         // under two parents, or inside itself, which would duplicate rows or recurse forever. Nesting deeper than
         // `maxDepth` (Arc nests a few levels) is skipped rather than overflowing the stack.
         var visited = Set<String>()
-        func walk(_ parent: [String: Any], folioParent: String, spaceID: String?, profileID: String, section: SidebarItem.ContainerKind,
+        func walk(_ parent: [String: Any], boazParent: String, spaceID: String?, profileID: String, section: SidebarItem.ContainerKind,
                   position: inout Int, depth: Int = 0) {
             guard depth < Self.maxDepth else { snapshot.skippedItems += Self.children(parent).count; return }
             for childID in Self.children(parent) {
@@ -125,25 +125,25 @@ public struct ArcSidebarImporter: Sendable {
                           ["http", "https"].contains(url.scheme?.lowercased() ?? "") else { snapshot.skippedTabs += 1; continue }
                     position += 1
                     snapshot.items.append(SidebarItem(
-                        id: Self.folioID(childID), spaceID: spaceID, profileID: profileID, parentID: folioParent,
+                        id: Self.boazID(childID), spaceID: spaceID, profileID: profileID, parentID: boazParent,
                         kind: .tab, title: customTitle ?? tab["savedTitle"] as? String, url: url, isUnread: isUnread,
                         position: Double(index), createdAt: createdAt,
                         lastActiveAt: Self.date(tab["timeLastActiveAt"])))
                     snapshot.tabCounts[section, default: 0] += 1
                 } else if data["list"] != nil {
-                    let folderID = Self.folioID(childID)
+                    let folderID = Self.boazID(childID)
                     snapshot.items.append(SidebarItem(
-                        id: folderID, spaceID: spaceID, profileID: profileID, parentID: folioParent, kind: .folder,
+                        id: folderID, spaceID: spaceID, profileID: profileID, parentID: boazParent, kind: .folder,
                         title: customTitle, isUnread: isUnread, isExpanded: expanded?.contains(childID) ?? true,
                         position: Double(index), createdAt: createdAt))
                     snapshot.folders += 1
                     position += 1
                     var inner = 0
-                    walk(child, folioParent: folderID, spaceID: spaceID, profileID: profileID, section: section, position: &inner,
+                    walk(child, boazParent: folderID, spaceID: spaceID, profileID: profileID, section: section, position: &inner,
                          depth: depth + 1)
                 } else if data["splitView"] != nil || !Self.children(child).isEmpty {
                     snapshot.splitViews += 1
-                    walk(child, folioParent: folioParent, spaceID: spaceID, profileID: profileID, section: section,
+                    walk(child, boazParent: boazParent, spaceID: spaceID, profileID: profileID, section: section,
                          position: &position, depth: depth + 1)
                 } else {
                     snapshot.skippedItems += 1  // easels, notes and other Arc-only items
@@ -152,9 +152,9 @@ public struct ArcSidebarImporter: Sendable {
         }
 
         for (index, space) in arcSpaces.enumerated() {
-            guard let arcID = space["id"] as? String, !snapshot.spaces.contains(where: { $0.id == Self.folioID(arcID) })
+            guard let arcID = space["id"] as? String, !snapshot.spaces.contains(where: { $0.id == Self.boazID(arcID) })
             else { continue }
-            let spaceID = Self.folioID(arcID)
+            let spaceID = Self.boazID(arcID)
             let profileID = resolvedProfileID(spaceProfiles[index].directory)
             let info = space["customInfo"] as? [String: Any]
             snapshot.spaces.append(Space(id: spaceID, title: space["title"] as? String ?? "Space",
@@ -162,26 +162,26 @@ public struct ArcSidebarImporter: Sendable {
                                          profileID: profileID, position: Double(index)))
             for (kind, containerID) in Self.sections(of: space) {
                 guard let container = byID[containerID], visited.insert(containerID).inserted else { continue }
-                let folioContainer = Self.folioID(containerID)
+                let boazContainer = Self.boazID(containerID)
                 snapshot.items.append(SidebarItem(
-                    id: folioContainer, spaceID: spaceID, profileID: profileID, parentID: nil, kind: .container,
+                    id: boazContainer, spaceID: spaceID, profileID: profileID, parentID: nil, kind: .container,
                     containerKind: kind, position: kind == .pinned ? 0 : 1,
                     createdAt: Self.date(container["createdAt"]) ?? .now))
                 var position = 0
-                walk(container, folioParent: folioContainer, spaceID: spaceID, profileID: profileID, section: kind, position: &position)
+                walk(container, boazParent: boazContainer, spaceID: spaceID, profileID: profileID, section: kind, position: &position)
             }
         }
 
         for (directory, container) in favoritesByProfile.sorted(by: { $0.key < $1.key }) {
             guard let containerID = container["id"] as? String, visited.insert(containerID).inserted else { continue }
             let profileID = resolvedProfileID(directory)
-            let folioContainer = Self.folioID(containerID)
+            let boazContainer = Self.boazID(containerID)
             snapshot.items.append(SidebarItem(
-                id: folioContainer, spaceID: nil, profileID: profileID, parentID: nil, kind: .container,
+                id: boazContainer, spaceID: nil, profileID: profileID, parentID: nil, kind: .container,
                 containerKind: .favorites, position: 0,
                 createdAt: Self.date(container["createdAt"]) ?? .now))
             var position = 0
-            walk(container, folioParent: folioContainer, spaceID: nil, profileID: profileID, section: .favorites, position: &position)
+            walk(container, boazParent: boazContainer, spaceID: nil, profileID: profileID, section: .favorites, position: &position)
         }
         return snapshot
     }
@@ -210,7 +210,7 @@ public struct ArcSidebarImporter: Sendable {
 
     /// Merges `snapshot` (or Arc's data, parsed now) into `store` in one transaction.
     @discardableResult
-    public func importInto(_ store: FolioStore, snapshot: ArcSnapshot? = nil, now: Date = .now) throws -> ArcImportSummary {
+    public func importInto(_ store: BoazStore, snapshot: ArcSnapshot? = nil, now: Date = .now) throws -> ArcImportSummary {
         let snapshot = try snapshot ?? parse()
         return try store.writer.write { db in try Self.merge(snapshot, into: db, now: now) }
     }
@@ -224,7 +224,7 @@ public struct ArcSidebarImporter: Sendable {
                 record.modifiedAt = now
                 try record.insert(db); summary.inserted += 1; return
             }
-            // The user removed this row in Folio; don't resurrect it from Arc.
+            // The user removed this row in Boaz; don't resurrect it from Arc.
             guard existing.deletedAt == nil else { summary.removed += 1; return }
             record.adopt(existing)
             record.modifiedAt = existing.modifiedAt
@@ -247,7 +247,7 @@ public struct ArcSidebarImporter: Sendable {
             .filter(Column("deletedAt") == nil && profileIDs.contains(Column("profileID")) && Column("id").like(idPrefix + "%"))
             .fetchAll(db).filter { !liveItems.contains($0.id) && !snapshot.foreignFavoritesIDs.contains($0.id) }
 
-        // Before tombstoning, move any live Folio-made child (not re-imported from Arc, so not itself stale)
+        // Before tombstoning, move any live Boaz-made child (not re-imported from Arc, so not itself stale)
         // out from under its about-to-be-tombstoned parent, so it doesn't become invisible. Every row already
         // carries its own spaceID/profileID, so this works at any depth without walking the tree.
         let staleIDs = Set(staleItems.map(\.id))
@@ -429,15 +429,15 @@ struct ArcProfileRef {
     }
 }
 
-/// What Arc's files map to in Folio, before merging into the store.
+/// What Arc's files map to in Boaz, before merging into the store.
 public struct ArcSnapshot: Sendable {
     public var profiles: [Profile] = []
-    /// Folio profile id → Arc profile directory under `User Data` ("Default", "Profile 1", …).
+    /// Boaz profile id → Arc profile directory under `User Data` ("Default", "Profile 1", …).
     public var profileDirectories: [String: String] = [:]
     /// Arc profile directories that belong to this Mac. A space synced from another Mac may name "Profile 1"
     /// for a different profile than this Mac's "Profile 1", so credentials are only read from these.
     public var localProfileDirectories: Set<String> = []
-    /// Folio ids of another Mac's favorites container(s) and their contents, seen in this parse but not
+    /// Boaz ids of another Mac's favorites container(s) and their contents, seen in this parse but not
     /// imported (this Mac's own favorites container for that profile won instead). Excluded from the
     /// tombstone pass: this Mac never looked at that machine's own data, so it can't tell they're still live.
     var foreignFavoritesIDs: Set<String> = []
@@ -446,9 +446,9 @@ public struct ArcSnapshot: Sendable {
     public var items: [SidebarItem] = []
     public var folders = 0
     public var tabCounts: [SidebarItem.ContainerKind: Int] = [:]
-    /// Tabs whose URL Folio can't open (e.g. `arc://`).
+    /// Tabs whose URL Boaz can't open (e.g. `arc://`).
     public var skippedTabs = 0
-    /// Items with no Folio equivalent (easels, notes).
+    /// Items with no Boaz equivalent (easels, notes).
     public var skippedItems = 0
     /// Split views, whose tabs were imported side by side as ordinary tabs.
     public var splitViews = 0
@@ -460,7 +460,7 @@ public struct ArcImportSummary: Sendable, Equatable {
     public var skippedTabs = 0, skippedItems = 0, splitViews = 0
     /// Row-level merge result.
     public var inserted = 0, updated = 0, unchanged = 0, removed = 0
-    /// Folio profile id → Arc profile directory, for the cookie and password importers.
+    /// Boaz profile id → Arc profile directory, for the cookie and password importers.
     public var profileDirectories: [String: String] = [:]
     /// See `ArcSnapshot.localProfileDirectories`.
     public var localProfileDirectories: Set<String> = []

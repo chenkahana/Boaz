@@ -1,21 +1,21 @@
-# Folio on the App Store
+# Boaz on the App Store
 
-Everything needed to submit Folio for iPhone and Mac. Facts here match the code as of version 1.0 (build 1).
+Everything needed to submit Boaz for iPhone and Mac. Facts here match the code as of version 1.0 (build 1).
 
 ## App record
 
 | Field | Value |
 |---|---|
-| Name | Folio (if taken: "Folio Browser") |
-| Bundle ID | `com.chenkahana.folio` (iPhone and Mac share it: one record, universal purchase) |
+| Name | Boaz Browser ("Boaz" is taken) |
+| Bundle ID | `com.chenkahana.boaz` (iPhone and Mac share it: one record, universal purchase) |
 | Platforms | iOS (iPhone; runs on iPad in compatibility mode) and macOS |
-| SKU | `folio` |
+| SKU | `boaz` |
 | Primary / secondary category | Productivity / Utilities |
 | Minimum OS | iOS 27.1, macOS 26.0 |
 | Version / build | 1.0 / 1 (`MARKETING_VERSION`, `CURRENT_PROJECT_VERSION` in `project.yml`) |
 | Price | Free |
-| Support URL | https://github.com/chenkahana/Folio/issues |
-| Privacy Policy URL | https://github.com/chenkahana/Folio/blob/master/docs/privacy.md |
+| Support URL | https://github.com/chenkahana/Boaz/issues |
+| Privacy Policy URL | https://github.com/chenkahana/Boaz/blob/master/docs/privacy.md |
 
 ## Listing text
 
@@ -27,7 +27,7 @@ without ads or trackers.
 
 **Description**:
 
-Folio is a calm, fast browser that keeps your web organized the way you think.
+Boaz is a calm, fast browser that keeps your web organized the way you think.
 
 SPACES FOR EVERYTHING
 Keep work, home and projects apart. Each space has its own color, pinned tabs and favorites, and swiping moves
@@ -38,7 +38,7 @@ New tabs land in Today. Ones you haven't opened in a while move to the Archive o
 builds up. Pin what matters and it stays.
 
 MADE FOR IPHONE AND MAC
-Your spaces, pins and tabs stay in step through your private iCloud. On iPhone Duo, Folio uses every posture:
+Your spaces, pins and tabs stay in step through your private iCloud. On iPhone Duo, Boaz uses every posture:
 sidebar and page side by side when open, the page above and controls below when half-open like a laptop.
 
 BRING ARC WITH YOU
@@ -74,12 +74,12 @@ No account or sign-in is needed; the app opens with a starter library.
 - iPhone: tap the search button to open a page; long-press a tab card to pin or close it; Settings is in the ≡
   menu on the home screen. On iPhone Duo the layout follows the hinge (side by side when open, page above controls when half-open).
   On other iPhones and on iPad the toolbar sits at the bottom.
-- Mac: links from other apps open in a small "Little Folio" window; "Open in Folio" moves them into the main window.
+- Mac: links from other apps open in a small "Little Boaz" window; "Open in Boaz" moves them into the main window.
 - Import from Arc (Mac, optional) needs Arc installed: File › Import from Arc… asks you to choose Arc's data folder
   (~/Library/Application Support/Arc). "Keep me signed in" (copy Arc's cookies) is a separate, opt-in checkbox; macOS then asks
   permission to read Arc's "Arc Safe Storage" key, used only to decrypt Arc's cookie file on this Mac. Cookies are
   never uploaded or synced. Saved passwords are not imported.
-- iCloud is optional; without it Folio works fully on one device.
+- iCloud is optional; without it Boaz works fully on one device.
 - Camera, microphone and location prompts appear only when a website asks for them.
 
 ## Screenshots
@@ -95,10 +95,10 @@ iPad screenshots aren't needed for an iPhone-only app.
 
 ## Owner checklist (in order)
 
-1. **CloudKit Console** (icloud.developer.apple.com) › container `iCloud.com.chenkahana.folio` › *Deploy Schema
+1. **CloudKit Console** (icloud.developer.apple.com) › container `iCloud.com.chenkahana.boaz` › *Deploy Schema
    Changes* to Production. Without this, App Store builds can't sync (they use the production environment).
-2. **App Store Connect** › Apps › New App: iOS and macOS, name Folio, bundle ID `com.chenkahana.folio`, SKU `folio`.
-3. **Upload builds**: double-click `build/archives/Folio-iOS.xcarchive` and `Folio-macOS.xcarchive` (opens them in
+2. **App Store Connect** › Apps › New App: iOS and macOS, name Boaz Browser, bundle ID `com.chenkahana.boaz`, SKU `boaz`.
+3. **Upload builds**: double-click `build/archives/Boaz-iOS.xcarchive` and `Boaz-macOS.xcarchive` (opens them in
    Xcode's Organizer) › Distribute App › App Store Connect › Upload. To rebuild them first, run `make archive`.
    Raise `CURRENT_PROJECT_VERSION` in `project.yml` for every new upload, and add the release to `CHANGELOG.md`.
 4. Fill the listing from this file, upload the screenshots, answer App Privacy and Age Rating as above.

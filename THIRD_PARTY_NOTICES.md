@@ -1,10 +1,10 @@
 # Third-party notices
 
-Folio includes the following third-party components. The same notices appear in each app under Settings › About.
+Boaz includes the following third-party components. The same notices appear in each app under Settings › About.
 
 ## GRDB.swift
 
-- Use: SQLite database access in FolioKit
+- Use: SQLite database access in BoazKit
 - Source: https://github.com/groue/GRDB.swift
 - License: MIT
 

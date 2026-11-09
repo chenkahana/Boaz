@@ -1,5 +1,5 @@
 import AppKit
-import FolioKit
+import BoazKit
 import SwiftUI
 import WebKit
 
@@ -362,7 +362,7 @@ final class BrowserState {
             info.horizontalPagination = .fit
             info.verticalPagination = .automatic
             let operation = NSPrintOperation(view: view, printInfo: info)
-            operation.jobTitle = page.title.isEmpty ? (page.url?.host() ?? "Folio") : page.title
+            operation.jobTitle = page.title.isEmpty ? (page.url?.host() ?? "Boaz") : page.title
             if let window { operation.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil) } else { operation.run() }
         }
     }

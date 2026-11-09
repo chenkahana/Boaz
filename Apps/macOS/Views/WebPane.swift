@@ -1,5 +1,5 @@
 import AppKit
-import FolioKit
+import BoazKit
 import SwiftUI
 import WebKit
 
@@ -129,8 +129,8 @@ private struct PaneHeader: View {
     }
 }
 
-/// Little Folio: a small window for links opened from other apps, promotable to a full tab.
-struct LittleFolioWindow: View {
+/// Little Boaz: a small window for links opened from other apps, promotable to a full tab.
+struct LittleBoazWindow: View {
     @Environment(MacModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     let url: URL?
@@ -158,7 +158,7 @@ struct LittleFolioWindow: View {
                     if let current = page?.url ?? url { model.openInMainWindow(current, title: page?.title) }
                     dismiss()
                 } label: {
-                    Label("Open in Folio", systemImage: "arrow.up.forward.app")
+                    Label("Open in Boaz", systemImage: "arrow.up.forward.app")
                         .font(.callout.weight(.medium))
                         .padding(.horizontal, 10).padding(.vertical, 4)
                         .background(.white.opacity(0.35), in: .capsule)
@@ -212,7 +212,7 @@ struct LittleFolioWindow: View {
     }
 }
 
-/// Little Folio keeps "new window" links in the same small window.
+/// Little Boaz keeps "new window" links in the same small window.
 private struct LittleRouter: WebPage.NavigationDeciding {
     final class Holder { weak var page: WebPage?; var store: WKWebsiteDataStore = .default() }
     let holder: Holder

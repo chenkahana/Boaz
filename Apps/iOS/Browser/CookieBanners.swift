@@ -12,8 +12,8 @@ enum CookieBanners {
 
     private static let javaScript = """
     (function () {
-      if (window.__folioCookieBannerRan) { return; }
-      window.__folioCookieBannerRan = true;
+      if (window.__boazCookieBannerRan) { return; }
+      window.__boazCookieBannerRan = true;
 
       // Selectors for known CMP banner containers.
       var containerSelectors = [
@@ -60,8 +60,8 @@ enum CookieBanners {
       }
 
       function hide(el) {
-        if (!el || el.__folioHidden) { return; }
-        el.__folioHidden = true;
+        if (!el || el.__boazHidden) { return; }
+        el.__boazHidden = true;
         el.style.setProperty('display', 'none', 'important');
         el.style.setProperty('visibility', 'hidden', 'important');
       }

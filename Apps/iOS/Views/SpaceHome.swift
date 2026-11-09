@@ -1,4 +1,4 @@
-import FolioKit
+import BoazKit
 import SwiftUI
 
 /// Home: spaces page horizontally, each on its own themed gradient, with favorites, pins and today's tabs.

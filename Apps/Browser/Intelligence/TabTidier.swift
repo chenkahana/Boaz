@@ -1,4 +1,4 @@
-import FolioKit
+import BoazKit
 import Foundation
 import FoundationModels
 

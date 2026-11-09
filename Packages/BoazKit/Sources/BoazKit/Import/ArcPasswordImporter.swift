@@ -5,10 +5,10 @@ import Security
 
 /// Copies Arc's saved passwords for one profile into the Keychain as internet passwords.
 ///
-/// SECURITY: items are synchronizable (iCloud Keychain) and labelled "Folio — imported from Arc".
+/// SECURITY: items are synchronizable (iCloud Keychain) and labelled "Boaz — imported from Arc".
 /// Existing items for the same server, protocol, port and account are left untouched.
 public enum ArcPasswordImporter {
-    public static let label = "Folio — imported from Arc"
+    public static let label = "Boaz — imported from Arc"
 
     public struct Login: Sendable, Equatable {
         public var url: URL

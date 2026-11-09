@@ -13,7 +13,7 @@ public enum StarterLibrary {
 
     /// Creates the Personal space when the library has no spaces. Returns whether it did.
     @discardableResult
-    public static func seedIfEmpty(_ store: FolioStore, now: Date = .now) throws -> Bool {
+    public static func seedIfEmpty(_ store: BoazStore, now: Date = .now) throws -> Bool {
         try store.writer.write { db in
             guard try Space.filter(Column("deletedAt") == nil).fetchCount(db) == 0 else { return false }
             let profile = try defaultProfile(db) ?? {
@@ -39,7 +39,7 @@ public enum StarterLibrary {
     ///
     /// With sync on, Personal stays and no favorites are added: this device can't yet tell an empty library from one
     /// whose contents haven't arrived, and either change would reach every device.
-    public static func finishSetup(_ store: FolioStore, syncing: Bool, now: Date = .now) throws {
+    public static func finishSetup(_ store: BoazStore, syncing: Bool, now: Date = .now) throws {
         try store.writer.write { db in
             let live = Column("deletedAt") == nil
             let tabs = try SidebarItem.filter(live && Column("kind") == SidebarItem.Kind.tab.rawValue).fetchCount(db)
@@ -76,7 +76,7 @@ public enum StarterLibrary {
     /// existing library shows an extra, empty "Personal". Called after a full fetch, so anything another device
     /// put in the starter space has arrived first. Returns whether it removed it.
     @discardableResult
-    public static func retireUnusedStarterSpace(_ store: FolioStore, now: Date = .now) throws -> Bool {
+    public static func retireUnusedStarterSpace(_ store: BoazStore, now: Date = .now) throws -> Bool {
         try store.writer.write { db in
             let live = Column("deletedAt") == nil
             guard var space = try Space.filter(live && Column("id") == spaceID).fetchOne(db),
@@ -96,7 +96,7 @@ public enum StarterLibrary {
 
     /// Whether the library holds spaces or tabs of the user's own, beyond these starter records and the sample
     /// library development builds used to seed (`fav-N`, `space-N…`).
-    public static func hasUserContent(_ store: FolioStore) throws -> Bool {
+    public static func hasUserContent(_ store: BoazStore) throws -> Bool {
         try store.writer.read { db in
             try String.fetchAll(db, sql: """
                 SELECT id FROM space WHERE deletedAt IS NULL

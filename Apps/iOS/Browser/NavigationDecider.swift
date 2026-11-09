@@ -3,7 +3,7 @@ import WebKit
 /// Per-page navigation policy: detects non-renderable responses (routed to `Downloads` instead of
 /// failing to load) and reports back/forward navigations so the browser can fire a haptic at the
 /// edge-swipe commit point.
-struct FolioNavigationDecider: WebPage.NavigationDeciding {
+struct BoazNavigationDecider: WebPage.NavigationDeciding {
     let onBackForward: @MainActor () -> Void
     let onDownload: @MainActor (URLResponse) -> Void
 

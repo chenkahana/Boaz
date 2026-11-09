@@ -12,7 +12,7 @@ public struct HistoryVisit: Codable, Identifiable, Hashable, Sendable, Fetchable
     public static let databaseTableName = "historyVisit"
 }
 
-extension FolioStore {
+extension BoazStore {
     // MARK: History
 
     /// Records a visit. Repeated loads of the same URL within ten minutes update the existing visit.

@@ -1,15 +1,15 @@
 import AppKit
 import CloudKit
-import FolioKit
+import BoazKit
 import SwiftUI
 
 @main
-struct FolioMacApp: App {
+struct BoazMacApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var model = MacModel.shared
 
     var body: some Scene {
-        WindowGroup("Folio", id: "main") {
+        WindowGroup("Boaz", id: "main") {
             BrowserWindow(incognito: false)
                 .environment(model)
                 .tint(Theme.brand)
@@ -18,7 +18,7 @@ struct FolioMacApp: App {
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1280, height: 820)
         .handlesExternalEvents(matching: [])
-        .commands { FolioCommands(model: model) }
+        .commands { BoazCommands(model: model) }
 
         WindowGroup("Incognito", id: "incognito") {
             BrowserWindow(incognito: true)
@@ -31,8 +31,8 @@ struct FolioMacApp: App {
         .handlesExternalEvents(matching: [])
         .restorationBehavior(.disabled)
 
-        WindowGroup("Little Folio", id: "little", for: URL.self) { $url in
-            LittleFolioWindow(url: url)
+        WindowGroup("Little Boaz", id: "little", for: URL.self) { $url in
+            LittleBoazWindow(url: url)
                 .environment(model)
                 .task { await model.start() }
         }
@@ -71,14 +71,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { await MacModel.shared.sync?.syncNow() }
     }
 
-    /// Links opened from other apps (Folio as the target of `open -a` or as default browser) go to Little Folio.
+    /// Links opened from other apps (Boaz as the target of `open -a` or as default browser) go to Little Boaz.
     func application(_ application: NSApplication, open urls: [URL]) {
         MacModel.shared.openExternal(urls)
     }
 }
 
 /// Menu bar with Arc's default shortcuts; rebindable ones read from `KeyBindings`.
-struct FolioCommands: Commands {
+struct BoazCommands: Commands {
     let model: MacModel
     @FocusedValue(BrowserState.self) private var browser
     @Environment(\.openWindow) private var openWindow
@@ -94,7 +94,7 @@ struct FolioCommands: Commands {
                 .keyboardShortcut(key(.newTab)).disabled(browser == nil)
             Button("New Window") { openWindow(id: "main") }.keyboardShortcut(key(.newWindow))
             Button("New Incognito Window") { openWindow(id: "incognito") }.keyboardShortcut(key(.newIncognitoWindow))
-            Button("New Little Folio Window") { openWindow(id: "little") }.keyboardShortcut(key(.newLittleWindow))
+            Button("New Little Boaz Window") { openWindow(id: "little") }.keyboardShortcut(key(.newLittleWindow))
             Divider()
             Button("Open Location…") { browser?.commandMode = browser?.activeTab == nil ? .newTab : .currentTab }
                 .keyboardShortcut(key(.openLocation)).disabled(browser == nil)

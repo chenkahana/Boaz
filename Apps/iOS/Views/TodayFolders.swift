@@ -1,4 +1,4 @@
-import FolioKit
+import BoazKit
 import SwiftUI
 
 /// Folders inside Today (from Tidy Tabs or an Arc import), listed above Today's cards. Shows nothing when there are none.

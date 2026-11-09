@@ -1,5 +1,5 @@
 import AppKit
-import FolioKit
+import BoazKit
 import SwiftUI
 
 /// File ▸ Import from Arc… sheet (also opened from onboarding). Shows what will come over (each space with its
@@ -8,11 +8,11 @@ import SwiftUI
 struct ArcImportView: View {
     static let bookmarkKey = "arcFolderBookmark"
 
-    var store: FolioStore?
+    var store: BoazStore?
     /// Applies `StorableKeyBindings.json` from the granted Arc folder; returns the number of shortcuts applied.
     var applyKeyBindings: ((URL) throws -> Int)?
 
-    init(store: FolioStore? = nil, applyKeyBindings: ((URL) throws -> Int)? = nil) {
+    init(store: BoazStore? = nil, applyKeyBindings: ((URL) throws -> Int)? = nil) {
         self.store = store
         self.applyKeyBindings = applyKeyBindings
     }
@@ -34,7 +34,7 @@ struct ArcImportView: View {
             header
             switch phase {
             case .needsFolder:
-                Label("Folio reads Arc's sidebar from its data folder. macOS asks you to choose it once; Folio only reads it.",
+                Label("Boaz reads Arc's sidebar from its data folder. macOS asks you to choose it once; Boaz only reads it.",
                       systemImage: "folder.badge.questionmark")
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -91,7 +91,7 @@ struct ArcImportView: View {
         if snapshot.profiles.count > 1 { parts.append("\(snapshot.profiles.count) profiles") }
         var text = parts.joined(separator: " · ")
         if phase != .done {
-            text += ". Running it again later updates what came from Arc and leaves anything you made in Folio alone."
+            text += ". Running it again later updates what came from Arc and leaves anything you made in Boaz alone."
         }
         if snapshot.splitViews > 0 {
             text += " \(snapshot.splitViews) split \(snapshot.splitViews == 1 ? "view comes" : "views come") over as side-by-side tabs."
@@ -105,7 +105,7 @@ struct ArcImportView: View {
         VStack(alignment: .leading, spacing: 4) {
             Toggle("Keep me signed in (copy Arc's cookies to this Mac)", isOn: $importCookies)
             Text(importCookies
-                 ? "macOS will ask to let Folio use “Arc Safe Storage”. Click Allow, not Always Allow, so Folio reads it only this once. Quit Arc first. Cookies stay on this Mac and are never synced."
+                 ? "macOS will ask to let Boaz use “Arc Safe Storage”. Click Allow, not Always Allow, so Boaz reads it only this once. Quit Arc first. Cookies stay on this Mac and are never synced."
                  : "Cookies stay on this Mac and are never synced.")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -150,7 +150,7 @@ struct ArcImportView: View {
 
     private func chooseFolder() {
         let panel = NSOpenPanel()
-        panel.message = "Choose Arc's data folder (Library ▸ Application Support ▸ Arc) so Folio can read your sidebar."
+        panel.message = "Choose Arc's data folder (Library ▸ Application Support ▸ Arc) so Boaz can read your sidebar."
         panel.prompt = "Allow Access"
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
@@ -216,7 +216,7 @@ struct ArcImportView: View {
         let scoped = folder.startAccessingSecurityScopedResource()
         defer { if scoped { folder.stopAccessingSecurityScopedResource() } }
         do {
-            let store = try self.store ?? FolioStore.onDisk()
+            let store = try self.store ?? BoazStore.onDisk()
             status = "Importing spaces…"
             let (summary, parsed, icons) = try await Task.detached {
                 let importer = try ArcSidebarImporter(arcFolder: folder)
@@ -260,7 +260,7 @@ struct ArcImportView: View {
 
     private func importCookies(_ profileFolder: URL, profile: Profile?, name: String, storage: ChromiumSafeStorage) async {
         guard let profile else {
-            errors.append("\(name) cookies: import spaces first so the profile exists in Folio.")
+            errors.append("\(name) cookies: import spaces first so the profile exists in Boaz.")
             return
         }
         do {

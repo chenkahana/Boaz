@@ -32,7 +32,7 @@ struct SyncRecordMeta: Codable, FetchableRecord, PersistableRecord {
 }
 
 /// CloudKit sync bookkeeping on the store; public so it can be exercised offline.
-extension FolioStore {
+extension BoazStore {
     // MARK: Pending queue
 
     public func pendingSyncChanges() throws -> [SyncPendingChange] {
@@ -110,7 +110,7 @@ extension FolioStore {
 
     /// The iCloud user record name this library last synced with.
     static let cloudUserKey = "cloudUser"
-    /// Set when the user deleted Folio's iCloud data; sync stays off until they ask for it again.
+    /// Set when the user deleted Boaz's iCloud data; sync stays off until they ask for it again.
     static let cloudPurgedKey = "cloudPurged"
 
     // MARK: Outgoing
@@ -261,7 +261,7 @@ extension FolioStore {
     // MARK: Tombstones
 
     /// Hard-deletes tombstones older than `age` that were already synced (CloudKit or folder log) with nothing unsent.
-    /// Arc-imported rows keep theirs: re-importing from Arc must not bring back what was removed in Folio.
+    /// Arc-imported rows keep theirs: re-importing from Arc must not bring back what was removed in Boaz.
     /// The delete is queued like any local change, so the engine removes the CloudKit record too.
     @discardableResult
     public func purgeTombstones(olderThan age: TimeInterval = 30 * 24 * 3600, now: Date = .now) async throws -> Int {

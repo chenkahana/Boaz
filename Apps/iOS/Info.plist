@@ -4,7 +4,7 @@
 <dict>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
-		<string>com.chenkahana.folio.sync</string>
+		<string>com.chenkahana.boaz.sync</string>
 	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
@@ -26,10 +26,10 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>CFBundleURLName</key>
-			<string>com.chenkahana.folio</string>
+			<string>com.chenkahana.boaz</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>folio</string>
+				<string>boaz</string>
 			</array>
 		</dict>
 	</array>

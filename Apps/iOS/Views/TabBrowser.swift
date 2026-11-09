@@ -1,4 +1,4 @@
-import FolioKit
+import BoazKit
 import SwiftUI
 import TipKit
 import WebKit

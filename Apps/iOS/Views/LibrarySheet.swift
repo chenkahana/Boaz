@@ -1,4 +1,4 @@
-import FolioKit
+import BoazKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -170,7 +170,7 @@ struct SettingsSheet: View {
                 } header: {
                     Text("Content")
                 } footer: {
-                    Text("Folio blocks known ad and tracking requests, and dismisses cookie consent pop-ups by declining non-essential cookies where the site allows it. Turn either off if a site breaks.")
+                    Text("Boaz blocks known ad and tracking requests, and dismisses cookie consent pop-ups by declining non-essential cookies where the site allows it. Turn either off if a site breaks.")
                 }
                 Section {
                     Toggle("Tint chrome with site colors", isOn: $tintWithSiteColors)
@@ -217,7 +217,7 @@ private struct SyncSettingsSection: View {
                 Text("iCloud Sync")
             } footer: {
                 Text(sync.offersFolder
-                     ? "Until iCloud is available, you can sync through a folder your Mac can reach too, like iCloud Drive › Folio."
+                     ? "Until iCloud is available, you can sync through a folder your Mac can reach too, like iCloud Drive › Boaz."
                      : "Spaces, pins, tabs and the Archive sync through your iCloud account. History and private tabs stay on this iPhone.")
             }
             .syncFolderImporter(isPresented: $picking, sync: sync, message: $pickError)

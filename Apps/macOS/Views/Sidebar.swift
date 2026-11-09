@@ -1,11 +1,11 @@
 import AppKit
-import FolioKit
+import BoazKit
 import SwiftUI
 import WebKit
 
 /// Drag payload for sidebar items; anything else dropped (a link) becomes a new tab.
 enum SidebarDrag {
-    static let prefix = "folio-item:"
+    static let prefix = "boaz-item:"
     static func payload(_ item: SidebarItem) -> String { prefix + item.id }
     static func itemID(_ payload: String) -> String? {
         payload.hasPrefix(prefix) ? String(payload.dropFirst(prefix.count)) : nil

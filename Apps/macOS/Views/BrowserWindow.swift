@@ -1,5 +1,5 @@
 import AppKit
-import FolioKit
+import BoazKit
 import SwiftUI
 import WebKit
 
@@ -76,7 +76,7 @@ struct BrowserWindow: View {
     /// Private tabs keep their titles out of system UI, as the sidebar does.
     private var windowTitle: String {
         if browser.isIncognito { return "Incognito" }
-        return browser.activeTab.flatMap { $0.title ?? $0.url?.host() } ?? browser.currentSpace?.title ?? "Folio"
+        return browser.activeTab.flatMap { $0.title ?? $0.url?.host() } ?? browser.currentSpace?.title ?? "Boaz"
     }
 }
 

@@ -1,5 +1,5 @@
 import AppKit
-import FolioKit
+import BoazKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -143,7 +143,7 @@ struct HistoryWindow: View {
     private func reload() { visits = (try? model.store?.history(matching: query, limit: 1000)) ?? [] }
 }
 
-/// Folio ▸ Settings: same preferences as iOS, plus keyboard shortcut overrides.
+/// Boaz ▸ Settings: same preferences as iOS, plus keyboard shortcut overrides.
 struct MacSettingsView: View {
     var body: some View {
         TabView {
@@ -188,14 +188,14 @@ private struct DefaultBrowserRow: View {
 
     var body: some View {
         LabeledContent("Default browser") {
-            if current.isFolio {
-                Text("Folio").foregroundStyle(.secondary)
+            if current.isBoaz {
+                Text("Boaz").foregroundStyle(.secondary)
             } else {
                 HStack {
                     Text(current.name).foregroundStyle(.secondary)
                     Button("Make Default") {
                         Task {
-                            failed = (try? await DefaultBrowser.makeFolioDefault()) == nil
+                            failed = (try? await DefaultBrowser.makeBoazDefault()) == nil
                             current = DefaultBrowser.current()
                         }
                     }
@@ -250,7 +250,7 @@ private struct SyncSettings: View {
                         if let syncMessage { Text(syncMessage).font(.caption).foregroundStyle(.secondary) }
                     }
                     Text(sync.offersFolder
-                         ? "Until iCloud is available, you can sync through a folder your iPhone can reach too, like iCloud Drive › Folio."
+                         ? "Until iCloud is available, you can sync through a folder your iPhone can reach too, like iCloud Drive › Boaz."
                          : "Spaces, pins, tabs and the Archive sync through your iCloud account. History and private tabs stay on this Mac.")
                         .font(.caption).foregroundStyle(.secondary)
                 }

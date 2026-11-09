@@ -1,4 +1,4 @@
-import FolioKit
+import BoazKit
 import SwiftUI
 
 /// Space management on iPhone: what the space title menu and the home menu offer, and the editor sheet they open.

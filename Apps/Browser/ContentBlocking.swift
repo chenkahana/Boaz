@@ -4,12 +4,12 @@ import WebKit
 /// (incognito included) when `Preferences.blockTrackers` is on; nothing is downloaded at runtime:
 /// - EasyList (`easylist_min_content_blocker.json`, the WebKit build from easylist-downloads.adblockplus.org):
 ///   ad servers plus element hiding. Compiled once per bundled version, then loaded from WebKit's store.
-/// - `domains` below: Folio's own list of tracking and analytics hosts, which the min EasyList doesn't cover.
+/// - `domains` below: Boaz's own list of tracking and analytics hosts, which the min EasyList doesn't cover.
 enum ContentBlocking {
     /// Change when the bundled EasyList file is replaced, so its compiled copy is rebuilt.
     static let easyListVersion = "2025-05-27.3"
-    private static let ownIdentifier = "FolioAdBlock"
-    private static let easyListPrefix = "FolioEasyList-"
+    private static let ownIdentifier = "BoazAdBlock"
+    private static let easyListPrefix = "BoazEasyList-"
 
     @MainActor private static var cached: [WKContentRuleList]?
     @MainActor private static var compiling: Task<[WKContentRuleList], Never>?

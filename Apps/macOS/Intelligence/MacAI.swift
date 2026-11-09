@@ -1,4 +1,4 @@
-import FolioKit
+import BoazKit
 import SwiftUI
 
 /// The window's AI sheet: Summarize/Ask for a tab, or tidying a space.

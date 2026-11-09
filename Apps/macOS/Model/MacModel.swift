@@ -1,6 +1,6 @@
 import Accessibility
 import AppKit
-import FolioKit
+import BoazKit
 import SwiftUI
 import WebKit
 
@@ -21,13 +21,13 @@ final class MacModel {
     var toast: Toast?
     let keyBindings = KeyBindings()
 
-    @ObservationIgnored private(set) var store: FolioStore?
+    @ObservationIgnored private(set) var store: BoazStore?
     /// iCloud sync with the user's other devices (a picked folder only when iCloud isn't available).
     @ObservationIgnored private(set) var sync: LibrarySync?
     @ObservationIgnored weak var lastActiveBrowser: BrowserState?
     @ObservationIgnored private var openWindowAction: OpenWindowAction?
     @ObservationIgnored private var pendingExternalURLs: [URL] = []
-    /// A URL waiting for the next main window to appear ("Open in Folio" from Little Folio with no window open).
+    /// A URL waiting for the next main window to appear ("Open in Boaz" from Little Boaz with no window open).
     @ObservationIgnored var pendingMainURL: URL?
     /// A tab the next main window should show ("Open in New Window").
     @ObservationIgnored var pendingMainTabID: String?
@@ -52,7 +52,7 @@ final class MacModel {
         // Compiling EasyList the first time takes a few seconds; the library loads meanwhile.
         Task { contentBlockLists = await ContentBlocking.compiledLists() }
         do {
-            let store = try FolioStore.onDisk()
+            let store = try BoazStore.onDisk()
             self.store = store
             let sync = LibrarySync(store: store)
             self.sync = sync
@@ -124,7 +124,7 @@ final class MacModel {
         Task { openExternal(pending) }
     }
 
-    /// Links from other apps open in a Little Folio window, like Little Arc.
+    /// Links from other apps open in a Little Boaz window, like Little Arc.
     func openExternal(_ urls: [URL]) {
         let urls = urls.filter { ["http", "https"].contains($0.scheme?.lowercased() ?? "") && $0.host() != nil }
         guard let openWindowAction else { pendingExternalURLs += urls; return }
@@ -431,7 +431,7 @@ final class MacModel {
     }
 }
 
-/// Edits Arc `windowTheme` JSON in place, keeping every key Folio doesn't understand.
+/// Edits Arc `windowTheme` JSON in place, keeping every key Boaz doesn't understand.
 enum ThemeJSON {
     enum Role: CaseIterable, Identifiable {
         case backgroundLight, backgroundDark, accent
