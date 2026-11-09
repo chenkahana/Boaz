@@ -335,7 +335,6 @@ private struct BrowserBar: View {
     @Environment(AppModel.self) private var model
     @Environment(ToolRailState.self) private var rail
     @Environment(\.homeControlsElsewhere) private var homeControlsElsewhere
-    @Environment(\.chromeTint) private var tint
     @Environment(\.siteEdges) private var edges
     @Environment(\.sidebar) private var sidebar
     let tab: SidebarItem
@@ -407,7 +406,7 @@ private struct BrowserBar: View {
                 Button { rail.expand() } label: {
                     Text(host).font(.caption.weight(.semibold))
                         .padding(.horizontal, 14).padding(.vertical, 6)
-                        .glassEffect(.regular.tint(tint?.opacity(0.45)), in: .capsule)
+                        .glassEffect(.regular.tint(edges?.bottom.color.opacity(0.45)), in: .capsule)
                         // The capsule stays small; the target is a full 44pt.
                         .frame(minHeight: 44)
                         .contentShape(.rect)
@@ -431,7 +430,9 @@ private struct BrowserBar: View {
         .padding(.top, rail.isCollapsed ? 0 : 6)
         .padding(.bottom, rail.isCollapsed ? 0 : 4)
         .frame(maxWidth: .infinity)
+        // Like the rail's docks, the bar takes the page color it sits on, so its glass and glyphs agree.
         .chromeScheme(edges?.bottom)
+        .environment(\.chromeTint, edges?.bottom.color)
     }
 
     /// New Tab opens the search panel; pressed again, it puts it away. One panel at a time.
