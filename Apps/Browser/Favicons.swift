@@ -119,7 +119,7 @@ final class Favicons {
     }
 
     /// Seeds the cache with an icon another browser already had for `pageURL` (Arc import), so imported tabs
-    /// show their real icons before they ever load. Never replaces an icon Folio already has for the host.
+    /// show their real icons before they ever load. Never replaces an icon Boaz already has for the host.
     func seed(_ data: Data, for pageURL: URL) {
         guard let host = Self.hostKey(pageURL), resolved[host] == nil, let file = diskURL(host: host),
               !FileManager.default.fileExists(atPath: file.path),

@@ -1,4 +1,4 @@
-import FolioKit
+import BoazKit
 import SwiftUI
 #if canImport(UIKit)
 import UIKit
@@ -31,7 +31,7 @@ extension WindowTheme.RGBA {
     }
 }
 
-/// Renders a space's Arc theme. Falls back to Folio's indigo palette when a space has no theme.
+/// Renders a space's Arc theme. Falls back to Boaz's indigo palette when a space has no theme.
 struct SpaceStyle {
     let theme: WindowTheme?
     let dark: Bool

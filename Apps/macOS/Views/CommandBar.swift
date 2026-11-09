@@ -1,4 +1,4 @@
-import FolioKit
+import BoazKit
 import SwiftUI
 
 /// Arc's command bar (⌘T new tab, ⌘L current tab, ⌃⇧= split): a floating field that searches open and pinned

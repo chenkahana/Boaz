@@ -2,8 +2,8 @@ import SwiftUI
 import WidgetKit
 
 @main
-struct FolioWidgetsBundle: WidgetBundle {
+struct BoazWidgetsBundle: WidgetBundle {
     var body: some Widget {
-        FolioSearchWidget()
+        BoazSearchWidget()
     }
 }

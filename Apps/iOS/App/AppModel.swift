@@ -1,4 +1,4 @@
-import FolioKit
+import BoazKit
 import OSLog
 import SwiftUI
 import WebKit
@@ -19,7 +19,7 @@ final class AppModel {
     var currentSpaceID: String? {
         didSet {
             guard currentSpaceID != oldValue else { return }
-            UserDefaults(suiteName: FolioStore.appGroup)?.set(currentSpaceID, forKey: "currentSpaceID")
+            UserDefaults(suiteName: BoazStore.appGroup)?.set(currentSpaceID, forKey: "currentSpaceID")
         }
     }
     var activeTabID: String?
@@ -42,7 +42,7 @@ final class AppModel {
     // Caches touched while views render; observing them would re-render in a loop.
     @ObservationIgnored private var pages: [String: WebPage] = [:]
     @ObservationIgnored private var pageRecency: [String] = []
-    @ObservationIgnored private(set) var store: FolioStore?
+    @ObservationIgnored private(set) var store: BoazStore?
     /// iCloud sync with the user's other devices (a picked folder only when iCloud isn't available).
     @ObservationIgnored private(set) var sync: LibrarySync?
     /// Compiled once at launch; `nil` until ready, so the very first page or two may load unblocked.
@@ -52,7 +52,7 @@ final class AppModel {
     private let maxLivePages = 8
     /// Archived by closing, newest last; observed so the More menu's Reopen Closed Tab stays current.
     private var closedTabs: [(tab: SidebarItem, archiveID: String?)] = []
-    private static let log = Logger(subsystem: "com.chenkahana.folio", category: "app")
+    private static let log = Logger(subsystem: "com.chenkahana.boaz", category: "app")
 
     init() {
         UserDefaults.standard.register(defaults: [
@@ -88,7 +88,7 @@ final class AppModel {
             }
         } catch {
             Self.log.error("Opening the library failed: \(String(describing: error))")
-            showToast("Couldn't open your library. Try reopening Folio.")
+            showToast("Couldn't open your library. Try reopening Boaz.")
         }
     }
 
@@ -96,7 +96,7 @@ final class AppModel {
     @discardableResult
     func prepareSync() throws -> LibrarySync {
         if let sync { return sync }
-        let store = try FolioStore.onDisk(appGroup: FolioStore.appGroup)
+        let store = try BoazStore.onDisk(appGroup: BoazStore.appGroup)
         self.store = store
         let sync = LibrarySync(store: store)
         self.sync = sync
@@ -107,9 +107,9 @@ final class AppModel {
     /// the work and suspended again if the app is still in the background.
     func backgroundSync() async {
         guard let sync = try? prepareSync() else { return }
-        FolioStore.resumeDatabases()
+        BoazStore.resumeDatabases()
         await sync.syncNow()
-        if UIApplication.shared.applicationState == .background { FolioStore.suspendDatabases() }
+        if UIApplication.shared.applicationState == .background { BoazStore.suspendDatabases() }
     }
 
     /// Picks up rows the share extension wrote while the app was away: the live observation only sees this
@@ -181,7 +181,7 @@ final class AppModel {
             configuration.userContentController.addUserScript(CookieBanners.userScript())
         }
         let dataStore = configuration.websiteDataStore
-        let decider = FolioNavigationDecider(
+        let decider = BoazNavigationDecider(
             onBackForward: { [weak self] in self?.backForwardHaptic += 1 },
             onDownload: { [weak self] response in
                 self?.discardIfDownloadOnly(tab.id)
@@ -564,7 +564,7 @@ enum Preferences {
 }
 
 extension Notification.Name {
-    static let deviceDidShake = Notification.Name("FolioDeviceDidShake")
+    static let deviceDidShake = Notification.Name("BoazDeviceDidShake")
 }
 
 extension UIWindow {

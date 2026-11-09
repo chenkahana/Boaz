@@ -1,4 +1,4 @@
-// Renders the Folio app icon mark (a browser window with two mismatched eyes) at 1024×1024.
+// Renders the Boaz app icon mark (a browser window with two mismatched eyes) at 1024×1024.
 // Usage: swift Tools/make-icon.swift <output-dir> [palette] [preview-dir]
 //   palette: default (primary set: light, dark, tinted) | an alternate from `palettes` below
 //            (alternate iOS icon: one PNG + Contents.json). With preview-dir, also writes <name>-Preview.png

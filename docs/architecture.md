@@ -1,28 +1,28 @@
 # Architecture
 
-Folio is two native SwiftUI apps (iPhone and Mac) and two iOS extensions over one Swift package, **FolioKit**. This
+Boaz is two native SwiftUI apps (iPhone and Mac) and two iOS extensions over one Swift package, **BoazKit**. This
 document explains how the pieces fit together and the rules each layer follows.
 
 ## Targets
 
 | Target | Platform | Sources | Bundle ID |
 |---|---|---|---|
-| Folio-iOS | iOS 27.1+ (iPhone; iPad in compatibility mode) | `Apps/iOS`, `Apps/Shared`, `Apps/Browser` | `com.chenkahana.folio` |
-| Folio-macOS | macOS 26+ | `Apps/macOS`, `Apps/Shared`, `Apps/Browser` | `com.chenkahana.folio` |
-| ShareExtension | iOS | `Apps/Extensions/ShareExtension`, `Apps/Shared` | `com.chenkahana.folio.share` |
-| Widgets | iOS | `Apps/Extensions/Widgets`, `Apps/Shared` | `com.chenkahana.folio.widgets` |
-| FolioKit | iOS 17+, macOS 14+ (Swift package) | `Packages/FolioKit` | — |
+| Boaz-iOS | iOS 27.1+ (iPhone; iPad in compatibility mode) | `Apps/iOS`, `Apps/Shared`, `Apps/Browser` | `com.chenkahana.boaz` |
+| Boaz-macOS | macOS 26+ | `Apps/macOS`, `Apps/Shared`, `Apps/Browser` | `com.chenkahana.boaz` |
+| ShareExtension | iOS | `Apps/Extensions/ShareExtension`, `Apps/Shared` | `com.chenkahana.boaz.share` |
+| Widgets | iOS | `Apps/Extensions/Widgets`, `Apps/Shared` | `com.chenkahana.boaz.widgets` |
+| BoazKit | iOS 17+, macOS 14+ (Swift package) | `Packages/BoazKit` | — |
 
 The iPhone and Mac apps share one bundle ID, so they are one App Store record (universal purchase) and one iCloud
-App ID. The iOS app and its extensions share the app group `group.com.chenkahana.folio`, where the library database
+App ID. The iOS app and its extensions share the app group `group.com.chenkahana.boaz`, where the library database
 lives. Targets, entitlements and Info.plist keys are defined in [`project.yml`](../project.yml); the Xcode project is
 generated from it.
 
 ## Concurrency
 
 App targets use Swift 6 with `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`: views and models are main-actor by default.
-FolioKit has no default isolation. Everything that touches SQLite, CloudKit or the file system runs off the main
-actor through FolioKit's `async` API, so the UI never blocks on I/O. When several reloads race, a generation counter
+BoazKit has no default isolation. Everything that touches SQLite, CloudKit or the file system runs off the main
+actor through BoazKit's `async` API, so the UI never blocks on I/O. When several reloads race, a generation counter
 makes sure only the newest result is applied.
 
 ## Data model
@@ -36,7 +36,7 @@ All records are GRDB value types in `Model/Records.swift`:
 - **ArchiveItem**: a closed or auto-archived tab.
 - **HistoryVisit**: local only. History is never synced.
 
-`FolioStore` is the single source of truth on each device. It opens a `DatabasePool` (WAL mode) in the app group,
+`BoazStore` is the single source of truth on each device. It opens a `DatabasePool` (WAL mode) in the app group,
 runs versioned migrations (`v1`, `v2-history`, `v3-sync`, …) and exposes reads such as `loadSidebar()` and writes
 such as `archiveStaleTabs()`. A shipped migration is never edited; schema changes add a new one.
 
@@ -48,7 +48,7 @@ of duplicating it.
 ```mermaid
 sequenceDiagram
     participant UI as App
-    participant Store as FolioStore (SQLite)
+    participant Store as BoazStore (SQLite)
     participant Queue as Pending changes
     participant Engine as CKSyncEngine
     participant CK as Private iCloud DB
@@ -62,7 +62,7 @@ sequenceDiagram
 ```
 
 - **Transport.** `LibrarySync` is the only sync object the apps use. When the build has the iCloud entitlement and
-  an account is signed in, `CloudKitSync` mirrors the store to the private database (zone `Folio`) with
+  an account is signed in, `CloudKitSync` mirrors the store to the private database (zone `Boaz`) with
   `CKSyncEngine`. Otherwise a folder the user picks (`FolderSync`) is the fallback. Only one transport runs at a time;
   both drain the same queue.
 - **Change capture.** Database triggers write every local change to `SyncPendingChange`, so no write path can forget
@@ -72,7 +72,7 @@ sequenceDiagram
   uses per-field timestamps (`RecordState`) so devices converge without a server.
 - **Deletes** are kept as tombstones for 30 days so slower devices learn about them, then purged; the purge is
   queued like any change, so the CloudKit record goes too. Arc-imported rows keep their tombstones, so re-importing
-  from Arc doesn't bring back what was removed in Folio.
+  from Arc doesn't bring back what was removed in Boaz.
 - **What syncs:** profiles, spaces, sidebar items and the archive (`SyncRecordType`). History, Incognito tabs, page
   snapshots and cookies never leave the device.
 
@@ -107,17 +107,17 @@ the folded layout.
 
 - **Arc sidebar:** reads `StorableSidebar.json` and recreates profiles, spaces, pinned folders, favorites and themes
   in the same order.
-- **Arc shortcuts:** maps `StorableKeyBindings.json` overrides onto Folio's commands.
+- **Arc shortcuts:** maps `StorableKeyBindings.json` overrides onto Boaz's commands.
 - **Arc cookies (opt-in):** decrypts Arc's cookie database with the "Arc Safe Storage" Keychain key (macOS asks the
   user first) and writes the cookies only into the matching profile's local `WKWebsiteDataStore`. They are never
-  stored in the Folio database or synced.
+  stored in the Boaz database or synced.
 - **Bookmarks:** Chrome, Brave, Edge and Safari bookmark files become pinned tabs and folders.
 
-Folio does not import saved passwords. `ArcPasswordImporter.swift` is excluded from the package build.
+Boaz does not import saved passwords. `ArcPasswordImporter.swift` is excluded from the package build.
 
 ## Privacy and security
 
-- Folio uses no analytics, crash reporting or third-party SDKs that collect data. `PrivacyInfo.xcprivacy` declares no
+- Boaz uses no analytics, crash reporting or third-party SDKs that collect data. `PrivacyInfo.xcprivacy` declares no
   tracking and no collected data, plus the required-reason APIs used.
 - The Mac app is sandboxed. It reads other browsers' data only from folders the user selects, through
   security-scoped bookmarks.

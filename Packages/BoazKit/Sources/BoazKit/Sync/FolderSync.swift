@@ -3,7 +3,7 @@ import GRDB
 import Observation
 import os
 
-// Folder transport: devices sync through a folder the user picks (iCloud Drive/Folio), no CloudKit entitlement needed.
+// Folder transport: devices sync through a folder the user picks (iCloud Drive/Boaz), no CloudKit entitlement needed.
 //
 //   <folder>/devices/<deviceID>/0000000001.json   append-only change logs, written only by that device
 //   <folder>/devices/<deviceID>/snapshot.json     that device's full state, for bootstrapping and after compaction
@@ -34,7 +34,7 @@ public struct FolderLogFile: Codable, Sendable {
 
 // MARK: - Store side
 
-extension FolioStore {
+extension BoazStore {
     func syncValue(_ key: String, in db: Database) throws -> String? {
         try Data.fetchOne(db, sql: "SELECT value FROM syncState WHERE key = ?", arguments: [key])
             .map { String(decoding: $0, as: UTF8.self) }
@@ -201,7 +201,7 @@ extension FolioStore {
 // MARK: - One sync pass (file I/O, off the main actor)
 
 struct FolderSyncPass: Sendable {
-    let store: FolioStore
+    let store: BoazStore
     let root: URL
     let device: String
     let presenter: FolderPresenter?
@@ -346,12 +346,12 @@ final class FolderPresenter: NSObject, NSFilePresenter, @unchecked Sendable {
     func presentedSubitemDidAppear(at url: URL) { onChange() }
 }
 
-// MARK: - FolioSync
+// MARK: - BoazSync
 
-/// Keeps this device's library in sync with the user's other devices through a shared folder (iCloud Drive/Folio).
+/// Keeps this device's library in sync with the user's other devices through a shared folder (iCloud Drive/Boaz).
 /// Local writes are captured by database triggers, so every write path syncs. History and incognito never do.
 @MainActor @Observable
-public final class FolioSync {
+public final class BoazSync {
     public enum Status: Equatable, Sendable {
         case idle
         case noFolder
@@ -374,7 +374,7 @@ public final class FolioSync {
     /// The folder in use, if any.
     public private(set) var folderURL: URL?
 
-    @ObservationIgnored private let store: FolioStore
+    @ObservationIgnored private let store: BoazStore
     @ObservationIgnored private var started = false
     @ObservationIgnored private var pass: Task<Void, Never>?
     @ObservationIgnored private var passRequested = false
@@ -383,10 +383,10 @@ public final class FolioSync {
     @ObservationIgnored private var scheduled: Task<Void, Never>?
     @ObservationIgnored private var tasks: [Task<Void, Never>] = []
 
-    private static let log = Logger(subsystem: "com.chenkahana.folio", category: "sync")
+    private static let log = Logger(subsystem: "com.chenkahana.boaz", category: "sync")
     static let bookmarkKey = "folderBookmark"
 
-    public init(store: FolioStore) {
+    public init(store: BoazStore) {
         self.store = store
     }
 
@@ -522,7 +522,7 @@ public final class FolioSync {
     }
 }
 
-extension FolioStore {
+extension BoazStore {
     /// One synchronous pass without the app-level scheduling, for offline checks.
     @_spi(SyncTesting) public func runFolderSyncPass(root: URL, device: String) throws -> Bool {
         try FolderSyncPass(store: self, root: root, device: device, presenter: nil).run().waitingForDownloads
