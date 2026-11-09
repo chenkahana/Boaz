@@ -24,7 +24,7 @@ struct LibrarySheet: View {
                                     .swipeActions {
                                         Button("Delete", systemImage: "trash", role: .destructive) {
                                             try? model.store?.removeFromArchive(item.id)
-                                            reload()
+                                            reloadArchive()
                                         }
                                     }
                             }
@@ -77,8 +77,13 @@ struct LibrarySheet: View {
                         .confirmationDialog(tab == 0 ? "Clear the whole Archive?" : "Clear all history?",
                                             isPresented: $confirmClear, titleVisibility: .visible) {
                             Button(tab == 0 ? "Clear Archive" : "Clear History", role: .destructive) {
-                                if tab == 0 { try? model.store?.clearArchive() } else { try? model.store?.clearHistory() }
-                                reload()
+                                if tab == 0 {
+                                    try? model.store?.clearArchive()
+                                    reloadArchive()
+                                } else {
+                                    try? model.store?.clearHistory()
+                                    history = []
+                                }
                             }
                         } message: {
                             Text("This can't be undone.")
@@ -86,8 +91,8 @@ struct LibrarySheet: View {
                 }
             }
         }
-        .onAppear(perform: reload)
-        .onChange(of: query) { reload() }
+        .onAppear(perform: reloadArchive)
+        .task(id: query) { await searchHistory() }
     }
 
     private var filteredArchive: [ArchiveItem] {
@@ -96,9 +101,17 @@ struct LibrarySheet: View {
             || $0.url.absoluteString.localizedCaseInsensitiveContains(query) }
     }
 
-    private func reload() {
+    /// The archive is searched in memory (`filteredArchive`), so typing never reloads it.
+    private func reloadArchive() {
         archive = (try? model.store?.archivedItems()) ?? []
-        history = (try? model.store?.history(matching: query)) ?? []
+    }
+
+    /// History is searched in the database, once typing pauses.
+    private func searchHistory() async {
+        if !query.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
+        guard !Task.isCancelled, let store = model.store,
+              let found = try? await store.history(matching: query), !Task.isCancelled else { return }
+        history = found
     }
 
     private func dayLabel(_ day: Date) -> String {

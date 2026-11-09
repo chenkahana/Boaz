@@ -57,6 +57,7 @@ final class AppModel {
     @ObservationIgnored private var contentBlockLists: [WKContentRuleList] = []
     /// Runs once the current sheet has finished dismissing (a tab can't present while a sheet is leaving).
     @ObservationIgnored private var afterSheet: (() -> Void)?
+    @ObservationIgnored private var historyLookup: Task<Void, Never>?
     private let maxLivePages = 8
     /// This iPhone, in the device list: Today shows only the tabs opened here (see `SidebarItem.deviceID`).
     let deviceID = Device.localID(in: UserDefaults(suiteName: BoazStore.appGroup) ?? .standard)
@@ -608,10 +609,20 @@ final class AppModel {
         }
     }
 
+    /// Looks history up once typing pauses, off the main thread: matching scans the whole history.
     private func refreshHistorySuggestions() {
+        historyLookup?.cancel()
         let query = searchText.trimmingCharacters(in: .whitespaces)
-        historySuggestions = searchTarget == .newTab && !isIncognito && query.count > 1
-            ? (try? store?.historySuggestions(matching: query, limit: 4)) ?? [] : []
+        guard searchTarget == .newTab, !isIncognito, query.count > 1, let store else {
+            if !historySuggestions.isEmpty { historySuggestions = [] }
+            return
+        }
+        historyLookup = Task {
+            try? await Task.sleep(for: .milliseconds(100))
+            guard !Task.isCancelled, let found = try? await store.historySuggestions(matching: query, limit: 4),
+                  !Task.isCancelled else { return }
+            historySuggestions = found
+        }
     }
 
     /// Whether typing may be sent to the search engine for suggestions: never in private browsing.

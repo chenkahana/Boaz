@@ -245,8 +245,9 @@ final class MacModel {
         return store
     }
 
-    func historySuggestions(_ query: String) -> [HistoryVisit] {
-        (try? store?.historySuggestions(matching: query, limit: 6)) ?? []
+    func historySuggestions(_ query: String) async -> [HistoryVisit] {
+        guard let store else { return [] }
+        return (try? await store.historySuggestions(matching: query, limit: 6)) ?? []
     }
 
     // MARK: Tabs

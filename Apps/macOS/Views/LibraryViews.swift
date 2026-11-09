@@ -130,17 +130,25 @@ struct HistoryWindow: View {
             Button("Clear History", systemImage: "trash") { confirmClear = true }
                 .disabled(visits.isEmpty && query.isEmpty)
                 .confirmationDialog("Clear all history?", isPresented: $confirmClear, titleVisibility: .visible) {
-                    Button("Clear History", role: .destructive) { try? model.store?.clearHistory(); reload() }
+                    Button("Clear History", role: .destructive) { try? model.store?.clearHistory(); visits = [] }
                 } message: {
                     Text("This can't be undone.")
                 }
         }
         .navigationTitle("History")
-        .task(id: query) { reload() }
-        .task(id: model.sidebar) { reload() }
+        .task(id: query) {
+            if !query.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
+            await reload()
+        }
+        .task(id: model.sidebar) { await reload() }
     }
 
-    private func reload() { visits = (try? model.store?.history(matching: query, limit: 1000)) ?? [] }
+    /// Searches in the database, off the main thread: matching scans the whole history.
+    private func reload() async {
+        guard !Task.isCancelled, let store = model.store,
+              let found = try? await store.history(matching: query, limit: 1000), !Task.isCancelled else { return }
+        visits = found
+    }
 }
 
 /// Boaz ▸ Settings: same preferences as iOS, plus keyboard shortcut overrides.

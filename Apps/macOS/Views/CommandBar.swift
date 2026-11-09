@@ -72,10 +72,15 @@ struct CommandBar: View {
             if mode == .currentTab { text = (browser.activePage?.url ?? browser.activeTab?.url)?.absoluteString ?? "" }
             focused = true
         }
-        .onChange(of: text) {
-            selection = 0
+        .onChange(of: text) { selection = 0 }
+        // History is looked up once typing pauses, off the main thread.
+        .task(id: text) {
             let query = text.trimmingCharacters(in: .whitespaces)
-            history = browser.isIncognito || query.count < 2 ? [] : model.historySuggestions(query)
+            guard !browser.isIncognito, query.count >= 2 else { history = []; return }
+            try? await Task.sleep(for: .milliseconds(100))
+            guard !Task.isCancelled else { return }
+            let found = await model.historySuggestions(query)
+            if !Task.isCancelled { history = found }
         }
     }
 

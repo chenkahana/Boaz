@@ -30,29 +30,39 @@ extension BoazStore {
         }
     }
 
-    /// Most recent visits, newest first, optionally filtered by title or address.
-    public func history(matching query: String = "", limit: Int = 300) throws -> [HistoryVisit] {
-        try writer.read { db in
+    /// Most recent visits, newest first, optionally filtered by title or address. Searching scans the whole
+    /// history, so it runs on the database's queue, never the caller's.
+    public func history(matching query: String = "", limit: Int = 300) async throws -> [HistoryVisit] {
+        let pattern = Self.containsPattern(query)
+        return try await writer.read { db in
             var request = HistoryVisit.order(Column("visitedAt").desc).limit(limit)
             if !query.isEmpty {
-                let pattern = "%\(query)%"
-                request = request.filter(Column("url").like(pattern) || Column("title").like(pattern))
+                request = request.filter(Column("url").like(pattern, escape: "\\")
+                                         || Column("title").like(pattern, escape: "\\"))
             }
             return try request.fetchAll(db)
         }
     }
 
-    /// One entry per address, most recently visited first, for search suggestions.
-    public func historySuggestions(matching query: String, limit: Int = 5) throws -> [HistoryVisit] {
+    /// One entry per address, most recently visited first, for search suggestions. Runs on the database's queue.
+    public func historySuggestions(matching query: String, limit: Int = 5) async throws -> [HistoryVisit] {
         guard !query.isEmpty else { return [] }
-        let pattern = "%\(query)%"
-        return try writer.read { db in
+        let pattern = Self.containsPattern(query)
+        return try await writer.read { db in
             try HistoryVisit.fetchAll(db, sql: """
                 SELECT id, profileID, url, title, MAX(visitedAt) AS visitedAt FROM historyVisit
-                WHERE url LIKE ? OR title LIKE ?
+                WHERE url LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\'
                 GROUP BY url ORDER BY visitedAt DESC LIMIT ?
                 """, arguments: [pattern, pattern, limit])
         }
+    }
+
+    /// A LIKE pattern for text containing `query`, with `%` and `_` in it matched as themselves.
+    private static func containsPattern(_ query: String) -> String {
+        let escaped = query.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "%", with: "\\%")
+            .replacingOccurrences(of: "_", with: "\\_")
+        return "%\(escaped)%"
     }
 
     public func clearHistory() throws {
