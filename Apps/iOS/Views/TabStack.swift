@@ -399,7 +399,8 @@ private struct DeckMetrics {
     /// Cards worth drawing: up to four earlier ones, and the next one while it slides in.
     func visible(around position: Double, count: Int) -> ClosedRange<Int> {
         guard count > 0 else { return 0...0 }
-        let lower = max(Int((position - 4).rounded(.down)), 0)
+        // `position` can still point past the end for a frame after tabs vanish, before refocusing catches up.
+        let lower = min(max(Int((position - 4).rounded(.down)), 0), count - 1)
         let upper = min(Int((position + 1).rounded(.up)), count - 1)
         return lower...max(lower, upper)
     }
