@@ -11,9 +11,8 @@ request merged.
 - **Larger changes** (new features, new dependencies, schema or sync changes) need an issue agreed with a maintainer
   before you write the code.
 
-By opening a pull request you confirm that you wrote the change, or have the right to submit it, and you grant the
-copyright holder a perpetual, irrevocable, worldwide, royalty-free license to use, modify and distribute it as part
-of Folio under any terms.
+By opening a pull request you confirm that you wrote the change, or have the right to submit it, and you agree
+that it is licensed under the [Mozilla Public License 2.0](LICENSE), the same license as the rest of Folio.
 
 ## Development setup
 
