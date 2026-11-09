@@ -196,11 +196,17 @@ final class AppModel {
         if let page = pages[tab.id] { return page }
         var configuration = WebPage.Configuration()
         if isPrivate(tab) { configuration.websiteDataStore = .nonPersistent() }
-        if Preferences.blockTrackers {
+        if Preferences.blockTrackers, PageSettings.settings(for: tab.url).contentBlocking {
             contentBlockLists.forEach(configuration.userContentController.add)
         }
         if Preferences.hideCookieBanners {
             configuration.userContentController.addUserScript(CookieBanners.userScript())
+        }
+        // Website Settings' camera/microphone pickers, per host; re-read on every request, so a change
+        // made while the tab is open takes effect on the site's next request, not just its next open.
+        configuration.deviceSensorAuthorization = .init { permission, frame, _ in
+            guard case .mediaCapture(let type) = permission else { return .prompt }
+            return PageSettings.mediaCaptureDecision(type, host: frame.request.url?.host())
         }
         let dataStore = configuration.websiteDataStore
         let decider = BoazNavigationDecider(
@@ -210,6 +216,7 @@ final class AppModel {
                 self?.handleDownload(response, dataStore: dataStore)
             })
         let page = WebPage(configuration: configuration, navigationDecider: decider)
+        PageSettings.applyDesktopSite(to: page)
         if let url = tab.url { page.load(URLRequest(url: url)) }
         pages[tab.id] = page
         while pageRecency.count > maxLivePages {
@@ -464,6 +471,21 @@ final class AppModel {
         item.deviceID = isPinned(tab) ? deviceID : nil
         commit(item)
         showToast(isPinned(item) ? "Pinned" : "Unpinned")
+    }
+
+    func isFavorite(_ tab: SidebarItem) -> Bool {
+        guard let parent = tab.parentID, !isPrivate(tab) else { return false }
+        return ancestorContainer(of: parent)?.containerKind == .favorites
+    }
+
+    /// Moves a tab into this profile's Favorites, as the page settings menu's "Add to Favorites" does.
+    func addToFavorites(_ tab: SidebarItem) {
+        guard let box = sidebar.favoritesContainer(profileID: tab.profileID) else { return }
+        var item = tab
+        item.parentID = box.id
+        item.position = sidebar.nextPosition(in: box.id)
+        commit(item)
+        showToast("Added to Favorites")
     }
 
     /// Whether a pinned tab's page has browsed away from where it was pinned.

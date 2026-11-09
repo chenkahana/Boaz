@@ -1,8 +1,9 @@
 import Foundation
 import WebKit
 
-/// Page zoom (⌘+ ⌘− ⌘0), remembered per host. WebPage has no zoom property, so it's CSS `zoom` on the root
-/// element, reapplied after each navigation.
+/// Page zoom (Mac: ⌘+ ⌘− ⌘0; iPhone: the page settings menu's Text Size), remembered per host. WebPage has
+/// no zoom property, so it's CSS `zoom` on the root element, reapplied after each navigation. Lives in
+/// `Apps/Browser` so both apps compile it.
 enum PageZoom {
     enum Change { case `in`, out, reset }
 

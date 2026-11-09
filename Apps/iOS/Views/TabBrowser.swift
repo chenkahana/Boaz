@@ -1,6 +1,7 @@
 import BoazKit
 import SwiftUI
 import TipKit
+import Translation
 import WebKit
 
 /// A tab's web page with Arc-style chrome: a bottom bar you swipe to change tabs, which shrinks while reading.
@@ -296,6 +297,9 @@ private struct BrowserBar: View {
         SwipeTabsTip()
         TuckRailTip()
     }
+    @State private var showingWebsiteSettings = false
+    /// Non-nil while Translate's sheet is up; its presence is the sheet's `isPresented`.
+    @State private var translationText: String?
 
     var body: some View {
         bar.onChange(of: tabCount, initial: true) { SwipeTabsTip.openTabs = tabCount }
@@ -487,6 +491,35 @@ private struct BrowserBar: View {
             Button("Reopen Closed Tab", systemImage: "arrow.uturn.backward") { model.undoClose() }
                 .disabled(!model.canReopenClosedTab)
             Button("Archive Tab", systemImage: "archivebox") { model.close(tab) }
+
+            Divider()
+            Button(desktopSite ? "Request Mobile Website" : "Request Desktop Website",
+                   systemImage: desktopSite ? "iphone" : "desktopcomputer") { toggleDesktopSite() }
+                .disabled(settingsHost == nil)
+            Menu("Text Size", systemImage: "textformat.size") {
+                Button("Make Text Larger", systemImage: "textformat.size.larger") { zoomText(.in) }
+                Button("Reset Text Size", systemImage: "arrow.counterclockwise") { zoomText(.reset) }
+                Button("Make Text Smaller", systemImage: "textformat.size.smaller") { zoomText(.out) }
+            }
+            Button("Website Settings", systemImage: "switch.2") { showingWebsiteSettings = true }
+                .disabled(settingsHost == nil)
+
+            Divider()
+            Button("Translate", systemImage: "translate", action: translate)
+            Button("Print", systemImage: "printer") { Task { await PagePrint.present(page) } }
+            if let url = page.url {
+                Button("Copy Link", systemImage: "link") {
+                    UIPasteboard.general.url = url
+                    model.showToast("Link copied")
+                }
+            }
+            if !model.isPrivate(tab), !model.isFavorite(tab) {
+                Button("Add to Favorites", systemImage: "star") { model.addToFavorites(tab) }
+            }
+            Button(PageSpeech.shared.isSpeaking ? "Stop Listening" : "Listen to Page",
+                   systemImage: PageSpeech.shared.isSpeaking ? "stop.circle" : "speaker.wave.2", action: toggleListening)
+                .disabled(!PageSpeech.shared.isSpeaking && readableLength < Reader.minimumCharacters)
+
             if homeControlsElsewhere {
                 Divider()
                 HomeMenuItems()
@@ -496,6 +529,45 @@ private struct BrowserBar: View {
         }
         .buttonStyle(PressableStyle())
         .accessibilityLabel("More")
+        .sheet(isPresented: $showingWebsiteSettings) { WebsiteSettingsSheet(tab: tab, host: settingsHost) }
+        .translationPresentation(isPresented: Binding(get: { translationText != nil },
+                                                        set: { if !$0 { translationText = nil } }),
+                                  text: translationText ?? "")
+    }
+
+    /// The host `PageSettings` and `PageZoom` key choices by; nil for a page with no address yet.
+    private var settingsHost: String? { page.url?.host() ?? tab.url?.host() }
+    private var desktopSite: Bool { PageSettings.settings(forHost: settingsHost).desktopSite }
+
+    private func toggleDesktopSite() {
+        PageSettings.update(forHost: settingsHost, remember: !model.isPrivate(tab)) { $0.desktopSite.toggle() }
+        PageSettings.applyDesktopSite(to: page)
+        _ = page.reload()
+    }
+
+    private func zoomText(_ change: PageZoom.Change) {
+        PageZoom.change(change, for: page, remember: !model.isPrivate(tab))
+    }
+
+    private func translate() {
+        Task {
+            guard let text = await PageText.extract(from: page) else {
+                model.showToast("Nothing to translate")
+                return
+            }
+            translationText = text
+        }
+    }
+
+    private func toggleListening() {
+        if PageSpeech.shared.isSpeaking {
+            PageSpeech.shared.stop()
+        } else {
+            Task {
+                guard let article = await Reader.extract(from: page) else { return }
+                PageSpeech.shared.speak(article)
+            }
+        }
     }
 
     private func reloadOrStop() {
