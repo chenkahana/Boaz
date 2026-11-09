@@ -152,7 +152,7 @@ private struct SpacePage: View {
                             .foregroundStyle(style.foreground.opacity(0.6))
                             .accessibilityAddTraits(.isHeader)
                         // The open page zooms back into the stack, unless the cover flow is the one showing.
-                        TabStack(cardSize: CGSize(width: 116, height: 160), zoom: model.showsCoverFlow ? nil : zoom)
+                        TabStack(space: space, cardSize: CGSize(width: 116, height: 160), zoom: model.showsCoverFlow ? nil : zoom)
                             .frame(maxWidth: .infinity)
                     }
                     .transition(.opacity)

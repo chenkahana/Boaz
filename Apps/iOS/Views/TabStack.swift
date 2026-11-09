@@ -6,6 +6,8 @@ import SwiftUI
 struct TabStack: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var scheme
+    /// The space whose Today this shows: each home page shows its own, even while swiping between them.
+    let space: Space?
     let cardSize: CGSize
     /// Where the open page zooms back to: the front card, which is always the tab used last.
     var zoom: Namespace.ID?
@@ -39,7 +41,7 @@ struct TabStack: View {
         .accessibilityHint("Shows your tabs side by side")
     }
 
-    private var todayTabs: [SidebarItem] { model.currentSpace.map(model.todayTabs(in:)) ?? [] }
+    private var todayTabs: [SidebarItem] { space.map(model.todayTabs(in:)) ?? [] }
 
     private var radius: CGFloat { max(cardSize.width * 0.16, 5) }
 
@@ -48,7 +50,7 @@ struct TabStack: View {
             if let snapshot = model.snapshots[tab.id] {
                 Color.clear.overlay(alignment: .top) { Image(uiImage: snapshot).resizable().scaledToFill() }
             } else {
-                Monogram(url: tab.url, tint: SpaceStyle(model.currentSpace, scheme: scheme).tint,
+                Monogram(url: tab.url, tint: SpaceStyle(space, scheme: scheme).tint,
                          size: min(cardSize.width * 0.55, 44))
             }
         }

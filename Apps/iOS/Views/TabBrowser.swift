@@ -335,7 +335,7 @@ private struct BrowserBar: View {
                         .accessibilityLabel("Tabs")
                         .accessibilityValue("\(tabCount) open")
                     } else {
-                        TabStack(cardSize: CGSize(width: 26, height: 36)).padding(.vertical, 4)
+                        TabStack(space: model.currentSpace, cardSize: CGSize(width: 26, height: 36)).padding(.vertical, 4)
                     }
                 }
                 RailButton(symbol: "plus", label: "New Tab") { model.beginSearch(.newTab) }

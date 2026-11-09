@@ -90,6 +90,8 @@ final class AppModel {
             for try await snapshot in store.sidebarUpdates() {
                 sidebar = snapshot
                 sidebarGeneration += 1
+                // Also how the stale-tab sweep's archived tabs lose their previews: the sweep lands as an update.
+                pruneSnapshots()
                 if currentSpace == nil { currentSpaceID = snapshot.spaces.first?.id }
             }
         } catch {
@@ -126,6 +128,7 @@ final class AppModel {
         Task {
             guard let fresh = try? await store.loadSidebar(), generation == sidebarGeneration else { return }
             sidebar = fresh
+            pruneSnapshots()
         }
     }
 
@@ -263,9 +266,23 @@ final class AppModel {
         let persist = !isPrivate(tab)
         Task { [weak self] in
             guard let data = try? await page.exported(as: .image(snapshotWidth: 400)),
-                  let image = UIImage(data: data) else { return }
-            self?.snapshots[tab.id] = image
+                  let image = UIImage(data: data),
+                  // The tab may have closed while the page rendered.
+                  let self, self.isLive(tab.id) else { return }
+            self.snapshots[tab.id] = image
             if persist { SnapshotCache.save(data, for: tab.id) }
+        }
+    }
+
+    private func isLive(_ tabID: String) -> Bool {
+        sidebar.items.contains { $0.id == tabID } || incognitoTabs.contains { $0.id == tabID }
+    }
+
+    /// Forgets the previews of tabs that are gone: archived by the stale-tab sweep, or closed on another device.
+    private func pruneSnapshots() {
+        for id in snapshots.keys where !isLive(id) {
+            snapshots[id] = nil
+            SnapshotCache.remove(id)
         }
     }
 

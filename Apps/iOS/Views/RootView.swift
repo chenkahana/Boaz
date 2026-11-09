@@ -60,6 +60,10 @@ struct RootView: View {
         .onHingeChange { _, new in
             withAnimation(.smooth) { model.hinge = new.hinge }
         }
+        // The cover flow belongs to the folded layout; unfolding mustn't leave it waiting for the next fold.
+        .onChange(of: isUnfolded) { _, unfolded in
+            if unfolded { model.showsCoverFlow = false }
+        }
     }
 
 }
