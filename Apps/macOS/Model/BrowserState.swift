@@ -264,6 +264,13 @@ final class BrowserState {
 
     /// Pages that animate their title (unread counts, timers) would otherwise save, sync and refetch the whole
     /// sidebar on every tick. A title change is saved at once, then at most every two seconds with the latest title.
+    /// A new page gets its title saved at once, not after the previous page's cooldown.
+    func didChangeURL(_ tabID: String) {
+        titleCooldowns[tabID] = nil
+        guard let page = pages[tabID] else { return }
+        didNavigate(tabID, url: page.url, title: page.title)
+    }
+
     func didChangeTitle(_ tabID: String) {
         guard titleCooldowns[tabID] == nil else { titleCooldowns[tabID] = true; return }
         guard let page = pages[tabID] else { return }

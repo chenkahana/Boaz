@@ -25,7 +25,7 @@ struct TabPane: View {
                 .overlay(alignment: .top) { LoadingGlow(page: page) }
         }
         .task(id: ObjectIdentifier(page)) { await track(page) }
-        .onChange(of: page.url) { browser.didNavigate(tab.id, url: page.url, title: page.title) }
+        .onChange(of: page.url) { browser.didChangeURL(tab.id) }
         .onChange(of: page.title) { browser.didChangeTitle(tab.id) }
         .onAppear { browser.updateSiteColor(tab.id, page: page) }
         .onChange(of: page.url) { browser.updateSiteColor(tab.id, page: page) }
