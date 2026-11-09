@@ -60,7 +60,7 @@ enum PageDownloads {
         model.showToast("Downloading \(url.lastPathComponent.isEmpty ? url.host() ?? "file" : url.lastPathComponent)…")
         Task {
             do {
-                let (file, name) = try await Downloads.save(url, cookieStore: store.httpCookieStore)
+                let (file, name) = try await Downloads.save(url, dataStore: store)
                 // Bounces the Downloads stack in the Dock, as Safari does.
                 DistributedNotificationCenter.default().post(name: .init("com.apple.DownloadFileFinished"), object: file.path)
                 model.showToast("Downloaded \(name)")

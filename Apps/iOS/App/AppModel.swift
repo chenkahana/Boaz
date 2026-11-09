@@ -382,7 +382,7 @@ final class AppModel {
     private func handleDownload(_ response: URLResponse, dataStore: WKWebsiteDataStore) {
         Task { [weak self] in
             do {
-                let (_, name) = try await Downloads.save(response, cookieStore: dataStore.httpCookieStore)
+                let (_, name) = try await Downloads.save(response, dataStore: dataStore)
                 self?.showToast("Downloaded \(name)")
             } catch {
                 Self.log.error("Download failed: \(String(describing: error))")
