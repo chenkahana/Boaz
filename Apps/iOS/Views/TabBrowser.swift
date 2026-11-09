@@ -93,6 +93,7 @@ struct TabBrowser: View {
             .onChange(of: page.url) { model.updateSiteColor(for: tab) }
             .task(id: tab.id) { await trackNavigations(of: page) }
             .sheet(item: $readerArticle) { article in ReaderView(article: article, tint: Theme.brand) }
+            .pageAISheet(tab: tab, page: page)
             .sheet(isPresented: $showingDownloads) { DownloadsView() }
             .id(tab.id)
             .transition(pageTransition)
@@ -493,6 +494,7 @@ private struct BrowserBar: View {
             Button("Find on Page", systemImage: "text.magnifyingglass", action: onFind)
             Button("Reader", systemImage: "doc.text.magnifyingglass", action: onReader)
                 .disabled(readableLength < Reader.minimumCharacters)
+            PageAIMenuItems(tab: tab)
             Button("Downloads", systemImage: "arrow.down.circle", action: onDownloads)
             if let url = page.url { ShareLink(item: url) }
             if axis == .vertical {
@@ -561,7 +563,7 @@ private struct BrowserBar: View {
 
     private func translate() {
         Task {
-            guard let text = await PageText.extract(from: page) else {
+            guard let text = await VisibleText.extract(from: page) else {
                 model.showToast("Nothing to translate")
                 return
             }

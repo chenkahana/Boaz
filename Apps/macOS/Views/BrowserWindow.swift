@@ -57,6 +57,7 @@ struct BrowserWindow: View {
         }
         .sheet(item: $browser.onboarding) { OnboardingView(start: $0).environment(model).environment(browser) }
         .sheet(item: $browser.rename) { request in RenameSheet(request: request).environment(browser) }
+        .sheet(item: $browser.ai) { MacAISheet(request: $0).environment(model).environment(browser) }
         .onAppear { model.registerOpenWindow(openWindow) }
         .task {
             // Welcome can go up before the library has loaded; a URL to open has to wait for it.
@@ -443,7 +444,7 @@ private struct ToastView: View {
             HStack(spacing: 12) {
                 Text(toast.message).font(.callout.weight(.medium))
                 if toast.canUndo {
-                    Button("Undo") { browser.reopenClosedTab(); model.toast = nil }
+                    Button("Undo") { if !AIUndo.perform(for: toast.id) { browser.reopenClosedTab() }; model.toast = nil }
                         .buttonStyle(.plain).font(.callout.weight(.bold)).foregroundStyle(.tint)
                         .help(model.keyBindings.hint("Reopen Closed Tab", .reopenClosedTab))
                 }

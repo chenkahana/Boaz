@@ -4,7 +4,7 @@ import WebKit
 
 /// Plain text of the whole visible page, for Translate: unlike `Reader`, this isn't limited to
 /// article-shaped pages, since any page should be translatable.
-enum PageText {
+enum VisibleText {
     private static let maxCharacters = 8000
 
     @MainActor

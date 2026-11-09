@@ -47,6 +47,7 @@ struct RootView: View {
             case .settings: SettingsSheet()
             }
         }
+        .tidyAISheets()
         .fullScreenCover(isPresented: $model.showOnboarding) { OnboardingView() }
         .spaceEditorPresenter()
         .onChange(of: scenePhase) { _, phase in

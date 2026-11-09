@@ -1,246 +1,390 @@
-// Renders the Boaz app icon mark (a browser window with two mismatched eyes) at 1024×1024.
-// Usage: swift Tools/make-icon.swift <output-dir> [palette] [preview-dir]
-//   palette: default (primary set: light, dark, tinted) | an alternate from `palettes` below
-//            (alternate iOS icon: one PNG + Contents.json). With preview-dir, also writes <name>-Preview.png
-//            (180 px) for the Settings picker, e.g. Apps/iOS/Delight/IconPreviews.
-// The shipped primary AppIcon set is hand-finished art; `default` redraws it with this geometry instead.
+// Boaz Browser app icons: "BB" in orbit. Two heavy italic B's form one ligature (the first B's lower bowl lands
+// on the raised second B's stem, and where they cross the colors mix as overlapping inks would). A crescent
+// ring, thick at the lower right and tapering to a point at the upper left, circles them like a planet's
+// orbit: it passes in front of the first B's foot and behind the second B, so the letters sit inside it.
+//
+// Regenerate every icon (run from anywhere; paths resolve from this file's location):
+//   swift Tools/make-icon.swift [repo-root]
+//
+// Writes:
+//   Apps/Shared/Resources/Assets.xcassets/AppIcon.appiconset/          AppIcon.png, AppIcon-Dark.png,
+//       AppIcon-Tinted.png (iOS 1024) and mac-16 … mac-1024.png (macOS squircle on the Apple grid)
+//   Apps/Shared/Resources/Assets.xcassets/AppIcon-<Name>.appiconset/   one 1024 PNG + Contents.json per alternate
+//   Apps/iOS/Delight/IconPreviews/AppIcon[-<Name>]-Preview.png         180 px previews for Settings › App Icon
+//   docs/assets/icon.png                                                256 px README icon
+//   build/icon-contact-sheet.png                                        review sheet: 1024 tiles + 60/29 px rows
 import AppKit
-import CoreImage
+import UniformTypeIdentifiers
 
 let size: CGFloat = 1024
-let arguments = Array(CommandLine.arguments.dropFirst())
-let out = URL(fileURLWithPath: arguments.first ?? ".")
+let root = CommandLine.arguments.dropFirst().first.map { URL(fileURLWithPath: $0) }
+    ?? URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+let assets = root.appendingPathComponent("Apps/Shared/Resources/Assets.xcassets")
+let previews = root.appendingPathComponent("Apps/iOS/Delight/IconPreviews")
+let space = CGColorSpace(name: CGColorSpace.sRGB)!
 
 func rgb(_ hex: UInt32, _ a: CGFloat = 1) -> CGColor {
     CGColor(srgbRed: CGFloat(hex >> 16 & 0xFF) / 255, green: CGFloat(hex >> 8 & 0xFF) / 255,
             blue: CGFloat(hex & 0xFF) / 255, alpha: a)
 }
 
-enum Variant { case light, dark, tinted }
-
-/// A soft radial light behind the window (top-left origin, 1024 units).
-/// `hard` draws a crisp orb instead, which the frosted window then blurs.
-struct Blob {
-    var color: UInt32; var x: CGFloat; var y: CGFloat; var radius: CGFloat; var alpha: CGFloat = 0.6; var hard = false
+func gradient(_ colors: [CGColor]) -> CGGradient {
+    let locations = (0..<colors.count).map { CGFloat($0) / CGFloat(max(colors.count - 1, 1)) }
+    return CGGradient(colorsSpace: space, colors: colors as CFArray, locations: locations)!
 }
 
-/// Colors for one icon. The eyes stay mismatched in every palette: that is the mark.
+func context(_ px: Int, alpha: Bool) -> CGContext {
+    CGContext(data: nil, width: px, height: px, bitsPerComponent: 8, bytesPerRow: 0, space: space,
+              bitmapInfo: (alpha ? CGImageAlphaInfo.premultipliedLast : .noneSkipLast).rawValue)!
+}
+
 struct Palette {
-    var stops: [UInt32]                         // background, top-left → bottom-right
-    var blobs: [Blob] = []
-    var window: CGColor                         // window body
-    var frame: CGColor                          // window outline, toolbar rule and dots
-    var lid: UInt32
-    var leftIris: (UInt32, UInt32)              // top → bottom
-    var rightIris: (UInt32, UInt32)
-    var pupil: UInt32
-    var sclera: CGColor? = nil                  // eye opening; nil shows the window body
-    var sheen: CGFloat = 0                      // glass highlight across the window's top
-    var frost: CGFloat = 0                      // blur radius for the background seen through the window
-    var shadow: CGFloat = 0.35
+    var background: [UInt32]                 // top-left → bottom-right; empty = transparent (tinted)
+    var first: [UInt32]                      // the left B, top-left → bottom-right
+    var second: [UInt32]                     // the raised B
+    var mix: [UInt32]                        // where they cross
+    var ring: [UInt32]                       // the orbit, tail → thick end
+    var glow: CGFloat = 0                    // light each B spills into the background
+    var shade: UInt32 = 0x1A2050             // drop shadow color
+    var shadow: CGFloat = 0.3
+    var underside: CGFloat = 0.2             // inner shading along lower edges
+    var rim: CGFloat = 0.32                  // inner highlight along upper edges
+    var gloss: CGFloat = 0.12                // sheen over the letters' upper half
+    var lift: CGFloat = 0.1                  // soft white light from above the icon
+    var knockout: CGFloat = 0                // flat palettes: a background-colored cut where ring and letters meet
 }
 
-let palettes: [String: Palette] = [
-    "default": Palette(stops: [0x55506A, 0x3A3550, 0x2A2640], window: rgb(0x23202F, 0.55), frame: rgb(0x9C8FC4, 0.85),
-                       lid: 0xEDE2D9, leftIris: (0x8E4A26, 0xD48D52), rightIris: (0x2238F0, 0x45B4FF), pupil: 0x221F2C),
-    "midnight": Palette(stops: [0x15174A, 0x0A0B26, 0x050614],
-                        blobs: [Blob(color: 0x3139FB, x: 512, y: 470, radius: 620, alpha: 0.55)],
-                        window: rgb(0x080A24, 0.6), frame: rgb(0x8C93FF, 0.9), lid: 0xEEF0FF,
-                        leftIris: (0xE06A7A, 0xFFB1A8), rightIris: (0x3139FB, 0x8FA6FF), pupil: 0x06071A, shadow: 0.5),
-    "peach": Palette(stops: [0xFFD98F, 0xFF9C8F, 0xD9527E],
-                     window: rgb(0x6E1840, 0.42), frame: rgb(0xFFFFFF, 0.9), lid: 0xFFFFFF,
-                     leftIris: (0xE07A1F, 0xFFC56B), rightIris: (0xD92E63, 0xFF8FA6), pupil: 0x3D0D27, shadow: 0.25),
-    "electric": Palette(stops: [0x7FE3FF, 0x1B46F5, 0x0A1466],
-                        window: rgb(0x050C4A, 0.5), frame: rgb(0xC8F4FF, 0.9), lid: 0xFFFFFF,
-                        leftIris: (0xF0A800, 0xFFE15C), rightIris: (0x1FB8E8, 0x9FF0FF), pupil: 0x060B40),
-    "violet": Palette(stops: [0xFF9999, 0x8477DF, 0x2B1F70],
-                      window: rgb(0x170E48, 0.5), frame: rgb(0xFFFFFF, 0.8), lid: 0xFFF4EF,
-                      leftIris: (0xE8546A, 0xFFA98F), rightIris: (0x4B3BD9, 0xA99CFF), pupil: 0x140B3A),
-    "graphite": Palette(stops: [0x5A5A60, 0x2E2E33, 0x18181B],
-                        window: rgb(0x101012, 0.55), frame: rgb(0xA1A1A8, 0.9), lid: 0xE8E8ED,
-                        leftIris: (0x6E6E75, 0xC4C4CA), rightIris: (0x45454B, 0x9A9AA2), pupil: 0x0E0E10, shadow: 0.45),
-    "paper": Palette(stops: [0xFBF8F1, 0xF1EBDF, 0xE4DCCB],
-                     window: rgb(0xFFFFFF, 0.9), frame: rgb(0x2B2833), lid: 0x2B2833,
-                     leftIris: (0xA9531F, 0xE29A5C), rightIris: (0x2238F0, 0x4FA3FF), pupil: 0x16141B, shadow: 0.12),
-    "aurora": Palette(stops: [0x0D1636, 0x0A0F2A, 0x070A1E],
-                      blobs: [Blob(color: 0x2EE6A6, x: 180, y: 150, radius: 560, alpha: 0.6),
-                              Blob(color: 0x8A5CFF, x: 900, y: 330, radius: 560, alpha: 0.6),
-                              Blob(color: 0x2A6BFF, x: 520, y: 1000, radius: 520, alpha: 0.45)],
-                      window: rgb(0x070B22, 0.5), frame: rgb(0xE6FFF6, 0.7), lid: 0xF2FFFA,
-                      leftIris: (0x16C98D, 0x9DFFD5), rightIris: (0x8A5CFF, 0xD3C4FF), pupil: 0x070A1E, shadow: 0.45),
-    "noir": Palette(stops: [0x000000, 0x000000], window: rgb(0x000000), frame: rgb(0xFFFFFF), lid: 0xFFFFFF,
-                    leftIris: (0xFF7A00, 0xFFB000), rightIris: (0x0A84FF, 0x5AC8FA), pupil: 0x000000, shadow: 0),
-    "sorbet": Palette(stops: [0xFFD3DE, 0xE6DBFF, 0xC4F0E3],
-                      window: rgb(0xFFFFFF, 0.72), frame: rgb(0xFFFFFF), lid: 0x4B3F7A,
-                      leftIris: (0xF2708E, 0xFFB3C4), rightIris: (0x5C86F2, 0xA9C4FF), pupil: 0x2C2252, shadow: 0.12),
-    "glass": Palette(stops: [0x1C1846, 0x110F30, 0x09081C],
-                     blobs: [Blob(color: 0x3139FB, x: 820, y: 250, radius: 520, alpha: 0.7),
-                             Blob(color: 0xFF9999, x: 225, y: 780, radius: 205, alpha: 1, hard: true),
-                             Blob(color: 0x5A62FF, x: 805, y: 255, radius: 205, alpha: 1, hard: true)],
-                     window: rgb(0xFFFFFF, 0.1), frame: rgb(0xFFFFFF, 0.6), lid: 0xFFFFFF,
-                     leftIris: (0xF0606A, 0xFFB8A8), rightIris: (0x3A4BF5, 0x9FB0FF), pupil: 0x0E0C24,
-                     sheen: 0.2, frost: 46, shadow: 0.3),
-    "sunset": Palette(stops: [0xFFC46B, 0xFF6F61, 0x9A2F6E, 0x3A1655],
-                      window: rgb(0x2A0B36, 0.42), frame: rgb(0xFFE6C7, 0.9), lid: 0xFFF2E0,
-                      leftIris: (0xF29A1F, 0xFFD77A), rightIris: (0xE8457A, 0xFFA3BE), pupil: 0x260A32),
-    "tide": Palette(stops: [0x6EEAD6, 0x0F7C96, 0x0A2C4D],
-                    window: rgb(0x032238, 0.48), frame: rgb(0xD5FBFF, 0.9), lid: 0xF0FDFF,
-                    leftIris: (0x14B8A6, 0x99F6E4), rightIris: (0x1E9BEA, 0xBAE6FD), pupil: 0x041C2E),
+let paper: [UInt32] = [0xFFFFFF, 0xF2F3F8, 0xE6E8F0]
+let night: [UInt32] = [0x1E1B44, 0x0E0C22, 0x06050E]
+let cobalt: [UInt32] = [0x6FB0FF, 0x4870FF, 0x3A2FDA]
+let coral: [UInt32] = [0xFFB547, 0xFF6C4A, 0xFF3A7E]
+let plum: [UInt32] = [0xF0489C, 0xC236B6, 0x8E2BD0]
+let sky: [UInt32] = [0x9BE4FF, 0x3FA0FF, 0x2448E8]
+
+/// Boaz: cobalt and coral letters in a sky-blue orbit, on white.
+let primary = Palette(background: paper, first: cobalt, second: coral, mix: plum, ring: sky)
+/// iOS dark appearance: the same mark on night, with the letters' light spilling around them.
+let dark = Palette(background: night, first: cobalt, second: coral, mix: plum, ring: sky, glow: 0.3,
+                   shade: 0x000000, shadow: 0.55)
+/// iOS tinted appearance: grayscale on transparency; the system supplies the tint.
+let tinted = Palette(background: [], first: [0xFFFFFF, 0xE6E6E6], second: [0xCFCFCF, 0xB4B4B4],
+                     mix: [0x8E8E8E, 0x7A7A7A], ring: [0xF2F2F2, 0xDADADA], shadow: 0, underside: 0, rim: 0,
+                     gloss: 0, lift: 0)
+
+// Order matches the Settings picker (AppIconPicker.swift).
+let alternates: [(String, Palette)] = [
+    ("Midnight", Palette(background: [0x13204E, 0x0A1030, 0x04071A], first: [0x8CE8FF, 0x45B0FF, 0x2F74FF],
+                         second: [0xC4ACFF, 0x9474FF, 0x6A4BF0], mix: [0x6C8CFF, 0x5662F4, 0x4440DA],
+                         ring: [0xFFFFFF, 0xD6E4FF, 0x9EB6FF], glow: 0.3, shade: 0x000000, shadow: 0.55)),
+    ("Glass", Palette(background: [0x3B3FD0, 0x23208A, 0x100D3C], first: [0xFFFFFF, 0xE6EBFF],
+                      second: [0xFFE9F1, 0xFFC9DC], mix: [0xC9C2FF, 0xA9A0F6], ring: [0x9CF0FF, 0x6FC4FF, 0x8A8CFF],
+                      shade: 0x07052A, shadow: 0.45, underside: 0.14, rim: 0.5, gloss: 0.2)),
+    ("Aurora", Palette(background: [0x0F1E3A, 0x08102A, 0x04061A], first: [0x7DFFD0, 0x2EE6A6, 0x12B58A],
+                       second: [0xC8A4FF, 0x8F62FF, 0x6A3CF0], mix: [0x46B4FF, 0x3F84FF, 0x3A5CF0],
+                       ring: [0xB8FFF0, 0x5CF0D0, 0x2EC8E8], glow: 0.3, shade: 0x000000, shadow: 0.55)),
+    ("Electric", Palette(background: [0x4F8BFF, 0x2D4FE6, 0x1A2AA8], first: [0xFFFFFF, 0xE8EEFF],
+                         second: [0xFFFFFF, 0xE8EEFF], mix: [0xC9D6FF, 0xAFC0FF], ring: [0xFFE27A, 0xFFAE3A, 0xFF6A4A],
+                         shade: 0x0A1460, shadow: 0.45)),
+    ("Tide", Palette(background: [0x0F5E72, 0x093A4C, 0x05202E], first: [0x9AFBE6, 0x42E2C8, 0x14B6AE],
+                     second: [0x86D4FF, 0x429EFF, 0x2F6BFF], mix: [0x3ECDEA, 0x28A4E0, 0x1E80D0],
+                     ring: [0xFFFFFF, 0xD8FAFF, 0xA6E8F4], glow: 0.25, shade: 0x00141C, shadow: 0.5)),
+    ("Violet", Palette(background: [0x2C1666, 0x170B3A, 0x0A0520], first: [0xD2B2FF, 0x9E70FF, 0x7646EE],
+                       second: [0xFFA6DA, 0xFF62B4, 0xE6409A], mix: [0xDA6CEA, 0xB64CDC, 0x9234C8],
+                       ring: [0xFFD36A, 0xFF8A4A, 0xFF3A7E], glow: 0.3, shade: 0x000000, shadow: 0.55)),
+    ("Sunset", Palette(background: night, first: cobalt, second: [0xC49CFF, 0x8F62FF, 0x6A3CF0],
+                       mix: [0x7A7CFF, 0x5A55F0], ring: [0xFFD36A, 0xFF8A4A, 0xFF3A7E], glow: 0.3,
+                       shade: 0x000000, shadow: 0.55)),
+    ("Peach", Palette(background: [0xFFF3EA, 0xFFE2D4, 0xFFD2C2], first: [0xFFBE86, 0xFF945E, 0xFF7A4E],
+                      second: [0xFF9AB6, 0xFF6694, 0xF0487A], mix: [0xFF6E6C, 0xF2525E, 0xE03E50],
+                      ring: [0xFFD8A8, 0xFFA06A, 0xF06A5A], shade: 0x8A2A30, shadow: 0.24, underside: 0.16, lift: 0)),
+    ("Sorbet", Palette(background: [0xFDF0F7, 0xF2ECFF, 0xE6F6F1], first: [0xA2EACF, 0x6CD8B4, 0x3EC29A],
+                       second: [0xFFBAD6, 0xFF8EBC, 0xF56AA2], mix: [0xC2A6F4, 0xA488EA, 0x8A6CDC],
+                       ring: [0xD6C8FF, 0xB09CF4, 0x8E78E8], shade: 0x5A3A8A, shadow: 0.2, underside: 0.14, lift: 0)),
+    ("Paper", Palette(background: [0xFFF9EC, 0xFAEED8, 0xF1E2C6], first: [0x45414F, 0x2A2732, 0x18161D],
+                      second: [0x45414F, 0x2A2732, 0x18161D], mix: [0x6A6676, 0x54505E],
+                      ring: [0xFFA070, 0xF2582E, 0xD8431E], shade: 0x5A4220, shadow: 0.24, rim: 0.18, lift: 0)),
+    ("Graphite", Palette(background: [0x56565E, 0x2C2C32, 0x141418], first: [0xFFFFFF, 0xDCDCE2, 0xC2C2CA],
+                         second: [0xB4B4BE, 0x8E8E9A, 0x74747E], mix: [0x6A6A74, 0x56565F, 0x46464E],
+                         ring: [0xF4F4F8, 0xC8C8D0, 0x9A9AA4], shade: 0x000000, shadow: 0.5, lift: 0.08)),
+    ("Noir", Palette(background: [0x18181A, 0x050505, 0x000000], first: [0xFFFFFF, 0xFFFFFF],
+                     second: [0xFFFFFF, 0xFFFFFF], mix: [0x1C1C1E, 0x0A0A0A], ring: [0xFFFFFF, 0xFFFFFF],
+                     shadow: 0, underside: 0, rim: 0, gloss: 0, lift: 0.04, knockout: 14)),
 ]
 
-/// Tinted appearance: grayscale marks on transparency; iOS supplies the tint.
-let tinted = Palette(stops: [], window: rgb(0xFFFFFF, 0.08), frame: rgb(0xFFFFFF, 0.8), lid: 0xFFFFFF,
-                     leftIris: (0x9A9A9A, 0xDDDDDD), rightIris: (0x9A9A9A, 0xDDDDDD), pupil: 0x3A3A3A, shadow: 0)
+func stroked(_ path: CGPath, _ width: CGFloat) -> CGPath {
+    path.copy(strokingWithWidth: width, lineCap: .round, lineJoin: .round, miterLimit: 10)
+}
 
-func render(_ v: Variant, name: String, palette base: Palette = palettes["default"]!) throws {
-    let p = v == .tinted ? tinted : base
-    let space = CGColorSpace(name: CGColorSpace.sRGB)!
-    let ctx = CGContext(data: nil, width: Int(size), height: Int(size), bitsPerComponent: 8, bytesPerRow: 0,
-                        space: space,
-                        bitmapInfo: (v == .tinted ? CGImageAlphaInfo.premultipliedLast : .noneSkipLast).rawValue)!
-    // Draw in top-left coordinates so the geometry below reads like the artwork.
+/// Rounds every concave corner to radius `r` (a morphological closing: grow by r, then shrink by r).
+func smooth(_ path: CGPath, _ r: CGFloat) -> CGPath {
+    let grown = path.union(stroked(path, 2 * r))
+    return grown.subtracting(stroked(grown, 2 * r))
+}
+
+func moved(_ path: CGPath, _ t: CGAffineTransform) -> CGPath {
+    var t = t
+    return path.copy(using: &t)!
+}
+
+/// A capital B's centreline: stem at x = 0, top at y = 0 (y down), `h` tall. The upper bowl is a little
+/// shorter and narrower than the lower one. Returns the path and how far right the lower bowl reaches.
+func bCentreline(h: CGFloat) -> (path: CGPath, reach: CGFloat) {
+    let waist = (h * 0.47).rounded(), r1 = waist / 2, r2 = (h - waist) / 2
+    let a1 = h * 0.3, a2 = a1 + r1 - r2 + h * 0.06
+    let p = CGMutablePath()
+    p.move(to: CGPoint(x: 0, y: h)); p.addLine(to: .zero); p.addLine(to: CGPoint(x: a1, y: 0))
+    p.addArc(center: CGPoint(x: a1, y: r1), radius: r1, startAngle: -.pi / 2, endAngle: .pi / 2, clockwise: false)
+    p.addLine(to: CGPoint(x: 0, y: waist)); p.addLine(to: CGPoint(x: a2, y: waist))
+    p.addArc(center: CGPoint(x: a2, y: waist + r2), radius: r2, startAngle: -.pi / 2, endAngle: .pi / 2, clockwise: false)
+    p.addLine(to: CGPoint(x: 0, y: h))
+    return (p, a2 + r2)
+}
+
+/// The two letters, slanted and fitted to the icon centre: the second B's stem sits on the first B's lower bowl,
+/// raised a step.
+let letters: (first: CGPath, second: CGPath) = {
+    let (line, reach) = bCentreline(h: 500)
+    let slant = CGAffineTransform(a: 1, b: 0, c: -0.16, d: 1, tx: 0, ty: 0)
+    let first = moved(smooth(stroked(line, 116), 16), slant)
+    let second = moved(first, CGAffineTransform(translationX: reach, y: -56))
+    let box = first.union(second).boundingBoxOfPath, k = 660 / max(box.width, box.height)
+    let t = CGAffineTransform(translationX: -box.midX, y: -box.midY).concatenating(CGAffineTransform(scaleX: k, y: k))
+        .concatenating(CGAffineTransform(translationX: size / 2, y: size / 2))
+    return (moved(first, t), moved(second, t))
+}()
+
+/// The orbit: an outer circle minus an inner one touching it at the tail, so the ring tapers to a point there.
+/// `front` is the wedge where the ring passes in front of the letters (angles y-down, clockwise from 3 o'clock).
+/// Its edges fall where the ring crosses no letter, so the switch from behind to in front never shows.
+let orbit: (ring: CGPath, front: CGPath, tail: CGPoint, head: CGPoint) = {
+    let c = CGPoint(x: size / 2, y: size / 2 + 6), R: CGFloat = 440, thick: CGFloat = 120, tail: CGFloat = 3.95
+    let r = R - thick / 2, u = CGPoint(x: cos(tail), y: sin(tail))
+    let ic = CGPoint(x: c.x + u.x * (R - r), y: c.y + u.y * (R - r))
+    let ring = CGPath(ellipseIn: CGRect(x: c.x - R, y: c.y - R, width: 2 * R, height: 2 * R), transform: nil)
+        .subtracting(CGPath(ellipseIn: CGRect(x: ic.x - r, y: ic.y - r, width: 2 * r, height: 2 * r), transform: nil))
+    let front = CGMutablePath()
+    front.move(to: c)
+    front.addArc(center: c, radius: 2000, startAngle: 85 * .pi / 180, endAngle: 230 * .pi / 180, clockwise: false)
+    front.closeSubpath()
+    return (ring, front, CGPoint(x: c.x + u.x * R, y: c.y + u.y * R), CGPoint(x: c.x - u.x * R, y: c.y - u.y * R))
+}()
+
+/// Renders one 1024 icon, full bleed (iOS masks the corners).
+func render(_ p: Palette) -> CGImage {
+    let ctx = context(Int(size), alpha: p.background.isEmpty)
     ctx.translateBy(x: 0, y: size)
     ctx.scaleBy(x: 1, y: -1)
+    let full = CGRect(x: 0, y: 0, width: size, height: size)
+    let (first, second) = letters
+    let both = first.union(second), overlap = first.intersection(second)
 
-    func gradient(_ colors: [CGColor]) -> CGGradient {
-        let locations = (0..<colors.count).map { CGFloat($0) / CGFloat(max(colors.count - 1, 1)) }
-        return CGGradient(colorsSpace: space, colors: colors as CFArray, locations: locations)!
+    /// Fills `path` with a gradient, by default diagonally across its own bounds.
+    func paint(_ g: CGContext, _ path: CGPath, _ colors: [UInt32], from: CGPoint? = nil, to: CGPoint? = nil) {
+        let box = path.boundingBoxOfPath
+        g.saveGState(); g.addPath(path); g.clip()
+        g.drawLinearGradient(gradient(colors.map { rgb($0) }),
+                             start: from ?? CGPoint(x: box.minX + box.width * 0.15, y: box.minY),
+                             end: to ?? CGPoint(x: box.maxX - box.width * 0.15, y: box.maxY),
+                             options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+        g.restoreGState()
+    }
+    /// Inner shading: shadows cast by everything outside `path`, shifted up (underside) and down (top rim).
+    func shade(_ g: CGContext, _ path: CGPath, underside: CGFloat, rim: CGFloat) {
+        let outside = CGMutablePath()
+        outside.addRect(full.insetBy(dx: -200, dy: -200)); outside.addPath(path)
+        g.saveGState(); g.addPath(path); g.clip()
+        for (dy, blur, color) in [(-14.0, 22.0, rgb(0x000000, underside)), (6.0, 8.0, rgb(0xFFFFFF, rim))]
+            as [(CGFloat, CGFloat, CGColor)] where color.alpha > 0 {
+            g.saveGState()
+            g.setShadow(offset: CGSize(width: 0, height: dy), blur: blur, color: color)
+            g.addPath(outside); g.setFillColor(rgb(0x000000)); g.fillPath(using: .evenOdd)
+            g.restoreGState()
+        }
+        g.restoreGState()
+    }
+    /// A drop shadow of `path` alone (offsets are in unflipped device space, so negative is down): the shape is
+    /// drawn off-canvas and only its shadow lands here. `within` limits where it falls.
+    func dropShadow(_ path: CGPath, _ alpha: CGFloat, dy: CGFloat, blur: CGFloat, within: CGPath? = nil) {
+        guard alpha > 0 else { return }
+        let away: CGFloat = 4000
+        ctx.saveGState()
+        if let within { ctx.addPath(within); ctx.clip(using: .evenOdd) }
+        ctx.setShadow(offset: CGSize(width: -away, height: dy), blur: blur, color: rgb(p.shade, alpha))
+        ctx.addPath(moved(path, CGAffineTransform(translationX: away, y: 0))); ctx.setFillColor(rgb(0x000000))
+        ctx.fillPath()
+        ctx.restoreGState()
     }
 
-    // Background.
-    if !p.stops.isEmpty {
-        ctx.drawLinearGradient(gradient(p.stops.map { rgb($0) }), start: CGPoint(x: size * 0.1, y: 0),
-                               end: CGPoint(x: size * 0.9, y: size), options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
-        for b in p.blobs {
-            let c = CGPoint(x: b.x, y: b.y)
-            if b.hard {
-                ctx.setFillColor(rgb(b.color, b.alpha))
-                ctx.fillEllipse(in: CGRect(x: b.x - b.radius, y: b.y - b.radius, width: b.radius * 2, height: b.radius * 2))
-                continue
+    if !p.background.isEmpty {
+        ctx.drawLinearGradient(gradient(p.background.map { rgb($0) }), start: CGPoint(x: size * 0.25, y: 0),
+                               end: CGPoint(x: size * 0.75, y: size),
+                               options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+        let top = CGPoint(x: size / 2, y: -size * 0.3)
+        ctx.drawRadialGradient(gradient([rgb(0xFFFFFF, p.lift), rgb(0xFFFFFF, 0)]), startCenter: top, startRadius: 0,
+                               endCenter: top, endRadius: size, options: [])
+        if p.glow > 0 {
+            for (letter, colors) in [(first, p.first), (second, p.second)] {
+                let box = letter.boundingBoxOfPath, c = CGPoint(x: box.midX, y: box.midY), color = colors[colors.count / 2]
+                ctx.drawRadialGradient(gradient([rgb(color, p.glow), rgb(color, p.glow * 0.35), rgb(color, 0)]),
+                                       startCenter: c, startRadius: 0, endCenter: c, endRadius: 440, options: [])
             }
-            ctx.drawRadialGradient(gradient([rgb(b.color, b.alpha), rgb(b.color, 0)]), startCenter: c, startRadius: 0,
-                                   endCenter: c, endRadius: b.radius, options: [])
         }
     }
 
-    // Frosted glass: the window shows a blurred copy of the background.
-    var frosted: CGImage?
-    if p.frost > 0, let backdrop = ctx.makeImage() {
-        let image = CIImage(cgImage: backdrop)
-        frosted = CIContext().createCGImage(image.clampedToExtent().applyingGaussianBlur(sigma: p.frost)
-            .cropped(to: image.extent), from: image.extent)
-    }
+    // The ring is drawn once into a layer: all of it behind the letters, then its front wedge again on top.
+    let ring = CGLayer(ctx, size: full.size, auxiliaryInfo: nil)!
+    paint(ring.context!, orbit.ring, p.ring, from: orbit.tail, to: orbit.head)
+    shade(ring.context!, orbit.ring, underside: p.underside, rim: p.rim + 0.1)
+    dropShadow(orbit.ring, p.shadow * 0.6, dy: -16, blur: 30)
+    ctx.draw(ring, at: .zero)
 
-    // Window.
-    let windowRect = CGRect(x: 96, y: 208, width: 832, height: 612)
-    let window = CGPath(roundedRect: windowRect, cornerWidth: 92, cornerHeight: 92, transform: nil)
-    ctx.saveGState()
-    if p.shadow > 0 { ctx.setShadow(offset: CGSize(width: 0, height: -22), blur: 60, color: rgb(0x000000, p.shadow)) }
-    ctx.addPath(window); ctx.setFillColor(p.window); ctx.fillPath()
-    ctx.restoreGState()
-
-    ctx.saveGState()
-    ctx.addPath(window); ctx.clip()
-    if let frosted {
-        ctx.saveGState()
-        ctx.translateBy(x: 0, y: size); ctx.scaleBy(x: 1, y: -1)   // CGImage draws in unflipped space
-        ctx.draw(frosted, in: CGRect(x: 0, y: 0, width: size, height: size))
+    // The letters' soft shadow stays off the ring, so the ring reads the same in front and behind.
+    let offRing = CGMutablePath()
+    offRing.addRect(full); offRing.addPath(orbit.ring)
+    dropShadow(both, p.shadow, dy: -30, blur: 70, within: offRing)
+    dropShadow(both, p.shadow * 0.5, dy: -6, blur: 12)
+    let cut = rgb(p.background.last ?? 0x000000)
+    if p.knockout > 0 {
+        ctx.saveGState(); ctx.addPath(orbit.ring); ctx.clip()
+        ctx.addPath(stroked(both, 2 * p.knockout)); ctx.setFillColor(cut); ctx.fillPath()
         ctx.restoreGState()
-        ctx.addPath(window); ctx.setFillColor(p.window); ctx.fillPath()
     }
-    if p.sheen > 0 {
-        ctx.drawLinearGradient(gradient([rgb(0xFFFFFF, p.sheen), rgb(0xFFFFFF, 0)]), start: CGPoint(x: 0, y: windowRect.minY),
-                               end: CGPoint(x: 0, y: windowRect.midY), options: [])
+    paint(ctx, first, p.first)
+    paint(ctx, second, p.second)
+    paint(ctx, overlap, p.mix)
+    if p.gloss > 0 {
+        for letter in [first, second] {
+            let box = letter.boundingBoxOfPath
+            ctx.saveGState(); ctx.addPath(letter); ctx.clip()
+            ctx.drawLinearGradient(gradient([rgb(0xFFFFFF, p.gloss), rgb(0xFFFFFF, 0)]), start: CGPoint(x: 0, y: box.minY),
+                                   end: CGPoint(x: 0, y: box.midY), options: [])
+            ctx.restoreGState()
+        }
     }
-    ctx.setFillColor(p.frame)
-    ctx.fill(CGRect(x: windowRect.minX, y: 318, width: windowRect.width, height: 10))   // toolbar rule
-    ctx.restoreGState()
+    shade(ctx, both, underside: p.underside, rim: p.rim)
 
-    ctx.addPath(window.copy(strokingWithWidth: 12, lineCap: .round, lineJoin: .round, miterLimit: 10))
-    ctx.setFillColor(p.frame); ctx.fillPath()
-    for x in [196.0, 258.0, 320.0] {
-        ctx.fillEllipse(in: CGRect(x: x - 17, y: 268 - 17, width: 34, height: 34))
-    }
-
-    // Eyes: an almond opening between two tapered lids, irises glancing up toward the centre.
-    func eye(mirrored: Bool) {
-        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: mirrored ? size - x : x, y: y) }
-        let outer = pt(128, 548), inner = pt(492, 578), lowerStart = pt(152, 562)
-
-        let opening = CGMutablePath()
-        opening.move(to: outer)
-        opening.addQuadCurve(to: inner, control: pt(300, 442))
-        opening.addQuadCurve(to: lowerStart, control: pt(322, 702))
-        opening.closeSubpath()
-
-        ctx.saveGState()
-        ctx.addPath(opening); ctx.clip()
-        if let sclera = p.sclera { ctx.setFillColor(sclera); ctx.fill(CGRect(x: 0, y: 0, width: size, height: size)) }
-        let irisCenter = pt(336, 556), r: CGFloat = 84
-        let colors = mirrored ? p.rightIris : p.leftIris
-        ctx.saveGState()
-        ctx.addEllipse(in: CGRect(x: irisCenter.x - r, y: irisCenter.y - r, width: r * 2, height: r * 2)); ctx.clip()
-        ctx.drawLinearGradient(gradient([rgb(colors.0), rgb(colors.1)]), start: CGPoint(x: irisCenter.x, y: irisCenter.y - r),
-                               end: CGPoint(x: irisCenter.x, y: irisCenter.y + r), options: [])
+    // Where the ring passes in front, it casts a shadow on the letters.
+    dropShadow(orbit.ring.intersection(orbit.front), p.shadow > 0 ? 0.35 : 0, dy: -12, blur: 22, within: both)
+    ctx.saveGState(); ctx.addPath(orbit.front); ctx.clip()
+    if p.knockout > 0 {
+        ctx.saveGState(); ctx.addPath(both); ctx.clip(using: .evenOdd)
+        ctx.addPath(stroked(orbit.ring, 2 * p.knockout)); ctx.setFillColor(cut); ctx.fillPath()
         ctx.restoreGState()
-        let pupil = pt(340, 532), pr: CGFloat = 36
-        ctx.setFillColor(rgb(p.pupil))
-        ctx.fillEllipse(in: CGRect(x: pupil.x - pr, y: pupil.y - pr, width: pr * 2, height: pr * 2))
-        ctx.restoreGState()
-
-        let upper = CGMutablePath()
-        upper.move(to: outer)
-        upper.addQuadCurve(to: inner, control: pt(290, 356))
-        upper.addQuadCurve(to: outer, control: pt(300, 442))
-        let lower = CGMutablePath()
-        lower.move(to: lowerStart)
-        lower.addQuadCurve(to: pt(488, 584), control: pt(322, 740))
-        lower.addQuadCurve(to: lowerStart, control: pt(322, 702))
-        ctx.addPath(upper); ctx.addPath(lower)
-        ctx.setFillColor(rgb(p.lid)); ctx.fillPath()
     }
-    eye(mirrored: false)
-    eye(mirrored: true)
-
-    let rep = NSBitmapImageRep(cgImage: ctx.makeImage()!)
-    try rep.representation(using: .png, properties: [:])!.write(to: out.appendingPathComponent(name))
+    ctx.draw(ring, at: .zero); ctx.restoreGState()
+    return ctx.makeImage()!
 }
 
-/// Small copy for the Settings picker (app icon sets can't be loaded with UIImage(named:)).
-func writePreview(of name: String) throws {
-    guard let previewDir = arguments.dropFirst(2).first else { return }
-    let icon = NSImage(contentsOf: out.appendingPathComponent("\(name).png"))!
-    let preview = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 180, pixelsHigh: 180, bitsPerSample: 8,
-                                   samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-                                   colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
-    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: preview)
-    NSGraphicsContext.current?.imageInterpolation = .high
-    icon.draw(in: NSRect(x: 0, y: 0, width: 180, height: 180))
-    NSGraphicsContext.current = nil
-    try preview.representation(using: .png, properties: [:])!
-        .write(to: URL(fileURLWithPath: previewDir).appendingPathComponent("\(name)-Preview.png"))
+/// Continuous-corner squircle (superellipse) filling `rect`.
+func squircle(_ rect: CGRect) -> CGPath {
+    let path = CGMutablePath(), n: CGFloat = 5, steps = 720
+    for i in 0..<steps {
+        let t = CGFloat(i) / CGFloat(steps) * 2 * .pi, c = cos(t), s = sin(t)
+        let point = CGPoint(x: rect.midX + rect.width / 2 * copysign(pow(abs(c), 2 / n), c),
+                            y: rect.midY + rect.height / 2 * copysign(pow(abs(s), 2 / n), s))
+        if i == 0 { path.move(to: point) } else { path.addLine(to: point) }
+    }
+    path.closeSubpath()
+    return path
 }
 
-let key = arguments.dropFirst().first ?? "default"
-if key != "default" {
-    guard let palette = palettes[key] else { fatalError("unknown palette \(key); use \(palettes.keys.sorted())") }
-    let name = "AppIcon-\(key.prefix(1).uppercased() + key.dropFirst())"
-    try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
-    try render(.light, name: "\(name).png", palette: palette)
-    let contents = """
+/// The artwork masked to a squircle on transparency; `inset` > 0 puts it on the macOS icon grid with a shadow.
+func masked(_ art: CGImage, inset: CGFloat) -> CGImage {
+    let ctx = context(Int(size), alpha: true)
+    let rect = CGRect(x: 0, y: 0, width: size, height: size).insetBy(dx: inset, dy: inset)
+    let shape = squircle(rect)
+    if inset > 0 {
+        ctx.saveGState()
+        ctx.setShadow(offset: CGSize(width: 0, height: -12), blur: 28, color: rgb(0x000000, 0.32))
+        ctx.addPath(shape); ctx.setFillColor(rgb(0x000000)); ctx.fillPath()
+        ctx.restoreGState()
+    }
+    ctx.saveGState()
+    ctx.addPath(shape); ctx.clip()
+    ctx.draw(art, in: rect)
+    ctx.addPath(shape); ctx.setLineWidth(4); ctx.setStrokeColor(rgb(0xFFFFFF, 0.14)); ctx.strokePath()   // edge sheen
+    ctx.restoreGState()
+    return ctx.makeImage()!
+}
+
+func scaled(_ image: CGImage, to px: Int, alpha: Bool) -> CGImage {
+    let ctx = context(px, alpha: alpha)
+    ctx.interpolationQuality = .high
+    ctx.draw(image, in: CGRect(x: 0, y: 0, width: px, height: px))
+    return ctx.makeImage()!
+}
+
+func write(_ image: CGImage, _ url: URL) {
+    try! FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+    let dest = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)!
+    CGImageDestinationAddImage(dest, image, nil)
+    precondition(CGImageDestinationFinalize(dest), "couldn't write \(url.path)")
+}
+
+// Primary set.
+let primaryArt = render(primary)
+let primaryDir = assets.appendingPathComponent("AppIcon.appiconset")
+write(primaryArt, primaryDir.appendingPathComponent("AppIcon.png"))
+write(render(dark), primaryDir.appendingPathComponent("AppIcon-Dark.png"))
+write(render(tinted), primaryDir.appendingPathComponent("AppIcon-Tinted.png"))
+let mac = masked(primaryArt, inset: 100)
+for px in [16, 32, 64, 128, 256, 512, 1024] {
+    write(px == 1024 ? mac : scaled(mac, to: px, alpha: true), primaryDir.appendingPathComponent("mac-\(px).png"))
+}
+write(scaled(primaryArt, to: 180, alpha: false), previews.appendingPathComponent("AppIcon-Preview.png"))
+write(scaled(masked(primaryArt, inset: 0), to: 256, alpha: true), root.appendingPathComponent("docs/assets/icon.png"))
+
+// Alternates.
+var sheet: [(String, CGImage)] = [("Default", primaryArt)]
+for (name, palette) in alternates {
+    let art = render(palette)
+    let dir = assets.appendingPathComponent("AppIcon-\(name).appiconset")
+    write(art, dir.appendingPathComponent("AppIcon-\(name).png"))
+    try! """
     {
       "images" : [
-        { "filename" : "\(name).png", "idiom" : "universal", "platform" : "ios", "size" : "1024x1024" }
+        { "filename" : "AppIcon-\(name).png", "idiom" : "universal", "platform" : "ios", "size" : "1024x1024" }
       ],
       "info" : { "author" : "xcode", "version" : 1 }
     }
-    """
-    try contents.write(to: out.appendingPathComponent("Contents.json"), atomically: true, encoding: .utf8)
-    try writePreview(of: name)
-} else {
-    try render(.light, name: "AppIcon.png")
-    try render(.dark, name: "AppIcon-Dark.png")
-    try render(.tinted, name: "AppIcon-Tinted.png")
-    try writePreview(of: "AppIcon")
+
+    """.write(to: dir.appendingPathComponent("Contents.json"), atomically: true, encoding: .utf8)
+    write(scaled(art, to: 180, alpha: false), previews.appendingPathComponent("AppIcon-\(name)-Preview.png"))
+    sheet.append((name, art))
 }
-print("wrote icons to \(out.path)")
+
+/// Review sheet: each icon at 1024, then every icon again at 60 px and 29 px on light and dark grounds.
+func contactSheet(_ items: [(String, CGImage)], columns: Int, to path: String) {
+    let gap: CGFloat = 96, label: CGFloat = 90, stripHeight: CGFloat = 220
+    let rows = (items.count + columns - 1) / columns
+    let width = CGFloat(columns) * size + CGFloat(columns + 1) * gap
+    let height = CGFloat(rows) * (size + label + gap) + gap + 2 * stripHeight
+    let ctx = CGContext(data: nil, width: Int(width), height: Int(height), bitsPerComponent: 8, bytesPerRow: 0,
+                        space: space, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+    ctx.setFillColor(rgb(0xE9E9EE)); ctx.fill(CGRect(x: 0, y: 0, width: width, height: height))
+    NSGraphicsContext.current = NSGraphicsContext(cgContext: ctx, flipped: false)
+    for (i, item) in items.enumerated() {
+        let x = gap + CGFloat(i % columns) * (size + gap)
+        let y = height - gap - CGFloat(i / columns + 1) * (size + label + gap) + label + gap
+        ctx.draw(masked(item.1, inset: 0), in: CGRect(x: x, y: y, width: size, height: size))
+        (item.0 as NSString).draw(at: CGPoint(x: x + 8, y: y - 72),
+                                  withAttributes: [.font: NSFont.systemFont(ofSize: 52, weight: .semibold),
+                                                   .foregroundColor: NSColor(white: 0.2, alpha: 1)])
+    }
+    for (band, ground) in [(0, 0xF5F5F7), (1, 0x1C1C1E)] as [(Int, UInt32)] {
+        let y0 = CGFloat(1 - band) * stripHeight
+        ctx.setFillColor(rgb(ground)); ctx.fill(CGRect(x: 0, y: y0, width: width, height: stripHeight))
+        for (px, y, spacing) in [(60.0, y0 + 120, 36.0), (29.0, y0 + 40, 24.0)] as [(CGFloat, CGFloat, CGFloat)] {
+            for (i, item) in items.enumerated() {
+                ctx.draw(scaled(masked(item.1, inset: 0), to: Int(px), alpha: true),
+                         in: CGRect(x: gap + CGFloat(i) * (px + spacing) + CGFloat(i / columns) * 48, y: y,
+                                    width: px, height: px))
+            }
+        }
+    }
+    NSGraphicsContext.current = nil
+    write(ctx.makeImage()!, root.appendingPathComponent(path))
+}
+
+contactSheet(sheet + [("Dark", render(dark))], columns: 5, to: "build/icon-contact-sheet.png")
+print("wrote Boaz icons under \(root.path)")

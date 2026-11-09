@@ -29,7 +29,7 @@ enum Reader {
 
     @MainActor
     static func extract(from page: WebPage) async -> ReaderArticle? {
-        guard let raw = try? await page.callJavaScript(extractionScript) as? String,
+        guard let raw = try? await page.callJavaScript(PageText.extractionScript) as? String,
               let data = raw.data(using: .utf8),
               let decoded = try? JSONDecoder().decode(Payload.self, from: data)
         else { return nil }
@@ -64,59 +64,5 @@ enum Reader {
       for (var j = 0; j < nodes.length; j++) { total += (nodes[j].innerText || '').length; }
     }
     return total;
-    """
-
-    /// Scores every container with a reasonable amount of direct paragraph/heading text, picks the
-    /// highest scorer, then serializes its readable children in order. See the note on
-    /// `lengthEstimateScript`: no outer IIFE, a top-level `return` instead.
-    private static let extractionScript = """
-      function textLength(el) {
-        return (el.innerText || el.textContent || '').trim().length;
-      }
-
-      function score(el) {
-        var p = el.querySelectorAll('p').length;
-        var text = textLength(el);
-        var links = el.querySelectorAll('a').length;
-        var linkDensity = text > 0 ? (el.querySelectorAll('a').length * 20) / text : 0;
-        return text * (1 + p * 0.1) * (1 - Math.min(linkDensity, 0.9)) - links * 2;
-      }
-
-      var candidates = document.querySelectorAll('article, main, [role="main"], section, div');
-      var best = document.body;
-      var bestScore = -Infinity;
-      for (var i = 0; i < candidates.length; i++) {
-        var el = candidates[i];
-        if (textLength(el) < 200) { continue; }
-        var s = score(el);
-        if (s > bestScore) { bestScore = s; best = el; }
-      }
-
-      var allowed = { P: 'p', H2: 'h2', H3: 'h3', H1: 'h2', BLOCKQUOTE: 'blockquote', LI: 'li', IMG: 'img', FIGCAPTION: 'figcaption' };
-      var blocks = [];
-      var seenText = {};
-      var walker = document.createTreeWalker(best, NodeFilter.SHOW_ELEMENT, null);
-      var node = walker.currentNode;
-      while (node) {
-        var tag = allowed[node.tagName];
-        if (tag) {
-          if (tag === 'img') {
-            var src = node.currentSrc || node.src;
-            if (src) { blocks.push({ tag: tag, text: null, src: src }); }
-          } else {
-            var text = (node.innerText || node.textContent || '').trim();
-            if (text.length > 1 && !seenText[text]) {
-              seenText[text] = true;
-              blocks.push({ tag: tag, text: text, src: null });
-            }
-          }
-        }
-        node = walker.nextNode();
-      }
-
-      var site = (document.querySelector('meta[property="og:site_name"]') || {}).content || location.hostname.replace(/^www\\./, '');
-      var title = (document.querySelector('h1') || {}).innerText || document.title;
-
-      return JSON.stringify({ title: title, site: site, blocks: blocks });
     """
 }

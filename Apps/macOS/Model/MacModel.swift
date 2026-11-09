@@ -288,10 +288,15 @@ final class MacModel {
 
     /// Archives every Today tab as one batch, so Undo brings them all back.
     func clearToday(in space: Space) {
-        let batch = todayTabs(in: space).compactMap { archiveEntry($0, reason: "cleared") }
-        guard !batch.isEmpty else { return }
-        closedTabs.append(batch)
-        showToast("Archived \(batch.count) tab\(batch.count == 1 ? "" : "s")", canUndo: true)
+        // Tabs in Today's folders (from Tidy Tabs) go too, and the emptied folders with them; Undo restores both.
+        let folders = sidebar.container(.unpinned, in: space.id)
+            .map { sidebar.children(of: $0.id).filter { $0.kind == .folder } } ?? []
+        let tabs = todayTabs(in: space) + folders.flatMap { sidebar.children(of: $0.id).filter { $0.kind == .tab } }
+        let archived = tabs.compactMap { archiveEntry($0, reason: "cleared") }
+        guard !archived.isEmpty else { return }
+        commit(folders.map { var folder = $0; folder.deletedAt = .now; return folder })
+        closedTabs.append(archived + folders.map { (tab: $0, archiveID: nil) })
+        showToast("Archived \(archived.count) tab\(archived.count == 1 ? "" : "s")", canUndo: true)
     }
 
     /// Restores the last close (all of a Clear's tabs) and returns the first restored tab.

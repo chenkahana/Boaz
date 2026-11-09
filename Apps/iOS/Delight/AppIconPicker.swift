@@ -13,17 +13,17 @@ struct AppIconPicker: View {
     }
 
     private static let choices = [
-        Choice(label: "Default", iconName: nil, detail: "Original, dusk purple"),
-        Choice(label: "Midnight", iconName: "AppIcon-Midnight", detail: "Deep navy with a blue glow"),
-        Choice(label: "Glass", iconName: "AppIcon-Glass", detail: "Frosted window over peach and blue"),
+        Choice(label: "Default", iconName: nil, detail: "Cobalt and coral in a blue orbit"),
+        Choice(label: "Midnight", iconName: "AppIcon-Midnight", detail: "Cyan and violet in a silver orbit"),
+        Choice(label: "Glass", iconName: "AppIcon-Glass", detail: "White and blush on indigo"),
         Choice(label: "Aurora", iconName: "AppIcon-Aurora", detail: "Green and violet northern lights"),
-        Choice(label: "Electric", iconName: "AppIcon-Electric", detail: "Bright cyan to cobalt"),
-        Choice(label: "Tide", iconName: "AppIcon-Tide", detail: "Teal to deep ocean"),
-        Choice(label: "Violet", iconName: "AppIcon-Violet", detail: "Peach to violet"),
-        Choice(label: "Sunset", iconName: "AppIcon-Sunset", detail: "Amber to plum"),
+        Choice(label: "Electric", iconName: "AppIcon-Electric", detail: "White on blue in a sunrise orbit"),
+        Choice(label: "Tide", iconName: "AppIcon-Tide", detail: "Aqua and blue on deep teal"),
+        Choice(label: "Violet", iconName: "AppIcon-Violet", detail: "Lavender and pink in an ember orbit"),
+        Choice(label: "Sunset", iconName: "AppIcon-Sunset", detail: "Cobalt and violet in a sunset orbit"),
         Choice(label: "Peach", iconName: "AppIcon-Peach", detail: "Warm peach and rose"),
-        Choice(label: "Sorbet", iconName: "AppIcon-Sorbet", detail: "Soft pastels"),
-        Choice(label: "Paper", iconName: "AppIcon-Paper", detail: "Ink on warm paper"),
+        Choice(label: "Sorbet", iconName: "AppIcon-Sorbet", detail: "Mint and pink pastels"),
+        Choice(label: "Paper", iconName: "AppIcon-Paper", detail: "Ink in a vermilion orbit"),
         Choice(label: "Graphite", iconName: "AppIcon-Graphite", detail: "Monochrome gray"),
         Choice(label: "Noir", iconName: "AppIcon-Noir", detail: "High contrast, black and white"),
     ]

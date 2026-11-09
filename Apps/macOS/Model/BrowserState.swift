@@ -47,6 +47,8 @@ final class BrowserState {
     /// The space editor sheet: a new space (nil id) or the space with this id.
     var spaceEditor: SpaceEditorRequest?
     var rename: RenameRequest?
+    /// Summarize/Ask or a tidy preview (`MacAISheet`).
+    var ai: AIRequest?
     var showImport = false
     var onboarding: OnboardingView.Step?
     private(set) var incognitoTabs: [SidebarItem] = []
