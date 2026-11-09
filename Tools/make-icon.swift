@@ -1,6 +1,7 @@
-// Boaz Browser app icons: a "BB" monogram, two chunky rounded capital B's offset on the diagonal with the
-// crossing painted as a clear pane, in white on a rich gradient with soft shadows, a top-edge highlight and
-// a little underside shading for depth. The other BB candidates live in `options` below.
+// Boaz Browser app icons: a "BB" ligature. Two heavy monoline B's, the second raised a step, with the first
+// B's lower bowl landing exactly on the second B's stem. Each B is its own gradient ribbon, and where they
+// cross the colors mix into a third, as overlapping inks would. Soft colored light from each letter spills
+// into the background.
 //
 // Regenerate every icon (run from anywhere; paths resolve from this file's location):
 //   swift Tools/make-icon.swift [repo-root]
@@ -12,9 +13,7 @@
 //   Apps/iOS/Delight/IconPreviews/AppIcon[-<Name>]-Preview.png         180 px previews for Settings › App Icon
 //   docs/assets/icon.png                                                256 px README icon
 //   build/icon-contact-sheet.png                                        review sheet: 1024 tiles + 60/29 px rows
-//   build/icon-bb-options.png                                           every BB candidate in four palettes
 import AppKit
-import CoreImage
 import UniformTypeIdentifiers
 
 let size: CGFloat = 1024
@@ -39,72 +38,67 @@ func context(_ px: Int, alpha: Bool) -> CGContext {
               bitmapInfo: (alpha ? CGImageAlphaInfo.premultipliedLast : .noneSkipLast).rawValue)!
 }
 
-/// A soft light in the background (top-left origin, 1024 units).
-struct Glow {
-    var color: UInt32; var x: CGFloat; var y: CGFloat; var radius: CGFloat; var alpha: CGFloat = 0.5
-}
-
 struct Palette {
-    var stops: [UInt32]                     // background, top-left → bottom-right
-    var glows: [Glow] = []
-    var ink: (UInt32, UInt32) = (0xFFFFFF, 0xEEEEF4)   // glyph, top → bottom
-    var shade: UInt32 = 0x000000            // drop shadow and underside tint
-    var shadow: CGFloat = 0.4
-    var rim: CGFloat = 0.9                  // white highlight along the glyph's top edges
-    var underside: CGFloat = 0.11
-    var lift: CGFloat = 0.14                // soft white light from above the icon
-    var sink: CGFloat = 0.16                // darkening toward the bottom edge
-    var frost: CGFloat = 0                  // > 0: the glyph is frosted glass (blur radius of what's behind it)
+    var background: [UInt32]                 // top-left → bottom-right; empty = transparent (tinted)
+    var first: [UInt32]                      // the left B, top-left → bottom-right
+    var second: [UInt32]                     // the raised B
+    var mix: [UInt32]                        // where they cross
+    var glows: (CGFloat, CGFloat) = (0.5, 0.36)   // light each B spills into the background (0 = none)
+    var shade: UInt32 = 0x000000             // drop shadow color
+    var shadow: CGFloat = 0.5
+    var underside: CGFloat = 0.22            // inner shading along the letters' lower edges
+    var rim: CGFloat = 0.28                  // inner highlight along their upper edges
+    var gloss: CGFloat = 0.12                // sheen over the upper half
+    var lift: CGFloat = 0.1                  // soft white light from above the icon
 }
 
-// Order matches the Settings picker.
-let alternates: [(String, Palette)] = [
-    ("Midnight", Palette(stops: [0x232A80, 0x0F1246, 0x05061A],
-                         glows: [Glow(color: 0x4A63FF, x: 512, y: 430, radius: 640, alpha: 0.55)],
-                         ink: (0xFFFFFF, 0xDCE3FF), shade: 0x02031A, shadow: 0.6, lift: 0.08)),
-    ("Glass", Palette(stops: [0x2A2C94, 0x18165A, 0x0B0A28],
-                      glows: [Glow(color: 0xFF8A8F, x: 150, y: 930, radius: 560, alpha: 0.95),
-                              Glow(color: 0x5C6CFF, x: 880, y: 140, radius: 620, alpha: 0.95)],
-                      shade: 0x05041A, shadow: 0.45, rim: 0.85, underside: 0.06, lift: 0.08, frost: 38)),
-    ("Aurora", Palette(stops: [0x111C40, 0x0A0F2A, 0x070A1E],
-                       glows: [Glow(color: 0x2EE6A6, x: 150, y: 130, radius: 620, alpha: 0.62),
-                               Glow(color: 0x8A5CFF, x: 930, y: 360, radius: 600, alpha: 0.6),
-                               Glow(color: 0x2A6BFF, x: 520, y: 1060, radius: 560, alpha: 0.5)],
-                       ink: (0xFFFFFF, 0xE2FFF4), shade: 0x020414, shadow: 0.55, lift: 0.06)),
-    ("Electric", Palette(stops: [0x7FE3FF, 0x2F6BFF, 0x1730C8, 0x0C1670],
-                         ink: (0xFFFFFF, 0xE3EEFF), shade: 0x061048, shadow: 0.45)),
-    ("Tide", Palette(stops: [0x7BF0DA, 0x19A3B4, 0x0D5878, 0x0A2E4D],
-                     ink: (0xFFFFFF, 0xE4FAFF), shade: 0x032238, shadow: 0.45)),
-    ("Violet", Palette(stops: [0xFFAA9C, 0xB08CF0, 0x6F5BE0, 0x332685],
-                       ink: (0xFFFFFF, 0xF0ECFF), shade: 0x1E1260, shadow: 0.42)),
-    ("Sunset", Palette(stops: [0xFFC66E, 0xFF7A63, 0xD8457A, 0x5A1C6E],
-                       ink: (0xFFFFFF, 0xFFF0E8), shade: 0x3A0D3A, shadow: 0.42)),
-    ("Peach", Palette(stops: [0xFFE2A8, 0xFFB094, 0xF47F8E, 0xDC5C8C],
-                      ink: (0xFFFFFF, 0xFFF1F0), shade: 0x8A2350, shadow: 0.34, underside: 0.12)),
-    ("Sorbet", Palette(stops: [0xFFD3DF, 0xE9DDFF, 0xCDEFE6],
-                       glows: [Glow(color: 0xFFFFFF, x: 300, y: 200, radius: 520, alpha: 0.45)],
-                       ink: (0x6655C8, 0x40329A), shade: 0x4B3CA8, shadow: 0.2, rim: 0.4, underside: 0.18,
-                       lift: 0.1, sink: 0.04)),
-    ("Paper", Palette(stops: [0xFDFBF6, 0xF4EEE3, 0xE8E0CF],
-                      ink: (0x34303D, 0x16141B), shade: 0x5A4A30, shadow: 0.26, rim: 0.28, underside: 0.25,
-                      lift: 0.1, sink: 0.05)),
-    ("Graphite", Palette(stops: [0x74747C, 0x404046, 0x1E1E22],
-                         ink: (0xFFFFFF, 0xD6D6DC), shade: 0x000000, shadow: 0.5)),
-    ("Noir", Palette(stops: [0x1E1E20, 0x000000], ink: (0xFFFFFF, 0xFFFFFF), shadow: 0, rim: 0, underside: 0,
-                     lift: 0.05, sink: 0)),
-]
+/// Boaz: cobalt and coral on night, mixing to plum.
+let night: [UInt32] = [0x1E1B44, 0x0E0C22, 0x06050E]
+let cobalt: [UInt32] = [0x67A6FF, 0x4870FF, 0x3A2FDA]
+let coral: [UInt32] = [0xFFB547, 0xFF6C4A, 0xFF3A7E]
+let plum: [UInt32] = [0xF0489C, 0xC236B6, 0x8E2BD0]
+let primary = Palette(background: night, first: cobalt, second: coral, mix: plum)
+/// iOS dark appearance: the same letters on near-black, with less spill.
+let dark = Palette(background: [0x100E1E, 0x08070F, 0x030306], first: cobalt, second: coral, mix: plum,
+                   glows: (0.3, 0.2), lift: 0.04)
+/// iOS tinted appearance: grayscale letters on transparency; the system supplies the tint.
+let tinted = Palette(background: [], first: [0xFFFFFF, 0xE6E6E6], second: [0xCFCFCF, 0xB4B4B4],
+                     mix: [0x8E8E8E, 0x7A7A7A], glows: (0, 0), shadow: 0, underside: 0, rim: 0, gloss: 0, lift: 0)
 
-/// The Boaz default: confident violet-indigo, a warm pink light top-right and a cool blue one bottom-left.
-let primary = Palette(stops: [0x9A86FF, 0x6A4FF0, 0x3A26B0, 0x22186E],
-                      glows: [Glow(color: 0xFF8FC4, x: 940, y: 60, radius: 660, alpha: 0.65),
-                              Glow(color: 0x38B6FF, x: 40, y: 1040, radius: 620, alpha: 0.4)],
-                      ink: (0xFFFFFF, 0xEDE8FF), shade: 0x160C55, shadow: 0.45)
-/// iOS dark appearance: the glyph carries the brand colors on a near-black background.
-let dark = Palette(stops: [0x221C40, 0x110E22, 0x08070F],
-                   glows: [Glow(color: 0x6A4FF0, x: 900, y: 80, radius: 620, alpha: 0.3)],
-                   ink: (0xD8CCFF, 0x9479FF), shade: 0x000000, shadow: 0.6, rim: 0.6, underside: 0.2, lift: 0.05)
-/// iOS tinted appearance: a grayscale glyph on transparency; the system supplies the tint.
-let tinted = Palette(stops: [], ink: (0xFFFFFF, 0xC4C4C4), shadow: 0, rim: 0, underside: 0.12, lift: 0, sink: 0)
+// Order matches the Settings picker (AppIconPicker.swift).
+let alternates: [(String, Palette)] = [
+    ("Midnight", Palette(background: [0x13204E, 0x0A1030, 0x04071A], first: [0x8CE8FF, 0x45B0FF, 0x2F74FF],
+                         second: [0xC4ACFF, 0x9474FF, 0x6A4BF0], mix: [0x6C8CFF, 0x5662F4, 0x4440DA])),
+    ("Glass", Palette(background: [0x3B3FD0, 0x23208A, 0x100D3C], first: [0xFFFFFF, 0xE6EBFF],
+                      second: [0xFFE9F1, 0xFFC9DC], mix: [0xC9C2FF, 0xA9A0F6], glows: (0.45, 0.45),
+                      shade: 0x07052A, underside: 0.14, rim: 0.5, gloss: 0.2)),
+    ("Aurora", Palette(background: [0x0F1E3A, 0x08102A, 0x04061A], first: [0x7DFFD0, 0x2EE6A6, 0x12B58A],
+                       second: [0xC8A4FF, 0x8F62FF, 0x6A3CF0], mix: [0x46B4FF, 0x3F84FF, 0x3A5CF0])),
+    ("Electric", Palette(background: [0x3F86FF, 0x1C44DC, 0x0C1674], first: [0xFFFFFF, 0xE2ECFF],
+                         second: [0xFFF27A, 0xFFD23A, 0xFFAE2E], mix: [0x9CF2FF, 0x5CD8FF],
+                         glows: (0.4, 0.4), shade: 0x050C4A, gloss: 0.16)),
+    ("Tide", Palette(background: [0x0F5E72, 0x093A4C, 0x05202E], first: [0x9AFBE6, 0x42E2C8, 0x14B6AE],
+                     second: [0x86D4FF, 0x429EFF, 0x2F6BFF], mix: [0x3ECDEA, 0x28A4E0, 0x1E80D0])),
+    ("Violet", Palette(background: [0x2C1666, 0x170B3A, 0x0A0520], first: [0xD2B2FF, 0x9E70FF, 0x7646EE],
+                       second: [0xFFA6DA, 0xFF62B4, 0xE6409A], mix: [0xDA6CEA, 0xB64CDC, 0x9234C8])),
+    ("Sunset", Palette(background: [0x45124A, 0x220828, 0x100312], first: [0xFFDD72, 0xFFA03E, 0xFF6E3A],
+                       second: [0xFF86B0, 0xFF4284, 0xD8306E], mix: [0xFF6466, 0xF2444E, 0xD8303E])),
+    ("Peach", Palette(background: [0xFFF3EA, 0xFFE2D4, 0xFFD2C2], first: [0xFFBE86, 0xFF945E, 0xFF7A4E],
+                      second: [0xFF9AB6, 0xFF6694, 0xF0487A], mix: [0xFF6E6C, 0xF2525E, 0xE03E50],
+                      glows: (0, 0), shade: 0x8A2A30, shadow: 0.24, underside: 0.16, lift: 0)),
+    ("Sorbet", Palette(background: [0xFDF0F7, 0xF2ECFF, 0xE6F6F1], first: [0xA2EACF, 0x6CD8B4, 0x3EC29A],
+                       second: [0xFFBAD6, 0xFF8EBC, 0xF56AA2], mix: [0xC2A6F4, 0xA488EA, 0x8A6CDC],
+                       glows: (0, 0), shade: 0x5A3A8A, shadow: 0.2, underside: 0.14, lift: 0)),
+    ("Paper", Palette(background: [0xFFF9EC, 0xFAEED8, 0xF1E2C6], first: [0x45414F, 0x2A2732, 0x18161D],
+                      second: [0xFF7A48, 0xF2582E, 0xD8431E], mix: [0x9A3220, 0x7E2618, 0x621C12],
+                      glows: (0, 0), shade: 0x5A4220, shadow: 0.24, underside: 0.2, rim: 0.18, lift: 0)),
+    ("Graphite", Palette(background: [0x56565E, 0x2C2C32, 0x141418], first: [0xFFFFFF, 0xDCDCE2, 0xC2C2CA],
+                         second: [0xB4B4BE, 0x8E8E9A, 0x74747E], mix: [0x6A6A74, 0x56565F, 0x46464E],
+                         glows: (0, 0), lift: 0.08)),
+    ("Noir", Palette(background: [0x18181A, 0x050505, 0x000000], first: [0xFFFFFF, 0xFFFFFF],
+                     second: [0xFFFFFF, 0xFFFFFF], mix: [0x1C1C1E, 0x0A0A0A], glows: (0, 0), shadow: 0,
+                     underside: 0, rim: 0, gloss: 0, lift: 0.04)),
+]
 
 func stroked(_ path: CGPath, _ width: CGFloat) -> CGPath {
     path.copy(strokingWithWidth: width, lineCap: .round, lineJoin: .round, miterLimit: 10)
@@ -121,164 +115,103 @@ func moved(_ path: CGPath, _ t: CGAffineTransform) -> CGPath {
     return path.copy(using: &t)!
 }
 
-/// A chunky capital B drawn as one thick rounded stroke, stem centreline at x = 0, top at y = 0.
-/// The upper bowl is a little shorter and narrower than the lower one, as in a well-drawn B.
-/// `filled` closes the counters (the B's silhouette).
-func letterB(height: CGFloat = 600, weight w: CGFloat = 120, filled: Bool = false) -> CGPath {
-    let h = height - w, waist = (h * 0.47).rounded()
-    let r1 = waist / 2, r2 = (h - waist) / 2
-    let a1: CGFloat = 132, a2 = a1 + r1 - r2 + 26
+/// A capital B's centreline: stem at x = 0, top at y = 0 (y down), `h` tall. The upper bowl is a little
+/// shorter and narrower than the lower one. Returns the path and how far right the lower bowl reaches.
+func bCentreline(h: CGFloat) -> (path: CGPath, reach: CGFloat) {
+    let waist = (h * 0.47).rounded(), r1 = waist / 2, r2 = (h - waist) / 2
+    let a1 = h * 0.3, a2 = a1 + r1 - r2 + h * 0.06
     let p = CGMutablePath()
     p.move(to: CGPoint(x: 0, y: h)); p.addLine(to: .zero); p.addLine(to: CGPoint(x: a1, y: 0))
     p.addArc(center: CGPoint(x: a1, y: r1), radius: r1, startAngle: -.pi / 2, endAngle: .pi / 2, clockwise: false)
     p.addLine(to: CGPoint(x: 0, y: waist)); p.addLine(to: CGPoint(x: a2, y: waist))
     p.addArc(center: CGPoint(x: a2, y: waist + r2), radius: r2, startAngle: -.pi / 2, endAngle: .pi / 2, clockwise: false)
-    p.closeSubpath()
-    let shape = filled ? stroked(p, w).union(p) : stroked(p, w)
-    return moved(smooth(shape, 24), CGAffineTransform(translationX: w / 2, y: w / 2))   // origin at top-left
+    p.addLine(to: CGPoint(x: 0, y: h))
+    return (p, a2 + r2)
 }
 
-/// How a layer of the mark is filled. `tint` is the glyph at reduced opacity; `glass` frosts what's behind it.
-enum Fill { case solid, tint(CGFloat), glass }
-struct Layer { var path: CGPath; var fill: Fill = .solid }
-
-/// A mark is drawn back to front; `overlap` (optional) is painted as a clear pane where the layers cross.
-struct Mark { var layers: [Layer]; var overlap: CGPath? = nil }
-
-/// Scales the layers together to fit `box` and centres them (a hair high: the drop shadow adds weight below).
-func fitted(_ mark: Mark, width: CGFloat, height: CGFloat) -> Mark {
-    let all = mark.layers.map(\.path).reduce(CGMutablePath()) { $0.addPath($1); return $0 }
-    let box = all.boundingBoxOfPath, k = min(width / box.width, height / box.height)
+/// The two letters, fitted to the icon: the second B's stem sits on the first B's lower bowl, raised a step.
+let mark: (first: CGPath, second: CGPath) = {
+    let (line, reach) = bCentreline(h: 500)
+    let first = smooth(stroked(line, 120), 16)
+    let second = moved(first, CGAffineTransform(translationX: reach, y: -56))
+    let box = first.union(second).boundingBoxOfPath, k = 600 / max(box.width, box.height)
     let t = CGAffineTransform(translationX: -box.midX, y: -box.midY).concatenating(CGAffineTransform(scaleX: k, y: k))
-        .concatenating(CGAffineTransform(translationX: size / 2, y: size / 2 - 8))
-    return Mark(layers: mark.layers.map { Layer(path: moved($0.path, t), fill: $0.fill) },
-                overlap: mark.overlap.map { moved($0, t) })
-}
-
-/// The BB candidates. `chosen` is the one the icon sets use; all of them go on build/icon-bb-options.png.
-let b = letterB()
-let bWidth = b.boundingBoxOfPath.width
-let options: [(String, Mark)] = [
-    // (a) A translucent echo of the B stacked up and to the right behind it, cut clear around the front B.
-    ("a  echo", {
-        let back = moved(b, CGAffineTransform(translationX: bWidth * 0.24, y: -80))
-        let solid = letterB(filled: true)   // cut around the silhouette, so the counters show background, not the echo
-        return fitted(Mark(layers: [Layer(path: back.subtracting(solid.union(stroked(solid, 40))), fill: .tint(0.45)),
-                                    Layer(path: b)]), width: 620, height: 620)
-    }()),
-    // (b) Back-to-back ligature: a mirrored B and a B sharing one stem.
-    ("b  mirrored", {
-        let w = b.boundingBoxOfPath.minX + 64   // stem centre
-        let right = moved(b, CGAffineTransform(translationX: -w, y: 0))
-        let left = moved(right, CGAffineTransform(scaleX: -1, y: 1))
-        return fitted(Mark(layers: [Layer(path: smooth(left.union(right), 30))]), width: 660, height: 600)
-    }()),
-    // (c) Two B's offset on the diagonal; where they cross reads as a pane of glass.
-    ("c  diagonal", {
-        let back = moved(b, CGAffineTransform(translationX: -bWidth * 0.33, y: -80))
-        let front = moved(b, CGAffineTransform(translationX: bWidth * 0.33, y: 80))
-        return fitted(Mark(layers: [Layer(path: back), Layer(path: front)], overlap: back.intersection(front)),
-                      width: 660, height: 640)
-    }()),
-]
-let chosen = options[2].1
+        .concatenating(CGAffineTransform(translationX: size / 2, y: size / 2 - 4))   // a hair high: the shadow adds weight below
+    return (moved(first, t), moved(second, t))
+}()
 
 /// Renders one 1024 icon, full bleed (iOS masks the corners).
-func render(_ p: Palette, _ mark: Mark = chosen, transparent: Bool = false) -> CGImage {
-    let ctx = context(Int(size), alpha: transparent)
+func render(_ p: Palette) -> CGImage {
+    let ctx = context(Int(size), alpha: p.background.isEmpty)
     ctx.translateBy(x: 0, y: size)
     ctx.scaleBy(x: 1, y: -1)
     let full = CGRect(x: 0, y: 0, width: size, height: size)
-    func fill(_ path: CGPath, _ colors: [CGColor]) {
+    let (first, second) = mark
+    let both = first.union(second), overlap = first.intersection(second)
+
+    /// Fills `path` with a diagonal gradient across its own bounds.
+    func paint(_ path: CGPath, _ colors: [UInt32]) {
         let box = path.boundingBoxOfPath
-        ctx.drawLinearGradient(gradient(colors), start: CGPoint(x: 0, y: box.minY), end: CGPoint(x: 0, y: box.maxY), options: [])
-    }
-
-    if !p.stops.isEmpty {
-        ctx.drawLinearGradient(gradient(p.stops.map { rgb($0) }), start: CGPoint(x: size * 0.18, y: 0),
-                               end: CGPoint(x: size * 0.82, y: size),
+        ctx.saveGState(); ctx.addPath(path); ctx.clip()
+        ctx.drawLinearGradient(gradient(colors.map { rgb($0) }), start: CGPoint(x: box.minX + box.width * 0.2, y: box.minY),
+                               end: CGPoint(x: box.maxX - box.width * 0.2, y: box.maxY),
                                options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
-        for g in p.glows {
-            let c = CGPoint(x: g.x, y: g.y)
-            ctx.drawRadialGradient(gradient([rgb(g.color, g.alpha), rgb(g.color, g.alpha * 0.4), rgb(g.color, 0)]),
-                                   startCenter: c, startRadius: 0, endCenter: c, endRadius: g.radius, options: [])
-        }
-        let top = CGPoint(x: size / 2, y: -size * 0.25)
+        ctx.restoreGState()
+    }
+
+    if !p.background.isEmpty {
+        ctx.drawLinearGradient(gradient(p.background.map { rgb($0) }), start: CGPoint(x: size * 0.25, y: 0),
+                               end: CGPoint(x: size * 0.75, y: size),
+                               options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+        let top = CGPoint(x: size / 2, y: -size * 0.3)
         ctx.drawRadialGradient(gradient([rgb(0xFFFFFF, p.lift), rgb(0xFFFFFF, 0)]), startCenter: top, startRadius: 0,
-                               endCenter: top, endRadius: size * 0.95, options: [])
-        ctx.drawLinearGradient(gradient([rgb(0x000000, 0), rgb(0x000000, p.sink)]), start: CGPoint(x: 0, y: size * 0.55),
-                               end: CGPoint(x: 0, y: size), options: [])
+                               endCenter: top, endRadius: size, options: [])
+        for (letter, colors, alpha, dy) in [(first, p.first, p.glows.0, 60.0), (second, p.second, p.glows.1, -40.0)]
+            where alpha > 0 {
+            let box = letter.boundingBoxOfPath, c = CGPoint(x: box.midX, y: box.midY + dy)
+            let color = colors[colors.count / 2]
+            ctx.drawRadialGradient(gradient([rgb(color, alpha), rgb(color, alpha * 0.35), rgb(color, 0)]),
+                                   startCenter: c, startRadius: 0, endCenter: c, endRadius: 430, options: [])
+        }
     }
 
-    for layer in mark.layers {
-        let glyph = layer.path
-        var fillKind = layer.fill
-        if p.frost > 0 { fillKind = .glass }
-        let opacity: CGFloat = if case .tint(let a) = fillKind { a } else { 1 }
-
-        // What the layer sees through itself when it is glass.
-        var backdrop: CGImage?
-        if case .glass = fillKind, let image = ctx.makeImage() {
-            let ci = CIImage(cgImage: image)
-            let frosted = ci.clampedToExtent().applyingGaussianBlur(sigma: max(p.frost, 30))
-                .applyingFilter("CIColorControls", parameters: [kCIInputSaturationKey: 1.6, kCIInputBrightnessKey: 0.08])
-            backdrop = CIContext().createCGImage(frosted.cropped(to: ci.extent), from: ci.extent)
-        }
-
-        // Drop shadows (offsets are in unflipped device space, so negative is down): a wide soft one and a contact one.
-        // The glyph is drawn off-canvas and only its shadow lands here, so translucent layers stay translucent.
-        if p.shadow > 0 {
-            let away: CGFloat = 4000
-            for (dy, blur, k) in [(-34.0, 70.0, 1.0), (-8.0, 16.0, 0.5)] as [(CGFloat, CGFloat, CGFloat)] {
-                ctx.saveGState()
-                ctx.setShadow(offset: CGSize(width: -away, height: dy), blur: blur, color: rgb(p.shade, p.shadow * k * opacity))
-                ctx.addPath(moved(glyph, CGAffineTransform(translationX: away, y: 0))); ctx.setFillColor(rgb(0x000000))
-                ctx.fillPath()
-                ctx.restoreGState()
-            }
-        }
-
-        ctx.saveGState()
-        ctx.setAlpha(opacity)
-        ctx.beginTransparencyLayer(auxiliaryInfo: nil)
-        ctx.addPath(glyph); ctx.clip()
-        if let backdrop {
+    // Drop shadows (offsets are in unflipped device space, so negative is down): a wide soft one and a contact one.
+    // The shape is drawn off-canvas and only its shadow lands here.
+    if p.shadow > 0 {
+        let away: CGFloat = 4000
+        for (dy, blur, k) in [(-30.0, 70.0, 1.0), (-6.0, 12.0, 0.6)] as [(CGFloat, CGFloat, CGFloat)] {
             ctx.saveGState()
-            ctx.translateBy(x: 0, y: size); ctx.scaleBy(x: 1, y: -1)   // CGImage draws in unflipped space
-            ctx.draw(backdrop, in: full)
-            ctx.restoreGState()
-            fill(glyph, [rgb(0xFFFFFF, 0.62), rgb(0xFFFFFF, 0.34)])
-            let box = glyph.boundingBoxOfPath
-            ctx.drawLinearGradient(gradient([rgb(0xFFFFFF, 0.3), rgb(0xFFFFFF, 0)]), start: CGPoint(x: 0, y: box.minY),
-                                   end: CGPoint(x: 0, y: box.minY + box.height * 0.5), options: [])   // sheen
-        } else {
-            fill(glyph, [rgb(p.ink.0), rgb(p.ink.1)])
-        }
-        // Inner shading: shadows cast by everything outside the layer, shifted up (underside) and down (top rim).
-        let outside = CGMutablePath()
-        outside.addRect(full.insetBy(dx: -200, dy: -200)); outside.addPath(glyph)
-        for (dy, blur, color) in [(14.0, 26.0, rgb(p.shade, p.underside)), (-7.0, 8.0, rgb(0xFFFFFF, p.rim))]
-            as [(CGFloat, CGFloat, CGColor)] where color.alpha > 0 {
-            ctx.saveGState()
-            ctx.setShadow(offset: CGSize(width: 0, height: dy), blur: blur, color: color)
-            ctx.addPath(outside); ctx.setFillColor(rgb(0x000000)); ctx.fillPath(using: .evenOdd)
+            ctx.setShadow(offset: CGSize(width: -away, height: dy), blur: blur, color: rgb(p.shade, p.shadow * k))
+            ctx.addPath(moved(both, CGAffineTransform(translationX: away, y: 0))); ctx.setFillColor(rgb(0x000000))
+            ctx.fillPath()
             ctx.restoreGState()
         }
-        ctx.endTransparencyLayer()
-        ctx.restoreGState()
-        if backdrop != nil {   // glass edge
-            ctx.addPath(stroked(glyph, 5)); ctx.setFillColor(rgb(0xFFFFFF, 0.45)); ctx.fillPath()
-        }
     }
 
-    if let overlap = mark.overlap, p.frost == 0 {   // a clear pane: the background seen faintly through the crossing
-        // (glass layers already show each other)
-        ctx.saveGState()
-        ctx.addPath(overlap); ctx.clip()
-        fill(overlap, [rgb(p.stops.first ?? 0x808080, 0.5), rgb(p.stops.last ?? 0x808080, 0.5)])
-        ctx.restoreGState()
-        ctx.addPath(stroked(overlap, 4)); ctx.setFillColor(rgb(0xFFFFFF, 0.5)); ctx.fillPath()
+    paint(first, p.first)
+    paint(second, p.second)
+    paint(overlap, p.mix)
+    if p.gloss > 0 {
+        for letter in [first, second] {
+            let box = letter.boundingBoxOfPath
+            ctx.saveGState(); ctx.addPath(letter); ctx.clip()
+            ctx.drawLinearGradient(gradient([rgb(0xFFFFFF, p.gloss), rgb(0xFFFFFF, 0)]), start: CGPoint(x: 0, y: box.minY),
+                                   end: CGPoint(x: 0, y: box.minY + box.height * 0.5), options: [])
+            ctx.restoreGState()
+        }
     }
+    // Inner shading: shadows cast by everything outside the letters, shifted up (underside) and down (top rim).
+    let outside = CGMutablePath()
+    outside.addRect(full.insetBy(dx: -200, dy: -200)); outside.addPath(both)
+    ctx.saveGState(); ctx.addPath(both); ctx.clip()
+    for (dy, blur, color) in [(-14.0, 22.0, rgb(0x000000, p.underside)), (6.0, 8.0, rgb(0xFFFFFF, p.rim))]
+        as [(CGFloat, CGFloat, CGColor)] where color.alpha > 0 {
+        ctx.saveGState()
+        ctx.setShadow(offset: CGSize(width: 0, height: dy), blur: blur, color: color)
+        ctx.addPath(outside); ctx.setFillColor(rgb(0x000000)); ctx.fillPath(using: .evenOdd)
+        ctx.restoreGState()
+    }
+    ctx.restoreGState()
     return ctx.makeImage()!
 }
 
@@ -333,7 +266,7 @@ let primaryArt = render(primary)
 let primaryDir = assets.appendingPathComponent("AppIcon.appiconset")
 write(primaryArt, primaryDir.appendingPathComponent("AppIcon.png"))
 write(render(dark), primaryDir.appendingPathComponent("AppIcon-Dark.png"))
-write(render(tinted, transparent: true), primaryDir.appendingPathComponent("AppIcon-Tinted.png"))
+write(render(tinted), primaryDir.appendingPathComponent("AppIcon-Tinted.png"))
 let mac = masked(primaryArt, inset: 100)
 for px in [16, 32, 64, 128, 256, 512, 1024] {
     write(px == 1024 ? mac : scaled(mac, to: px, alpha: true), primaryDir.appendingPathComponent("mac-\(px).png"))
@@ -393,8 +326,5 @@ func contactSheet(_ items: [(String, CGImage)], columns: Int, to path: String) {
     write(ctx.makeImage()!, root.appendingPathComponent(path))
 }
 
-contactSheet(sheet, columns: 5, to: "build/icon-contact-sheet.png")
-let samples = [("Default", primary)] + alternates.filter { ["Midnight", "Paper", "Sunset"].contains($0.0) }
-contactSheet(options.flatMap { option in samples.map { ("\(option.0) · \($0.0)", render($0.1, option.1)) } },
-             columns: samples.count, to: "build/icon-bb-options.png")
+contactSheet(sheet + [("Dark", render(dark))], columns: 5, to: "build/icon-contact-sheet.png")
 print("wrote Boaz icons under \(root.path)")
