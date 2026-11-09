@@ -143,6 +143,8 @@ extension BoazStore {
     }
 
     static func archive(_ tab: SidebarItem, reason: String, at date: Date, in db: Database) throws -> ArchiveItem? {
+        // Already archived (a close racing the stale-tab sweep, say): one archive entry is enough.
+        guard try SidebarItem.fetchOne(db, key: tab.id)?.deletedAt == nil else { return nil }
         var tab = tab
         tab.deletedAt = date
         tab.modifiedAt = date

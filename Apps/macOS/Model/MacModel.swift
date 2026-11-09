@@ -297,6 +297,8 @@ final class MacModel {
     }
 
     private func archiveEntry(_ tab: SidebarItem, reason: String) -> (tab: SidebarItem, archiveID: String?)? {
+        // A second close of the same tab (a double click, say) would archive it twice.
+        guard item(tab.id) != nil else { return nil }
         var removed = tab
         removed.deletedAt = .now
         sidebar.upsert(removed)

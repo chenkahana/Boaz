@@ -489,6 +489,8 @@ final class AppModel {
 
     /// Closing sends a tab to the archive (like Arc); undo brings it back and removes the archive entry.
     func close(_ tab: SidebarItem) {
+        // A second close of the same tab (a double tap, say) would archive it twice.
+        guard isLive(tab.id) else { return }
         if activeTabID == tab.id { activeTabID = neighbor(of: tab)?.id }
         pages[tab.id] = nil
         pageRecency.removeAll { $0 == tab.id }
