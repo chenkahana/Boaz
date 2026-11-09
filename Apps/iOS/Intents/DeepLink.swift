@@ -49,14 +49,15 @@ enum DeepLink {
         return components.url
     }
 
-    /// Applies `url` to `model`. `AppModel.start()` opens the store asynchronously and its loop
-    /// never returns, so a link that arrives first is queued and replayed once `model.store` is set.
+    /// Applies `url` to `model`. A new tab needs a space, which only exists once the library's first snapshot
+    /// has landed: that can take several seconds after a cold launch, longer on a device still joining its iCloud
+    /// library. A link that arrives first is queued and replayed then.
     @MainActor
     static func handle(_ url: URL, model: AppModel) {
         guard let intent = parse(url) else { return }
-        guard model.store != nil else {
+        guard model.currentSpace != nil else {
             pending = intent
-            Task { await waitForStoreThenReplay(model: model) }
+            Task { await waitForLibraryThenReplay(model: model) }
             return
         }
         perform(intent, model: model)
@@ -65,9 +66,9 @@ enum DeepLink {
     @MainActor private static var pending: Intent?
 
     @MainActor
-    private static func waitForStoreThenReplay(model: AppModel) async {
+    private static func waitForLibraryThenReplay(model: AppModel) async {
         var attempts = 0
-        while model.store == nil, attempts < 100 {
+        while model.currentSpace == nil, attempts < 600 {
             try? await Task.sleep(for: .milliseconds(50))
             attempts += 1
         }
