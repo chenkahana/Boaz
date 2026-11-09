@@ -498,9 +498,12 @@ private struct BarIcon: View {
     @Environment(\.chromeTint) private var tint
     let symbol: String
     var isSelected = false
+    @ScaledMetric(relativeTo: .body) private var glyph: CGFloat = 17
 
     var body: some View {
         Image(systemName: symbol)
+            // Grows with Dynamic Type, but stays inside its fixed-size circle.
+            .font(.system(size: min(glyph, 26)))
             .frame(width: 44, height: 44)
             .railSelection(isSelected)
             .glassEffect(.chrome(tint), in: .circle)

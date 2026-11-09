@@ -272,10 +272,12 @@ struct RailIcon: View {
     @Environment(\.chromeTint) private var tint
     let symbol: String
     var size: CGFloat = 44
+    @ScaledMetric(relativeTo: .body) private var glyph: CGFloat = 17
 
     var body: some View {
         Image(systemName: symbol)
-            .font(.body.weight(.medium))
+            // Grows with Dynamic Type, but stays inside its fixed-size circle.
+            .font(.system(size: min(glyph, 26), weight: .medium))
             .frame(width: size, height: size)
             .glassEffect(.chrome(tint), in: .circle)
     }
