@@ -240,9 +240,10 @@ private struct SpaceColumn: View {
 
     var body: some View {
         let pinned = model.pinnedItems(in: space)
-        let today = model.todayTabs(in: space)
         let pinnedBox = model.sidebar.container(.pinned, in: space.id)
         let todayBox = model.sidebar.container(.unpinned, in: space.id)
+        // Tabs and any folders (from Tidy Tabs or an Arc import).
+        let today = todayBox.map { model.sidebar.children(of: $0.id) } ?? []
         ScrollView {
             VStack(alignment: .leading, spacing: 1) {
                 SpaceHeader(space: space)
@@ -313,6 +314,7 @@ struct SpaceMenu: View {
         Button("Rename Space…") { browser.rename = .init(target: .space(space), text: space.title) }
         Button("Custom Colors…") { browser.themeEditor = .init(id: space.id) }
         Button("New Folder") { withAnimation { model.newFolder(in: space) } }
+        SpaceAIMenuItems(space: space)
         if model.sidebar.spaces.count > 1, let index = model.sidebar.spaces.firstIndex(where: { $0.id == space.id }) {
             Divider()
             Button("Move Up") { withAnimation { try? model.store?.moveSpace(space.id, to: index - 1) } }.disabled(index == 0)
@@ -478,6 +480,7 @@ struct ItemRow: View {
             if item.kind == .folder {
                 Button("Rename Folder…") { browser.rename = .init(target: .item(item), text: item.title ?? "") }
                 Button(item.isExpanded ? "Collapse" : "Expand") { model.toggleExpanded(item) }
+                if model.container(of: item)?.containerKind == .unpinned { Button("Ungroup") { model.ungroup(item) } }
             } else {
                 TabMenu(tab: item)
             }
@@ -554,6 +557,7 @@ struct TabMenu: View {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(url.absoluteString, forType: .string)
         }
+        TabAIMenuItems(tab: tab)
         Divider()
         Button(model.isPinned(tab) ? "Unload Tab" : "Archive Tab") { browser.close(tab) }
     }

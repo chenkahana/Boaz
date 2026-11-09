@@ -174,6 +174,7 @@ private struct GeneralSettings: View {
                 }
                 Toggle("Tint chrome with site colors", isOn: $tintWithSiteColors)
             }
+            AISettingsSection()
             AboutSection()
         }
         .formStyle(.grouped)

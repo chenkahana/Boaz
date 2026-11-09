@@ -179,6 +179,7 @@ struct SettingsSheet: View {
                 } footer: {
                     Text("The toolbar and the strip around the page take on the color of the site you're on.")
                 }
+                AISettingsSection()
                 SyncSettingsSection()
                 AppIconPicker()
                 AboutSection()

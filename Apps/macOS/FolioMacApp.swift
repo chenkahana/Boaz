@@ -145,6 +145,7 @@ struct FolioCommands: Commands {
             .disabled(browser == nil || browser?.isIncognito == true)
             Button("Archive") { openWindow(id: "archive") }.keyboardShortcut(key(.showArchive))
             Divider()
+            PageAICommands(browser: browser)
             Button("Zoom In") { browser?.zoom(.in) }.keyboardShortcut("+").disabled(browser?.activeTab == nil)
             Button("Zoom Out") { browser?.zoom(.out) }.keyboardShortcut("-").disabled(browser?.activeTab == nil)
             Button("Actual Size") { browser?.zoom(.reset) }.keyboardShortcut("0").disabled(browser?.activeTab == nil)

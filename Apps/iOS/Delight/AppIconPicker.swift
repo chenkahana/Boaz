@@ -13,9 +13,9 @@ struct AppIconPicker: View {
     }
 
     private static let choices = [
-        Choice(label: "Default", iconName: nil, detail: "Original, dusk purple"),
+        Choice(label: "Default", iconName: nil, detail: "Violet with a pink glow"),
         Choice(label: "Midnight", iconName: "AppIcon-Midnight", detail: "Deep navy with a blue glow"),
-        Choice(label: "Glass", iconName: "AppIcon-Glass", detail: "Frosted window over peach and blue"),
+        Choice(label: "Glass", iconName: "AppIcon-Glass", detail: "Frosted glass over coral and blue"),
         Choice(label: "Aurora", iconName: "AppIcon-Aurora", detail: "Green and violet northern lights"),
         Choice(label: "Electric", iconName: "AppIcon-Electric", detail: "Bright cyan to cobalt"),
         Choice(label: "Tide", iconName: "AppIcon-Tide", detail: "Teal to deep ocean"),

@@ -85,8 +85,14 @@ extension FolioStore {
                 .filter(Column("containerKind") == SidebarItem.ContainerKind.unpinned.rawValue)
                 .filter(Column("deletedAt") == nil)
                 .fetchAll(db).map(\.id)
-            let stale = try SidebarItem
+            // Tabs in Today's folders (Tidy Tabs) are Today tabs too.
+            let todayFolders = try SidebarItem
                 .filter(todayContainers.contains(Column("parentID")))
+                .filter(Column("kind") == SidebarItem.Kind.folder.rawValue)
+                .filter(Column("deletedAt") == nil)
+                .fetchAll(db).map(\.id)
+            let stale = try SidebarItem
+                .filter((todayContainers + todayFolders).contains(Column("parentID")))
                 .filter(Column("kind") == SidebarItem.Kind.tab.rawValue)
                 .filter(Column("deletedAt") == nil)
                 .filter(SQL(sql: "COALESCE(lastActiveAt, createdAt) < ?", arguments: [cutoff]))

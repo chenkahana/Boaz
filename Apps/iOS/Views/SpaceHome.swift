@@ -132,6 +132,8 @@ private struct SpacePage: View {
                     .background(.ultraThinMaterial, in: .rect(cornerRadius: Theme.Radius.tile))
                 }
 
+                TodayFolders(space: space, tint: style.tint)
+
                 let today = model.todayTabs(in: space)
                 if isSidebar {
                     // The sidebar lists Today like Arc: a new-tab row, then one row per tab.
@@ -147,10 +149,14 @@ private struct SpacePage: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 } else {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Today")
-                            .font(.footnote.weight(.semibold)).textCase(.uppercase)
-                            .foregroundStyle(style.foreground.opacity(0.6))
-                            .accessibilityAddTraits(.isHeader)
+                        HStack {
+                            Text("Today")
+                                .font(.footnote.weight(.semibold)).textCase(.uppercase)
+                                .foregroundStyle(style.foreground.opacity(0.6))
+                                .accessibilityAddTraits(.isHeader)
+                            Spacer()
+                            TodayAIMenu().foregroundStyle(style.foreground.opacity(0.6))
+                        }
                         TodayGrid(tabs: today, tint: style.tint, zoom: zoom)
                     }
                     .transition(.opacity)
@@ -367,6 +373,7 @@ struct HomeMenuItems: View {
                 Button("Edit Space…", systemImage: "paintpalette") { spaceEditing.request = .edit(space) }
             }
         }
+        SpaceAIMenuItems()
         Button("Library", systemImage: "archivebox") { model.sheet = .library }
         Button(model.isIncognito ? "Leave Incognito" : "Incognito",
                systemImage: "eyeglasses") { model.setIncognito(!model.isIncognito) }
