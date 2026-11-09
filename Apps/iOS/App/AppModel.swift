@@ -282,15 +282,16 @@ final class AppModel {
 
     /// Downscaled render of a tab's current page, dropped when the tab closes.
     private func captureSnapshot(of page: WebPage, tab: SidebarItem) {
-        let persist = !isPrivate(tab)
-        Task { [weak self] in
-            guard let data = try? await page.exported(as: .image(snapshotWidth: 400)),
-                  let image = UIImage(data: data),
-                  // The tab may have closed while the page rendered.
-                  let self, self.isLive(tab.id) else { return }
-            self.snapshots[tab.id] = image
-            if persist { SnapshotCache.save(data, for: tab.id) }
-        }
+        Task { await snapshot(page, tab: tab) }
+    }
+
+    private func snapshot(_ page: WebPage, tab: SidebarItem) async {
+        guard let data = try? await page.exported(as: .image(snapshotWidth: 400)),
+              let image = UIImage(data: data),
+              // The tab may have closed while the page rendered.
+              isLive(tab.id) else { return }
+        snapshots[tab.id] = image
+        if !isPrivate(tab) { SnapshotCache.save(data, for: tab.id) }
     }
 
     private func isLive(_ tabID: String) -> Bool {
@@ -448,12 +449,14 @@ final class AppModel {
     }
 
     func openCoverFlow() {
-        // The page's card should show it as it is now, not as it first loaded.
-        if let tab = activeTab, let page = pages[tab.id] { captureSnapshot(of: page, tab: tab) }
         showsPageSettings = false
         searchTarget = nil
-        showsCoverFlow = true
-        coverFlowRequests += 1
+        Task {
+            // The deck grows out of the page's card, which must show the page as it is now, or the page jumps.
+            if let tab = activeTab, let page = pages[tab.id] { await snapshot(page, tab: tab) }
+            showsCoverFlow = true
+            coverFlowRequests += 1
+        }
     }
 
     /// Closing sends a tab to the archive (like Arc); undo brings it back and removes the archive entry.
