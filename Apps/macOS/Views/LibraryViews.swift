@@ -145,8 +145,10 @@ struct HistoryWindow: View {
 
     /// Searches in the database, off the main thread: matching scans the whole history.
     private func reload() async {
+        let searched = query
         guard !Task.isCancelled, let store = model.store,
-              let found = try? await store.history(matching: query, limit: 1000), !Task.isCancelled else { return }
+              let found = try? await store.history(matching: searched, limit: 1000), !Task.isCancelled,
+              searched == query else { return }
         visits = found
     }
 }
