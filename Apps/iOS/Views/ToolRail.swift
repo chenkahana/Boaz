@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 import WebKit
 
 /// Whether a toolbar is out of the way. Scrolling down collapses it; scrolling back up, tapping the nub or pulling
@@ -34,7 +35,8 @@ private struct ToolRailModifier<Rail: View>: ViewModifier {
         // content (and re-host its web view) whenever the measured insets change.
         let hasColumn = insets.trailing >= 44
         content
-            .safeAreaInset(edge: .bottom, spacing: 0) {
+            // A bar rather than an inset, so content scrolling under it gets the system's scroll-edge effect.
+            .safeAreaBar(edge: .bottom, spacing: 0) {
                 if !hasColumn {
                     rail(.horizontal).animation(motion, value: state.isCollapsed)
                 }
@@ -47,7 +49,8 @@ private struct ToolRailModifier<Rail: View>: ViewModifier {
             }
             .environment(state)
         .onGeometryChange(for: EdgeInsets.self, of: { $0.safeAreaInsets }) { insets = $0 }
-        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: state.isCollapsed)
+        // Only a deliberate tuck; scrolling collapses the rail too often for a tap each time.
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: state.tucked) { _, tucked in tucked }
     }
 
     private func column(in proxy: GeometryProxy) -> some View {
@@ -86,7 +89,10 @@ private struct ToolRailModifier<Rail: View>: ViewModifier {
                 let sideways = abs(value.translation.width) > abs(value.translation.height)
                 withAnimation(motion) {
                     if sideways, state.isCollapsed, x < -30 { state.expand() }
-                    else if sideways, !state.isCollapsed, x > 50 { state.tucked = true }
+                    else if sideways, !state.isCollapsed, x > 50 {
+                        state.tucked = true
+                        TuckRailTip().invalidate(reason: .actionPerformed)
+                    }
                     pull = 0
                 }
             }
@@ -180,7 +186,7 @@ struct RailColumn<Top: View, Bottom: View, Nub: View>: View {
                         .contentShape(.capsule)
                         .onTapGesture { state.expand() }
                         .accessibilityAddTraits(.isButton)
-                        .accessibilityLabel("Show toolbar")
+                        .accessibilityLabel("Show Toolbar")
                 } else {
                     dock(top).glassEffectID("top", in: glass)
                 }
@@ -223,10 +229,12 @@ struct RailButton: View {
 struct RailGlyph: View {
     let symbol: String
     var size: CGFloat = 46
+    @ScaledMetric(relativeTo: .body) private var glyph: CGFloat = 18
 
     var body: some View {
         Image(systemName: symbol)
-            .font(.system(size: 18, weight: .semibold))
+            // Grows with Dynamic Type, but stays inside the rail's fixed-width circle.
+            .font(.system(size: min(glyph, 28), weight: .semibold))
             .contentTransition(.symbolEffect(.replace))
             .frame(width: size, height: size)
             .contentShape(.circle)
@@ -254,7 +262,7 @@ struct RailBadge: View {
     var body: some View {
         if count > 0 {
             Text("\(count)")
-                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .font(.system(.caption2, design: .rounded, weight: .bold))
                 .monospacedDigit()
                 .contentTransition(.numericText(value: Double(count)))
                 .foregroundStyle(.white)

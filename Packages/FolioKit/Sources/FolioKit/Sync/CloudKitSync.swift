@@ -117,6 +117,9 @@ public final class CloudKitSync {
         status = .syncing
         do {
             try await engine.fetchChanges()
+            // A plain fetch only visits zones the engine already knows changed, and that knowledge arrives by push.
+            // Pushes can be late or missing (macOS debug builds, a sleeping Mac), so ask for Folio's zone directly.
+            try await engine.fetchChanges(.init(scope: .zoneIDs([SyncMapping.zoneID])))
             try await engine.sendChanges()
             // An error or a sign-out reported meanwhile stands.
             if engine === self.engine, case .syncing = status { status = .upToDate(.now) }
@@ -162,6 +165,12 @@ public final class CloudKitSync {
             if uploadAll { reuploadEverything(engine) } else { addZone(engine) }
         }
         status = .idle
+        // The engine's own launch fetch doesn't reach the server, so changes made elsewhere while this app was
+        // closed would wait for the next push. Catch up once it's running.
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            await self?.syncNow()
+        }
 
         Task { [store] in
             do { try await store.purgeTombstones() } catch {
@@ -323,6 +332,8 @@ extension CloudKitSync: CKSyncEngineDelegate {
 
         case .didFetchChanges, .didSendChanges:
             if case .syncing = status { status = .upToDate(.now) }
+            // Everything the server had is here now, so an empty starter space can tell it isn't needed.
+            if case .didFetchChanges = event { _ = try? StarterLibrary.retireUnusedStarterSpace(store) }
 
         case .didFetchRecordZoneChanges(let fetch):
             if let error = fetch.error { report(error) }

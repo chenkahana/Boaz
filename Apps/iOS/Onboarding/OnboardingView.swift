@@ -2,17 +2,17 @@ import FolioKit
 import SwiftUI
 import UIKit
 
-/// First-run setup, full screen on the cover screen and unfolded: welcome, sync, default browser, done.
-/// Arc, Chrome and Safari data reaches the iPhone through sync from the Mac.
+/// First-run setup, full screen on the cover screen and unfolded. It starts with signing in to iCloud, which is how
+/// the library reaches the Mac and back; Arc, Chrome and Safari data comes to the iPhone through that sync.
 struct OnboardingView: View {
     // No default-browser step yet: iOS only offers "Default Browser App" to apps Apple has granted the
     // com.apple.developer.web-browser entitlement, which Folio doesn't have.
-    enum Step: Int, CaseIterable { case welcome, sync, done }
+    enum Step: Int, CaseIterable { case signIn, done }
 
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.verticalSizeClass) private var verticalSizeClass
-    @State private var step = Step.welcome
+    @State private var step = Step.signIn
     @State private var forward = true
     @State private var finished = false
 
@@ -45,21 +45,26 @@ struct OnboardingView: View {
     @ViewBuilder private var page: some View {
         VStack(spacing: 24) {
             switch step {
-            case .welcome:
+            case .signIn:
                 OnboardingHero(size: heroSize(large: true))
                 OnboardingHeading(title: "Welcome to Folio",
-                                  message: "Your spaces, pins and tabs, in step on your iPhone and Mac.")
-            case .sync:
-                OnboardingHero(size: heroSize(large: false))
-                OnboardingHeading(title: "Your library syncs with iCloud",
-                                  message: "Spaces, pins and tabs stay in step with Folio on your Mac, including whatever you brought in from Arc, Chrome or Safari there.")
-                SyncCard()
+                                  message: "Sign in to iCloud to keep your spaces, pins and tabs in step on your iPhone and Mac.")
+                SignInCard()
             case .done:
                 OnboardingHero(size: heroSize(large: true))
-                OnboardingHeading(title: "You're all set",
-                                  message: "Tap search to open your first tab.")
+                OnboardingHeading(title: "You're all set", message: doneMessage)
             }
         }
+    }
+
+    private var status: LibrarySync.Status? { model.sync?.status }
+    private var needsSignIn: Bool { status.map(ICloudSignIn.needsSignIn) ?? false }
+
+    private var doneMessage: String {
+        if status?.isUpToDate == true, model.sidebar.syncSummary != nil {
+            return "Your library from iCloud is ready. Tap a tab, or search to open a new one."
+        }
+        return "Tap search to open your first tab."
     }
 
     // MARK: Footer
@@ -67,13 +72,20 @@ struct OnboardingView: View {
     private var footer: some View {
         VStack(spacing: 14) {
             OnboardingDots(count: Step.allCases.count, index: step.rawValue)
-            Button(action: primaryAction) {
-                Text(primary).font(.headline).frame(maxWidth: .infinity)
+            HStack(spacing: 12) {
+                if step != .signIn {
+                    Button("Back", systemImage: "chevron.left") { go(by: -1) }
+                        .font(.headline)
+                        .buttonStyle(.glass)
+                }
+                Button(action: primaryAction) {
+                    Text(primary).font(.headline).frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.glassProminent)
             }
-            .buttonStyle(.glassProminent)
             .controlSize(.large)
             if let secondary {
-                Button(secondary) { step == .welcome ? finish() : go(by: 1) }
+                Button(secondary) { go(by: 1) }
                     .foregroundStyle(.white.opacity(0.9))
             }
         }
@@ -85,22 +97,21 @@ struct OnboardingView: View {
 
     private var primary: String {
         switch step {
-        case .welcome: "Get Started"
-        case .sync: "Continue"
+        case .signIn: needsSignIn ? "Sign In to iCloud" : "Continue"
         case .done: "Start Browsing"
         }
     }
 
     private var secondary: String? {
-        switch step {
-        case .welcome: "Skip Setup"
-        case .sync: "Skip"
-        case .done: nil
-        }
+        step == .signIn && needsSignIn ? "Continue Without Syncing" : nil
     }
 
     private func primaryAction() {
-        if step == .done { finish() } else { go(by: 1) }
+        switch step {
+        case .signIn where needsSignIn: if let url = ICloudSignIn.settingsURL { UIApplication.shared.open(url) }
+        case .signIn: go(by: 1)
+        case .done: finish()
+        }
     }
 
     private func go(by delta: Int) {
@@ -118,42 +129,24 @@ struct OnboardingView: View {
     }
 }
 
-/// Live iCloud status with a checkmark once the library is up to date; a folder picker only when iCloud can't sync.
-private struct SyncCard: View {
+/// The iCloud account and sync state; a folder picker only when iCloud can't sync.
+private struct SignInCard: View {
     @Environment(AppModel.self) private var model
     @State private var picking = false
     @State private var message: String?
 
     var body: some View {
         if let sync = model.sync {
-            VStack(spacing: 14) {
-                Label {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(sync.folderURL.map { "Syncing through \($0.lastPathComponent)" } ?? "iCloud Sync").font(.headline)
-                        Text(message ?? sync.status.summary).font(.subheadline).foregroundStyle(.white.opacity(0.75))
-                    }
-                } icon: {
-                    Image(systemName: sync.status.systemImage)
-                        .foregroundStyle(sync.status.isUpToDate ? Color.green : Color.white.opacity(0.8))
-                        .symbolEffect(.rotate, isActive: sync.status == .syncing)
-                        .contentTransition(.symbolEffect(.replace))
+            ICloudSignInCard(sync: sync, library: model.sidebar.syncSummary, message: message,
+                             showsSignInButton: false) {
+                Button { picking = true } label: {
+                    Text(sync.folderURL == nil ? "Sync Through a Folder Instead…" : "Change Folder…")
+                        .font(.body.weight(.semibold)).foregroundStyle(.white)
+                        .padding(.horizontal, 6)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .animation(.smooth, value: sync.status)
-                if sync.offersFolder {
-                    Button { picking = true } label: {
-                        Text(sync.folderURL == nil ? "Sync Through a Folder…" : "Change Folder…")
-                            .font(.body.weight(.semibold)).foregroundStyle(.white)
-                            .padding(.horizontal, 6)
-                    }
-                    .buttonStyle(.glass)
-                }
+                .buttonStyle(.glass)
             }
-            .padding(18)
-            .foregroundStyle(.white)
-            .glassEffect(.regular, in: .rect(cornerRadius: 24))
             .syncFolderImporter(isPresented: $picking, sync: sync, message: $message)
-            .sensoryFeedback(.success, trigger: sync.status.isUpToDate) { _, ready in ready }
         }
     }
 }

@@ -8,6 +8,7 @@ import WebKit
 struct BrowserWindow: View {
     @Environment(MacModel.self) private var model
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var browser: BrowserState
     @AppStorage("sidebarWidth") private var sidebarWidth = 250.0
 
@@ -22,7 +23,7 @@ struct BrowserWindow: View {
                 if browser.sidebarVisible {
                     SidebarView()
                         .frame(width: sidebarWidth)
-                        .transition(.move(edge: .leading).combined(with: .opacity))
+                        .transition(reduceMotion ? .opacity : .move(edge: .leading).combined(with: .opacity))
                     SidebarResizeHandle(width: $sidebarWidth)
                 }
                 ContentArea()
@@ -32,7 +33,8 @@ struct BrowserWindow: View {
         .background { WindowBackdrop() }
         .overlay {
             if let mode = browser.commandMode {
-                CommandBar(mode: mode).transition(.scale(scale: 0.96, anchor: .top).combined(with: .opacity))
+                CommandBar(mode: mode)
+                    .transition(reduceMotion ? .opacity : .scale(scale: 0.96, anchor: .top).combined(with: .opacity))
             }
         }
         .overlay(alignment: .bottom) { ToastView() }
@@ -43,9 +45,12 @@ struct BrowserWindow: View {
         .frame(minWidth: 720, minHeight: 460)
         .environment(browser)
         .focusedSceneValue(browser)
+        // Names the window in the Window menu, Mission Control and VoiceOver; the title bar itself stays hidden.
+        .navigationTitle(windowTitle)
         .preferredColorScheme(browser.isIncognito ? .dark : nil)
         .environment(\.isPrivateBrowsing, browser.isIncognito)
         .sheet(item: $browser.themeEditor) { ThemeEditor(spaceID: $0.id).environment(model) }
+        .sheet(item: $browser.spaceEditor) { request in MacSpaceEditor(request: request).environment(model).environment(browser) }
         .sheet(isPresented: $browser.showImport) {
             ArcImportView(store: model.store,
                           applyKeyBindings: { try MacModel.shared.keyBindings.applyArcKeyBindings(fileURL: $0) })
@@ -66,6 +71,12 @@ struct BrowserWindow: View {
             browser.consumePendingURL()
         }
     }
+
+    /// Private tabs keep their titles out of system UI, as the sidebar does.
+    private var windowTitle: String {
+        if browser.isIncognito { return "Incognito" }
+        return browser.activeTab.flatMap { $0.title ?? $0.url?.host() } ?? browser.currentSpace?.title ?? "Folio"
+    }
 }
 
 /// Extra bindings Arc also answers to for split view (⌘⇧= and ⌃⇧D) beside the menu's ⌃⇧=.
@@ -76,6 +87,8 @@ private struct AlternateShortcuts: View {
         ZStack {
             Button("") { browser.toggleSplit() }.keyboardShortcut("=", modifiers: [.command, .shift])
             Button("") { browser.toggleSplit() }.keyboardShortcut("d", modifiers: [.control, .shift])
+            // ⌘= as well as the menu's ⌘+, as Safari does.
+            Button("") { browser.zoom(.in) }.keyboardShortcut("=", modifiers: .command).disabled(browser.activeTab == nil)
             Button("") { browser.commandMode = nil; browser.closePeek(); browser.findVisible = false }
                 .keyboardShortcut(.escape, modifiers: [])
                 .disabled(browser.commandMode == nil && browser.peek == nil && !browser.findVisible)
@@ -125,6 +138,7 @@ struct WindowBackdrop: View {
 /// Hover the left edge with the sidebar hidden to slide it out over the content.
 private struct PeekingSidebar: View {
     @Environment(BrowserState.self) private var browser
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let width: Double
 
     var body: some View {
@@ -140,14 +154,14 @@ private struct PeekingSidebar: View {
                 SidebarView()
                     .frame(width: width)
                     .background { WindowBackdrop() }
-                    .clipShape(.rect(cornerRadius: 12, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(.white.opacity(0.25)))
+                    .clipShape(.rect(cornerRadius: MacRadius.card, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: MacRadius.card, style: .continuous).strokeBorder(.white.opacity(0.25)))
                     .shadow(color: .black.opacity(0.3), radius: 24, x: 6)
                     .padding(6)
                     .onHover { inside in
                         if !inside { withAnimation(.spring(response: 0.32, dampingFraction: 0.9)) { browser.sidebarPeeking = false } }
                     }
-                    .transition(.move(edge: .leading).combined(with: .opacity))
+                    .transition(reduceMotion ? .opacity : .move(edge: .leading).combined(with: .opacity))
             }
         }
     }
@@ -156,17 +170,13 @@ private struct PeekingSidebar: View {
 private struct SidebarResizeHandle: View {
     @Binding var width: Double
     @State private var start: Double?
-    @State private var hovering = false
 
     var body: some View {
         Rectangle()
             .fill(.clear)
             .frame(width: 6)
             .contentShape(Rectangle())
-            .onHover { inside in
-                hovering = inside
-                if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
-            }
+            .pointerStyle(.frameResize(position: .trailing))
             .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
                 .onChanged { value in
                     let origin = start ?? width
@@ -182,6 +192,7 @@ private struct SidebarResizeHandle: View {
 private struct ContentArea: View {
     @Environment(BrowserState.self) private var browser
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// One layout for single and split so a pane keeps its identity (and its WebView) when a split opens or
     /// closes: a WebPage can only be hosted by one WebView at a time. For the same reason panes have no
@@ -215,7 +226,7 @@ private struct ContentArea: View {
             }
             if let peek = browser.peek {
                 PeekOverlay(peek: peek)
-                    .transition(.scale(scale: 0.9).combined(with: .opacity))
+                    .transition(reduceMotion ? .opacity : .scale(scale: 0.9).combined(with: .opacity))
             }
         }
         .padding(.vertical, 8)
@@ -225,20 +236,21 @@ private struct ContentArea: View {
 }
 
 extension View {
-    /// The rounded, slightly lifted card web content sits in.
+    /// The rounded, slightly lifted card web content sits in, concentric with the window's corners.
     func webCard(focused: Bool = false, tint: Color = .accentColor) -> some View {
-        self
+        let shape = ConcentricRectangle(corners: .concentric(minimum: .fixed(MacRadius.card)), isUniform: true)
+        return self
             .background(Color(nsColor: .textBackgroundColor))
-            .clipShape(.rect(cornerRadius: 10, style: .continuous))
+            .clipShape(shape)
             .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(focused ? tint.opacity(0.9) : .black.opacity(0.08), lineWidth: focused ? 2 : 0.5)
+                shape.stroke(focused ? tint.opacity(0.9) : .black.opacity(0.08), lineWidth: focused ? 2 : 0.5)
             }
             .shadow(color: .black.opacity(0.16), radius: 5, y: 1)
     }
 }
 
 private struct EmptyContent: View {
+    @Environment(MacModel.self) private var model
     @Environment(BrowserState.self) private var browser
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -265,7 +277,9 @@ private struct EmptyContent: View {
                     Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                     Text("Search or enter address").foregroundStyle(.secondary)
                     Spacer(minLength: 24)
-                    Text("⌘T").font(.caption.monospaced()).foregroundStyle(.tertiary)
+                    if let shortcut = model.keyBindings.shortcut(.newTab) {
+                        Text(shortcut.displayString).font(.caption.monospaced()).foregroundStyle(.tertiary)
+                    }
                 }
                 .padding(.horizontal, 16).padding(.vertical, 11)
                 .frame(width: 340)
@@ -275,7 +289,7 @@ private struct EmptyContent: View {
             .buttonStyle(.plain)
             .onHover { hovering = $0 }
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: hovering)
-            .accessibilityLabel("New tab")
+            .accessibilityLabel("New Tab")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
@@ -302,10 +316,8 @@ private struct SplitDivider: View {
             .frame(width: 8)
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
-            .onHover { inside in
-                withAnimation(.easeOut(duration: 0.15)) { hovering = inside }
-                if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
-            }
+            .pointerStyle(.columnResize)
+            .onHover { inside in withAnimation(.easeOut(duration: 0.15)) { hovering = inside } }
             .gesture(DragGesture(minimumDistance: 1, coordinateSpace: .global)
                 .onChanged { value in
                     let origin = start ?? browser.split?.fraction ?? 0.5
@@ -324,7 +336,7 @@ private struct PeekOverlay: View {
     var body: some View {
         ZStack {
             Color.black.opacity(0.22)
-                .clipShape(.rect(cornerRadius: 10, style: .continuous))
+                .clipShape(.rect(cornerRadius: MacRadius.card, style: .continuous))
                 .onTapGesture { browser.closePeek() }
             VStack(spacing: 0) {
                 HStack(spacing: 8) {
@@ -334,15 +346,15 @@ private struct PeekOverlay: View {
                         .font(.callout.weight(.medium)).lineLimit(1)
                     Spacer()
                     HoverIconButton(symbol: "arrow.up.left.and.arrow.down.right", help: "Open as Tab") { browser.promotePeek() }
-                    HoverIconButton(symbol: "xmark", help: "Close (Esc)") { browser.closePeek() }
+                    HoverIconButton(symbol: "xmark", help: "Close", hint: "Close (Esc)") { browser.closePeek() }
                 }
                 .padding(.horizontal, 12).frame(height: 38)
                 WebView(peek.page)
                     .overlay(alignment: .top) { LoadingGlow(page: peek.page) }
             }
             .background(.regularMaterial)
-            .clipShape(.rect(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.white.opacity(0.3)))
+            .clipShape(.rect(cornerRadius: MacRadius.panel, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: MacRadius.panel, style: .continuous).strokeBorder(.white.opacity(0.3)))
             .shadow(color: .black.opacity(0.35), radius: 30, y: 12)
             .padding(.horizontal, 56).padding(.vertical, 32)
         }
@@ -353,7 +365,9 @@ private struct PeekOverlay: View {
 
 struct HoverIconButton: View {
     let symbol: String
-    var help: String = ""
+    /// Spoken label and tooltip; `hint` (with a shortcut) replaces the tooltip when given.
+    let help: String
+    var hint: String?
     var size: CGFloat = 26
     let action: () -> Void
     @State private var hovering = false
@@ -363,11 +377,12 @@ struct HoverIconButton: View {
             Image(systemName: symbol)
                 .font(.system(size: 12, weight: .semibold))
                 .frame(width: size, height: size)
-                .background(.primary.opacity(hovering ? 0.12 : 0), in: .rect(cornerRadius: 6, style: .continuous))
+                .background(.primary.opacity(hovering ? 0.12 : 0), in: .rect(cornerRadius: MacRadius.icon, style: .continuous))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(help)
+        .help(hint ?? help)
+        .accessibilityLabel(help)
         .onHover { hovering = $0 }
         .animation(.easeOut(duration: 0.12), value: hovering)
     }
@@ -428,8 +443,9 @@ private struct ToastView: View {
             HStack(spacing: 12) {
                 Text(toast.message).font(.callout.weight(.medium))
                 if toast.canUndo {
-                    Button("Undo  ⌘⇧T") { browser.reopenClosedTab(); model.toast = nil }
+                    Button("Undo") { browser.reopenClosedTab(); model.toast = nil }
                         .buttonStyle(.plain).font(.callout.weight(.bold)).foregroundStyle(.tint)
+                        .help(model.keyBindings.hint("Reopen Closed Tab", .reopenClosedTab))
                 }
             }
             .padding(.horizontal, 16).padding(.vertical, 10)
@@ -487,5 +503,36 @@ struct WindowAccessor: NSViewRepresentable {
 
     func updateNSView(_ view: NSView, context: Context) {
         DispatchQueue.main.async { if let window = view.window { onWindow(window) } }
+    }
+}
+
+/// The shared space editor, saving through the store; a new space opens as soon as it's created.
+private struct MacSpaceEditor: View {
+    @Environment(MacModel.self) private var model
+    @Environment(BrowserState.self) private var browser
+    let request: BrowserState.SpaceEditorRequest
+
+    var body: some View {
+        if let id = request.spaceID, let space = model.space(id) {
+            SpaceEditor(mode: .edit(space, canDelete: model.sidebar.spaces.filter { $0.profileID == space.profileID }.count > 1)) {
+                title, icon, palette in
+                try? model.store?.updateSpace(space.id, title: title, icon: icon, palette: palette)
+            } onDelete: {
+                if browser.spaceID == space.id, let other = model.sidebar.spaces.first(where: { $0.id != space.id }) {
+                    browser.switchSpace(to: other.id)
+                }
+                try? model.store?.deleteSpace(space.id)
+            }
+        } else if let profileID = browser.currentSpace?.profileID ?? model.sidebar.profiles.first(where: \.isDefault)?.id
+                    ?? model.sidebar.profiles.first?.id {
+            SpaceEditor(mode: .create) { title, icon, palette in
+                guard let space = try? model.store?.createSpace(title: title, icon: icon, palette: palette ?? .defaultPalette,
+                                                                profileID: profileID) else { return }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(150))
+                    browser.switchSpace(to: space.id)
+                }
+            }
+        }
     }
 }

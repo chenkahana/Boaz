@@ -50,17 +50,20 @@ struct CommandBar: View {
                     Divider().opacity(0.5)
                     VStack(spacing: 2) {
                         ForEach(Array(suggestions.enumerated()), id: \.element.id) { index, suggestion in
-                            SuggestionRow(suggestion: suggestion, selected: index == selection, tint: tint)
-                                .onTapGesture { run(suggestion) }
-                                .onHover { if $0 { selection = index } }
+                            Button { run(suggestion) } label: {
+                                SuggestionRow(suggestion: suggestion, selected: index == selection, tint: tint)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityAddTraits(index == selection ? .isSelected : [])
+                            .onHover { if $0 { selection = index } }
                         }
                     }
                     .padding(6)
                 }
             }
             .frame(width: 620)
-            .background(.regularMaterial, in: .rect(cornerRadius: 16, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.white.opacity(0.35)))
+            .glassEffect(.regular, in: .rect(cornerRadius: MacRadius.panel))
+            .overlay(RoundedRectangle(cornerRadius: MacRadius.panel, style: .continuous).strokeBorder(.white.opacity(0.35)))
             .shadow(color: tint.opacity(0.25), radius: 30)
             .shadow(color: .black.opacity(0.25), radius: 40, y: 20)
             .padding(.top, 110)
@@ -86,7 +89,7 @@ struct CommandBar: View {
 
     private var placeholder: String {
         switch mode {
-        case .newTab: "Search or enter URL…"
+        case .newTab: "Search or enter address"
         case .currentTab: "Go to…"
         case .split: "Open in split view…"
         }
@@ -156,7 +159,7 @@ private struct SuggestionRow: View {
                 Text(isSearch ? "Search" : url.host() ?? "").font(.caption).foregroundStyle(.secondary)
             case .tab(let tab):
                 SiteMonogram(url: tab.url, tint: tint, size: 20)
-                Text(tab.title ?? tab.url?.host() ?? "Tab").lineLimit(1)
+                Text(tab.title ?? tab.url?.host() ?? "New Tab").lineLimit(1)
                 Spacer()
                 Text("Switch to Tab").font(.caption).foregroundStyle(.secondary)
             case .history(let visit):
@@ -168,7 +171,7 @@ private struct SuggestionRow: View {
         }
         .font(.system(size: 14))
         .padding(.horizontal, 12).frame(height: 36)
-        .background(selected ? tint.opacity(0.22) : .clear, in: .rect(cornerRadius: 9, style: .continuous))
+        .background(selected ? tint.opacity(0.22) : .clear, in: .rect(cornerRadius: MacRadius.row, style: .continuous))
         .contentShape(Rectangle())
     }
 }

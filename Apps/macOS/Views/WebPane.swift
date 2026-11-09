@@ -8,6 +8,7 @@ struct TabPane: View {
     @Environment(BrowserState.self) private var browser
     let tab: SidebarItem
     let inSplit: Bool
+    @State private var failure: LoadFailure?
 
     var body: some View {
         let page = browser.page(for: tab)
@@ -16,20 +17,86 @@ struct TabPane: View {
             WebView(page)
                 .webViewBackForwardNavigationGestures(.enabled)
                 .webViewMagnificationGestures(.enabled)
+                // The system find bar: match count, ⌘G and ⇧⌘G.
+                .findNavigator(isPresented: Binding {
+                    browser.findVisible && browser.activeTabID == tab.id
+                } set: { browser.findVisible = $0 })
+                .overlay { if let failure { LoadFailureView(failure: failure, page: page) } }
                 .overlay(alignment: .top) { LoadingGlow(page: page) }
-                .overlay(alignment: .topTrailing) {
-                    if browser.findVisible && browser.activeTabID == tab.id {
-                        FindBar(page: page).transition(.move(edge: .top).combined(with: .opacity))
-                    }
-                }
-                .animation(.spring(response: 0.3, dampingFraction: 0.85), value: browser.findVisible)
         }
+        .task(id: ObjectIdentifier(page)) { await track(page) }
         .onChange(of: page.url) { browser.didNavigate(tab.id, url: page.url, title: page.title) }
         .onChange(of: page.title) { browser.didNavigate(tab.id, url: page.url, title: page.title) }
         .onAppear { browser.updateSiteColor(tab.id, page: page) }
         .onChange(of: page.url) { browser.updateSiteColor(tab.id, page: page) }
         .onChange(of: page.isLoading) { browser.updateSiteColor(tab.id, page: page) }
         .onChange(of: page.isLoading) { browser.pageDidFinishLoading(page: page) }
+    }
+
+    /// The page's only `navigations` subscriber. A failed load ends the sequence with an error, so it
+    /// resubscribes rather than stopping for the life of the tab.
+    private func track(_ page: WebPage) async {
+        failure = nil
+        while !Task.isCancelled {
+            do {
+                for try await event in page.navigations {
+                    switch event {
+                    case .startedProvisionalNavigation: failure = nil
+                    case .committed, .finished: if PageZoom.level(for: page.url) != 1 { PageZoom.apply(to: page) }
+                    default: break
+                    }
+                }
+                return
+            } catch WebPage.NavigationError.pageClosed {
+                return
+            } catch {
+                failure = LoadFailure(error)
+                // Never spin if resubscribing fails straight away.
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+        }
+    }
+}
+
+/// Why a page didn't load, and what to load to retry it.
+struct LoadFailure {
+    let message: String
+    let url: URL?
+
+    /// Nil for loads that were stopped on purpose (a new navigation, a download, a link routed elsewhere).
+    init?(_ error: Error) {
+        var underlying = error
+        if case WebPage.NavigationError.failedProvisionalNavigation(let inner) = error { underlying = inner }
+        let nsError = underlying as NSError
+        if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled { return nil }
+        // WebKitErrorFrameLoadInterruptedByPolicyChange and WebKitErrorPlugInWillHandleLoad.
+        if nsError.domain == "WebKitErrorDomain" && [102, 204].contains(nsError.code) { return nil }
+        message = switch error {
+        case WebPage.NavigationError.webContentProcessTerminated: "The page stopped working."
+        case WebPage.NavigationError.invalidURL: "The address isn't valid."
+        default: nsError.localizedDescription
+        }
+        url = nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL
+    }
+}
+
+private struct LoadFailureView: View {
+    let failure: LoadFailure
+    let page: WebPage
+
+    var body: some View {
+        ContentUnavailableView {
+            Label("Can't Open This Page", systemImage: "wifi.exclamationmark")
+        } description: {
+            Text(failure.message)
+        } actions: {
+            Button("Try Again") {
+                if let url = failure.url { _ = page.load(URLRequest(url: url)) } else { _ = page.reload() }
+            }
+            .buttonStyle(.glass)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: .textBackgroundColor))
     }
 }
 
@@ -42,7 +109,7 @@ private struct PaneHeader: View {
     var body: some View {
         let focused = browser.activeTabID == tab.id
         HStack(spacing: 8) {
-            Text(page.title.isEmpty ? (tab.title ?? page.url?.host() ?? "Tab") : page.title)
+            Text(page.title.isEmpty ? (tab.title ?? page.url?.host() ?? "New Tab") : page.title)
                 .font(.caption.weight(focused ? .semibold : .regular))
                 .lineLimit(1)
             Spacer()
@@ -59,53 +126,6 @@ private struct PaneHeader: View {
         .contentShape(Rectangle())
         .onTapGesture { browser.focusPane(tab.id) }
         .onHover { hovering = $0 }
-    }
-}
-
-/// ⌘F: WebKit's own `window.find`, which selects and scrolls to each match.
-private struct FindBar: View {
-    @Environment(BrowserState.self) private var browser
-    let page: WebPage
-    @State private var text = ""
-    @State private var missed = false
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-            TextField("Find in page", text: $text)
-                .textFieldStyle(.plain)
-                .frame(width: 180)
-                .focused($focused)
-                .onSubmit { find(backwards: NSEvent.modifierFlags.contains(.shift)) }
-                .onChange(of: text) { find(backwards: false, fromStart: true) }
-            if missed { Text("No matches").font(.caption).foregroundStyle(.secondary) }
-            HoverIconButton(symbol: "chevron.up", size: 22) { find(backwards: true) }
-            HoverIconButton(symbol: "chevron.down", size: 22) { find(backwards: false) }
-            HoverIconButton(symbol: "xmark", size: 22) { close() }
-        }
-        .padding(.horizontal, 10).padding(.vertical, 6)
-        .glassEffect(.regular, in: .capsule)
-        .shadow(color: .black.opacity(0.15), radius: 10, y: 3)
-        .padding(10)
-        .onAppear { focused = true }
-        .onKeyPress(.escape) { close(); return .handled }
-    }
-
-    private func find(backwards: Bool, fromStart: Bool = false) {
-        let query = text
-        Task {
-            if fromStart { _ = try? await page.callJavaScript("window.getSelection().removeAllRanges()") }
-            guard !query.isEmpty else { missed = false; return }
-            let found = try? await page.callJavaScript("return window.find(q, false, b, true, false, false, false);",
-                                                       arguments: ["q": query, "b": backwards])
-            missed = (found as? Bool) == false
-        }
-    }
-
-    private func close() {
-        browser.findVisible = false
-        Task { _ = try? await page.callJavaScript("window.getSelection().removeAllRanges()") }
     }
 }
 
@@ -157,7 +177,7 @@ struct LittleFolioWindow: View {
                     Color(nsColor: .textBackgroundColor)
                 }
             }
-            .clipShape(.rect(cornerRadius: 9, style: .continuous))
+            .clipShape(.rect(cornerRadius: MacRadius.row, style: .continuous))
             .shadow(color: .black.opacity(0.15), radius: 4, y: 1)
             .padding([.horizontal, .bottom], 6)
         }

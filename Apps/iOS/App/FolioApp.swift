@@ -2,6 +2,7 @@ import BackgroundTasks
 import CloudKit
 import FolioKit
 import SwiftUI
+import TipKit
 import UIKit
 
 @main
@@ -13,6 +14,11 @@ struct FolioApp: App {
 
     /// Background refresh that pulls other devices' changes.
     static let syncTaskID = "com.chenkahana.folio.sync"
+
+    init() {
+        // Gesture tips: each shows once, and at most one a day, so they stay out of the way.
+        try? Tips.configure([.displayFrequency(.daily)])
+    }
 
     var body: some Scene {
         WindowGroup {

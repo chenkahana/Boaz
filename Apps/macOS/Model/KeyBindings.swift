@@ -100,6 +100,37 @@ struct StoredShortcut: Codable, Hashable {
     }
 }
 
+extension KeyboardShortcut {
+    /// Menu-style glyphs ("⇧⌘T"), so hints follow rebound shortcuts.
+    var displayString: String {
+        var text = ""
+        if modifiers.contains(.control) { text += "⌃" }
+        if modifiers.contains(.option) { text += "⌥" }
+        if modifiers.contains(.shift) { text += "⇧" }
+        if modifiers.contains(.command) { text += "⌘" }
+        switch key {
+        case .leftArrow: text += "←"
+        case .rightArrow: text += "→"
+        case .upArrow: text += "↑"
+        case .downArrow: text += "↓"
+        case .tab: text += "⇥"
+        case .return: text += "↩"
+        case .escape: text += "⎋"
+        case .space: text += "Space"
+        case .delete: text += "⌫"
+        default: text += String(key.character).uppercased()
+        }
+        return text
+    }
+}
+
+extension KeyBindings {
+    /// "Title (⌘X)" for tooltips, using the live binding.
+    func hint(_ title: String, _ command: BrowserCommand) -> String {
+        shortcut(command).map { "\(title) (\($0.displayString))" } ?? title
+    }
+}
+
 /// Live shortcut table: Arc defaults plus user overrides (persisted, and importable from Arc).
 @Observable
 final class KeyBindings {

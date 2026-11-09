@@ -28,6 +28,14 @@ enum Theme {
                                      startPoint: .leading, endPoint: .trailing)
 
     static let cornerRadius: CGFloat = 18
+
+    /// iOS corner radii, smallest to largest, so rows, tiles and cards nest consistently.
+    enum Radius {
+        static let row: CGFloat = 12
+        static let tile: CGFloat = 18
+        static let card: CGFloat = 20
+        static let sheet: CGFloat = 30
+    }
 }
 
 struct CardStyle: ViewModifier {

@@ -65,7 +65,7 @@ private struct IncognitoPage: View {
                 Button("Leave Incognito") { model.setIncognito(false) }
                     .buttonStyle(.bordered).tint(.white)
             }
-            .padding(.horizontal, 20).padding(.top, 60).padding(.bottom, 120)
+            .padding(.horizontal, 20).padding(.top, 24).padding(.bottom, 120)
         }
         .collapsesToolRail()
         .foregroundStyle(.white)
@@ -84,18 +84,30 @@ private struct SpacePage: View {
     var body: some View {
         let style = SpaceStyle(space, scheme: scheme)
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
+            VStack(alignment: .leading, spacing: isSidebar ? 14 : 20) {
                 HStack(spacing: isSidebar ? 8 : 10) {
-                    Text(space.icon ?? "✦").font(isSidebar ? .title3 : .title)
-                    Text(space.title).font(.system(isSidebar ? .title2 : .largeTitle, design: .rounded, weight: .bold))
-                        .lineLimit(1)
+                    // Tapping the name switches, adds, edits or reorders spaces.
+                    SpaceTitleMenu(space: space) {
+                        HStack(spacing: isSidebar ? 8 : 10) {
+                            Text(space.icon ?? "✦").font(isSidebar ? .title3 : .title)
+                            Text(space.title).font(.system(isSidebar ? .title2 : .largeTitle, design: .rounded, weight: .bold))
+                                .lineLimit(1)
+                            Image(systemName: "chevron.down")
+                                .font((isSidebar ? Font.footnote : .callout).weight(.bold))
+                                .opacity(0.45)
+                        }
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(.isHeader)
                     if isSidebar, let sidebar {
                         Spacer(minLength: 4)
                         Button("Hide Sidebar", systemImage: "sidebar.left", action: sidebar.toggle)
                             .labelStyle(.iconOnly)
                             .font(.body.weight(.semibold))
                             .foregroundStyle(.secondary)
-                            .frame(width: 36, height: 36)
+                            .frame(width: 44, height: 44)
                             .contentShape(.rect)
                     }
                 }
@@ -105,26 +117,27 @@ private struct SpacePage: View {
 
                 let favorites = model.favorites(for: space)
                 if !favorites.isEmpty {
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: isSidebar ? 8 : 12), count: 4),
+                              spacing: isSidebar ? 8 : 12) {
                         ForEach(favorites) { FavoriteTile(tab: $0, tint: style.tint) }
                     }
                 }
 
                 let pinned = model.pinnedItems(in: space)
                 if !pinned.isEmpty {
-                    VStack(spacing: 2) {
+                    VStack(spacing: 0) {
                         ForEach(pinned) { PinnedRow(item: $0, tint: style.tint, depth: 0) }
                     }
-                    .padding(8)
-                    .background(.ultraThinMaterial, in: .rect(cornerRadius: Theme.cornerRadius))
+                    .padding(isSidebar ? 4 : 8)
+                    .background(.ultraThinMaterial, in: .rect(cornerRadius: Theme.Radius.tile))
                 }
 
                 let today = model.todayTabs(in: space)
                 if isSidebar {
                     // The sidebar lists Today like Arc: a new-tab row, then one row per tab.
-                    VStack(spacing: 2) {
+                    VStack(spacing: 0) {
                         Capsule().fill(style.foreground.opacity(0.12)).frame(height: 1)
-                            .padding(.horizontal, 10).padding(.bottom, 8)
+                            .padding(.horizontal, 10).padding(.bottom, 6)
                         TodayRow.newTab(tint: style.tint)
                         ForEach(today) { TodayRow(tab: $0, tint: style.tint) }
                     }
@@ -133,17 +146,18 @@ private struct SpacePage: View {
                     searchField(style)
                         .transition(.opacity.combined(with: .scale(scale: 0.96)))
                 } else {
-                    VStack(alignment: .leading, spacing: 22) {
+                    VStack(alignment: .leading, spacing: 12) {
                         Text("Today")
                             .font(.footnote.weight(.semibold)).textCase(.uppercase)
                             .foregroundStyle(style.foreground.opacity(0.6))
+                            .accessibilityAddTraits(.isHeader)
                         TodayGrid(tabs: today, tint: style.tint, zoom: zoom)
                     }
                     .transition(.opacity)
                 }
             }
             .padding(.horizontal, isSidebar ? 14 : 20)
-            .padding(.top, isSidebar ? 12 : 60)
+            .padding(.top, isSidebar ? 12 : 24)
             .padding(.bottom, isSidebar ? 40 : 120)
             .animation(.snappy, value: model.todayTabs(in: space).isEmpty)
         }
@@ -169,7 +183,6 @@ private struct SpacePage: View {
 /// A Today tab as a sidebar row: tap to open, × (or the context menu) to close.
 private struct TodayRow: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.colorScheme) private var scheme
     @Environment(\.sidebar) private var sidebar
     let tab: SidebarItem
     let tint: Color
@@ -184,24 +197,26 @@ private struct TodayRow: View {
                 Spacer(minLength: 0)
             }
             .font(.callout)
-            .padding(.vertical, 9).padding(.leading, 10).padding(.trailing, 36)
+            .padding(.vertical, 7).padding(.leading, 10).padding(.trailing, 44)
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        // The row stays 36pt for a dense list; the close target is 44pt wide and spans the row's full height.
         .overlay(alignment: .trailing) {
             Button("Close", systemImage: "xmark") { withAnimation(.snappy) { model.close(tab) } }
                 .labelStyle(.iconOnly)
                 .font(.caption.weight(.semibold))
                 .opacity(active ? 0.8 : 0.35)
-                .frame(width: 36, height: 36)
+                .frame(width: 44)
+                .frame(maxHeight: .infinity)
                 .contentShape(.rect)
                 .buttonStyle(.plain)
         }
-        .background(.white.opacity(active ? (scheme == .dark ? 0.14 : 0.55) : 0), in: .rect(cornerRadius: 12))
+        .selectedRowBackground(active)
         .animation(.snappy, value: active)
         .contextMenu {
             Button("Pin", systemImage: "pin") { model.togglePin(tab) }
-            Button("Close", systemImage: "xmark", role: .destructive) { model.close(tab) }
+            Button("Archive Tab", systemImage: "archivebox", role: .destructive) { model.close(tab) }
         }
         .transition(.opacity.combined(with: .move(edge: .leading)))
     }
@@ -221,7 +236,7 @@ private struct NewTabRow: View {
             }
             .font(.callout)
             .opacity(0.7)
-            .padding(.vertical, 9).padding(.horizontal, 10)
+            .padding(.vertical, 7).padding(.horizontal, 10)
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
@@ -256,8 +271,11 @@ struct HomeBar: View {
                     .background(Theme.brand.gradient, in: .circle)
             }
         } else {
-            VStack(spacing: 10) {
+            VStack(spacing: 8) {
+                // Its own glass capsule, so the dots don't float over the cards scrolling beneath.
                 spaceDots
+                    .padding(.horizontal, 6)
+                    .glassEffect(.regular, in: .capsule)
                 HStack(spacing: 10) {
                     if let sidebar {
                         Button(action: sidebar.toggle) { RailIcon(symbol: "sidebar.left", size: 50) }
@@ -288,7 +306,7 @@ struct HomeBar: View {
 
     @ViewBuilder private var spaceDots: some View {
         if model.spaces.count > 1, !model.isIncognito {
-            let stack = axis.stack(spacing: 6)
+            let stack = axis.stack(spacing: 0)
             stack {
                 ForEach(model.spaces) { space in
                     let current = space.id == model.currentSpaceID
@@ -297,13 +315,25 @@ struct HomeBar: View {
                             .fill(.primary.opacity(current ? 0.8 : 0.25))
                             .frame(width: axis == .horizontal && current ? 18 : 6,
                                    height: axis == .vertical && current ? 18 : 6)
+                            // Padding widens each dot's hit area without moving the dots apart.
+                            .padding(axis == .horizontal ? .horizontal : .vertical, 3)
+                            .padding(axis == .horizontal ? .vertical : .horizontal, 7)
+                            .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(space.title)
-                    .accessibilityAddTraits(current ? .isSelected : [])
                 }
             }
             .animation(.bouncy(duration: 0.35, extraBounce: 0.1), value: model.currentSpaceID)
+            // VoiceOver reads the strip as one control and swipes up or down to change space.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Space")
+            .accessibilityValue(model.spaces.first { $0.id == model.currentSpaceID }?.title ?? "")
+            .accessibilityAdjustableAction { direction in
+                guard let index = model.spaces.firstIndex(where: { $0.id == model.currentSpaceID }) else { return }
+                let next = direction == .increment ? index + 1 : direction == .decrement ? index - 1 : index
+                guard model.spaces.indices.contains(next) else { return }
+                withAnimation(.smooth) { model.currentSpaceID = model.spaces[next].id }
+            }
         }
     }
 }
@@ -320,13 +350,23 @@ struct HomeMenu: View {
             if inDock { RailGlyph(symbol: "line.3.horizontal") } else { RailIcon(symbol: "line.3.horizontal", size: 50) }
         }
         .buttonStyle(PressableStyle())
+        .accessibilityLabel("Menu")
     }
 }
 
 struct HomeMenuItems: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.spaceEditing) private var spaceEditing
 
     var body: some View {
+        if !model.isIncognito, let space = model.currentSpace {
+            Section {
+                Button("New Space…", systemImage: "plus.rectangle.on.rectangle") {
+                    spaceEditing.request = .create(profileID: space.profileID)
+                }
+                Button("Edit Space…", systemImage: "paintpalette") { spaceEditing.request = .edit(space) }
+            }
+        }
         Button("Library", systemImage: "archivebox") { model.sheet = .library }
         Button(model.isIncognito ? "Leave Incognito" : "Incognito",
                systemImage: "eyeglasses") { model.setIncognito(!model.isIncognito) }
@@ -334,14 +374,20 @@ struct HomeMenuItems: View {
     }
 }
 
-/// Today's tabs in two columns. Holding a card opens its menu.
+/// Today's tabs as cards, as many columns as fit (three on the cover screen). Holding a card opens its menu.
 private struct TodayGrid: View {
     let tabs: [SidebarItem]
     let tint: Color
     let zoom: Namespace.ID?
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @ScaledMetric(relativeTo: .subheadline) private var minCardWidth: CGFloat = 100
 
     var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+        // At accessibility text sizes the cards need the full width to show the title.
+        let columns = typeSize.isAccessibilitySize
+            ? [GridItem(.flexible())]
+            : [GridItem(.adaptive(minimum: minCardWidth), spacing: 10)]
+        LazyVGrid(columns: columns, spacing: 10) {
             ForEach(tabs) { tab in
                 TabCard(tab: tab, tint: tint)
                     .matchedTransitionSourceIfPresent(id: tab.id, in: zoom)
@@ -353,7 +399,9 @@ private struct TodayGrid: View {
 
 struct TabCard: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.colorScheme) private var scheme
     @AppStorage("delight.celebratedFirstPin") private var celebratedFirstPin = false
+    @ScaledMetric(relativeTo: .subheadline) private var height: CGFloat = 124
     let tab: SidebarItem
     let tint: Color
     var body: some View {
@@ -361,21 +409,43 @@ struct TabCard: View {
             Group {
                 if let snapshot = model.snapshots[tab.id] { preview(snapshot) } else { monogramLayout }
             }
-            .frame(height: 150)
-            .background(.regularMaterial, in: .rect(cornerRadius: 22))
+            // Grows with Dynamic Type instead of clipping the title.
+            .frame(minHeight: height, idealHeight: height)
+            .background(.regularMaterial, in: .rect(cornerRadius: Theme.Radius.card))
+            .overlay {
+                // A hairline edge keeps dark cards from melting into a dark backdrop.
+                if scheme == .dark {
+                    RoundedRectangle(cornerRadius: Theme.Radius.card).strokeBorder(.white.opacity(0.1), lineWidth: 0.5)
+                }
+            }
         }
         .buttonStyle(PressableStyle())
+        .accessibilityAction(named: "Close") { model.close(tab) }
+        .accessibilityAction(named: "Pin") { pin() }
         .contextMenu {
             Button("Pin", systemImage: "pin") { pin() }
-            Button("Close", systemImage: "xmark", role: .destructive) { model.close(tab) }
+            Button("Archive Tab", systemImage: "archivebox", role: .destructive) { model.close(tab) }
         }
+        // Outside the card's label, so it's its own 44pt target and VoiceOver element.
+        .overlay(alignment: .topTrailing) { closeButton }
     }
 
     private var title: String { tab.title ?? tab.url?.host() ?? "New Tab" }
+    /// "theverge.com", not "www.theverge.com": the narrower card has no room for the prefix.
+    private var displayHost: String {
+        let host = tab.url?.host() ?? ""
+        return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+    }
 
     private var closeButton: some View {
         Button { model.close(tab) } label: {
-            Image(systemName: "xmark").font(.caption.weight(.bold)).padding(6)
+            Image(systemName: "xmark").font(.caption2.weight(.bold))
+                .frame(width: 18, height: 18)
+                .background {
+                    if model.snapshots[tab.id] != nil { Circle().fill(.ultraThinMaterial) }
+                }
+                .frame(width: 44, height: 44)
+                .contentShape(.rect)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Close \(title)")
@@ -383,29 +453,28 @@ struct TabCard: View {
     }
 
     private var monogramLayout: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Monogram(url: tab.url, tint: tint, size: 28)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .top) {
+                Monogram(url: tab.url, tint: tint, size: 26)
                 Spacer()
-                closeButton
             }
             Spacer(minLength: 0)
-            Text(title).font(.subheadline.weight(.semibold)).lineLimit(2)
-            Text(tab.url?.host() ?? "").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            Text(title).font(.footnote.weight(.semibold)).lineLimit(2)
+            Text(displayHost).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
         }
-        .padding(14)
+        .padding(12)
     }
+
+    /// Concentric with the card around the 7pt inset.
+    private var innerRadius: CGFloat { Theme.Radius.card - 7 }
 
     /// Last rendered page, top-aligned, with the monogram and title as a footer.
     private func preview(_ snapshot: UIImage) -> some View {
         VStack(spacing: 0) {
             Color.clear
                 .overlay(alignment: .top) { Image(uiImage: snapshot).resizable().scaledToFill() }
-                .clipShape(.rect(cornerRadius: 15))
-                .overlay { RoundedRectangle(cornerRadius: 15).strokeBorder(.primary.opacity(0.1), lineWidth: 0.5) }
-                .overlay(alignment: .topTrailing) {
-                    closeButton.background(.ultraThinMaterial, in: .circle).padding(5)
-                }
+                .clipShape(.rect(cornerRadius: innerRadius))
+                .overlay { RoundedRectangle(cornerRadius: innerRadius).strokeBorder(.primary.opacity(0.1), lineWidth: 0.5) }
             HStack(spacing: 7) {
                 Monogram(url: tab.url, tint: tint, size: 20)
                 Text(title).font(.caption.weight(.semibold)).lineLimit(1)
@@ -433,6 +502,7 @@ private struct FavoriteTile: View {
     @Environment(\.sidebar) private var sidebar
     let tab: SidebarItem
     let tint: Color
+    @Environment(\.isSidebar) private var isSidebar
     @State private var taps = 0
 
     var body: some View {
@@ -441,20 +511,23 @@ private struct FavoriteTile: View {
             model.activate(tab)
             sidebar?.didPick()
         } label: {
-            Monogram(url: tab.url, tint: tint, size: 30)
-                .frame(maxWidth: .infinity, minHeight: 64)
-                .background(.ultraThinMaterial, in: .rect(cornerRadius: 18))
+            Monogram(url: tab.url, tint: tint, size: isSidebar ? 24 : 28)
+                .frame(maxWidth: .infinity, minHeight: isSidebar ? 46 : 58)
+                .background(.ultraThinMaterial, in: .rect(cornerRadius: Theme.Radius.tile))
         }
         .buttonStyle(PressableStyle())
         .accessibilityLabel(tab.title ?? tab.url?.host() ?? "Favorite")
         .sparkle(trigger: taps)
+        .contextMenu {
+            Button("Open", systemImage: "arrow.up.right.square") { model.activate(tab); sidebar?.didPick() }
+            if let url = tab.url { ShareLink("Share", item: url) }
+        }
     }
 }
 
 private struct PinnedRow: View {
     @Environment(AppModel.self) private var model
     @Environment(\.sidebar) private var sidebar
-    @Environment(\.colorScheme) private var scheme
     let item: SidebarItem
     let tint: Color
     let depth: Int
@@ -471,6 +544,8 @@ private struct PinnedRow: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityValue(item.isExpanded ? "Expanded" : "Collapsed")
+            .accessibilityHint("Shows or hides the folder's tabs")
             if item.isExpanded {
                 ForEach(model.sidebar.children(of: item.id)) { PinnedRow(item: $0, tint: tint, depth: depth + 1) }
             }
@@ -480,7 +555,7 @@ private struct PinnedRow: View {
             Button { model.activate(item); sidebar?.didPick() } label: {
                 row {
                     Monogram(url: item.url, tint: tint, size: 24)
-                    Text(item.title ?? item.url?.host() ?? "Tab").lineLimit(1)
+                    Text(item.title ?? item.url?.host() ?? "New Tab").lineLimit(1)
                         .fontWeight(active ? .semibold : .regular)
                     Spacer()
                 }
@@ -495,13 +570,14 @@ private struct PinnedRow: View {
                     }
                     .labelStyle(.iconOnly)
                     .font(.caption.weight(.semibold))
-                    .frame(width: 36, height: 36)
+                    .frame(width: 44)
+                    .frame(maxHeight: .infinity)
                     .contentShape(.rect)
                     .buttonStyle(.plain)
                     .transition(.scale.combined(with: .opacity))
                 }
             }
-            .background(.white.opacity(active ? (scheme == .dark ? 0.14 : 0.55) : 0), in: .rect(cornerRadius: 12))
+            .selectedRowBackground(active)
             .animation(.snappy, value: active)
             .animation(.snappy, value: wandered)
             .contextMenu {
@@ -518,13 +594,34 @@ private struct PinnedRow: View {
     private func row(@ViewBuilder _ content: () -> some View) -> some View {
         HStack(spacing: 10) { content() }
             .font(.callout)
-            .padding(.vertical, 9).padding(.horizontal, 10)
+            .padding(.vertical, 7).padding(.horizontal, 10)
             .padding(.leading, CGFloat(depth) * 18)
             .contentShape(.rect)
     }
 }
 
+/// The active-row fill, stronger and outlined under Increase Contrast so the selection stays visible.
+private struct SelectedRowBackground: ViewModifier {
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
+    let active: Bool
+
+    func body(content: Content) -> some View {
+        let increased = contrast == .increased
+        let fill = scheme == .dark ? (increased ? 0.35 : 0.14) : (increased ? 0.9 : 0.55)
+        content
+            .background(.white.opacity(active ? fill : 0), in: .rect(cornerRadius: Theme.Radius.row))
+            .overlay {
+                if active, increased {
+                    RoundedRectangle(cornerRadius: Theme.Radius.row).strokeBorder(.primary.opacity(0.4), lineWidth: 1)
+                }
+            }
+    }
+}
+
 extension View {
+    fileprivate func selectedRowBackground(_ active: Bool) -> some View { modifier(SelectedRowBackground(active: active)) }
+
     @ViewBuilder
     func matchedTransitionSourceIfPresent(id: String, in namespace: Namespace.ID?) -> some View {
         if let namespace { matchedTransitionSource(id: id, in: namespace) } else { self }

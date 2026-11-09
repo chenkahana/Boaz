@@ -30,15 +30,15 @@ struct ShareRootView: View {
                     Button { model.save(pinned: true) } label: {
                         Label("Pin", systemImage: "pin.fill").frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.glass)
 
                     Button { model.save(pinned: false) } label: {
                         Label("Add to Today", systemImage: "plus").frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.glassProminent)
                 }
                 .tint(Theme.brand)
-                .disabled(model.pageURL == nil || model.selectedSpaceID == nil)
+                .disabled(model.pageURL == nil || model.selectedSpaceID == nil || model.didSave)
 
                 if let errorMessage = model.errorMessage {
                     Text(errorMessage).font(.caption).foregroundStyle(.red)
@@ -49,10 +49,27 @@ struct ShareRootView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { model.cancel() }
+                    Button("Cancel", role: .cancel) { model.cancel() }
                 }
             }
-            .onChange(of: model.didSave) { _, saved in if saved { model.complete() } }
+            .overlay {
+                if model.didSave {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 64))
+                        .foregroundStyle(.white, Theme.brand)
+                        .symbolEffect(.bounce, options: .nonRepeating, value: model.didSave)
+                        .transition(.scale.combined(with: .opacity))
+                        .accessibilityLabel("Added to Folio")
+                }
+            }
+            .animation(.snappy, value: model.didSave)
+            .sensoryFeedback(.success, trigger: model.didSave) { _, saved in saved }
+            // Hold the checkmark briefly so the save reads as done before the sheet closes.
+            .task(id: model.didSave) {
+                guard model.didSave else { return }
+                try? await Task.sleep(for: .milliseconds(600))
+                model.complete()
+            }
         }
     }
 

@@ -21,6 +21,10 @@ final class BrowserState {
     }
 
     struct SpaceRef: Identifiable { let id: String }
+    struct SpaceEditorRequest: Identifiable {
+        let id = UUID()
+        var spaceID: String?
+    }
     struct RenameRequest: Identifiable {
         enum Target { case item(SidebarItem), space(Space) }
         let id = UUID()
@@ -40,6 +44,8 @@ final class BrowserState {
     var sidebarPeeking = false { didSet { updateTrafficLights() } }
     var findVisible = false
     var themeEditor: SpaceRef?
+    /// The space editor sheet: a new space (nil id) or the space with this id.
+    var spaceEditor: SpaceEditorRequest?
     var rename: RenameRequest?
     var showImport = false
     var onboarding: OnboardingView.Step?
@@ -334,6 +340,31 @@ final class BrowserState {
         page.load(item)
     }
 
+    func zoom(_ change: PageZoom.Change) {
+        guard let page = activePage else { return }
+        PageZoom.change(change, for: page, remember: !isIncognito)
+    }
+
+    /// Prints the active page through a PDF of it, split across sheets at the paper's width.
+    func printActive() {
+        guard let page = activePage else { return }
+        Task {
+            guard let data = try? await page.exported(as: .pdf()), let image = NSImage(data: data) else {
+                model.showToast("Couldn't print this page")
+                return
+            }
+            let view = NSImageView(frame: NSRect(origin: .zero, size: image.size))
+            view.image = image
+            view.imageScaling = .scaleProportionallyUpOrDown
+            let info = (NSPrintInfo.shared.copy() as? NSPrintInfo) ?? NSPrintInfo()
+            info.horizontalPagination = .fit
+            info.verticalPagination = .automatic
+            let operation = NSPrintOperation(view: view, printInfo: info)
+            operation.jobTitle = page.title.isEmpty ? (page.url?.host() ?? "Folio") : page.title
+            if let window { operation.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil) } else { operation.run() }
+        }
+    }
+
     func cycleTab(by offset: Int) {
         let tabs = cycleTabs
         guard !tabs.isEmpty else { return }
@@ -387,11 +418,8 @@ final class BrowserState {
         switchSpace(to: spaces[number - 1].id)
     }
 
-    func newSpace() {
-        guard let space = model.newSpace(profileID: currentSpace?.profileID) else { return }
-        switchSpace(to: space.id)
-        rename = RenameRequest(target: .space(space), text: space.title)
-    }
+    /// Opens the space editor to name, icon and color the new space before it's created.
+    func newSpace() { spaceEditor = SpaceEditorRequest(spaceID: nil) }
 
     // MARK: Split view & peek
 
@@ -461,7 +489,12 @@ final class BrowserState {
     // MARK: External
 
     func consumePendingURL() {
-        guard !isIncognito, let url = model.pendingMainURL else { return }
+        guard !isIncognito else { return }
+        if let id = model.pendingMainTabID {
+            model.pendingMainTabID = nil
+            if let tab = tab(id) { activate(tab) }
+        }
+        guard let url = model.pendingMainURL else { return }
         model.pendingMainURL = nil
         openTab(url)
     }

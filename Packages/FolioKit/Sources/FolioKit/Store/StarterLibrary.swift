@@ -71,6 +71,29 @@ public enum StarterLibrary {
         }
     }
 
+    /// Removes the starter Personal space once the library has spaces of its own (synced from another device or
+    /// imported), but only if the starter was never edited and holds nothing. Otherwise a device that joins an
+    /// existing library shows an extra, empty "Personal". Called after a full fetch, so anything another device
+    /// put in the starter space has arrived first. Returns whether it removed it.
+    @discardableResult
+    public static func retireUnusedStarterSpace(_ store: FolioStore, now: Date = .now) throws -> Bool {
+        try store.writer.write { db in
+            let live = Column("deletedAt") == nil
+            guard var space = try Space.filter(live && Column("id") == spaceID).fetchOne(db),
+                  space.modifiedAt == starterStamp,
+                  try Space.filter(live && Column("profileID") == space.profileID && Column("id") != spaceID).fetchCount(db) > 0
+            else { return false }
+            let containers = try SidebarItem.filter(live && Column("spaceID") == spaceID && Column("kind") == "container").fetchAll(db)
+            guard try SidebarItem.filter(live && containers.map(\.id).contains(Column("parentID"))).fetchCount(db) == 0
+            else { return false }
+            for var container in containers { container.deletedAt = now; container.modifiedAt = now; try container.update(db) }
+            space.deletedAt = now
+            space.modifiedAt = now
+            try space.update(db)
+            return true
+        }
+    }
+
     /// Whether the library holds spaces or tabs of the user's own, beyond these starter records and the sample
     /// library development builds used to seed (`fav-N`, `space-N…`).
     public static func hasUserContent(_ store: FolioStore) throws -> Bool {

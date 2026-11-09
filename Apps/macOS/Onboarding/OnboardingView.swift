@@ -3,17 +3,19 @@ import FolioKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// First-run setup in a sheet over the main window: welcome, bring your browser, sync, default browser, done.
+/// First-run setup in a sheet over the main window: sign in to iCloud, bring your browser, default browser, done.
+/// Signing in comes first so everything imported afterwards syncs to the iPhone.
 /// File ▸ Import from Another Browser… opens just the browser page.
 struct OnboardingView: View {
     enum Step: Int, CaseIterable, Identifiable {
-        case welcome, browsers, sync, defaultBrowser, done
+        case welcome, browsers, defaultBrowser, done
         var id: Self { self }
     }
 
     @Environment(MacModel.self) private var model
     @Environment(BrowserState.self) private var browser
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let steps: [Step]
@@ -52,12 +54,13 @@ struct OnboardingView: View {
     @ViewBuilder private var page: some View {
         switch step {
         case .welcome:
-            VStack(spacing: 28) {
-                Spacer()
-                OnboardingHero(size: 148)
+            VStack(spacing: 24) {
+                Spacer(minLength: 0)
+                OnboardingHero(size: 112)
                 OnboardingHeading(title: "Welcome to Folio",
-                                  message: "Spaces, pins and tabs that stay in step on your Mac and iPhone. Let's bring your stuff in.")
-                Spacer()
+                                  message: "Sign in to iCloud to keep your spaces, pins and tabs in step on your Mac and iPhone.")
+                SyncPanel()
+                Spacer(minLength: 0)
             }
         case .browsers:
             VStack(spacing: 24) {
@@ -65,13 +68,6 @@ struct OnboardingView: View {
                 OnboardingHeading(title: "Bring your browser",
                                   message: "Import your sidebar or bookmarks. Folio only reads them, and running it again won't make duplicates.")
                 BrowserImportList(imports: imports, spaceID: browser.spaceID)
-            }
-        case .sync:
-            VStack(spacing: 24) {
-                OnboardingHero(size: 64)
-                OnboardingHeading(title: "Your library syncs with iCloud",
-                                  message: "Spaces, pins and tabs, including everything you just imported, follow you to Folio on your iPhone.")
-                SyncPanel()
             }
         case .defaultBrowser:
             VStack(spacing: 24) {
@@ -93,7 +89,7 @@ struct OnboardingView: View {
     private var doneMessage: String {
         imports.finished.isEmpty
             ? "Press ⌘T to open your first tab. You can import from another browser any time from the File menu."
-            : "Your \(ListFormatter.localizedString(byJoining: imports.finished)) things are waiting in the sidebar."
+            : "Your tabs and bookmarks from \(ListFormatter.localizedString(byJoining: imports.finished)) are in the sidebar."
     }
 
     // MARK: Footer
@@ -113,12 +109,12 @@ struct OnboardingView: View {
             }
             Spacer()
             if let secondary {
-                Button(secondary) { isFirstRun && step == .welcome ? finish() : go(by: 1) }
+                Button(secondary) { go(by: 1) }
                     .buttonStyle(.glass)
                     .tint(.white.opacity(0.12))
                     .keyboardShortcut(.cancelAction)
             }
-            Button(primary) { step == steps.last ? finish() : go(by: 1) }
+            Button(primary, action: primaryAction)
                 .buttonStyle(.glassProminent)
                 .tint(.white)
                 .keyboardShortcut(.defaultAction)
@@ -130,7 +126,8 @@ struct OnboardingView: View {
 
     private var primary: String {
         switch step {
-        case .welcome: "Get Started"
+        case .welcome where needsSignIn: "Sign In to iCloud…"
+        case .welcome: "Continue"
         case .done: "Start Browsing"
         case _ where !isFirstRun: "Done"
         default: "Continue"
@@ -140,10 +137,22 @@ struct OnboardingView: View {
     /// Esc: skip this page (or, on the welcome page, the whole setup).
     private var secondary: String? {
         switch step {
-        case .welcome: "Skip Setup"
-        case .browsers, .sync: isFirstRun ? "Skip" : nil
+        case .welcome: needsSignIn ? "Continue Without Syncing" : nil
+        case .browsers: isFirstRun ? "Skip" : nil
         case .defaultBrowser: "Not Now"
         case .done: nil
+        }
+    }
+
+    private var needsSignIn: Bool { model.sync.map { ICloudSignIn.needsSignIn($0.status) } ?? false }
+
+    private func primaryAction() {
+        if step == .welcome, needsSignIn {
+            if let url = ICloudSignIn.settingsURL { openURL(url) }
+        } else if step == steps.last {
+            finish()
+        } else {
+            go(by: 1)
         }
     }
 
@@ -290,7 +299,7 @@ private struct BrowserImportRow: View {
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
                     .transition(.scale.combined(with: .opacity))
                     .accessibilityLabel("Imported")
-                Button("Again", action: start).buttonStyle(.glass)
+                Button("Import Again", action: start).buttonStyle(.glass)
                     .accessibilityLabel("Import from \(source.name) again")
             }
         default:
@@ -417,36 +426,21 @@ enum ReadOnlyFolder {
 
 // MARK: - Sync
 
-/// Live iCloud status with a checkmark once the library is up to date; a folder picker only when iCloud can't sync.
+/// The iCloud account and sync state; a folder picker only when iCloud can't sync.
 private struct SyncPanel: View {
     @Environment(MacModel.self) private var model
     @State private var message: String?
 
     var body: some View {
         if let sync = model.sync {
-            HStack(spacing: 12) {
-                Image(systemName: sync.status.systemImage)
-                    .font(.title)
-                    .foregroundStyle(sync.status.isUpToDate ? Color.green : Color.secondary)
-                    .symbolEffect(.rotate, isActive: sync.status == .syncing)
-                    .contentTransition(.symbolEffect(.replace))
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(sync.folderURL.map { "Syncing through \($0.lastPathComponent)" } ?? "iCloud Sync").font(.headline)
-                    Text(message ?? sync.status.summary).font(.callout).foregroundStyle(.secondary)
+            ICloudSignInCard(sync: sync, library: model.sidebar.syncSummary, message: message,
+                             showsSignInButton: false) {
+                Button(sync.folderURL == nil ? "Sync Through a Folder Instead…" : "Change Folder…") {
+                    Task { message = await sync.chooseFolder() }
                 }
-                Spacer(minLength: 12)
-                if sync.offersFolder {
-                    Button(sync.folderURL == nil ? "Use a Folder…" : "Change…") {
-                        Task { message = await sync.chooseFolder() }
-                    }
-                    .buttonStyle(.glass)
-                }
+                .buttonStyle(.glass)
             }
-            .animation(.smooth, value: sync.status)
-            .padding(16)
-            .glassEffect(.regular, in: .rect(cornerRadius: 20))
-            .accessibilityElement(children: .contain)
+            .frame(maxWidth: 460)
         }
     }
 }
@@ -518,9 +512,7 @@ private struct DefaultBrowserPanel: View {
     private func makeDefault() {
         Task {
             do {
-                for scheme in ["http", "https"] {
-                    try await NSWorkspace.shared.setDefaultApplication(at: Bundle.main.bundleURL, toOpenURLsWithScheme: scheme)
-                }
+                try await DefaultBrowser.makeFolioDefault()
                 message = nil
             } catch {
                 message = "Your default browser didn't change."
@@ -530,10 +522,16 @@ private struct DefaultBrowserPanel: View {
     }
 }
 
-private struct DefaultBrowser: Equatable {
+struct DefaultBrowser: Equatable {
     var appURL: URL?
     var name: String
     var isFolio: Bool
+
+    static func makeFolioDefault() async throws {
+        for scheme in ["http", "https"] {
+            try await NSWorkspace.shared.setDefaultApplication(at: Bundle.main.bundleURL, toOpenURLsWithScheme: scheme)
+        }
+    }
 
     static func current() -> DefaultBrowser {
         guard let app = NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!) else {

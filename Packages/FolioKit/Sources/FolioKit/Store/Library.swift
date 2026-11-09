@@ -112,7 +112,7 @@ extension FolioStore {
         }
     }
 
-    private static func archive(_ tab: SidebarItem, reason: String, at date: Date, in db: Database) throws -> ArchiveItem? {
+    static func archive(_ tab: SidebarItem, reason: String, at date: Date, in db: Database) throws -> ArchiveItem? {
         var tab = tab
         tab.deletedAt = date
         tab.modifiedAt = date

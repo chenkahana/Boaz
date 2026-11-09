@@ -9,6 +9,7 @@ struct ArchiveWindow: View {
     @State private var items: [ArchiveItem] = []
     @State private var query = ""
     @State private var selection: ArchiveItem.ID?
+    @State private var confirmClear = false
 
     var body: some View {
         let filtered = query.isEmpty ? items : items.filter {
@@ -52,8 +53,13 @@ struct ArchiveWindow: View {
         }
         .searchable(text: $query, prompt: "Search archive")
         .toolbar {
-            Button("Clear Archive", systemImage: "trash") { try? model.store?.clearArchive(); reload() }
+            Button("Clear Archive", systemImage: "trash") { confirmClear = true }
                 .disabled(items.isEmpty)
+                .confirmationDialog("Clear the Archive?", isPresented: $confirmClear, titleVisibility: .visible) {
+                    Button("Clear Archive", role: .destructive) { try? model.store?.clearArchive(); reload() }
+                } message: {
+                    Text("This can't be undone.")
+                }
         }
         .navigationTitle("Archive")
         .task(id: model.sidebar) { reload() }
@@ -71,30 +77,167 @@ struct ArchiveWindow: View {
     }
 }
 
+/// History window (⌘Y): visits by day, searchable; double-click or Open reopens one as a tab. The store keeps
+/// no per-visit delete, so clearing is all-or-nothing.
+struct HistoryWindow: View {
+    @Environment(MacModel.self) private var model
+    @State private var visits: [HistoryVisit] = []
+    @State private var query = ""
+    @State private var selection: HistoryVisit.ID?
+    @State private var confirmClear = false
+
+    var body: some View {
+        let days = Dictionary(grouping: visits) { Calendar.current.startOfDay(for: $0.visitedAt) }
+            .sorted { $0.key > $1.key }
+        List(selection: $selection) {
+            ForEach(days, id: \.key) { day, entries in
+                Section(day.formatted(.relative(presentation: .named, unitsStyle: .wide)).capitalized) {
+                    ForEach(entries) { visit in
+                        HStack(spacing: 10) {
+                            SiteMonogram(url: visit.url, tint: Theme.brand, size: 20)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(visit.title ?? visit.url.host() ?? visit.url.absoluteString).lineLimit(1)
+                                Text(visit.url.host() ?? "").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text(visit.visitedAt.formatted(date: .omitted, time: .shortened))
+                                .font(.caption).foregroundStyle(.tertiary)
+                        }
+                        .padding(.vertical, 2)
+                        .tag(visit.id)
+                        .contextMenu {
+                            Button("Open") { model.openInMainWindow(visit.url, title: visit.title) }
+                            Button("Copy URL") {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(visit.url.absoluteString, forType: .string)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .contextMenu(forSelectionType: HistoryVisit.ID.self) { _ in } primaryAction: { ids in
+            for id in ids { if let visit = visits.first(where: { $0.id == id }) { model.openInMainWindow(visit.url, title: visit.title) } }
+        }
+        .overlay {
+            if visits.isEmpty {
+                ContentUnavailableView(query.isEmpty ? "No History" : "No Results", systemImage: "clock",
+                                       description: Text(query.isEmpty ? "Pages you visit appear here." : "Try another search."))
+            }
+        }
+        .searchable(text: $query, prompt: "Search history")
+        .toolbar {
+            Button("Clear History", systemImage: "trash") { confirmClear = true }
+                .disabled(visits.isEmpty && query.isEmpty)
+                .confirmationDialog("Clear all history?", isPresented: $confirmClear, titleVisibility: .visible) {
+                    Button("Clear History", role: .destructive) { try? model.store?.clearHistory(); reload() }
+                } message: {
+                    Text("This can't be undone.")
+                }
+        }
+        .navigationTitle("History")
+        .task(id: query) { reload() }
+        .task(id: model.sidebar) { reload() }
+    }
+
+    private func reload() { visits = (try? model.store?.history(matching: query, limit: 1000)) ?? [] }
+}
+
 /// Folio ▸ Settings: same preferences as iOS, plus keyboard shortcut overrides.
 struct MacSettingsView: View {
+    var body: some View {
+        TabView {
+            GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }
+            PrivacySettings().tabItem { Label("Privacy", systemImage: "hand.raised") }
+            SyncSettings().tabItem { Label("Sync", systemImage: "icloud") }
+            ShortcutsSettings().tabItem { Label("Shortcuts", systemImage: "keyboard") }
+        }
+        .frame(width: 520)
+    }
+}
+
+private struct GeneralSettings: View {
     @Environment(MacModel.self) private var model
     @AppStorage(Preferences.archiveAfterKey) private var archiveAfter = ArchiveInterval.day.rawValue
     @AppStorage(Preferences.searchEngineKey) private var searchEngine = SearchEngine.duckDuckGo.rawValue
-    @State private var message: String?
-    @State private var syncMessage: String?
-    @AppStorage(Preferences.blockTrackersKey) private var blockTrackers = true
     @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
 
     var body: some View {
         Form {
-            Picker("Archive Today tabs", selection: $archiveAfter) {
-                ForEach(ArchiveInterval.allCases) { Text($0.label).tag($0.rawValue) }
+            Section {
+                DefaultBrowserRow()
+                Picker("Archive Inactive Tabs After", selection: $archiveAfter) {
+                    ForEach(ArchiveInterval.allCases) { Text($0.label).tag($0.rawValue) }
+                }
+                Picker("Search engine", selection: $searchEngine) {
+                    ForEach(SearchEngine.allCases) { Text($0.name).tag($0.rawValue) }
+                }
+                Toggle("Tint chrome with site colors", isOn: $tintWithSiteColors)
             }
-            Picker("Search engine", selection: $searchEngine) {
-                ForEach(SearchEngine.allCases) { Text($0.name).tag($0.rawValue) }
+            AboutSection()
+        }
+        .formStyle(.grouped)
+        .onChange(of: archiveAfter) { model.archiveStaleTabs() }
+    }
+}
+
+private struct DefaultBrowserRow: View {
+    @State private var current = DefaultBrowser.current()
+    @State private var failed = false
+
+    var body: some View {
+        LabeledContent("Default browser") {
+            if current.isFolio {
+                Text("Folio").foregroundStyle(.secondary)
+            } else {
+                HStack {
+                    Text(current.name).foregroundStyle(.secondary)
+                    Button("Make Default") {
+                        Task {
+                            failed = (try? await DefaultBrowser.makeFolioDefault()) == nil
+                            current = DefaultBrowser.current()
+                        }
+                    }
+                }
             }
-            Toggle("Block ads and trackers", isOn: $blockTrackers)
-            Toggle("Tint chrome with site colors", isOn: $tintWithSiteColors)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            current = DefaultBrowser.current()
+        }
+        if failed { Text("Your default browser didn't change.").font(.caption).foregroundStyle(.secondary) }
+    }
+}
+
+private struct PrivacySettings: View {
+    @AppStorage(Preferences.blockTrackersKey) private var blockTrackers = true
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Block ads and trackers", isOn: $blockTrackers)
+                Text("Applies to pages opened after you change it.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+private struct SyncSettings: View {
+    @Environment(MacModel.self) private var model
+    @Environment(\.openURL) private var openURL
+    @State private var syncMessage: String?
+
+    var body: some View {
+        Form {
             if let sync = model.sync {
                 Section("iCloud Sync") {
                     LabeledContent {
-                        Button("Sync Now") { Task { await sync.syncNow(userInitiated: true) } }.disabled(sync.status == .syncing)
+                        if ICloudSignIn.needsSignIn(sync.status) {
+                            Button("Sign In to iCloud…") { if let url = ICloudSignIn.settingsURL { openURL(url) } }
+                        } else {
+                            Button("Sync Now") { Task { await sync.syncNow(userInitiated: true) } }.disabled(sync.status == .syncing)
+                        }
                     } label: {
                         SyncStatusLabel(status: sync.status)
                     }
@@ -110,21 +253,38 @@ struct MacSettingsView: View {
                          : "Spaces, pins, tabs and the Archive sync through your iCloud account. History and private tabs stay on this Mac.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
+            } else {
+                Text("Sync starts once your library has loaded.").foregroundStyle(.secondary)
             }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+private struct ShortcutsSettings: View {
+    @Environment(MacModel.self) private var model
+    @State private var message: String?
+    @State private var confirmReset = false
+
+    var body: some View {
+        Form {
             Section("Keyboard shortcuts") {
                 LabeledContent("Overrides", value: model.keyBindings.overrides.isEmpty
                                ? "Arc defaults" : "\(model.keyBindings.overrides.count) custom")
                 HStack {
                     Button("Import Arc Shortcuts…", action: importArcShortcuts)
-                    Button("Reset to Defaults") { model.keyBindings.resetToDefaults() }
+                    Button("Reset to Defaults") { confirmReset = true }
+                        .disabled(model.keyBindings.overrides.isEmpty)
+                        .confirmationDialog("Reset keyboard shortcuts?", isPresented: $confirmReset, titleVisibility: .visible) {
+                            Button("Reset to Defaults", role: .destructive) { model.keyBindings.resetToDefaults() }
+                        } message: {
+                            Text("Your custom and imported shortcuts go back to Arc's defaults.")
+                        }
                 }
                 if let message { Text(message).font(.caption).foregroundStyle(.secondary) }
             }
-            AboutSection()
         }
         .formStyle(.grouped)
-        .frame(width: 440)
-        .onChange(of: archiveAfter) { model.archiveStaleTabs() }
     }
 
     private func importArcShortcuts() {
@@ -164,7 +324,7 @@ struct ThemeEditor: View {
                 if let space { SpaceIcon(space: space, size: 22) }
                 Text(space?.title ?? "Space").font(.system(.title2, design: .rounded, weight: .bold))
             }
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: MacRadius.card, style: .continuous)
                 .fill(style.gradient)
                 .overlay(alignment: .bottomLeading) {
                     Circle().fill(style.tint).frame(width: 18, height: 18).shadow(color: style.tint, radius: 8).padding(12)

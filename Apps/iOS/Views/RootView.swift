@@ -6,11 +6,17 @@ struct RootView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.scenePhase) private var scenePhase
+    /// Whether the screen has a fold (iPhone Duo), even while it lies flat.
+    @State private var hasFold = false
+
+    /// The unfolded layout is for a foldable's inner screen; a large iPhone turned landscape is also regular width
+    /// but keeps the folded layout.
+    private var isUnfolded: Bool { sizeClass == .regular && (model.hinge != nil || hasFold) }
 
     var body: some View {
         @Bindable var model = model
         Group {
-            if sizeClass == .compact {
+            if !isUnfolded {
                 CompactShell()
             } else {
                 UnfoldedShell()
@@ -29,8 +35,12 @@ struct RootView: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.toast)
         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: model.searchTarget)
         .sensoryFeedback(.impact(weight: .medium), trigger: model.toast) { _, new in new?.canUndo == true }
-        .sensoryFeedback(.impact(weight: .light), trigger: model.sheet) { _, new in new != nil }
-        .onReceive(NotificationCenter.default.publisher(for: .deviceDidShake)) { _ in model.undoClose() }
+        // While the folded layout's page cover or a sheet is up, the alert has to come from there instead.
+        .modifier(ShakeToUndo(isEnabled: model.sheet == nil && !model.showOnboarding
+                                         && (isUnfolded || model.activeTabID == nil)))
+        .onGeometryChange(for: Bool.self, of: { !$0.reservedRegions(kind: .division, options: .includeInactive).isEmpty }) {
+            hasFold = $0
+        }
         .sheet(item: $model.sheet, onDismiss: model.sheetDidDismiss) { sheet in
             switch sheet {
             case .library: LibrarySheet()
@@ -38,6 +48,7 @@ struct RootView: View {
             }
         }
         .fullScreenCover(isPresented: $model.showOnboarding) { OnboardingView() }
+        .spaceEditorPresenter()
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 model.reloadSidebar()
@@ -82,7 +93,7 @@ private struct UnfoldedShell: View {
                 if let width = inlineSidebarWidth {
                     sidebar
                         .frame(width: width)
-                        .transition(.move(edge: .leading))
+                        .transition(reduceMotion ? .opacity : .move(edge: .leading))
                     // A hairline; in book pose, the crease itself, so the page starts past the hinge.
                     Rectangle().fill(Color(uiColor: .separator)).frame(width: creaseWidth).ignoresSafeArea()
                 }
@@ -91,7 +102,7 @@ private struct UnfoldedShell: View {
                     if let deskSplit {
                         DeskControls()
                             .padding(.top, deskSplit.gap)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                     }
                 }
             }
@@ -145,7 +156,7 @@ private struct UnfoldedShell: View {
                 .clipShape(.rect(cornerRadius: 30, style: .continuous))
                 .shadow(color: .black.opacity(0.22), radius: 24, x: 6)
                 .padding(8)
-                .transition(.move(edge: .leading).combined(with: .opacity))
+                .transition(reduceMotion ? .opacity : .move(edge: .leading).combined(with: .opacity))
         }
         // VoiceOver stays on the card (and its scrim's close action) instead of reaching the page beneath.
         .accessibilityElement(children: .contain)
@@ -202,7 +213,28 @@ private struct CompactShell: View {
                         }
                         .animation(.spring(response: 0.4, dampingFraction: 0.85), value: model.searchTarget)
                         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.toast)
+                        .modifier(ShakeToUndo(isEnabled: true))
                 }
+            }
+    }
+}
+
+/// Shake to undo, as the system does it: only with the Shake to Undo setting on, only with a tab to bring back,
+/// and only after asking.
+private struct ShakeToUndo: ViewModifier {
+    @Environment(AppModel.self) private var model
+    let isEnabled: Bool
+    @State private var confirming = false
+
+    func body(content: Content) -> some View {
+        content
+            .onReceive(NotificationCenter.default.publisher(for: .deviceDidShake)) { _ in
+                guard isEnabled, UIApplication.shared.applicationSupportsShakeToEdit, model.canReopenClosedTab else { return }
+                confirming = true
+            }
+            .alert("Undo Archive Tab?", isPresented: $confirming) {
+                Button("Undo") { model.undoClose() }
+                Button("Cancel", role: .cancel) {}
             }
     }
 }
@@ -211,6 +243,7 @@ private struct CompactShell: View {
 private struct DeskControls: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
 
     var body: some View {
         VStack(spacing: 16) {
@@ -218,12 +251,20 @@ private struct DeskControls: View {
                 ScrollView(.horizontal) {
                     HStack(spacing: 10) {
                         ForEach(model.todayTabs(in: space)) { tab in
+                            let selected = tab.id == model.activeTabID
                             Button { model.activate(tab) } label: {
-                                Text(tab.title ?? tab.url?.host() ?? "Tab").lineLimit(1)
-                                    .padding(.horizontal, 14).padding(.vertical, 10)
-                                    .glassEffect(tab.id == model.activeTabID ? .regular.tint(Theme.brand) : .regular, in: .capsule)
+                                Text(tab.title ?? tab.url?.host() ?? "New Tab").lineLimit(1)
+                                    .padding(.horizontal, 14).padding(.vertical, 12)
+                                    .frame(minHeight: 44)
+                                    .glassEffect(selected ? .regular.tint(Theme.brand) : .regular, in: .capsule)
+                                    .overlay {
+                                        if selected, contrast == .increased {
+                                            Capsule().strokeBorder(.primary.opacity(0.4), lineWidth: 1)
+                                        }
+                                    }
                             }
                             .buttonStyle(.plain)
+                            .accessibilityAddTraits(selected ? .isSelected : [])
                         }
                     }
                 }
@@ -243,8 +284,11 @@ private struct DeskControls: View {
 }
 
 /// Soft glow along the fold. Uses the division reserved region for placement and hinge angle for intensity.
+/// It flares once as the device settles half-open, then stays faint so it doesn't sit on the page.
 private struct FoldGlow: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var flare = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -259,12 +303,18 @@ private struct FoldGlow: View {
         }
         .allowsHitTesting(false)
         .ignoresSafeArea()
+        .onChange(of: model.isDeskPosture) { _, halfOpen in
+            guard halfOpen, !reduceMotion else { return }
+            withAnimation(.easeIn(duration: 0.3)) { flare = true } completion: {
+                withAnimation(.easeOut(duration: 1.2)) { flare = false }
+            }
+        }
     }
 
-    /// Brightest when half-open, fading out as the device lies flat.
+    /// Brightest when half-open, fading out as the device lies flat. An effect only, so none with Reduce Motion.
     private var intensity: Double {
-        guard let degrees = model.hinge?.angle.degrees else { return 0 }
-        return max(0, 1 - abs(degrees - 110) / 70) * 0.8
+        guard !reduceMotion, let degrees = model.hinge?.angle.degrees else { return 0 }
+        return max(0, 1 - abs(degrees - 110) / 70) * (flare ? 0.35 : 0.15)
     }
 }
 

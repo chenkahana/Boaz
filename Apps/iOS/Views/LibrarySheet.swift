@@ -10,7 +10,7 @@ struct LibrarySheet: View {
     @State private var query = ""
     @State private var archive: [ArchiveItem] = []
     @State private var history: [HistoryVisit] = []
-    @State private var archiveClears = 0
+    @State private var confirmClear = false
 
     var body: some View {
         NavigationStack {
@@ -38,13 +38,21 @@ struct LibrarySheet: View {
                                     detail: visit.visitedAt.formatted(date: .omitted, time: .shortened)) {
                                     model.openAfterSheet(visit.url, title: visit.title)
                                 }
+                                .contextMenu {
+                                    Button("Open", systemImage: "arrow.up.right.square") {
+                                        model.openAfterSheet(visit.url, title: visit.title)
+                                    }
+                                    Button("Copy Link", systemImage: "link") { UIPasteboard.general.url = visit.url }
+                                }
                             }
                         }
                     }
                 }
             }
             .overlay {
-                if (tab == 0 ? filteredArchive.isEmpty : history.isEmpty) {
+                if !query.isEmpty, (tab == 0 ? filteredArchive.isEmpty : history.isEmpty) {
+                    ContentUnavailableView.search(text: query)
+                } else if (tab == 0 ? archive.isEmpty : history.isEmpty) {
                     ContentUnavailableView(tab == 0 ? "Archive is empty" : "No history",
                                            systemImage: tab == 0 ? "archivebox" : "clock",
                                            description: Text(tab == 0 ? "Closed and inactive tabs land here." : "Pages you visit appear here."))
@@ -59,23 +67,25 @@ struct LibrarySheet: View {
                         Text("Archive").tag(0)
                         Text("History").tag(1)
                     }
-                    .pickerStyle(.segmented).frame(width: 220)
+                    .pickerStyle(.segmented).fixedSize()
                 }
-                ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .topBarTrailing) { Button(role: .close) { dismiss() } }
                 ToolbarItem(placement: .bottomBar) {
-                    Button(tab == 0 ? "Clear Archive" : "Clear History", role: .destructive) {
-                        if tab == 0 {
-                            if !archive.isEmpty { archiveClears += 1 }
-                            try? model.store?.clearArchive()
-                        } else {
-                            try? model.store?.clearHistory()
+                    Button(tab == 0 ? "Clear Archive" : "Clear History", role: .destructive) { confirmClear = true }
+                        // History is filtered by the search, so only an unfiltered empty list proves there's nothing to clear.
+                        .disabled(tab == 0 ? archive.isEmpty : (query.isEmpty && history.isEmpty))
+                        .confirmationDialog(tab == 0 ? "Clear the whole Archive?" : "Clear all history?",
+                                            isPresented: $confirmClear, titleVisibility: .visible) {
+                            Button(tab == 0 ? "Clear Archive" : "Clear History", role: .destructive) {
+                                if tab == 0 { try? model.store?.clearArchive() } else { try? model.store?.clearHistory() }
+                                reload()
+                            }
+                        } message: {
+                            Text("This can't be undone.")
                         }
-                        reload()
-                    }
                 }
             }
         }
-        .confetti(trigger: archiveClears)
         .onAppear(perform: reload)
         .onChange(of: query) { reload() }
     }
@@ -143,7 +153,7 @@ struct SettingsSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    Picker("Archive Today tabs", selection: $archiveAfter) {
+                    Picker("Archive Inactive Tabs After", selection: $archiveAfter) {
                         ForEach(ArchiveInterval.allCases) { Text($0.label).tag($0.rawValue) }
                     }
                 } footer: {
@@ -175,7 +185,7 @@ struct SettingsSheet: View {
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button(role: .close) { dismiss() } } }
         }
     }
 }
@@ -183,6 +193,7 @@ struct SettingsSheet: View {
 /// iCloud sync status and Sync Now; a sync folder is offered only while iCloud can't sync on this iPhone.
 private struct SyncSettingsSection: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openURL) private var openURL
     @State private var picking = false
     @State private var pickError: String?
 
@@ -190,8 +201,12 @@ private struct SyncSettingsSection: View {
         if let sync = model.sync {
             Section {
                 SyncStatusLabel(status: sync.status)
-                Button("Sync Now") { Task { await sync.syncNow(userInitiated: true) } }
-                    .disabled(sync.status == .syncing)
+                if ICloudSignIn.needsSignIn(sync.status) {
+                    Button("Sign In to iCloud") { if let url = ICloudSignIn.settingsURL { openURL(url) } }
+                } else {
+                    Button("Sync Now") { Task { await sync.syncNow(userInitiated: true) } }
+                        .disabled(sync.status == .syncing)
+                }
                 if sync.offersFolder {
                     LabeledContent("Sync Folder", value: sync.folderURL?.lastPathComponent ?? "None")
                     Button(sync.folderURL == nil ? "Sync Through a Folder…" : "Change Folder…") { picking = true }

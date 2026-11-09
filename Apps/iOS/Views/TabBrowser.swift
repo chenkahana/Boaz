@@ -1,15 +1,22 @@
 import FolioKit
 import SwiftUI
+import TipKit
 import WebKit
 
 /// A tab's web page with Arc-style chrome: a bottom bar you swipe to change tabs, which shrinks while reading.
 struct TabBrowser: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var scheme
     @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
     let tab: SidebarItem
     @State private var dragX: CGFloat = 0
+    /// The side the next tab slides in from; set while the finger is still down, so the outgoing page
+    /// has already rendered with it by the time the tab changes.
+    @State private var pageDirection: Edge = .trailing
     @State private var bump = 0
+    @State private var loadFailure: LoadFailure?
+    @State private var findVisible = false
 
     // Pull-to-refresh: derived straight from the page's own rubber-band at the top, so no extra
     // gesture competes with scrolling. `pullPeak` is the deepest pull seen since the finger went
@@ -68,8 +75,11 @@ struct TabBrowser: View {
             .toolRail { axis in
                 BrowserBar(tab: tab, page: page, axis: axis, readableLength: readableLength,
                            onReader: { Task { readerArticle = await Reader.extract(from: page) } },
-                           onDownloads: { showingDownloads = true })
+                           onDownloads: { showingDownloads = true },
+                           onFind: { findVisible = true })
                     .highPriorityGesture(paging(axis))
+                    .accessibilityAction(named: "Next Tab") { pageTab(by: 1) }
+                    .accessibilityAction(named: "Previous Tab") { pageTab(by: -1) }
             }
             .background { siteBackdrop }
             .environment(\.chromeTint, site?.color)
@@ -80,12 +90,17 @@ struct TabBrowser: View {
             .onChange(of: page.url) { model.didNavigate(tab, url: page.url, title: page.title) }
             .onChange(of: page.title) { model.didNavigate(tab, url: page.url, title: page.title) }
             .onChange(of: page.url) { model.updateSiteColor(for: tab) }
-            .task(id: tab.id) { await trackReadableLength(of: page) }
+            .task(id: tab.id) { await trackNavigations(of: page) }
             .sheet(item: $readerArticle) { article in ReaderView(article: article, tint: Theme.brand) }
             .sheet(isPresented: $showingDownloads) { DownloadsView() }
             .id(tab.id)
-            .transition(.asymmetric(insertion: .move(edge: dragX < 0 ? .trailing : .leading),
-                                    removal: .opacity))
+            .transition(pageTransition)
+    }
+
+    private var pageTransition: AnyTransition {
+        if reduceMotion { return .opacity }
+        return .asymmetric(insertion: .move(edge: pageDirection),
+                           removal: .move(edge: pageDirection == .trailing ? .leading : .trailing))
     }
 
     /// The cluster lies across the top (wider than tall) on the upright inner screen; in landscape it stands in the
@@ -112,7 +127,37 @@ struct TabBrowser: View {
             .webViewCollapsesToolRail(expandingOn: page.url) { old, new in
                 handlePullGeometry(old: old, new: new, page: page)
             }
+            .findNavigator(isPresented: $findVisible)
             .onDisappear { [tab, hostID] in model.releasePage(tab.id, host: hostID) }
+            .overlay {
+                // WebKit draws no error page of its own, so a failed load would otherwise stay blank.
+                if let loadFailure {
+                    ContentUnavailableView {
+                        Label("Can't Open This Page", systemImage: "wifi.exclamationmark")
+                    } description: {
+                        Text(loadFailure.message)
+                    } actions: {
+                        Button("Try Again") { retry(loadFailure, on: page) }
+                            .buttonStyle(.glassProminent)
+                    }
+                    .tint(SpaceStyle(model.currentSpace, scheme: scheme).tint)
+                    .background(Color(.systemBackground).ignoresSafeArea())
+                }
+            }
+    }
+
+    private func retry(_ failure: LoadFailure, on page: WebPage) {
+        loadFailure = nil
+        // A failed link never became the current item, so reloading would reload the page before it.
+        if let url = failure.url { _ = page.load(URLRequest(url: url)) } else { _ = page.reload() }
+    }
+
+    /// Steps to a neighbouring tab, for VoiceOver's Next Tab and Previous Tab actions.
+    private func pageTab(by offset: Int) {
+        pageDirection = offset > 0 ? .trailing : .leading
+        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+            if model.pageTab(by: offset) { bump += 1 }
+        }
     }
 
     /// Swiping along the toolbar pages through neighbouring tabs: sideways on the bottom bar, up and down on
@@ -124,12 +169,16 @@ struct TabBrowser: View {
                 let across = axis == .vertical ? value.translation.width : value.translation.height
                 guard abs(along) > abs(across) else { return }
                 dragX = along * 0.6
+                pageDirection = along < 0 ? .trailing : .leading
             }
             .onEnded { value in
                 let along = axis == .vertical ? -value.translation.height : value.translation.width
                 let offset = along < -70 ? 1 : along > 70 ? -1 : 0
                 withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
-                    if offset != 0, model.pageTab(by: offset) { bump += 1 }
+                    if offset != 0, model.pageTab(by: offset) {
+                        bump += 1
+                        SwipeTabsTip().invalidate(reason: .actionPerformed)
+                    }
                     dragX = 0
                 }
             }
@@ -172,17 +221,60 @@ struct TabBrowser: View {
 
     /// The single subscriber to this page's `navigations` (the async sequence supports only one
     /// consumer): on every finished load it tells the model to snapshot the tab and refreshes the
-    /// cheap text-length probe used to enable/disable the Reader button.
-    private func trackReadableLength(of page: WebPage) async {
+    /// cheap text-length probe used to enable/disable the Reader button. A failed load is shown.
+    private func trackNavigations(of page: WebPage) async {
         readableLength = 0
-        do {
-            for try await event in page.navigations where event == .finished {
-                model.pageDidFinishLoading(tab)
-                readableLength = await Reader.estimatedReadableLength(of: page)
+        while !Task.isCancelled {
+            do {
+                for try await event in page.navigations {
+                    switch event {
+                    case .startedProvisionalNavigation, .committed:
+                        loadFailure = nil
+                    case .finished:
+                        model.pageDidFinishLoading(tab)
+                        readableLength = await Reader.estimatedReadableLength(of: page)
+                    default:
+                        break
+                    }
+                }
+                return // The sequence finished: the page is gone.
+            } catch WebPage.NavigationError.pageClosed {
+                return
+            } catch {
+                // A failed navigation ends the sequence; go round again so later loads are still tracked.
+                if let failure = LoadFailure(error) { loadFailure = failure }
             }
-        } catch {
-            // Navigation stream ended (page replaced or tab closing); nothing to track.
         }
+    }
+}
+
+/// Why a page couldn't load, and what Try Again should load.
+private struct LoadFailure {
+    let message: String
+    let url: URL?
+
+    /// Nil for navigations that were cut short rather than failed: superseded by another load, or turned into a download.
+    init?(_ error: any Error) {
+        let underlying: any Error
+        switch error as? WebPage.NavigationError {
+        case .failedProvisionalNavigation(let inner): underlying = inner
+        case .webContentProcessTerminated:
+            message = "The page stopped responding."
+            url = nil
+            return
+        case .invalidURL:
+            message = "The address isn't valid."
+            url = nil
+            return
+        case .pageClosed: return nil
+        default: underlying = error
+        }
+        let nsError = underlying as NSError
+        if nsError.domain == NSURLErrorDomain, nsError.code == NSURLErrorCancelled { return nil }
+        // WebKitErrorFrameLoadInterruptedByPolicyChange: the response became a download.
+        if nsError.domain == "WebKitErrorDomain", nsError.code == 102 { return nil }
+        message = nsError.localizedDescription
+        url = nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL
     }
 }
 
@@ -198,8 +290,18 @@ private struct BrowserBar: View {
     let readableLength: Int
     let onReader: () -> Void
     let onDownloads: () -> Void
+    let onFind: () -> Void
+    /// The rail teaches both of its swipes, one at a time.
+    @State private var railTips = TipGroup(.firstAvailable) {
+        SwipeTabsTip()
+        TuckRailTip()
+    }
 
     var body: some View {
+        bar.onChange(of: tabCount, initial: true) { SwipeTabsTip.openTabs = tabCount }
+    }
+
+    @ViewBuilder private var bar: some View {
         if axis == .vertical {
             RailColumn {
                 siteButton(size: 40).padding(.vertical, 3)
@@ -209,15 +311,18 @@ private struct BrowserBar: View {
                 RailButton(symbol: page.isLoading ? "xmark" : "arrow.clockwise",
                            label: page.isLoading ? "Stop" : "Reload") { reloadOrStop() }
             } bottom: {
-                RailButton(symbol: "plus", label: "New tab") { model.beginSearch(.newTab) }
+                RailButton(symbol: "plus", label: "New Tab") { model.beginSearch(.newTab) }
                 if let sidebar {
                     SidebarRailButton(sidebar: sidebar)
-                } else {
+                } else if !homeControlsElsewhere {
                     Button { model.goHome() } label: {
                         RailGlyph(symbol: "square.grid.2x2").overlay(alignment: .topTrailing) { RailBadge(count: tabCount) }
                     }
                     .buttonStyle(PressableStyle())
                     .accessibilityLabel("Tabs")
+                    .accessibilityValue("\(tabCount) open")
+                } else {
+                    forwardButton
                 }
                 menu
             } nub: {
@@ -225,9 +330,22 @@ private struct BrowserBar: View {
             }
             .animation(.bouncy(duration: 0.35), value: backList.isEmpty)
             .animation(.bouncy(duration: 0.35), value: tabCount)
+            .popoverTip(railTips.currentTip, arrowEdge: .trailing)
         } else {
             bottomBar
         }
+    }
+
+    /// Book and laptop poses already list the tabs beside or below the page, so Forward takes the Tabs button's place.
+    private var showsForwardButton: Bool { sidebar == nil && homeControlsElsewhere }
+
+    private var forwardButton: some View {
+        Button { if let next = forwardList.first { _ = page.load(next) } } label: {
+            if axis == .vertical { RailGlyph(symbol: "chevron.forward") } else { RailIcon(symbol: "chevron.forward") }
+        }
+        .buttonStyle(PressableStyle())
+        .disabled(forwardList.isEmpty)
+        .accessibilityLabel("Forward")
     }
 
     /// The site's tile with a live loading ring: tap to edit the address, hold for link actions.
@@ -236,7 +354,7 @@ private struct BrowserBar: View {
             SiteTile(url: page.url ?? tab.url, page: page, size: size)
                 .overlay(alignment: .bottomTrailing) {
                     if page.url?.scheme == "https" {
-                        Image(systemName: "lock.fill").font(.system(size: 8, weight: .bold))
+                        Image(systemName: "lock.fill").font(.caption2.weight(.bold)).imageScale(.small)
                             .padding(3.5).background(.regularMaterial, in: .circle).offset(x: 5, y: 5)
                     }
                 }
@@ -252,7 +370,9 @@ private struct BrowserBar: View {
             }
             Button("Edit Address", systemImage: "pencil") { model.beginSearch(.currentTab) }
         }
-        .accessibilityLabel(host)
+        .accessibilityLabel("Address")
+        .accessibilityValue(host)
+        .accessibilityHint("Edit address or search")
     }
 
     /// Tap goes back one page; hold for the whole back history.
@@ -264,7 +384,7 @@ private struct BrowserBar: View {
                 }
             }
         } label: {
-            RailGlyph(symbol: "chevron.backward")
+            if axis == .vertical { RailGlyph(symbol: "chevron.backward") } else { RailIcon(symbol: "chevron.backward") }
         } primaryAction: {
             if let previous = backList.last { _ = page.load(previous) }
         }
@@ -279,42 +399,78 @@ private struct BrowserBar: View {
                     Text(host).font(.caption.weight(.semibold))
                         .padding(.horizontal, 14).padding(.vertical, 6)
                         .glassEffect(.regular.tint(tint?.opacity(0.45)), in: .capsule)
+                        // The capsule stays small; the target is a full 44pt.
+                        .frame(minHeight: 44)
+                        .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Show Toolbar")
+                .accessibilityValue(host)
             } else {
                 HStack(spacing: 10) {
                     if let sidebar {
                         BarButton(symbol: "sidebar.left", action: sidebar.toggle)
                             .accessibilityLabel(sidebar.isCollapsed ? "Show Sidebar" : "Hide Sidebar")
-                    } else {
-                        BarButton(symbol: "square.grid.2x2") { model.goHome() }.accessibilityLabel("Tabs")
+                    } else if !homeControlsElsewhere {
+                        BarButton(symbol: "square.grid.2x2") { model.goHome() }
+                            .accessibilityLabel("Tabs")
+                            .accessibilityValue("\(tabCount) open")
                     }
-                    Button { model.beginSearch(.currentTab) } label: {
-                        HStack(spacing: 6) {
-                            if page.url?.scheme == "https" { Image(systemName: "lock.fill").font(.caption2) }
-                            Text(host).lineLimit(1)
-                        }
-                        .font(.callout.weight(.medium))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .glassEffect(.chrome(tint), in: .capsule)
+                    if !backList.isEmpty {
+                        backButton.transition(.scale(scale: 0.4).combined(with: .opacity))
                     }
-                    .buttonStyle(.plain)
-                    BarButton(symbol: page.isLoading ? "xmark" : "arrow.clockwise") { reloadOrStop() }
-                        .accessibilityLabel(page.isLoading ? "Stop" : "Reload")
+                    if showsForwardButton { forwardButton }
+                    addressPill
                     menu
                 }
                 .padding(.horizontal, 12)
+                .animation(.bouncy(duration: 0.35), value: backList.isEmpty)
+                .popoverTip(SwipeTabsTip(), arrowEdge: .bottom)
             }
         }
-        .padding(.top, 6)
+        .padding(.top, rail.isCollapsed ? 0 : 6)
         .padding(.bottom, rail.isCollapsed ? 0 : 4)
         .frame(maxWidth: .infinity)
+    }
+
+    /// The address (tap to edit) with Reload at its trailing end, as Safari does, leaving room for Back in the bar.
+    private var addressPill: some View {
+        HStack(spacing: 0) {
+            Button { model.beginSearch(.currentTab) } label: {
+                HStack(spacing: 6) {
+                    if page.url?.scheme == "https" { Image(systemName: "lock.fill").font(.caption2) }
+                    Text(host).lineLimit(1)
+                }
+                .font(.callout.weight(.medium))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                // Balances the reload glyph so the host stays centred in the pill.
+                .padding(.leading, 44)
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Address")
+            .accessibilityValue(host)
+            .accessibilityHint("Edit address or search")
+            Button(action: reloadOrStop) {
+                Image(systemName: page.isLoading ? "xmark" : "arrow.clockwise")
+                    .font(.callout.weight(.medium))
+                    .contentTransition(.symbolEffect(.replace))
+                    .frame(width: 44, height: 44)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(page.isLoading ? "Stop" : "Reload")
+        }
+        .glassEffect(.chrome(tint), in: .capsule)
     }
 
     private var menu: some View {
         Menu {
             Button(model.isPinned(tab) ? "Unpin" : "Pin", systemImage: "pin") { model.togglePin(tab) }
+            Button("Forward", systemImage: "chevron.forward") { if let next = forwardList.first { _ = page.load(next) } }
+                .disabled(forwardList.isEmpty)
+            Button("Find on Page", systemImage: "text.magnifyingglass", action: onFind)
             Button("Reader", systemImage: "doc.text.magnifyingglass", action: onReader)
                 .disabled(readableLength < Reader.minimumCharacters)
             Button("Downloads", systemImage: "arrow.down.circle", action: onDownloads)
@@ -322,7 +478,9 @@ private struct BrowserBar: View {
             if axis == .vertical {
                 Button("Hide Toolbar", systemImage: "sidebar.trailing") { rail.tucked = true }
             }
-            Button("Close Tab", systemImage: "xmark", role: .destructive) { model.close(tab) }
+            Button("Reopen Closed Tab", systemImage: "arrow.uturn.backward") { model.undoClose() }
+                .disabled(!model.canReopenClosedTab)
+            Button("Archive Tab", systemImage: "archivebox") { model.close(tab) }
             if homeControlsElsewhere {
                 Divider()
                 HomeMenuItems()
@@ -339,6 +497,7 @@ private struct BrowserBar: View {
     }
 
     private var backList: [WebPage.BackForwardList.Item] { page.backForwardList.backList }
+    private var forwardList: [WebPage.BackForwardList.Item] { page.backForwardList.forwardList }
 
     private var tabCount: Int {
         guard let space = model.currentSpace else { return 0 }

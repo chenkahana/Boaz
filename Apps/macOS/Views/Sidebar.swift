@@ -33,7 +33,7 @@ struct SidebarView: View {
                 } else if let space = browser.currentSpace {
                     SpaceColumn(space: space, tint: style.tint)
                         .id(space.id)
-                        .transition(.push(from: browser.spaceEdge))
+                        .transition(reduceMotion ? .opacity : .push(from: browser.spaceEdge))
                 }
             }
             .offset(x: swipe)
@@ -66,20 +66,64 @@ private struct SidebarTopBar: View {
 
     var body: some View {
         let page = browser.activePage
+        let keys = browser.model.keyBindings
         HStack(spacing: 2) {
             Spacer().frame(width: 70) // traffic lights
-            HoverIconButton(symbol: "sidebar.left", help: "Toggle Sidebar (⌘S)") { browser.toggleSidebar() }
+            HoverIconButton(symbol: "sidebar.left", help: "Toggle Sidebar", hint: keys.hint("Toggle Sidebar", .toggleSidebar)) {
+                browser.toggleSidebar()
+            }
             Spacer()
-            HoverIconButton(symbol: "arrow.left", help: "Back (⌘[)") { browser.goBack() }
-                .opacity(page?.backForwardList.backList.isEmpty == false ? 1 : 0.4)
-            HoverIconButton(symbol: "arrow.right", help: "Forward (⌘])") { browser.goForward() }
-                .opacity(page?.backForwardList.forwardList.isEmpty == false ? 1 : 0.4)
-            HoverIconButton(symbol: page?.isLoading == true ? "xmark" : "arrow.clockwise", help: "Reload (⌘R)") {
+            HistoryButton(symbol: "arrow.left", help: "Back", hint: keys.hint("Back", .goBack),
+                          items: (page?.backForwardList.backList ?? []).reversed(), action: browser.goBack)
+            HistoryButton(symbol: "arrow.right", help: "Forward", hint: keys.hint("Forward", .goForward),
+                          items: page?.backForwardList.forwardList ?? [], action: browser.goForward)
+            HoverIconButton(symbol: page?.isLoading == true ? "xmark" : "arrow.clockwise",
+                            help: page?.isLoading == true ? "Stop" : "Reload", hint: keys.hint("Reload", .reload)) {
                 if page?.isLoading == true { page?.stopLoading() } else { browser.reload() }
             }
         }
         .frame(height: 40)
         .background(Color.clear.contentShape(Rectangle()).gesture(WindowDragGesture()))
+    }
+}
+
+/// Back or forward: click to step once, hold for the page's history (as Safari does). Disabled with no history.
+private struct HistoryButton: View {
+    @Environment(BrowserState.self) private var browser
+    let symbol: String
+    let help: String
+    let hint: String
+    let items: [WebPage.BackForwardList.Item]
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Menu {
+            ForEach(items) { item in
+                Button(item.title.flatMap { $0.isEmpty ? nil : $0 } ?? item.url.host() ?? item.url.absoluteString) {
+                    _ = browser.activePage?.load(item)
+                }
+            }
+        } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 12, weight: .semibold))
+                .frame(width: 26, height: 26)
+                .background(.primary.opacity(hovering && !items.isEmpty ? 0.12 : 0),
+                            in: .rect(cornerRadius: MacRadius.icon, style: .continuous))
+                .contentShape(Rectangle())
+        } primaryAction: {
+            action()
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .disabled(items.isEmpty)
+        .opacity(items.isEmpty ? 0.4 : 1)
+        .help(hint)
+        .accessibilityLabel(help)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
     }
 }
 
@@ -93,7 +137,7 @@ private struct AddressPill: View {
         Button { browser.commandMode = browser.activeTab == nil ? .newTab : .currentTab } label: {
             HStack(spacing: 6) {
                 if url?.scheme == "https" { Image(systemName: "lock.fill").font(.caption2).opacity(0.6) }
-                Text(url?.host()?.replacingOccurrences(of: "www.", with: "") ?? "Search or enter URL…")
+                Text(url?.host()?.replacingOccurrences(of: "www.", with: "") ?? "Search or enter address")
                     .font(.callout)
                     .opacity(url == nil ? 0.6 : 1)
                     .lineLimit(1)
@@ -101,11 +145,11 @@ private struct AddressPill: View {
                 if hovering, url != nil {
                     Image(systemName: "link").font(.caption).opacity(0.6)
                         .onTapGesture { browser.copyActiveURL() }
-                        .help("Copy URL (⌘⇧C)")
+                        .help(browser.model.keyBindings.hint("Copy URL", .copyURL))
                 }
             }
             .padding(.horizontal, 10).frame(height: 32)
-            .background(.white.opacity(hovering ? 0.32 : 0.2), in: .rect(cornerRadius: 9, style: .continuous))
+            .background(.white.opacity(hovering ? 0.32 : 0.2), in: .rect(cornerRadius: MacRadius.row, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -127,7 +171,7 @@ private struct FavoritesGrid: View {
         let container = browser.currentSpace.flatMap { model.sidebar.favoritesContainer(profileID: $0.profileID) }
         Group {
             if favorites.isEmpty {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: MacRadius.tile, style: .continuous)
                     .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
                     .opacity(targeted ? 0.6 : 0)
                     .frame(height: targeted ? 44 : 6)
@@ -149,6 +193,7 @@ private struct FavoritesGrid: View {
 private struct FavoriteTile: View {
     @Environment(MacModel.self) private var model
     @Environment(BrowserState.self) private var browser
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let tab: SidebarItem
     let tint: Color
     @State private var hovering = false
@@ -156,19 +201,23 @@ private struct FavoriteTile: View {
 
     var body: some View {
         let active = browser.activeTabID == tab.id
-        SiteMonogram(url: tab.url, tint: tint, size: 20)
-            .frame(maxWidth: .infinity).frame(height: 42)
-            .background(.white.opacity(active ? 0.75 : hovering ? 0.4 : 0.22),
-                        in: .rect(cornerRadius: 10, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(targeted ? tint : .white.opacity(active ? 0.9 : 0), lineWidth: targeted ? 2 : 1)
-            }
-            .shadow(color: active ? tint.opacity(0.45) : .clear, radius: 8)
-            .scaleEffect(hovering ? 1.04 : 1)
-            .animation(.spring(response: 0.25, dampingFraction: 0.6), value: hovering)
-            .contentShape(Rectangle())
-            .onTapGesture { browser.activate(tab) }
+        Button { browser.activate(tab) } label: {
+            SiteMonogram(url: tab.url, tint: tint, size: 24)
+                .frame(maxWidth: .infinity).frame(height: 44)
+                .background(.white.opacity(active ? 0.75 : hovering ? 0.4 : 0.3),
+                            in: .rect(cornerRadius: MacRadius.tile, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: MacRadius.tile, style: .continuous)
+                        .strokeBorder(targeted ? tint : .white.opacity(active ? 0.9 : 0), lineWidth: targeted ? 2 : 1)
+                }
+                .shadow(color: active ? tint.opacity(0.45) : .clear, radius: 8)
+                .scaleEffect(hovering && !reduceMotion ? 1.04 : 1)
+                .animation(.spring(response: 0.25, dampingFraction: 0.6), value: hovering)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(tab.title ?? tab.url?.host() ?? "Favorite")
+        .accessibilityAddTraits(active ? .isSelected : [])
             .onHover { hovering = $0 }
             .help(tab.title ?? tab.url?.absoluteString ?? "")
             .draggable(SidebarDrag.payload(tab)) { SiteMonogram(url: tab.url, tint: tint, size: 28) }
@@ -234,7 +283,7 @@ private struct SpaceHeader: View {
     var body: some View {
         HStack(spacing: 8) {
             SpaceIcon(space: space, size: 15)
-            Text(space.title).font(.system(.callout, design: .rounded, weight: .semibold)).lineLimit(1)
+            Text(space.title).font(.system(.headline, design: .rounded)).lineLimit(1)
             Spacer()
             Menu {
                 SpaceMenu(space: space)
@@ -260,11 +309,19 @@ struct SpaceMenu: View {
     let space: Space
 
     var body: some View {
+        Button("Edit Space…") { browser.spaceEditor = .init(spaceID: space.id) }
         Button("Rename Space…") { browser.rename = .init(target: .space(space), text: space.title) }
-        Button("Edit Theme…") { browser.themeEditor = .init(id: space.id) }
+        Button("Custom Colors…") { browser.themeEditor = .init(id: space.id) }
         Button("New Folder") { withAnimation { model.newFolder(in: space) } }
+        if model.sidebar.spaces.count > 1, let index = model.sidebar.spaces.firstIndex(where: { $0.id == space.id }) {
+            Divider()
+            Button("Move Up") { withAnimation { try? model.store?.moveSpace(space.id, to: index - 1) } }.disabled(index == 0)
+            Button("Move Down") { withAnimation { try? model.store?.moveSpace(space.id, to: index + 1) } }
+                .disabled(index == model.sidebar.spaces.count - 1)
+        }
         Divider()
         Button("Archive Today's Tabs") { withAnimation { model.clearToday(in: space) } }
+        Button("New Space…") { browser.newSpace() }
     }
 }
 
@@ -300,16 +357,19 @@ private struct NewTabRow: View {
     @State private var hovering = false
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "plus").font(.system(size: 12, weight: .semibold)).frame(width: 16)
-            Text("New Tab").font(.callout)
-            Spacer()
+        Button { browser.commandMode = .newTab } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "plus").font(.system(size: 12, weight: .semibold)).frame(width: 18)
+                Text("New Tab").font(.body)
+                Spacer()
+            }
+            .opacity(0.75)
+            .padding(.horizontal, 8).frame(height: 32)
+            .background(.white.opacity(hovering ? 0.25 : 0), in: .rect(cornerRadius: MacRadius.row, style: .continuous))
+            .contentShape(Rectangle())
         }
-        .opacity(0.75)
-        .padding(.horizontal, 8).frame(height: 32)
-        .background(.white.opacity(hovering ? 0.25 : 0), in: .rect(cornerRadius: 8, style: .continuous))
-        .contentShape(Rectangle())
-        .onTapGesture { browser.commandMode = .newTab }
+        .buttonStyle(.plain)
+        .help(browser.model.keyBindings.hint("New Tab", .newTab))
         .onHover { hovering = $0 }
     }
 }
@@ -328,6 +388,7 @@ struct ItemRow: View {
     @Environment(MacModel.self) private var model
     @Environment(BrowserState.self) private var browser
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
     let item: SidebarItem
     let depth: Int
     let tint: Color
@@ -346,10 +407,23 @@ struct ItemRow: View {
     private var row: some View {
         let active = item.kind == .tab && (browser.activeTabID == item.id || browser.split?.contains(item.id) == true)
         let dark = scheme == .dark || browser.isIncognito
+        let highContrast = contrast == .increased
+        let activeFill = highContrast ? (dark ? 0.35 : 0.9) : (dark ? 0.18 : 0.78)
         return HStack(spacing: 8) {
-            leadingIcon
-            Text(title).font(.callout.weight(active ? .medium : .regular)).lineLimit(1)
-            Spacer(minLength: 0)
+            Button(action: open) {
+                HStack(spacing: 8) {
+                    leadingIcon
+                    Text(title).font(.body.weight(active ? .medium : .regular)).lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .padding(.leading, 8 + CGFloat(depth) * 14)
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(title)
+            .accessibilityValue(item.kind == .folder ? (item.isExpanded ? "Expanded" : "Collapsed") : "")
+            .accessibilityAddTraits(active ? .isSelected : [])
             if item.kind == .tab, browser.hasWandered(item) {
                 HoverIconButton(symbol: "arrow.uturn.backward", help: "Back to Pinned Page", size: 20) {
                     browser.returnToPinnedPage(item)
@@ -358,42 +432,40 @@ struct ItemRow: View {
                 .transition(.scale.combined(with: .opacity))
             }
             if hovering, item.kind == .tab {
-                HoverIconButton(symbol: model.isPinned(item) ? "minus" : "xmark",
-                                help: model.isPinned(item) ? "Unload" : "Archive (⌘W)", size: 20) {
+                let pinned = model.isPinned(item)
+                HoverIconButton(symbol: pinned ? "minus" : "xmark", help: pinned ? "Unload" : "Archive",
+                                hint: pinned ? "Unload" : model.keyBindings.hint("Archive", .closeTab), size: 20) {
                     browser.close(item)
                 }
             }
         }
-        .padding(.leading, 8 + CGFloat(depth) * 14).padding(.trailing, 4)
+        .padding(.trailing, 4)
         .frame(height: 32)
         .background {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(.white.opacity(active ? (dark ? 0.18 : 0.78) : hovering ? (dark ? 0.08 : 0.3) : 0))
+            RoundedRectangle(cornerRadius: MacRadius.row, style: .continuous)
+                .fill(.white.opacity(active ? activeFill : hovering ? (dark ? 0.08 : 0.3) : 0))
                 .shadow(color: .black.opacity(active && !dark ? 0.08 : 0), radius: 2, y: 1)
+                .overlay {
+                    if active && highContrast {
+                        RoundedRectangle(cornerRadius: MacRadius.row, style: .continuous)
+                            .strokeBorder(.primary.opacity(0.4), lineWidth: 1)
+                    }
+                }
         }
         .overlay(alignment: item.kind == .folder ? .center : .top) {
             if targeted {
                 if item.kind == .folder {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(tint, lineWidth: 2)
+                    RoundedRectangle(cornerRadius: MacRadius.row, style: .continuous).strokeBorder(tint, lineWidth: 2)
                 } else {
                     InsertionLine(tint: tint).offset(y: -1)
                 }
             }
         }
         .contentShape(Rectangle())
-        .onTapGesture {
-            if item.kind == .folder {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { model.toggleExpanded(item) }
-            } else if NSEvent.modifierFlags.contains(.shift) {
-                browser.openInSplit(item)
-            } else {
-                browser.activate(item)
-            }
-        }
         .onHover { inside in withAnimation(.easeOut(duration: 0.1)) { hovering = inside } }
         .draggable(SidebarDrag.payload(item)) {
             Label(title, systemImage: item.kind == .folder ? "folder" : "globe")
-                .padding(6).background(.regularMaterial, in: .rect(cornerRadius: 6))
+                .padding(6).background(.regularMaterial, in: .rect(cornerRadius: MacRadius.icon))
         }
         .dropDestination(for: String.self) { payloads, _ in
             if item.kind == .folder {
@@ -412,11 +484,22 @@ struct ItemRow: View {
         }
     }
 
+    private func open() {
+        if item.kind == .folder {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { model.toggleExpanded(item) }
+        } else if NSEvent.modifierFlags.contains(.shift) {
+            browser.openInSplit(item)
+        } else {
+            browser.activate(item)
+        }
+    }
+
     @ViewBuilder private var leadingIcon: some View {
         if item.kind == .folder {
-            Image(systemName: item.isExpanded ? "folder" : "folder.fill")
-                .font(.system(size: 12, weight: .medium))
-                .frame(width: 16)
+            // Filled while open, as on iOS.
+            Image(systemName: item.isExpanded ? "folder.fill" : "folder")
+                .font(.system(size: 13, weight: .medium))
+                .frame(width: 18)
                 .overlay(alignment: .leading) {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 8, weight: .bold))
@@ -425,7 +508,7 @@ struct ItemRow: View {
                         .opacity(hovering ? 0.6 : 0)
                 }
         } else {
-            SiteMonogram(url: item.url, tint: tint, size: 16)
+            SiteMonogram(url: item.url, tint: tint, size: 18)
         }
     }
 
@@ -447,12 +530,24 @@ struct TabMenu: View {
             Divider()
         }
         Button("Open in Split View") { browser.openInSplit(tab) }
+        if let url = tab.url {
+            Button("Duplicate") { browser.openTab(url, title: tab.title) }
+            if !browser.isPrivate(tab) { Button("Open in New Window") { model.openInNewWindow(tab) } }
+        }
         if !browser.isPrivate(tab) {
             Button(model.isPinned(tab) && !model.isFavorite(tab) ? "Unpin Tab" : "Pin Tab") {
                 withAnimation { browser.togglePin(tab) }
             }
             if !model.isFavorite(tab) { Button("Add to Favorites") { withAnimation { model.addToFavorites(tab) } } }
             Button("Rename…") { browser.rename = .init(target: .item(tab), text: tab.title ?? "") }
+            let otherSpaces = model.sidebar.spaces.filter { $0.id != tab.spaceID }
+            if !model.isFavorite(tab), !otherSpaces.isEmpty {
+                Menu("Move to Space") {
+                    ForEach(otherSpaces) { space in
+                        Button(space.title) { withAnimation { model.move(tab, to: space) } }
+                    }
+                }
+            }
         }
         Button("Copy URL") {
             guard let url = tab.url else { return }
@@ -472,7 +567,7 @@ private struct IncognitoColumn: View {
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 8) {
                     Image(systemName: "eyeglasses")
-                    Text("Incognito").font(.system(.callout, design: .rounded, weight: .semibold))
+                    Text("Incognito").font(.system(.headline, design: .rounded))
                 }
                 .padding(.horizontal, 8).frame(height: 32)
                 NewTabRow()
@@ -492,7 +587,9 @@ private struct SidebarBottomBar: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            HoverIconButton(symbol: "archivebox", help: "Archive (⌥⌘A)") { openWindow(id: "archive") }
+            HoverIconButton(symbol: "archivebox", help: "Archive", hint: model.keyBindings.hint("Archive", .showArchive)) {
+                openWindow(id: "archive")
+            }
             Spacer(minLength: 4)
             if !browser.isIncognito {
                 HStack(spacing: 2) {
@@ -520,25 +617,30 @@ private struct SidebarBottomBar: View {
 
 private struct SpaceDot: View {
     @Environment(BrowserState.self) private var browser
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let space: Space
     @State private var hovering = false
 
     var body: some View {
         let selected = browser.spaceID == space.id
-        Group {
-            if space.icon != nil {
-                SpaceIcon(space: space, size: 13).opacity(selected ? 1 : 0.55)
-            } else {
-                Circle().frame(width: 6, height: 6).opacity(selected ? 0.9 : 0.35)
+        Button { browser.switchSpace(to: space.id) } label: {
+            Group {
+                if space.icon != nil {
+                    SpaceIcon(space: space, size: 13).opacity(selected ? 1 : 0.55)
+                } else {
+                    Circle().frame(width: 6, height: 6).opacity(selected ? 0.9 : 0.35)
+                }
             }
+            .frame(width: 24, height: 24)
+            .background(.white.opacity(selected ? 0.45 : hovering ? 0.2 : 0), in: .circle)
+            .scaleEffect(hovering && !reduceMotion ? 1.12 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 0.55), value: hovering)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selected)
+            .contentShape(Circle())
         }
-        .frame(width: 24, height: 24)
-        .background(.white.opacity(selected ? 0.45 : hovering ? 0.2 : 0), in: .circle)
-        .scaleEffect(hovering ? 1.12 : 1)
-        .animation(.spring(response: 0.25, dampingFraction: 0.55), value: hovering)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selected)
-        .contentShape(Circle())
-        .onTapGesture { browser.switchSpace(to: space.id) }
+        .buttonStyle(.plain)
+        .accessibilityLabel(space.title)
+        .accessibilityAddTraits(selected ? .isSelected : [])
         .onHover { hovering = $0 }
         .help(space.title)
         .contextMenu { SpaceMenu(space: space) }

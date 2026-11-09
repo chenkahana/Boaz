@@ -1,4 +1,5 @@
 import FolioKit
+import OSLog
 import SwiftUI
 import WebKit
 
@@ -41,7 +42,6 @@ final class AppModel {
     // Caches touched while views render; observing them would re-render in a loop.
     @ObservationIgnored private var pages: [String: WebPage] = [:]
     @ObservationIgnored private var pageRecency: [String] = []
-    @ObservationIgnored private var closedTabs: [(tab: SidebarItem, archiveID: String?)] = []
     @ObservationIgnored private(set) var store: FolioStore?
     /// iCloud sync with the user's other devices (a picked folder only when iCloud isn't available).
     @ObservationIgnored private(set) var sync: LibrarySync?
@@ -50,6 +50,9 @@ final class AppModel {
     /// Runs once the current sheet has finished dismissing (a tab can't present while a sheet is leaving).
     @ObservationIgnored private var afterSheet: (() -> Void)?
     private let maxLivePages = 8
+    /// Archived by closing, newest last; observed so the More menu's Reopen Closed Tab stays current.
+    private var closedTabs: [(tab: SidebarItem, archiveID: String?)] = []
+    private static let log = Logger(subsystem: "com.chenkahana.folio", category: "app")
 
     init() {
         UserDefaults.standard.register(defaults: [
@@ -84,7 +87,8 @@ final class AppModel {
                 if currentSpace == nil { currentSpaceID = snapshot.spaces.first?.id }
             }
         } catch {
-            showToast("Couldn't open library: \(error.localizedDescription)")
+            Self.log.error("Opening the library failed: \(String(describing: error))")
+            showToast("Couldn't open your library. Try reopening Folio.")
         }
     }
 
@@ -128,7 +132,8 @@ final class AppModel {
                 let count = try await store.archiveStaleTabs(olderThan: TimeInterval(interval.rawValue))
                 if count > 0 { showToast("Archived \(count) inactive tab\(count == 1 ? "" : "s")") }
             } catch {
-                showToast("Couldn't archive tabs: \(error.localizedDescription)")
+                Self.log.error("Archiving stale tabs failed: \(String(describing: error))")
+                showToast("Couldn't archive inactive tabs.")
             }
         }
     }
@@ -288,7 +293,8 @@ final class AppModel {
                 let (_, name) = try await Downloads.save(response, cookieStore: dataStore.httpCookieStore)
                 self?.showToast("Downloaded \(name)")
             } catch {
-                self?.showToast("Couldn't download: \(error.localizedDescription)")
+                Self.log.error("Download failed: \(String(describing: error))")
+                self?.showToast("Couldn't download the file. Try again.")
             }
         }
     }
@@ -381,11 +387,14 @@ final class AppModel {
         do {
             let archived = try store?.archive(tab, reason: "closed")
             closedTabs.append((tab, archived?.id))
-            showToast("Tab closed", canUndo: true)
+            showToast("Tab archived", canUndo: true)
         } catch {
-            showToast("Couldn't close tab: \(error.localizedDescription)")
+            Self.log.error("Archiving a tab failed: \(String(describing: error))")
+            showToast("Couldn't archive the tab. Try again.")
         }
     }
+
+    var canReopenClosedTab: Bool { !closedTabs.isEmpty }
 
     func undoClose() {
         guard let (tab, archiveID) = closedTabs.popLast() else { return }
@@ -479,7 +488,12 @@ final class AppModel {
         var item = item
         item.modifiedAt = .now
         sidebar.upsert(item)
-        do { try store?.save([item]) } catch { showToast("Couldn't save: \(error.localizedDescription)") }
+        do {
+            try store?.save([item])
+        } catch {
+            Self.log.error("Saving a sidebar item failed: \(String(describing: error))")
+            showToast("Couldn't save. Try again.")
+        }
     }
 
     private func refreshHistorySuggestions() {
@@ -507,8 +521,11 @@ final class AppModel {
     func showToast(_ message: String, canUndo: Bool = false) {
         let toast = Toast(message: message, canUndo: canUndo)
         self.toast = toast
+        AccessibilityNotification.Announcement(message).post()
+        // VoiceOver users need longer to reach Undo.
+        let undoTime: Double = UIAccessibility.isVoiceOverRunning ? 10 : 5
         Task {
-            try? await Task.sleep(for: .seconds(canUndo ? 5 : 2.5))
+            try? await Task.sleep(for: .seconds(canUndo ? undoTime : 2.5))
             if self.toast == toast { self.toast = nil }
         }
     }

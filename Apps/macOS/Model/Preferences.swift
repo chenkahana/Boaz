@@ -7,10 +7,10 @@ enum ArchiveInterval: Int, CaseIterable, Identifiable {
     var id: Int { rawValue }
     var label: String {
         switch self {
-        case .twelveHours: "After 12 hours"
-        case .day: "After 1 day"
-        case .week: "After 7 days"
-        case .month: "After 30 days"
+        case .twelveHours: "12 hours"
+        case .day: "1 day"
+        case .week: "7 days"
+        case .month: "30 days"
         case .never: "Never"
         }
     }

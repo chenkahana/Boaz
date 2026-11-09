@@ -13,6 +13,8 @@ struct SearchOverlay: View {
         ZStack(alignment: .bottom) {
             Color.black.opacity(0.25).ignoresSafeArea()
                 .onTapGesture { model.searchTarget = nil }
+                // Cancel and the escape gesture cover this for VoiceOver.
+                .accessibilityHidden(true)
             VStack(spacing: 8) {
                 ForEach(historySuggestions) { visit in
                     Button { model.openNewTab(visit.url, title: visit.title) } label: {
@@ -65,25 +67,39 @@ struct SearchOverlay: View {
                     .buttonStyle(.plain)
                     .transition(.opacity)
                 }
-                HStack(spacing: 10) {
-                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                    TextField("Search or enter address", text: $model.searchText)
-                        .focused($focused)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .keyboardType(.webSearch)
-                        .submitLabel(.go)
-                        .onSubmit(submit)
-                    if !model.searchText.isEmpty {
-                        Button { model.searchText = "" } label: { Image(systemName: "xmark.circle.fill") }
-                            .foregroundStyle(.secondary)
+                HStack(spacing: 4) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                        TextField("Search or enter address", text: $model.searchText)
+                            .focused($focused)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .keyboardType(.webSearch)
+                            .submitLabel(.go)
+                            .onSubmit(submit)
+                        if !model.searchText.isEmpty {
+                            Button { model.searchText = "" } label: { Image(systemName: "xmark.circle.fill") }
+                                .foregroundStyle(.secondary)
+                                .accessibilityLabel("Clear Text")
+                        }
+                    }
+                    .padding(.horizontal, 18).padding(.vertical, 14)
+                    // Flat inside the glass card: glass doesn't stack on glass.
+                    .background(Color.primary.opacity(0.06), in: .capsule)
+                    Button { model.searchTarget = nil } label: {
+                        Text("Cancel").fontWeight(.medium)
+                            .padding(.horizontal, 10)
+                            .frame(minHeight: 44)
+                            .contentShape(.rect)
                     }
                 }
-                .padding(.horizontal, 18).padding(.vertical, 14)
-                .glassEffect(.regular, in: .capsule)
             }
             .padding(12)
-            .background(.regularMaterial, in: .rect(cornerRadius: 30))
+            .glassEffect(.regular, in: .rect(cornerRadius: 30))
+            // VoiceOver stays in the card, and the two-finger scrub dismisses it.
+            .accessibilityElement(children: .contain)
+            .accessibilityAddTraits(.isModal)
+            .accessibilityAction(.escape) { model.searchTarget = nil }
             .padding(.horizontal, 10)
             .padding(.bottom, 6)
             .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -134,12 +150,16 @@ struct ToastView: View {
     var body: some View {
         HStack(spacing: 14) {
             Text(toast.message).font(.callout.weight(.medium))
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
             if toast.canUndo {
                 Button("Undo") { model.undoClose() }.font(.callout.weight(.bold))
             }
         }
         .padding(.horizontal, 18).padding(.vertical, 12)
-        .glassEffect(.regular, in: .capsule)
+        // A capsule while the message fits one line; a rounded card once it wraps.
+        .glassEffect(.regular, in: .rect(cornerRadius: 22))
+        .frame(maxWidth: 360)
         .transition(.move(edge: .top).combined(with: .opacity))
     }
 }
@@ -162,6 +182,5 @@ struct PressableStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.95 : 1)
             .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
-            .sensoryFeedback(.impact(weight: .light), trigger: configuration.isPressed) { _, pressed in pressed }
     }
 }

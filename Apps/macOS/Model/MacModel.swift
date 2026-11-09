@@ -1,3 +1,4 @@
+import Accessibility
 import AppKit
 import FolioKit
 import SwiftUI
@@ -28,7 +29,10 @@ final class MacModel {
     @ObservationIgnored private var pendingExternalURLs: [URL] = []
     /// A URL waiting for the next main window to appear ("Open in Folio" from Little Folio with no window open).
     @ObservationIgnored var pendingMainURL: URL?
-    @ObservationIgnored private var closedTabs: [(tab: SidebarItem, archiveID: String?)] = []
+    /// A tab the next main window should show ("Open in New Window").
+    @ObservationIgnored var pendingMainTabID: String?
+    /// Each entry is one undoable close: a single tab, or every tab from one Clear.
+    @ObservationIgnored private var closedTabs: [[(tab: SidebarItem, archiveID: String?)]] = []
     @ObservationIgnored private var dataStores: [UUID: WKWebsiteDataStore] = [:]
     @ObservationIgnored private var contentBlockLists: [WKContentRuleList] = []
     @ObservationIgnored private var themeSaves: [String: Task<Void, Never>] = [:]
@@ -65,6 +69,7 @@ final class MacModel {
             Task { await sync.start() }
             archiveStaleTabs()
             Task { await archiveLoop() }
+            Task { await fetchLoop(sync) }
             NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil,
                                                    queue: .main) { _ in
                 MainActor.assumeIsolated {
@@ -82,6 +87,15 @@ final class MacModel {
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(30 * 60))
             archiveStaleTabs()
+        }
+    }
+
+    /// CloudKit pushes can go missing, and a Mac browser can stay frontmost for hours, so the app checks for
+    /// changes from other devices every couple of minutes while it's in use.
+    private func fetchLoop(_ sync: LibrarySync) async {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(120))
+            if NSApplication.shared.isActive { await sync.syncNow() }
         }
     }
 
@@ -130,6 +144,11 @@ final class MacModel {
     }
 
     func openWindow(id: String) { openWindowAction?(id: id) }
+
+    func openInNewWindow(_ tab: SidebarItem) {
+        pendingMainTabID = tab.id
+        openWindowAction?(id: "main")
+    }
 
     // MARK: Reads
 
@@ -238,32 +257,44 @@ final class MacModel {
 
     /// Closing a Today tab archives it; ⌘⇧T brings it back.
     func archive(_ tab: SidebarItem, reason: String = "closed", toast: Bool = true) {
+        guard let entry = archiveEntry(tab, reason: reason) else { return }
+        closedTabs.append([entry])
+        if toast { showToast("Tab archived", canUndo: true) }
+    }
+
+    private func archiveEntry(_ tab: SidebarItem, reason: String) -> (tab: SidebarItem, archiveID: String?)? {
         var removed = tab
         removed.deletedAt = .now
         sidebar.upsert(removed)
         do {
             let archived = try store?.archive(tab, reason: reason)
-            closedTabs.append((tab, archived?.id))
-            if toast { showToast("Tab archived", canUndo: true) }
+            return (tab, archived?.id)
         } catch {
             showToast("Couldn't archive tab: \(error.localizedDescription)")
+            return nil
         }
     }
 
+    /// Archives every Today tab as one batch, so Undo brings them all back.
     func clearToday(in space: Space) {
-        let tabs = todayTabs(in: space)
-        for tab in tabs { archive(tab, reason: "cleared", toast: false) }
-        if !tabs.isEmpty { showToast("Archived \(tabs.count) tab\(tabs.count == 1 ? "" : "s")", canUndo: true) }
+        let batch = todayTabs(in: space).compactMap { archiveEntry($0, reason: "cleared") }
+        guard !batch.isEmpty else { return }
+        closedTabs.append(batch)
+        showToast("Archived \(batch.count) tab\(batch.count == 1 ? "" : "s")", canUndo: true)
     }
 
+    /// Restores the last close (all of a Clear's tabs) and returns the first restored tab.
     func reopenClosedTab() -> SidebarItem? {
-        guard let (tab, archiveID) = closedTabs.popLast() else { return nil }
-        var restored = tab
-        restored.deletedAt = nil
-        restored.lastActiveAt = .now
+        guard let batch = closedTabs.popLast() else { return nil }
+        let restored = batch.map { tab, _ in
+            var restored = tab
+            restored.deletedAt = nil
+            restored.lastActiveAt = .now
+            return restored
+        }
         commit(restored)
-        if let archiveID { try? store?.removeFromArchive(archiveID) }
-        return restored
+        for case let (_, archiveID?) in batch { try? store?.removeFromArchive(archiveID) }
+        return restored.first
     }
 
     func restore(_ item: ArchiveItem) -> SidebarItem? {
@@ -278,6 +309,12 @@ final class MacModel {
               let target = sidebar.container(unpinning ? .unpinned : .pinned, in: spaceID) else { return }
         move(tab.id, into: target.id, before: nil)
         showToast(unpinning ? "Unpinned" : "Pinned")
+    }
+
+    /// Moves a tab to another space, keeping it pinned or in Today.
+    func move(_ tab: SidebarItem, to space: Space) {
+        guard let target = sidebar.container(isPinned(tab) ? .pinned : .unpinned, in: space.id) else { return }
+        move(tab.id, into: target.id, before: nil)
     }
 
     func addToFavorites(_ tab: SidebarItem) {
@@ -344,26 +381,6 @@ final class MacModel {
 
     // MARK: Spaces
 
-    @discardableResult
-    func newSpace(profileID: String?) -> Space? {
-        guard let profileID = profileID ?? sidebar.profiles.first(where: \.isDefault)?.id ?? sidebar.profiles.first?.id
-        else { return nil }
-        let presets: [(Double, Double, Double)] = [(0.80, 0.88, 0.98), (0.98, 0.86, 0.78), (0.84, 0.95, 0.84),
-                                                   (0.95, 0.84, 0.95), (0.98, 0.95, 0.78)]
-        let (r, g, b) = presets[sidebar.spaces.count % presets.count]
-        let theme = ThemeJSON.make(red: r, green: g, blue: b)
-        let space = Space(id: UUID().uuidString, title: "Space \(sidebar.spaces.count + 1)", icon: "✦",
-                          themeJSON: theme, profileID: profileID,
-                          position: (sidebar.spaces.map(\.position).max() ?? -1) + 1)
-        let pinned = SidebarItem(id: UUID().uuidString, spaceID: space.id, profileID: profileID, parentID: nil,
-                                 kind: .container, containerKind: .pinned, position: 0)
-        let today = SidebarItem(id: UUID().uuidString, spaceID: space.id, profileID: profileID, parentID: nil,
-                                kind: .container, containerKind: .unpinned, position: 1)
-        sidebar.spaces.append(space)
-        sidebar.items += [pinned, today]
-        do { try store?.save([space, pinned, today]) } catch { showToast("Couldn't save: \(error.localizedDescription)") }
-        return space
-    }
 
     func update(_ space: Space, save: Bool = true) {
         var space = space
@@ -399,8 +416,11 @@ final class MacModel {
     func showToast(_ message: String, canUndo: Bool = false) {
         let toast = Toast(message: message, canUndo: canUndo)
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { self.toast = toast }
+        // Toasts are visual only; VoiceOver hears them, and gets longer to reach Undo.
+        AccessibilityNotification.Announcement(message).post()
+        let voiceOver = NSWorkspace.shared.isVoiceOverEnabled
         Task {
-            try? await Task.sleep(for: .seconds(canUndo ? 5 : 2.5))
+            try? await Task.sleep(for: .seconds(canUndo ? (voiceOver ? 10 : 5) : 2.5))
             if self.toast == toast { withAnimation(.easeOut(duration: 0.25)) { self.toast = nil } }
         }
     }
@@ -425,14 +445,6 @@ enum ThemeJSON {
             case .accent: ["primaryColorPalette", "midTone"]
             }
         }
-    }
-
-    static func make(red r: Double, green g: Double, blue b: Double) -> Data {
-        var data: Data?
-        data = setting(NSColor(srgbRed: r, green: g, blue: b, alpha: 1), role: .backgroundLight, in: data)
-        data = setting(NSColor(srgbRed: r * 0.25, green: g * 0.25, blue: b * 0.3, alpha: 1), role: .backgroundDark, in: data)
-        data = setting(NSColor(srgbRed: r * 0.7, green: g * 0.7, blue: b * 0.9, alpha: 1), role: .accent, in: data)
-        return data ?? Data()
     }
 
     static func setting(_ color: NSColor, role: Role, in json: Data?) -> Data {

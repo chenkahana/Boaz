@@ -48,6 +48,12 @@ struct FolioMacApp: App {
         .defaultSize(width: 540, height: 640)
         .handlesExternalEvents(matching: [])
 
+        Window("History", id: "history") {
+            HistoryWindow().environment(model)
+        }
+        .defaultSize(width: 560, height: 680)
+        .handlesExternalEvents(matching: [])
+
         Settings {
             MacSettingsView().environment(model)
         }
@@ -107,13 +113,17 @@ struct FolioCommands: Commands {
             .disabled(browser?.isIncognito == true)
         }
         CommandGroup(replacing: .saveItem) {}
+        CommandGroup(replacing: .printItem) {
+            Button("Print…") { browser?.printActive() }.keyboardShortcut("p").disabled(browser?.activeTab == nil)
+        }
 
         CommandGroup(after: .pasteboard) {
             Divider()
             Button("Copy URL") { browser?.copyActiveURL() }
                 .keyboardShortcut(key(.copyURL)).disabled(browser?.activeTab == nil)
         }
-        CommandGroup(replacing: .textEditing) {
+        // After, not replacing: the system Find, Spelling, Substitutions and Speech items stay for text fields.
+        CommandGroup(after: .textEditing) {
             Button("Find in Page…") { browser?.findVisible = true }
                 .keyboardShortcut(key(.find)).disabled(browser?.activeTab == nil)
         }
@@ -135,6 +145,14 @@ struct FolioCommands: Commands {
             .disabled(browser == nil || browser?.isIncognito == true)
             Button("Archive") { openWindow(id: "archive") }.keyboardShortcut(key(.showArchive))
             Divider()
+            Button("Zoom In") { browser?.zoom(.in) }.keyboardShortcut("+").disabled(browser?.activeTab == nil)
+            Button("Zoom Out") { browser?.zoom(.out) }.keyboardShortcut("-").disabled(browser?.activeTab == nil)
+            Button("Actual Size") { browser?.zoom(.reset) }.keyboardShortcut("0").disabled(browser?.activeTab == nil)
+            Divider()
+        }
+
+        CommandMenu("History") {
+            Button("Show All History") { openWindow(id: "history") }.keyboardShortcut("y")
         }
 
         CommandMenu("Tabs") {

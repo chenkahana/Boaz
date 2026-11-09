@@ -4,6 +4,9 @@ import SwiftUI
 struct ReaderView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.dynamicTypeSize) private var systemTextSize
+    /// Reader-only override; nil follows the system text size.
+    @State private var textSize: DynamicTypeSize?
     let article: ReaderArticle
     let tint: Color
 
@@ -25,11 +28,34 @@ struct ReaderView: View {
                 }
                 .padding(20)
                 .padding(.bottom, 60)
+                .dynamicTypeSize(currentSize)
             }
             .background(backgroundTint)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Menu("Text Size", systemImage: "textformat.size") {
+                        Button("Larger Text", systemImage: "plus.magnifyingglass") { step(by: 1) }
+                            .disabled(currentSize == DynamicTypeSize.allCases.last)
+                        Button("Smaller Text", systemImage: "minus.magnifyingglass") { step(by: -1) }
+                            .disabled(currentSize == DynamicTypeSize.allCases.first)
+                        if textSize != nil {
+                            Button("Default Size", systemImage: "arrow.counterclockwise") { textSize = nil }
+                        }
+                    }
+                    .menuActionDismissBehavior(.disabled)
+                }
+                ToolbarItem(placement: .topBarTrailing) { Button(role: .close) { dismiss() } }
+            }
         }
+    }
+
+    private var currentSize: DynamicTypeSize { textSize ?? systemTextSize }
+
+    private func step(by delta: Int) {
+        let sizes = DynamicTypeSize.allCases
+        guard let index = sizes.firstIndex(of: currentSize), sizes.indices.contains(index + delta) else { return }
+        textSize = sizes[index + delta]
     }
 
     private var backgroundTint: Color {
@@ -62,8 +88,11 @@ private struct BlockView: View {
             if let src = block.src, let url = URL(string: src) {
                 AsyncImage(url: url) { image in
                     image.resizable().aspectRatio(contentMode: .fit)
-                } placeholder: { Color.clear }
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                } placeholder: {
+                    // Reserve space so the text below doesn't jump when the image arrives.
+                    Rectangle().fill(.quaternary).frame(minHeight: 180)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.row))
             }
         case .figcaption:
             Text(block.text ?? "").font(.caption).foregroundStyle(.secondary)
