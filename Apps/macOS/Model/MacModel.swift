@@ -315,11 +315,21 @@ final class MacModel {
         let folders = sidebar.container(.unpinned, in: space.id)
             .map { sidebar.children(of: $0.id).filter { $0.kind == .folder } } ?? []
         let tabs = todayTabs(in: space) + folders.flatMap { sidebar.children(of: $0.id).filter { $0.kind == .tab } }
-        let archived = tabs.compactMap { archiveEntry($0, reason: "cleared") }
-        guard !archived.isEmpty else { return }
-        commit(folders.map { var folder = $0; folder.deletedAt = .now; return folder })
-        closedTabs.append(archived + folders.map { (tab: $0, archiveID: nil) })
-        showToast("Archived \(archived.count) tab\(archived.count == 1 ? "" : "s")", canUndo: true)
+        guard !tabs.isEmpty, let store else { return }
+        let now = Date.now
+        let emptied = folders.map { var folder = $0; folder.deletedAt = now; folder.modifiedAt = now; return folder }
+        let archived: [ArchiveItem?]
+        do {
+            archived = try store.archive(tabs, reason: "cleared", saving: emptied, at: now)
+        } catch {
+            showToast("Couldn't archive tabs: \(error.localizedDescription)")
+            return
+        }
+        var updated = sidebar
+        for item in tabs.map({ var tab = $0; tab.deletedAt = now; return tab }) + emptied { updated.upsert(item) }
+        sidebar = updated
+        closedTabs.append(zip(tabs, archived).map { (tab: $0, archiveID: $1?.id) } + folders.map { (tab: $0, archiveID: nil) })
+        showToast("Archived \(tabs.count) tab\(tabs.count == 1 ? "" : "s")", canUndo: true)
     }
 
     /// Restores the last close (all of a Clear's tabs) and returns the first restored tab.

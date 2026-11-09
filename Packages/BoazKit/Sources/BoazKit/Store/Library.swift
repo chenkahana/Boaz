@@ -84,6 +84,17 @@ extension BoazStore {
         try writer.write { db in try Self.archive(tab, reason: reason, at: date, in: db) }
     }
 
+    /// Archives several tabs, and saves `others` (such as the folders they leave empty), in one transaction, so
+    /// the sidebar observation sees one change however many tabs go.
+    @discardableResult
+    public func archive(_ tabs: [SidebarItem], reason: String, saving others: [SidebarItem] = [],
+                        at date: Date = .now) throws -> [ArchiveItem?] {
+        try writer.write { db in
+            for record in others { try record.save(db) }
+            return try tabs.map { try Self.archive($0, reason: reason, at: date, in: db) }
+        }
+    }
+
     /// Archives Today tabs that haven't been active for `interval`. Pinned and favorite tabs are never archived.
     /// Only `deviceID`'s tabs (and those that recorded no device) go: another device sweeps its own.
     @discardableResult
