@@ -431,6 +431,8 @@ final class AppModel {
     }
 
     func submitSearch() {
+        // A second Go or suggestion tap while the panel closes would open a duplicate tab.
+        guard searchTarget != nil else { return }
         defer { searchTarget = nil }
         guard let url = SearchInput.url(for: searchText, searchTemplate: Preferences.searchEngine.template) else { return }
         if searchTarget == .currentTab, let tab = activeTab {

@@ -115,7 +115,11 @@ struct SearchPanel: View {
             .buttonStyle(.plain)
         }
         ForEach(historySuggestions) { visit in
-            Button { model.openNewTab(visit.url, title: visit.title) } label: {
+            Button {
+                // Ignored once the panel is closing, like Go (`submitSearch`).
+                guard model.searchTarget != nil else { return }
+                model.openNewTab(visit.url, title: visit.title)
+            } label: {
                 row {
                     Image(systemName: "clock.arrow.circlepath").frame(width: 24).foregroundStyle(Theme.textSecondary)
                     titleAndHost(visit.title, visit.url)
