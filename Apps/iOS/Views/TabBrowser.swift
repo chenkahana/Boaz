@@ -47,7 +47,11 @@ struct TabBrowser: View {
         Group {
             if model.pageOwners[tab.id] == hostID {
                 webView(page)
-                    .overlay { EdgeBands(edges: edges, insets: outerInsets) }
+                    // Inset below the status bar (next line), the page has no top strip to cover: the band would
+                    // land on the page itself. The backdrop colors the status bar instead. Over the bottom bar the
+                    // page runs on down to the screen's edge, as in Safari.
+                    .overlay { EdgeBands(edges: edges, top: statusAcrossTop ? 0 : outerInsets.top,
+                                         bottom: hasRail ? outerInsets.bottom : 0) }
                     // WebKit leaves the top safe area to the page while the web view touches the window's top edge,
                     // so the status cluster would sit on the page; one point of clearance makes it inset the page.
                     .padding(.top, statusAcrossTop ? 1 : 0)
@@ -93,7 +97,7 @@ struct TabBrowser: View {
                 }
             }
             .onGeometryChange(for: Bool.self, of: { $0.safeAreaInsets.trailing >= 44 }) { hasRail = $0 }
-            .toolRail { axis in
+            .toolRail(edgeEffect: false) { axis in
                 BrowserBar(tab: tab, page: page, axis: axis)
                     .highPriorityGesture(paging(axis))
                     .accessibilityAction(named: "Next Tab") { pageTab(by: 1) }
@@ -508,15 +512,16 @@ private struct BarIcon: View {
 /// the status bar and home indicator. The status bar picks its own contrast from what's under it.
 private struct EdgeBands: View {
     let edges: SiteEdges?
-    let insets: EdgeInsets
+    let top: CGFloat
+    let bottom: CGFloat
 
     var body: some View {
         ZStack {
             if let edges {
                 VStack(spacing: 0) {
-                    Rectangle().fill(edges.top.color).frame(height: insets.top)
+                    Rectangle().fill(edges.top.color).frame(height: top)
                     Spacer(minLength: 0)
-                    Rectangle().fill(edges.bottom.color).frame(height: insets.bottom)
+                    Rectangle().fill(edges.bottom.color).frame(height: bottom)
                 }
                 .transition(.opacity)
             }

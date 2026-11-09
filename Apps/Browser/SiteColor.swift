@@ -211,7 +211,13 @@ struct SiteEdges: Hashable {
             for (const el of stack) {
                 if (el !== document.body && el !== document.documentElement
                     && el.getBoundingClientRect().width < minWidth) continue;
-                const c = rgba(getComputedStyle(el).backgroundColor);
+                const style = getComputedStyle(el);
+                let c = rgba(style.backgroundColor);
+                // A gradient background (often under a translucent header) counts as its first color.
+                if (c[3] < 255 && style.backgroundImage.includes('gradient')) {
+                    const stop = style.backgroundImage.match(/rgba?\\([^)]*\\)/);
+                    if (stop) { const g = rgba(stop[0]); if (g[3] > 0) { if (c[3] > 0) layers.push(c); c = g; } }
+                }
                 if (c[3] === 0) continue;
                 layers.push(c);
                 if (c[3] === 255) break;
