@@ -83,8 +83,8 @@ final class AppModel {
     /// Runs once the current sheet has finished dismissing (a tab can't present while a sheet is leaving).
     @ObservationIgnored private var afterSheet: (() -> Void)?
     @ObservationIgnored private var historyLookup: Task<Void, Never>?
-    /// The preview waiting for the showing page to stop scrolling (see `pageDidScroll`).
-    @ObservationIgnored private var settledCapture: Task<Void, Never>?
+    /// The previews waiting for their pages to stop scrolling, by tab (see `pageDidScroll`).
+    @ObservationIgnored private var settledCaptures: [String: Task<Void, Never>] = [:]
     /// Tabs whose title is cooling down after a save, and whether it changed again meanwhile (`didChangeTitle`).
     @ObservationIgnored private var titleCooldowns: [String: Bool] = [:]
     /// The tab ids `pruneSnapshots` last saw.
@@ -234,6 +234,12 @@ final class AppModel {
     func archiveStaleTabs() {
         let interval = Preferences.archiveAfter
         guard interval != .never, !holdsSweeps, let store else { return }
+        // The pages on screen are in use, however long ago they were picked (the second pane's may never have been).
+        let showing = [activeTabID, otherPaneTabID].compactMap { $0.flatMap(item(withID:)) }.filter { !isPrivate($0) }
+        for var tab in showing {
+            tab.lastActiveAt = .now
+            commit(tab)
+        }
         Task {
             do {
                 let count = try await store.archiveStaleTabs(olderThan: TimeInterval(interval.rawValue), onDevice: deviceID)
@@ -395,13 +401,14 @@ final class AppModel {
         if let tab = activeTab, let page = pages[tab.id] { captureSnapshot(of: page, tab: tab) }
     }
 
-    /// Keeps the showing tab's preview at what it shows once its page comes to rest. By the time a tab is left
-    /// its page is already moving (the toolbar drags it) or gone, and no longer renders what was on screen.
+    /// Keeps a showing tab's preview (either pane's) at what it shows once its page comes to rest. By the time a
+    /// tab is left its page is already moving (the toolbar drags it) or gone, and no longer renders what was on screen.
     func pageDidScroll(_ tab: SidebarItem) {
-        settledCapture?.cancel()
-        settledCapture = Task {
+        settledCaptures[tab.id]?.cancel()
+        settledCaptures[tab.id] = Task {
             try? await Task.sleep(for: .milliseconds(500))
-            guard !Task.isCancelled, activeTabID == tab.id, let page = pages[tab.id] else { return }
+            guard !Task.isCancelled, let page = pages[tab.id] else { return }
+            settledCaptures[tab.id] = nil
             await snapshot(page, tab: tab)
         }
     }
@@ -677,6 +684,7 @@ final class AppModel {
         if activeTabID == tab.id { activeTabID = mostRecentTab(excluding: [tab.id, otherPaneTabID])?.id }
         if otherPaneTabID == tab.id { otherPaneTabID = mostRecentTab(excluding: [tab.id, activeTabID])?.id }
         pages[tab.id] = nil
+        settledCaptures.removeValue(forKey: tab.id)?.cancel()
         pageRecency.removeAll { $0 == tab.id }
         let snapshot = snapshots[tab.id]
         snapshots[tab.id] = nil
