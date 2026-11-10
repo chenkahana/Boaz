@@ -30,7 +30,7 @@ final class MacModel {
     @ObservationIgnored weak var lastActiveBrowser: BrowserState?
     @ObservationIgnored private var openWindowAction: OpenWindowAction?
     @ObservationIgnored private var pendingExternalURLs: [URL] = []
-    /// A URL waiting for the next main window to appear ("Open in Boaz" from Little Boaz with no window open).
+    /// A URL waiting for the next main window to appear ("Open in Boaz" from a Quick Window with no window open).
     @ObservationIgnored var pendingMainURL: URL?
     /// A tab the next main window should show ("Open in New Window").
     @ObservationIgnored var pendingMainTabID: String?
@@ -119,7 +119,7 @@ final class MacModel {
                     sidebar = snapshot
                     guard !loaded else { continue }
                     loaded = true
-                    // A launch without a main window (a link to Little Boaz) has nothing to restore.
+                    // A launch without a main window (a link to a Quick Window) has nothing to restore.
                     Task {
                         try? await Task.sleep(for: .seconds(10))
                         releaseSweeps()
@@ -203,7 +203,7 @@ final class MacModel {
         Task { openExternal(pending) }
     }
 
-    /// Links from other apps open in a Little Boaz window, like Little Arc.
+    /// Links from other apps open in a Quick Window.
     func openExternal(_ urls: [URL]) {
         let urls = urls.filter { ["http", "https"].contains($0.scheme?.lowercased() ?? "") && $0.host() != nil }
         guard let openWindowAction else { pendingExternalURLs += urls; return }

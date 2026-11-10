@@ -4,7 +4,7 @@ import TipKit
 import Translation
 import WebKit
 
-/// A tab's web page with Arc-style chrome: a bottom bar you swipe to change tabs, which shrinks while reading.
+/// A tab's web page with its chrome: a bottom bar you swipe to change tabs, which shrinks while reading.
 struct TabBrowser: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

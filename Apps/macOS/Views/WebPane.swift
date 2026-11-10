@@ -170,8 +170,8 @@ private struct PaneHeader: View {
     }
 }
 
-/// Little Boaz: a small window for links opened from other apps, promotable to a full tab.
-struct LittleBoazWindow: View {
+/// Quick Window: a small window for links opened from other apps, promotable to a full tab.
+struct QuickWindow: View {
     @Environment(MacModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     let url: URL?
@@ -276,7 +276,7 @@ struct LittleBoazWindow: View {
     }
 }
 
-/// Little Boaz keeps "new window" links in the same small window.
+/// A Quick Window keeps "new window" links in the same small window.
 private struct LittleRouter: WebPage.NavigationDeciding {
     final class Holder { weak var page: WebPage?; var store: WKWebsiteDataStore = .default() }
     let holder: Holder

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Arc-style circular pull indicator: a ring that fills in as you pull, grows to "armed" at the
+/// Circular pull indicator: a ring that fills in as you pull, grows to "armed" at the
 /// threshold (paired with a haptic from the caller), and spins while the page reloads.
 struct PullToRefreshIndicator: View {
     let progress: CGFloat // 0...1+, how far past the pull distance we are relative to the threshold

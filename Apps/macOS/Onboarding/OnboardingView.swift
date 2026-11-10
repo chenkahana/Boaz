@@ -73,7 +73,7 @@ struct OnboardingView: View {
             VStack(spacing: 24) {
                 OnboardingHero(size: 64)
                 OnboardingHeading(title: "Make Boaz your default",
-                                  message: "Links you click in Mail, Messages and other apps open in Little Boaz, ready to keep or toss.")
+                                  message: "Links you click in Mail, Messages and other apps open in a Quick Window, ready to keep or toss.")
                 DefaultBrowserPanel()
             }
         case .done:

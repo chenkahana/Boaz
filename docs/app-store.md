@@ -63,7 +63,9 @@ PRIVATE BY DESIGN
 Ads and trackers are blocked. On iPhone, cookie banners can be declined for you. Incognito tabs leave nothing behind. No
 accounts, no analytics, no data collected.
 
-**Keywords** (100 max): `browser,arc,tabs,spaces,sidebar,web,private,ad blocker,sync,bookmarks,foldable,incognito`
+Arc is a trademark of The Browser Company. Boaz is not affiliated with or endorsed by The Browser Company.
+
+**Keywords** (100 max): `browser,tabs,spaces,sidebar,web,private,ad blocker,sync,bookmarks,foldable,incognito` (no "arc": Guideline 2.3.7 bars other apps' trademarks in keywords)
 
 ## App Privacy (questionnaire)
 
@@ -90,7 +92,7 @@ No account or sign-in is needed, and iCloud sync is optional during the short fi
   opens the page menu (Back, Forward, Reload, Share, Pin, Reader and more). On iPhone Duo the layout follows the
   hinge (folded, the controls move to a rail beside the page; a sidebar next to the page when open; page above
   controls when half-open).
-- Mac: links from other apps open in a small "Little Boaz" window; "Open in Boaz" moves them into the main window.
+- Mac: links from other apps open in a small Quick Window; "Open in Boaz" moves them into the main window.
 - Import from Arc (Mac, optional) needs Arc installed: File › Import from Arc… asks you to choose Arc's data folder
   (~/Library/Application Support/Arc). "Keep me signed in" (copy Arc's cookies) is a separate, opt-in checkbox; macOS then asks
   permission to read Arc's "Arc Safe Storage" key, used only to decrypt Arc's cookie file on this Mac. Cookies are

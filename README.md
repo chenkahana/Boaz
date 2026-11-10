@@ -7,7 +7,7 @@
 **A calm web browser for iPhone and Mac.**
 
 On iPhone, the page fills the screen and opens where you left it, with your tabs, New Tab and the page menu
-within thumb reach and a layout that follows every posture of iPhone Duo. On the Mac, Arc-style spaces. Both stay in step through your private iCloud.
+within thumb reach and a layout that follows every posture of iPhone Duo. On the Mac, spaces that keep work, home and projects apart. Both stay in step through your private iCloud.
 
 [![CI](https://github.com/chenkahana/Boaz/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/chenkahana/Boaz/actions/workflows/ci.yml)
 ![iOS 27.1+](https://img.shields.io/badge/iOS-27.1%2B-000000?logo=apple)
@@ -37,7 +37,7 @@ within thumb reach and a layout that follows every posture of iPhone Duo. On the
 | **On-device AI** | Summarize Page, Ask This Page and Tidy Tabs, using only Apple's on-device model. Nothing goes to a server. |
 | **iCloud sync** | Spaces, pins, folders, favorites and Today sync between iPhone and Mac through your **private** CloudKit database (`CKSyncEngine`). When iCloud is unavailable, a folder you choose works as a fallback. History and Incognito tabs never leave the device. |
 | **Built for iPhone Duo** | Folded: the page with the rail beside it, its edges tinted to match the site. Open: a sidebar with search and Today next to the page. Book: sidebar on the left half, page on the right. Laptop: page on top, controls on the lower half. The page is never reloaded as the hinge moves. Standard iPhones get the page with the bar across the bottom. |
-| **A full Mac browser** | Arc-style sidebar, command bar (⌘T / ⌘L), split view, rebindable shortcuts, downloads, and a small "Little Boaz" window for links opened from other apps. |
+| **A full Mac browser** | Sidebar with spaces, command bar (⌘T / ⌘L), split view, rebindable shortcuts, downloads, and a small Quick Window for links opened from other apps. |
 | **Bring Arc with you** | On Mac, import Arc's spaces, pinned folders, favorites, themes, keyboard shortcuts and, if you opt in, cookies as they are. Chrome, Brave, Edge and Safari bookmarks import too. |
 | **Private by design** | Built-in ad and tracker blocking (EasyList), cookie-banner declining on iPhone, Incognito tabs and a reader view. No accounts, analytics or third-party SDKs. |
 | **System integration** | Share extension ("Add to Boaz"), a search widget, App Shortcuts ("Open in Boaz", "Search in Boaz"), the `boaz://` URL scheme, a default-browser handler on Mac, and alternate app icons. |
@@ -180,3 +180,6 @@ opening a pull request, and report security issues as described in [SECURITY.md]
 
 Copyright © 2026 Chen Kahana. Boaz is licensed under the [Mozilla Public License 2.0](LICENSE).
 Third-party components and their licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+Arc is a trademark of The Browser Company. Boaz is an independent project, not affiliated with or endorsed by The
+Browser Company; it only reads Arc's files on your Mac when you choose to import them.
