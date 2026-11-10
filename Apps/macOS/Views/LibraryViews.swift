@@ -163,21 +163,19 @@ struct HistoryWindow: View {
                 }
         }
         .navigationTitle("History")
-        .task(id: query) {
-            if !query.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
-            await reload()
+        .task(id: search) {
+            guard let search, let store = model.store else { return }
+            if !search.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
+            guard !Task.isCancelled else { return }
+            // Follows the database rather than the page: a visit is written after the navigation that records it.
+            do {
+                for try await found in store.historyUpdates(matching: search, limit: 1000) { visits = found }
+            } catch {}
         }
-        .task(id: model.sidebar) { await reload() }
     }
 
-    /// Searches in the database, off the main thread: matching scans the whole history.
-    private func reload() async {
-        let searched = query
-        guard !Task.isCancelled, let store = model.store,
-              let found = try? await store.history(matching: searched, limit: 1000), !Task.isCancelled,
-              searched == query else { return }
-        visits = found
-    }
+    /// The text to search history for, in the database off the main thread; nil until the library is open.
+    private var search: String? { model.sidebar.spaces.isEmpty ? nil : query }
 }
 
 /// A calendar day's section title. Relative formatting counts from now, so this morning read as "Yesterday"
