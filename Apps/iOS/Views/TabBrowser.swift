@@ -160,6 +160,8 @@ struct TabBrowser: View {
     private func webView(_ page: WebPage) -> some View {
         WebView(page)
             .webViewBackForwardNavigationGestures(.enabled)
+            // A page that fits the width doesn't rubber-band sideways.
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
             .webViewOnScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y + $0.contentInsets.top }) {
                 handlePullGeometry(old: $0, new: $1, page: page)
                 model.pageDidScroll(tab)
