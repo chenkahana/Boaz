@@ -83,6 +83,17 @@ public final class BoazStore: Sendable {
         }
     }
 
+    /// Returns once every write queued before it has run, without taking a database lock. Suspending the database
+    /// or quitting fails the queued writes it would otherwise cut off.
+    public func waitForQueuedWrites() async {
+        try? await writer.writeWithoutTransaction { _ in }
+    }
+
+    /// `waitForQueuedWrites()` for a caller that can't wait asynchronously (the Mac app quitting).
+    public func waitForQueuedWritesNow() {
+        writer.writeWithoutTransaction { _ in }
+    }
+
     public func isEmpty() throws -> Bool {
         try writer.read { db in try Space.fetchCount(db) == 0 }
     }

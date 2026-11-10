@@ -31,7 +31,7 @@ struct BoazApp: App {
             // The database lives in the App Group container: never hold a lock on it while suspended.
             if phase == .background {
                 Self.scheduleSyncRefresh()
-                BoazStore.suspendDatabases()
+                model.suspendDatabase()
             } else {
                 BoazStore.resumeDatabases()
             }

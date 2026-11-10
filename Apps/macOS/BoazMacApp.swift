@@ -65,6 +65,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApplication.shared.registerForRemoteNotifications()
     }
 
+    /// Writes queued off the main thread would be lost with the process.
+    func applicationWillTerminate(_ notification: Notification) {
+        MacModel.shared.store?.waitForQueuedWritesNow()
+    }
+
     /// iCloud change pushes: fetch right away.
     func application(_ application: NSApplication, didReceiveRemoteNotification userInfo: [String: Any]) {
         guard CKNotification(fromRemoteNotificationDictionary: userInfo) != nil else { return }

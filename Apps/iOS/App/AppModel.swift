@@ -67,6 +67,9 @@ final class AppModel {
     /// `nil` until compiled. Pages opened before then (the tab reopened at launch) hold their first load until they
     /// have the lists, so no page loads with its ads.
     @ObservationIgnored private var contentBlockLists: [WKContentRuleList]?
+    /// Keeps the app running in the background until the writes queued before it went there have landed.
+    @ObservationIgnored private var backgroundWrites = UIBackgroundTaskIdentifier.invalid
+    @ObservationIgnored private var suspendRequests = 0
     @ObservationIgnored private var awaitingBlockLists: [(controller: WKUserContentController, load: () -> Void)] = []
     /// Runs once the current sheet has finished dismissing (a tab can't present while a sheet is leaving).
     @ObservationIgnored private var afterSheet: (() -> Void)?
@@ -176,6 +179,29 @@ final class AppModel {
         BoazStore.resumeDatabases()
         await sync.syncNow()
         if UIApplication.shared.applicationState == .background { BoazStore.suspendDatabases() }
+    }
+
+    /// Suspends the database for the background once the writes already queued have run: suspending fails the
+    /// ones still waiting, and the sidebar would keep showing changes that were never saved.
+    func suspendDatabase() {
+        guard let store else { return BoazStore.suspendDatabases() }
+        suspendRequests += 1
+        let request = suspendRequests
+        if backgroundWrites == .invalid {
+            backgroundWrites = UIApplication.shared.beginBackgroundTask { [weak self] in self?.finishSuspending() }
+        }
+        Task {
+            await store.waitForQueuedWrites()
+            // A later request's wait covers this one's writes too, and it finishes last.
+            if request == suspendRequests { finishSuspending() }
+        }
+    }
+
+    private func finishSuspending() {
+        guard backgroundWrites != .invalid else { return }
+        if UIApplication.shared.applicationState == .background { BoazStore.suspendDatabases() }
+        UIApplication.shared.endBackgroundTask(backgroundWrites)
+        backgroundWrites = .invalid
     }
 
     /// Picks up rows the share extension wrote while the app was away: the live observation only sees this
