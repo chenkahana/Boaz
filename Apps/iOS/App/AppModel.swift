@@ -431,6 +431,14 @@ final class AppModel {
         }
     }
 
+    /// Drops a position waiting to be put back once the page is no longer loading the address it was saved at: it
+    /// finished while its browser wasn't watching, or went somewhere else first.
+    func dropStalePendingScroll(_ tab: SidebarItem) {
+        guard let position = pendingScrolls[tab.id], let page = pages[tab.id], let url = page.url,
+              !page.isLoading || !url.isSamePage(as: position.url) else { return }
+        pendingScrolls[tab.id] = nil
+    }
+
     /// Saves where the page came to rest. Not while it loads: a page loading again sits at the top until its
     /// position is put back.
     private func rememberScroll(of page: WebPage, tab: SidebarItem) async {

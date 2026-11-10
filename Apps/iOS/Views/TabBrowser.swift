@@ -299,6 +299,7 @@ struct TabBrowser: View {
         readableLength = 0
         // A page shown again has loaded already, so no `.finished` comes to measure it.
         if !page.isLoading, page.url != nil { Task { readableLength = await Reader.estimatedReadableLength(of: page) } }
+        model.dropStalePendingScroll(tab)
         var requested: URL?
         while !Task.isCancelled {
             do {
@@ -307,6 +308,7 @@ struct TabBrowser: View {
                     case .startedProvisionalNavigation:
                         loadFailure = nil
                         requested = page.url
+                        model.dropStalePendingScroll(tab)
                     case .receivedServerRedirect:
                         requested = page.url
                     case .committed:
