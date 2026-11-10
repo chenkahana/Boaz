@@ -8,7 +8,7 @@ UNSIGNED := CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
 XCB      := xcodebuild -project $(PROJECT) -derivedDataPath $(DERIVED) -quiet
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap project kit ios mac build archive clean
+.PHONY: help bootstrap project kit ios mac build archive dmg clean
 
 help: ## List the available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "  %-10s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -37,6 +37,9 @@ archive: project ## Signed Release archives for App Store Connect, in build/arch
 		-destination 'generic/platform=iOS' -archivePath $(ARCHIVES)/Boaz-iOS.xcarchive -allowProvisioningUpdates
 	xcodebuild archive -project $(PROJECT) -scheme Boaz-macOS -configuration Release \
 		-destination 'generic/platform=macOS' -archivePath $(ARCHIVES)/Boaz-macOS.xcarchive -allowProvisioningUpdates
+
+dmg: ## Developer ID DMG for download outside the App Store: make dmg VERSION=1.2.0 (docs/release.md)
+	Tools/release-mac.sh $(VERSION)
 
 clean: ## Remove build output (keeps release archives)
 	rm -rf "$(DERIVED)" Packages/BoazKit/.build
