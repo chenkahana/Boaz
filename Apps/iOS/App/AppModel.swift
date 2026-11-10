@@ -406,6 +406,7 @@ final class AppModel {
         pages[tabID] = nil
         pageRecency.removeAll { $0 == tabID }
         snapshots[tabID] = nil
+        siteEdges[tabID] = nil
         SnapshotCache.remove(tabID)
         if isPrivate(tab) {
             incognitoTabs.removeAll { $0.id == tabID }
@@ -558,6 +559,7 @@ final class AppModel {
         pages[tab.id] = nil
         pageRecency.removeAll { $0 == tab.id }
         snapshots[tab.id] = nil
+        siteEdges[tab.id] = nil
         SnapshotCache.remove(tab.id)
         if isPrivate(tab) {
             incognitoTabs.removeAll { $0.id == tab.id }
@@ -659,6 +661,7 @@ final class AppModel {
             for tab in incognitoTabs {
                 pages[tab.id] = nil
                 snapshots[tab.id] = nil
+                siteEdges[tab.id] = nil
             }
             pageRecency.removeAll { id in incognitoTabs.contains { $0.id == id } }
             incognitoTabs = []
