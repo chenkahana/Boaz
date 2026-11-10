@@ -11,9 +11,6 @@ struct BrowserWindow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var browser: BrowserState
     @AppStorage("sidebarWidth") private var sidebarWidth = 250.0
-    /// The space and tab this window showed, brought back when macOS restores the window at launch.
-    @SceneStorage("spaceID") private var savedSpaceID: String?
-    @SceneStorage("tabID") private var savedTabID: String?
 
     init(incognito: Bool) {
         _browser = State(initialValue: BrowserState(incognito: incognito))
@@ -37,6 +34,7 @@ struct BrowserWindow: View {
         .overlay {
             if let mode = browser.commandMode {
                 CommandBar(mode: mode)
+                    .id(browser.commandSession)
                     .transition(reduceMotion ? .opacity : .scale(scale: 0.96, anchor: .top).combined(with: .opacity))
             }
         }
@@ -62,8 +60,8 @@ struct BrowserWindow: View {
         .sheet(item: $browser.rename) { request in RenameSheet(request: request).environment(browser) }
         .sheet(item: $browser.ai) { MacAISheet(request: $0).environment(model).environment(browser) }
         .onAppear { model.registerOpenWindow(openWindow) }
-        .onChange(of: browser.currentSpaceID) { if !browser.isIncognito { savedSpaceID = browser.currentSpaceID } }
-        .onChange(of: browser.activeTabID) { if !browser.isIncognito { savedTabID = browser.activeTabID } }
+        .onChange(of: browser.currentSpaceID) { if !browser.isIncognito { model.saveOpenWindows() } }
+        .onChange(of: browser.activeTabID) { if !browser.isIncognito { model.saveOpenWindows() } }
         .task {
             if !browser.isIncognito { model.beginRestoring() }
             defer { if !browser.isIncognito { model.endRestoring() } }
@@ -76,9 +74,12 @@ struct BrowserWindow: View {
                 browser.onboarding = .welcome
             }
             while model.sidebar.spaces.isEmpty && model.loadError == nil { try? await Task.sleep(for: .milliseconds(100)) }
-            if !browser.isIncognito {
-                if let id = savedSpaceID, model.space(id) != nil { browser.currentSpaceID = id }
-                if let tab = browser.tab(savedTabID) { browser.activate(tab) }
+            if !browser.isIncognito, let saved = model.claimSavedWindow() {
+                if let id = saved.spaceID, model.space(id) != nil { browser.currentSpaceID = id }
+                if let tab = browser.tab(saved.tabID) { browser.activate(tab) }
+                for _ in 0..<25 where browser.window == nil { try? await Task.sleep(for: .milliseconds(20)) }
+                if let frame = saved.frame { browser.window?.setFrame(from: frame) }
+                if saved.minimized == true { browser.window?.miniaturize(nil) }
             }
             browser.consumePendingURL()
         }
@@ -87,6 +88,7 @@ struct BrowserWindow: View {
     /// Private tabs keep their titles out of system UI, as the sidebar does.
     private var windowTitle: String {
         if browser.isIncognito { return "Incognito" }
+        if let failure = browser.activeFailure { return failure.url?.host() ?? "Can't Open This Page" }
         return browser.activeTab.flatMap { $0.title ?? $0.url?.host() } ?? browser.currentSpace?.title ?? "Boaz"
     }
 }

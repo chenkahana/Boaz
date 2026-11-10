@@ -18,6 +18,8 @@ struct BoazMacApp: App {
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1280, height: 820)
         .handlesExternalEvents(matching: [])
+        // The app reopens its main windows itself (`MacModel.SavedWindow`), whatever the system setting.
+        .restorationBehavior(.disabled)
         .commands { BoazCommands(model: model) }
 
         WindowGroup("Incognito", id: "incognito") {
@@ -63,10 +65,17 @@ struct BoazMacApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApplication.shared.registerForRemoteNotifications()
+        LinkDownloadMenu.install()
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        MacModel.shared.isQuitting = true
+        return .terminateNow
     }
 
     /// Writes queued off the main thread would be lost with the process.
     func applicationWillTerminate(_ notification: Notification) {
+        MacModel.shared.saveOpenWindows()
         MacModel.shared.store?.waitForQueuedWritesNow()
     }
 
