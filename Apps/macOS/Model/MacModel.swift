@@ -299,7 +299,7 @@ final class MacModel {
             commit(item)
         }
         if let url, url.scheme?.hasPrefix("http") == true {
-            try? store?.recordVisit(profileID: item.profileID, url: url, title: title.isEmpty ? newTitle : title)
+            store?.recordVisit(profileID: item.profileID, url: url, title: title.isEmpty ? newTitle : title)
         }
     }
 
@@ -487,7 +487,8 @@ final class MacModel {
     func commit(_ items: [SidebarItem]) {
         let items = items.map { var item = $0; item.modifiedAt = .now; return item }
         for item in items { sidebar.upsert(item) }
-        do { try store?.save(items) } catch { showToast("Couldn't save: \(error.localizedDescription)") }
+        // Every tab click and navigation lands here, so the write never holds up the main thread.
+        store?.saveInBackground(items) { [weak self] error in self?.showToast("Couldn't save: \(error.localizedDescription)") }
     }
 
     func showToast(_ message: String, canUndo: Bool = false) {

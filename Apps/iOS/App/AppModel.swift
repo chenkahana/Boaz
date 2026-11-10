@@ -444,14 +444,14 @@ final class AppModel {
             commit(item)
         }
         if !isPrivate(item), let url, url.scheme?.hasPrefix("http") == true {
-            try? store?.recordVisit(profileID: item.profileID, url: url, title: title.isEmpty ? newTitle : title)
+            store?.recordVisit(profileID: item.profileID, url: url, title: title.isEmpty ? newTitle : title)
         }
     }
 
     /// A server redirect leaves the address it left in history as a second entry for the same load.
     func didRedirect(_ tab: SidebarItem, from hop: URL) {
         guard !isPrivate(tab) else { return }
-        try? store?.forgetRedirectedVisit(to: hop)
+        store?.forgetRedirectedVisit(to: hop)
     }
 
     /// Pages that animate their title (unread counts, timers) would otherwise save, sync and refetch the whole
@@ -695,11 +695,10 @@ final class AppModel {
         var item = item
         item.modifiedAt = .now
         sidebar.upsert(item)
-        do {
-            try store?.save([item])
-        } catch {
+        // Every tab tap and navigation lands here, so the write never holds up the main thread.
+        store?.saveInBackground([item]) { [weak self] error in
             Self.log.error("Saving a sidebar item failed: \(String(describing: error))")
-            showToast("Couldn't save. Try again.")
+            self?.showToast("Couldn't save. Try again.")
         }
     }
 

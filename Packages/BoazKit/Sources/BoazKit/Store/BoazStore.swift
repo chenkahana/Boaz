@@ -65,6 +65,24 @@ public final class BoazStore: Sendable {
         }
     }
 
+    /// Saves `records` without waiting for the database, which may be held by another process for seconds. Writes
+    /// queued this way run in the order they were queued, before any write started later, so a caller on the main
+    /// thread keeps its order without blocking. `failure` runs on the main actor.
+    public func saveInBackground<Record: PersistableRecord & Sendable>(
+        _ records: [Record], failure: @escaping @MainActor @Sendable (any Error) -> Void
+    ) {
+        writeInBackground({ db in for record in records { try record.save(db) } }, failure: failure)
+    }
+
+    /// Queues `updates` on the database's writer (see `saveInBackground`).
+    func writeInBackground(_ updates: @escaping @Sendable (Database) throws -> Void,
+                           failure: (@MainActor @Sendable (any Error) -> Void)? = nil) {
+        writer.asyncWrite(updates) { _, result in
+            guard case .failure(let error) = result, let failure else { return }
+            Task { @MainActor in failure(error) }
+        }
+    }
+
     public func isEmpty() throws -> Bool {
         try writer.read { db in try Space.fetchCount(db) == 0 }
     }

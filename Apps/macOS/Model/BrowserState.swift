@@ -269,7 +269,7 @@ final class BrowserState {
     /// A server redirect leaves the address it left in history as a second entry for the same load.
     func didRedirect(_ tabID: String, from hop: URL) {
         guard !isIncognito else { return }
-        try? model.store?.forgetRedirectedVisit(to: hop)
+        model.store?.forgetRedirectedVisit(to: hop)
     }
 
     /// Pages that animate their title (unread counts, timers) would otherwise save, sync and refetch the whole

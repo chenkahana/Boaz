@@ -33,9 +33,10 @@ public enum ArchiveOutcome: Sendable {
 extension BoazStore {
     // MARK: History
 
-    /// Records a visit. Repeated loads of the same URL within ten minutes update the existing visit.
-    public func recordVisit(profileID: String, url: URL, title: String?, at date: Date = .now) throws {
-        try writer.write { db in
+    /// Records a visit. Repeated loads of the same URL within ten minutes update the existing visit. Queued like
+    /// `saveInBackground`, so navigating never waits on the database.
+    public func recordVisit(profileID: String, url: URL, title: String?, at date: Date = .now) {
+        writeInBackground { db in
             if var last = try HistoryVisit.order(Column("visitedAt").desc).fetchOne(db),
                last.url == url, date.timeIntervalSince(last.visitedAt) < 600 {
                 if let title, !title.isEmpty { last.title = title }
@@ -50,9 +51,9 @@ extension BoazStore {
 
     /// Drops the visit just recorded for `hop`, an address the server redirected away from, so one load leaves one
     /// entry. The redirect's target may already be recorded after it, so the last two visits are checked, and only
-    /// a visit from the last half minute goes.
-    public func forgetRedirectedVisit(to hop: URL, at date: Date = .now) throws {
-        try writer.write { db in
+    /// a visit from the last half minute goes. Queued in turn with `recordVisit`.
+    public func forgetRedirectedVisit(to hop: URL, at date: Date = .now) {
+        writeInBackground { db in
             let recent = try HistoryVisit.order(Column("visitedAt").desc).limit(2).fetchAll(db)
             guard let visit = recent.first(where: { $0.url == hop }), date.timeIntervalSince(visit.visitedAt) < 30
             else { return }
