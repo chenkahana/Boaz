@@ -87,6 +87,8 @@ final class AppModel {
     @ObservationIgnored private var settledCaptures: [String: Task<Void, Never>] = [:]
     /// Tabs whose title is cooling down after a save, and whether it changed again meanwhile (`didChangeTitle`).
     @ObservationIgnored private var titleCooldowns: [String: Bool] = [:]
+    /// The address each tab's current page was recorded at in history, which its later titles name (`didCommitLoad`).
+    @ObservationIgnored private var visitURLs: [String: URL] = [:]
     /// The tab ids `pruneSnapshots` last saw.
     @ObservationIgnored private var liveItemIDs: Set<String> = []
     /// The stale-tab sweep waits until the tab open at the last quit is back on screen, which keeps it out of the sweep.
@@ -508,7 +510,7 @@ final class AppModel {
         }
     }
 
-    /// Persists where a tab has navigated to, and records the visit in history (except private tabs).
+    /// Persists where a tab has navigated to. In history it only names the visit its load recorded (`didCommitLoad`).
     func didNavigate(_ tab: SidebarItem, url: URL?, title: String) {
         guard var item = sidebar.items.first(where: { $0.id == tab.id }) ?? incognitoTabs.first(where: { $0.id == tab.id })
         else { return }
@@ -522,15 +524,19 @@ final class AppModel {
             item.title = newTitle
             commit(item)
         }
-        if !isPrivate(item), let url, url.scheme?.hasPrefix("http") == true {
-            store?.recordVisit(profileID: item.profileID, url: url, title: title.isEmpty ? newTitle : title)
-        }
+        if !title.isEmpty, let visit = visitURLs[tab.id] { store?.updateVisitTitle(title, for: visit) }
     }
 
-    /// A server redirect leaves the address it left in history as a second entry for the same load.
-    func didRedirect(_ tab: SidebarItem, from hop: URL) {
-        guard !isPrivate(tab) else { return }
-        store?.forgetRedirectedVisit(to: hop)
+    /// A page committed a new load: one history visit (except private tabs), at the address the load ended on. The
+    /// address also changes for a load that hasn't committed yet, at every server redirect hop and for same-document
+    /// updates (`replaceState`, fragments); none of those commit, so none adds a visit.
+    func didCommitLoad(_ tab: SidebarItem) {
+        guard !isPrivate(tab), let page = pages[tab.id], let url = page.url, url.scheme?.hasPrefix("http") == true else {
+            visitURLs[tab.id] = nil
+            return
+        }
+        visitURLs[tab.id] = url
+        store?.recordVisit(profileID: tab.profileID, url: url, title: page.title.isEmpty ? nil : page.title)
     }
 
     /// Pages that animate their title (unread counts, timers) would otherwise save, sync and refetch the whole

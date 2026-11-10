@@ -56,15 +56,14 @@ extension BoazStore {
         }
     }
 
-    /// Drops the visit just recorded for `hop`, an address the server redirected away from, so one load leaves one
-    /// entry. The redirect's target may already be recorded after it, so the last two visits are checked, and only
-    /// a visit from the last half minute goes. Queued in turn with `recordVisit`.
-    public func forgetRedirectedVisit(to hop: URL, at date: Date = .now) {
+    /// Names the latest visit to `url` with the title its page reported after the load was recorded. Never adds a
+    /// visit. Queued in turn with `recordVisit`.
+    public func updateVisitTitle(_ title: String, for url: URL) {
         writeInBackground { db in
-            let recent = try HistoryVisit.order(Column("visitedAt").desc).limit(2).fetchAll(db)
-            guard let visit = recent.first(where: { $0.url == hop }), date.timeIntervalSince(visit.visitedAt) < 30
-            else { return }
-            try visit.delete(db)
+            guard var visit = try HistoryVisit.filter(Column("url") == url).order(Column("visitedAt").desc).fetchOne(db),
+                  visit.title != title else { return }
+            visit.title = title
+            try visit.update(db)
         }
     }
 
