@@ -160,6 +160,8 @@ private struct TodayRow: View {
         .overlay(alignment: .trailing) {
             Button("Close", systemImage: "xmark") { withAnimation(.snappy) { model.close(tab) } }
                 .labelStyle(.iconOnly)
+                // Every row has one, so VoiceOver names the tab it closes.
+                .accessibilityLabel("Close \(tab.title ?? tab.url?.host() ?? "New Tab")")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(active ? .primary : .secondary)
                 .frame(width: 44)

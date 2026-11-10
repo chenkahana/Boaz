@@ -56,6 +56,8 @@ struct PageSettingsPanel: View {
         }
         // Rows scrolling past the panel's rounded bottom corners stay inside them.
         .clipShape(.rect(cornerRadius: BottomPanelStyle.cornerRadius))
+        // A named container: the label mustn't replace each row's own.
+        .accessibilityElement(children: .contain)
         .accessibilityLabel("Page Settings")
     }
 
