@@ -368,7 +368,7 @@ private struct BrowserBar: View {
         bar.onChange(of: tabCount, initial: true) { SwipeTabsTip.openTabs = tabCount }
     }
 
-    /// Top to bottom (left to right on the bottom bar): the tabs, New Tab, then the page settings at the far end.
+    /// On the rail, top to bottom: the tabs, New Tab, then the page settings. The bottom bar has a layout of its own.
     @ViewBuilder private var bar: some View {
         if axis == .vertical {
             RailColumn {
@@ -400,23 +400,76 @@ private struct BrowserBar: View {
         }
     }
 
-    /// Fixed across the bottom, the page ending above it. Frosted over the page's bottom color, with glyphs picked
-    /// for that color, so the buttons read on any page.
+    /// The phone's own toolbar, as Safari lays it out: the address in the middle, the tabs at the leading end, New Tab
+    /// and the page menu at the trailing end, each a piece of glass. Fixed across the bottom on a frosted strip in the
+    /// page's bottom color, with the page ending above it.
     private var bottomBar: some View {
-        HStack(spacing: 4) {
-            tabsButton
-            RailButton(symbol: "plus", label: "New Tab", isSelected: model.searchTarget != nil, action: toggleSearch)
-            Spacer(minLength: 0)
-            RailButton(symbol: "ellipsis", label: "Page Settings", isSelected: model.showsPageSettings,
-                       action: togglePageSettings)
+        GlassEffectContainer(spacing: 8) {
+            HStack(spacing: 8) {
+                tabsButton.glassEffect(.regular.interactive(), in: .circle)
+                addressField
+                HStack(spacing: 0) {
+                    RailButton(symbol: "plus", label: "New Tab", isSelected: model.searchTarget == .newTab,
+                               action: toggleSearch)
+                    RailButton(symbol: "ellipsis", label: "Page Settings", isSelected: model.showsPageSettings,
+                               action: togglePageSettings)
+                }
+                .glassEffect(.regular.interactive(), in: .capsule)
+            }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 2)
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
         .popoverTip(SwipeTabsTip(), arrowEdge: .bottom)
         .frame(maxWidth: .infinity)
         .background(.bar, ignoresSafeAreaEdges: .bottom)
         .overlay(alignment: .top) { Divider() }
         .chromeScheme(edges?.bottom)
+    }
+
+    /// The site's icon and name; tapped, it opens the search panel on the page's address. A line along its foot shows
+    /// the page loading.
+    private var addressField: some View {
+        Button(action: editAddress) {
+            HStack(spacing: 8) {
+                Monogram(url: page.url ?? tab.url, tint: Theme.brand, size: 20)
+                Text(host).font(.subheadline.weight(.semibold)).lineLimit(1)
+            }
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, minHeight: 46)
+            .overlay(alignment: .bottomLeading) {
+                if page.isLoading {
+                    GeometryReader { proxy in
+                        Capsule().fill(Theme.glow)
+                            .frame(width: proxy.size.width * max(page.estimatedProgress, 0.06), height: 2.5)
+                    }
+                    .frame(height: 2.5)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 3)
+                    .transition(.opacity)
+                }
+            }
+            .animation(.easeOut(duration: 0.25), value: page.estimatedProgress)
+            .contentShape(.capsule)
+        }
+        .buttonStyle(PressableStyle())
+        .glassEffect(.regular.interactive(), in: .capsule)
+        .accessibilityLabel("Address")
+        .accessibilityValue(host)
+        .accessibilityHint("Edit the address or search")
+    }
+
+    private var host: String {
+        guard let host = (page.url ?? tab.url)?.host() else { return "Search or enter address" }
+        return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+    }
+
+    /// The address opens the search panel on the page's own address; pressed again, it puts it away.
+    private func editAddress() {
+        withAnimation(BottomPanelStyle.motion) {
+            model.showsPageSettings = false
+            if model.searchTarget != nil { model.searchTarget = nil } else { model.beginSearch(.currentTab) }
+        }
     }
 
     /// New Tab opens the search panel; pressed again, it puts it away. One panel at a time.
