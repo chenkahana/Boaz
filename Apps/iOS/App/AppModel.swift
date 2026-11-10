@@ -76,6 +76,8 @@ final class AppModel {
     /// Runs once the current sheet has finished dismissing (a tab can't present while a sheet is leaving).
     @ObservationIgnored private var afterSheet: (() -> Void)?
     @ObservationIgnored private var historyLookup: Task<Void, Never>?
+    /// The preview waiting for the showing page to stop scrolling (see `pageDidScroll`).
+    @ObservationIgnored private var settledCapture: Task<Void, Never>?
     /// Tabs whose title is cooling down after a save, and whether it changed again meanwhile (`didChangeTitle`).
     @ObservationIgnored private var titleCooldowns: [String: Bool] = [:]
     /// The tab ids `pruneSnapshots` last saw.
@@ -86,7 +88,7 @@ final class AppModel {
     /// This iPhone, in the device list: Today shows only the tabs opened here (see `SidebarItem.deviceID`).
     let deviceID = Device.localID(in: UserDefaults(suiteName: BoazStore.appGroup) ?? .standard)
     /// Archived by closing, newest last; observed so the More menu's Reopen Closed Tab stays current.
-    private var closedTabs: [(tab: SidebarItem, archiveID: String?)] = []
+    private var closedTabs: [(tab: SidebarItem, archiveID: String?, snapshot: UIImage?)] = []
     private static let log = Logger(subsystem: "com.chenkahana.boaz", category: "app")
 
     init() {
@@ -368,13 +370,35 @@ final class AppModel {
         if siteEdges[tabID] != edges { siteEdges[tabID] = edges }
     }
 
-    /// Downscaled render of a tab's current page, dropped when the tab closes.
+    /// Downscaled render of what a tab's page shows on screen (the viewport as scrolled, not the top of the
+    /// document), dropped when the tab closes.
     private func captureSnapshot(of page: WebPage, tab: SidebarItem) {
         Task { await snapshot(page, tab: tab) }
     }
 
+    /// The showing tab's preview, refreshed as it is about to be left for a new tab or another app, while its
+    /// page still shows.
+    func captureActiveSnapshot() {
+        if let tab = activeTab, let page = pages[tab.id] { captureSnapshot(of: page, tab: tab) }
+    }
+
+    /// Keeps the showing tab's preview at what it shows once its page comes to rest. By the time a tab is left
+    /// its page is already moving (the toolbar drags it) or gone, and no longer renders what was on screen.
+    func pageDidScroll(_ tab: SidebarItem) {
+        settledCapture?.cancel()
+        settledCapture = Task {
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled, activeTabID == tab.id, let page = pages[tab.id] else { return }
+            await snapshot(page, tab: tab)
+        }
+    }
+
     private func snapshot(_ page: WebPage, tab: SidebarItem) async {
-        guard let data = try? await page.exported(as: .image(snapshotWidth: 400)),
+        // A page whose web view has left the screen renders at a default size, not as it was last seen; the
+        // preview taken while it showed is kept instead.
+        guard pageOwners[tab.id] != nil,
+              let data = try? await page.exported(as: .image(snapshotWidth: 400)),
+              pageOwners[tab.id] != nil,
               let image = UIImage(data: data),
               // The tab may have closed while the page rendered.
               isLive(tab.id) else { return }
@@ -514,6 +538,8 @@ final class AppModel {
         searchText = target == .currentTab ? (activeTab?.url?.absoluteString ?? "") : ""
         searchTarget = target
         if asksSearchEngine { remoteSuggestions.warm(Preferences.searchEngine) }
+        // The page about to be left for a new tab is still on screen, under the panel.
+        if target == .newTab { captureActiveSnapshot() }
     }
 
     func submitSearch() {
@@ -549,9 +575,6 @@ final class AppModel {
     func activate(_ tab: SidebarItem) {
         guard tab.kind == .tab else { return }
         searchTarget = nil
-        if let previous = activeTab, previous.id != tab.id, let page = pages[previous.id] {
-            captureSnapshot(of: page, tab: previous)
-        }
         var item = tab
         item.lastActiveAt = .now
         item.isUnread = false
@@ -596,6 +619,7 @@ final class AppModel {
         if activeTabID == tab.id { activeTabID = neighbor(of: tab)?.id }
         pages[tab.id] = nil
         pageRecency.removeAll { $0 == tab.id }
+        let snapshot = snapshots[tab.id]
         snapshots[tab.id] = nil
         siteEdges[tab.id] = nil
         SnapshotCache.remove(tab.id)
@@ -609,7 +633,7 @@ final class AppModel {
         do {
             // Undo after the sweep got there first would bring back a tab that is also in the archive.
             guard case .archived(let entry)? = try store?.archive(tab, reason: "closed") else { return }
-            closedTabs.append((tab, entry?.id))
+            closedTabs.append((tab, entry?.id, snapshot))
             showToast("Tab archived", canUndo: true)
         } catch {
             Self.log.error("Archiving a tab failed: \(String(describing: error))")
@@ -620,10 +644,15 @@ final class AppModel {
     var canReopenClosedTab: Bool { !closedTabs.isEmpty }
 
     func undoClose() {
-        guard let (tab, archiveID) = closedTabs.popLast() else { return }
+        guard let (tab, archiveID, snapshot) = closedTabs.popLast() else { return }
         var restored = tab
         restored.deletedAt = nil
         commit(restored)
+        // The card comes back as it went, not as a placeholder until the page is next seen.
+        if let snapshot {
+            snapshots[tab.id] = snapshot
+            SnapshotCache.save(snapshot, for: tab.id)
+        }
         if let archiveID { try? store?.removeFromArchive(archiveID) }
         showToast("Tab restored")
     }

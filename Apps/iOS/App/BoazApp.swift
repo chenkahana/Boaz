@@ -28,6 +28,8 @@ struct BoazApp: App {
                 .onOpenURL { url in DeepLink.handle(url, model: model) }
         }
         .onChange(of: scenePhase) { _, phase in
+            // On the way out the page is still drawn; once in the background it can't render a preview.
+            if phase == .inactive { model.captureActiveSnapshot() }
             // The database lives in the App Group container: never hold a lock on it while suspended.
             if phase == .background {
                 Self.scheduleSyncRefresh()

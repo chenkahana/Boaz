@@ -162,6 +162,7 @@ struct TabBrowser: View {
             .webViewBackForwardNavigationGestures(.enabled)
             .webViewOnScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y + $0.contentInsets.top }) {
                 handlePullGeometry(old: $0, new: $1, page: page)
+                model.pageDidScroll(tab)
             }
             .findNavigator(isPresented: $findVisible)
             .onDisappear { [tab, hostID] in model.releasePage(tab.id, host: hostID) }
