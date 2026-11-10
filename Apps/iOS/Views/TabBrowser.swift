@@ -246,7 +246,7 @@ struct TabBrowser: View {
         reloading = true
         Task {
             do {
-                for try await event in page.reload() where event == .finished { break }
+                for try await event in page.reload(tabURL: tab.url) where event == .finished { break }
             } catch {
                 // Reload failed; still clear the indicator below.
             }

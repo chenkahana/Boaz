@@ -259,7 +259,7 @@ final class BrowserState {
 
     func didNavigate(_ tabID: String, url: URL?, title: String) {
         if let index = incognitoTabs.firstIndex(where: { $0.id == tabID }) {
-            if let url { incognitoTabs[index].url = url }
+            if let url, url.absoluteString != "about:blank" { incognitoTabs[index].url = url }
             if !title.isEmpty { incognitoTabs[index].title = title }
             return
         }
@@ -364,7 +364,7 @@ final class BrowserState {
         model.showToast("Copied URL")
     }
 
-    func reload() { _ = activePage?.reload() }
+    func reload() { activePage?.reload(tabURL: activeTab?.url) }
 
     func goBack() {
         guard let page = activePage, let item = page.backForwardList.backList.last else { return }

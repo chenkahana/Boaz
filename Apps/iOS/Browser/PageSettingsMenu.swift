@@ -116,7 +116,7 @@ struct PageSettingsPanel: View {
             }
             .disabled(forwardList.isEmpty)
             Button {
-                if page.isLoading { page.stopLoading() } else { _ = page.reload() }
+                if page.isLoading { page.stopLoading() } else { page.reload(tabURL: tab.url) }
             } label: {
                 NavTile(symbol: page.isLoading ? "xmark" : "arrow.clockwise", title: page.isLoading ? "Stop" : "Reload")
             }
