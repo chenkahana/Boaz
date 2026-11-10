@@ -48,7 +48,9 @@ VALID_LABELS=$(gh label list --limit 500 --json name --jq '.[].name')
 # Filter to only labels that exist in the repo
 FILTERED_ADD=()
 for label in "${ADD_LABELS[@]}"; do
-  if echo "$VALID_LABELS" | grep -qxF "$label"; then
+  if [ "$label" = "claude-ready" ]; then
+    echo "claude-ready is applied by maintainers only; skipped" >&2
+  elif echo "$VALID_LABELS" | grep -qxF "$label"; then
     FILTERED_ADD+=("$label")
   fi
 done
