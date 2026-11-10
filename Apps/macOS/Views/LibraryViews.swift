@@ -159,7 +159,9 @@ private func dayTitle(_ day: Date) -> String {
     let calendar = Calendar.current
     if calendar.isDateInToday(day) { return "Today" }
     if calendar.isDateInYesterday(day) { return "Yesterday" }
-    return day.formatted(.dateTime.weekday(.wide).month().day())
+    // The archive keeps entries for good, so older days name their year.
+    let date = Date.FormatStyle.dateTime.weekday(.wide).month().day()
+    return day.formatted(calendar.isDate(day, equalTo: .now, toGranularity: .year) ? date : date.year())
 }
 
 /// Boaz ▸ Settings: same preferences as iOS, plus keyboard shortcut overrides.
