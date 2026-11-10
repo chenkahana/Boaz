@@ -176,8 +176,8 @@ private struct RailScrollCollapse<Key: Equatable>: ViewModifier {
     }
 }
 
-/// The vertical rail: a glass dock of controls at the top, another at the bottom within thumb reach. Collapsed,
-/// the top dock melts into a small nub and the bottom one dissolves; both morph back out.
+/// The vertical rail: two glass docks of controls at the bottom, within thumb reach, the main one (`top`) above the
+/// other. Collapsed, the main dock melts into a small nub in its place and the other dissolves; both morph back out.
 struct RailColumn<Top: View, Bottom: View, Nub: View>: View {
     @Environment(ToolRailState.self) private var state
     @Environment(\.chromeTint) private var tint
@@ -190,8 +190,10 @@ struct RailColumn<Top: View, Bottom: View, Nub: View>: View {
     var body: some View {
         // Both docks sit on the page's background.
         let site = edges?.page
-        GlassEffectContainer(spacing: 24) {
+        // Closer than the docks' gap, so the glass doesn't melt them into one shape.
+        GlassEffectContainer(spacing: 8) {
             VStack(spacing: 0) {
+                Spacer(minLength: 0)
                 if state.isCollapsed {
                     nub
                         .padding(5)
@@ -205,9 +207,8 @@ struct RailColumn<Top: View, Bottom: View, Nub: View>: View {
                 } else {
                     dock(top, on: site).glassEffectID("top", in: glass)
                 }
-                Spacer(minLength: 16)
                 if !state.isCollapsed {
-                    dock(bottom, on: site).glassEffectID("bottom", in: glass)
+                    dock(bottom, on: site).glassEffectID("bottom", in: glass).padding(.top, 12)
                 }
             }
         }
