@@ -99,8 +99,11 @@ struct BoazCommands: Commands {
             Button("Open Location…") { browser?.commandMode = browser?.activeTab == nil ? .newTab : .currentTab }
                 .keyboardShortcut(key(.openLocation)).disabled(browser == nil)
             Divider()
-            Button("Close Tab") { browser?.closeActive() }
-                .keyboardShortcut(key(.closeTab)).disabled(browser == nil)
+            // Owning ⌘W takes it off the system's Close item, so this closes the other windows (History, Settings) too.
+            Button(browser == nil ? "Close Window" : "Close Tab") {
+                if let browser { browser.closeActive() } else { NSApp.keyWindow?.performClose(nil) }
+            }
+            .keyboardShortcut(key(.closeTab))
             Button("Reopen Closed Tab") { browser?.reopenClosedTab() }
                 .keyboardShortcut(key(.reopenClosedTab)).disabled(browser == nil)
             Divider()
