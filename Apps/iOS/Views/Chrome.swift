@@ -239,6 +239,9 @@ struct ToastView: View {
         .padding(.horizontal, 18).padding(.vertical, 12)
         // A capsule while the message fits one line; a rounded card once it wraps.
         .glassEffect(.regular, in: .rect(cornerRadius: 22))
+        // The glass isn't hit-testable by itself: a tap that just misses Undo would reach what lies beneath,
+        // the tab carousel, say, which closes on a tap between its cards.
+        .contentShape(.rect(cornerRadius: 22))
         .frame(maxWidth: 360)
         .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
     }

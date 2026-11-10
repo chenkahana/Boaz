@@ -346,7 +346,8 @@ struct TabCarousel: View {
     /// Animates out, then leaves the screen, unless it was reopened in the meantime.
     private func close() {
         withAnimation(motion) { presented = false } completion: {
-            if !presented { model.showsCoverFlow = false }
+            // The card now lies over the page, showing just what the page shows: take it away at once.
+            if !presented { withTransaction(\.disablesAnimations, true) { model.showsCoverFlow = false } }
         }
     }
 

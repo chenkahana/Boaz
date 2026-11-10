@@ -17,8 +17,18 @@ enum SnapshotCache {
     }
 
     static func save(_ data: Data, for tabID: String) {
+        save(for: tabID) { data }
+    }
+
+    /// Encodes `image` off the main thread.
+    static func save(_ image: UIImage, for tabID: String) {
+        save(for: tabID) { image.pngData() }
+    }
+
+    private static func save(for tabID: String, _ data: @escaping @Sendable () -> Data?) {
         guard let file = file(for: tabID) else { return }
         queue.async {
+            guard let data = data() else { return }
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             try? data.write(to: file, options: .atomic)
         }
