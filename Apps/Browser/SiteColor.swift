@@ -175,11 +175,13 @@ struct SiteEdges: Hashable {
                 if (!document.hidden && missed) { missed = false; schedule(); }
             });
             matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => schedule(50));
-            // Only theme-color changes count: single-page apps rewrite <title> and other tags in <head> constantly.
+            // Theme-color changes count, and <title> changes, which mark a single-page app's route change. Other tags in
+            // <head> churn constantly.
             const isThemeColor = n => n.nodeName === 'META' && /^theme-color$/i.test(n.getAttribute('name') || '');
+            const isTitle = n => n.nodeName === 'TITLE';
             new MutationObserver(records => {
                 if (records.some(r => r.type === 'attributes' ? isThemeColor(r.target)
-                    : [...r.addedNodes, ...r.removedNodes].some(isThemeColor))) schedule(100);
+                    : isTitle(r.target) || [...r.addedNodes, ...r.removedNodes].some(n => isThemeColor(n) || isTitle(n)))) schedule(100);
             }).observe(document.head || document.documentElement,
                 { subtree: true, childList: true, attributes: true, attributeFilter: ['content', 'media', 'name'] });
             // Theme switches flip a class or attribute on <html> or <body>; their transitions finish later.
