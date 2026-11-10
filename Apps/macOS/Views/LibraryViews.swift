@@ -19,7 +19,7 @@ struct ArchiveWindow: View {
             .sorted { $0.key > $1.key }
         List(selection: $selection) {
             ForEach(days, id: \.key) { day, entries in
-                Section(day.formatted(.relative(presentation: .named, unitsStyle: .wide)).capitalized) {
+                Section(dayTitle(day)) {
                     ForEach(entries) { item in
                         HStack(spacing: 10) {
                             SiteMonogram(url: item.url, tint: Theme.brand, size: 20)
@@ -91,7 +91,7 @@ struct HistoryWindow: View {
             .sorted { $0.key > $1.key }
         List(selection: $selection) {
             ForEach(days, id: \.key) { day, entries in
-                Section(day.formatted(.relative(presentation: .named, unitsStyle: .wide)).capitalized) {
+                Section(dayTitle(day)) {
                     ForEach(entries) { visit in
                         HStack(spacing: 10) {
                             SiteMonogram(url: visit.url, tint: Theme.brand, size: 20)
@@ -151,6 +151,15 @@ struct HistoryWindow: View {
               searched == query else { return }
         visits = found
     }
+}
+
+/// A calendar day's section title. Relative formatting counts from now, so this morning read as "Yesterday"
+/// late at night.
+private func dayTitle(_ day: Date) -> String {
+    let calendar = Calendar.current
+    if calendar.isDateInToday(day) { return "Today" }
+    if calendar.isDateInYesterday(day) { return "Yesterday" }
+    return day.formatted(.dateTime.weekday(.wide).month().day())
 }
 
 /// Boaz ▸ Settings: same preferences as iOS, plus keyboard shortcut overrides.
