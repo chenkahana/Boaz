@@ -355,7 +355,7 @@ private struct PeekOverlay: View {
                 .onTapGesture { browser.closePeek() }
             VStack(spacing: 0) {
                 HStack(spacing: 8) {
-                    Image(systemName: peek.page.url?.scheme == "https" ? "lock.fill" : "globe")
+                    Image(systemName: peek.page.url?.scheme == "https" && peek.page.serverTrust != nil ? "lock.fill" : "globe")
                         .font(.caption).foregroundStyle(.secondary)
                     Text(peek.page.title.isEmpty ? (peek.page.url?.host() ?? "Loading…") : peek.page.title)
                         .font(.callout.weight(.medium)).lineLimit(1)

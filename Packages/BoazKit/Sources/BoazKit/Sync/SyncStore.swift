@@ -225,7 +225,8 @@ extension BoazStore {
         -> ApplyOutcome {
         // A record this build can't read (another version, or a bad copy) is skipped: throwing would lose the whole
         // batch, and the engine would fetch the same batch again forever.
-        guard var server = try? R(cloudRecord: record), server.survivesStorage else { return ApplyOutcome() }
+        guard var server = try? R(cloudRecord: record), server.survivesStorage, server.hasOnlyWebAddresses
+        else { return ApplyOutcome() }
         let local = try R.fetchOne(db, key: id)
         if let local { server.keepDeviceLocalFields(from: local) }
         let key: [String: any DatabaseValueConvertible] = ["recordType": R.syncType.rawValue, "recordID": id]

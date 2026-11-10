@@ -23,7 +23,7 @@ jobs:
       contents: read
       issues: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       # edit-issue-labels.sh reads the issue number from the event payload; a manual run has none, so write one.
       - name: Point a manual run at the requested issue
@@ -35,7 +35,7 @@ jobs:
         env:
           ISSUE: ${{ inputs.issue }}
 
-      - uses: anthropics/claude-code-action@v1
+      - uses: anthropics/claude-code-action@4fa93a88de49bbef68b10eb15aabedf28ca0e1ed # v1
         env:
           CLAUDE_CODE_SCRIPT_CAPS: '{"edit-issue-labels.sh":2}'
         with:
@@ -45,6 +45,7 @@ jobs:
           allowed_non_write_users: "*"
           claude_args: >-
             --model claude-sonnet-5-5
+            --max-turns 12
             --allowedTools "Bash(./.github/scripts/gh.sh:*),Bash(./.github/scripts/edit-issue-labels.sh:*)"
           prompt: |
             You triage new GitHub issues for Boaz, a web browser for iPhone and Mac written in Swift.
@@ -64,7 +65,6 @@ jobs:
                - Exactly one priority, P1, P2 or P3, by its description. Skip priority for questions.
                - duplicate, only if an OPEN issue clearly reports the same problem.
                - needs-info when a bug lacks what is needed to reproduce it (steps, version, device).
-               - claude-ready only when the issue is clear, self-contained and could be fixed from the description
-                 alone, with no product or design decision left open. Never with needs-info, duplicate or question.
+               - Never claude-ready: maintainers apply it.
             5. Apply them in one call, also removing needs-triage:
                `./.github/scripts/edit-issue-labels.sh --add-label LABEL --add-label LABEL --remove-label needs-triage`

@@ -45,6 +45,8 @@ public protocol SyncableRecord: Codable, Hashable, Sendable, FetchableRecord, Pe
     init(cloudRecord record: CKRecord) throws
     /// Copies fields that belong to this device only (never synced) from the local row onto an incoming copy.
     mutating func keepDeviceLocalFields(from local: Self)
+    /// The record's web addresses, checked on records from other devices.
+    var webAddresses: [URL] { get }
 }
 
 extension SyncableRecord {
@@ -54,6 +56,14 @@ extension SyncableRecord {
     /// Whether the row reads back once stored. Dates are stored as text for years 1–9999 only; a row outside that
     /// can't be decoded, which breaks every read of its table. Checked on records from other devices.
     var survivesStorage: Bool { (try? Self(row: Row(databaseDictionary))) != nil }
+
+    /// Whether every address in the record is a web address. Records come from other devices or from anyone who can
+    /// write to a sync folder, so a `javascript:` or `file:` address is refused, as the importers refuse it.
+    var hasOnlyWebAddresses: Bool {
+        webAddresses.allSatisfy { ["http", "https"].contains($0.scheme?.lowercased() ?? "") }
+    }
+
+    public var webAddresses: [URL] { [] }
 }
 
 public enum SyncMappingError: Error, Equatable {
@@ -235,6 +245,8 @@ extension SidebarItem: SyncableRecord {
                   // Absent on records from before devices were recorded: those show on every device.
                   deviceID: r.string("deviceID"))
     }
+
+    public var webAddresses: [URL] { url.map { [$0] } ?? [] }
 }
 
 extension ArchiveItem: SyncableRecord {
@@ -263,6 +275,8 @@ extension ArchiveItem: SyncableRecord {
                   modifiedAt: try r.required("modifiedAt", r.date("modifiedAt")),
                   deletedAt: r.date("deletedAt"))
     }
+
+    public var webAddresses: [URL] { [url] }
 }
 
 extension Device: SyncableRecord {
