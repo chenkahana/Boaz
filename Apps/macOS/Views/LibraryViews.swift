@@ -256,7 +256,8 @@ private struct SyncSettings: View {
                         if ICloudSignIn.needsSignIn(sync.status) {
                             Button("Sign In to iCloud…") { if let url = ICloudSignIn.settingsURL { openURL(url) } }
                         } else {
-                            Button("Sync Now") { Task { await sync.syncNow(userInitiated: true) } }.disabled(sync.status == .syncing)
+                            Button("Sync Now") { Task { await sync.syncNow(userInitiated: true) } }
+                                .disabled(sync.status == .syncing || !sync.canSyncNow)
                         }
                     } label: {
                         SyncStatusLabel(status: sync.status)

@@ -225,7 +225,7 @@ private struct SyncSettingsSection: View {
                     Button("Sign In to iCloud") { if let url = ICloudSignIn.settingsURL { openURL(url) } }
                 } else {
                     Button("Sync Now") { Task { await sync.syncNow(userInitiated: true) } }
-                        .disabled(sync.status == .syncing)
+                        .disabled(sync.status == .syncing || !sync.canSyncNow)
                 }
                 if sync.offersFolder {
                     LabeledContent("Sync Folder", value: sync.folderURL?.lastPathComponent ?? "None")
