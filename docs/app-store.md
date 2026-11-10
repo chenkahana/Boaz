@@ -19,27 +19,41 @@ Everything needed to submit Boaz for iPhone and Mac. Facts here match the code a
 
 ## Listing text
 
-**Subtitle** (30 max): `Spaces, pins and tabs, synced`
+**Subtitle** (30 max): `Calm browsing on iPhone & Mac`
 
 **Promotional text** (170 max):
-Your spaces, pinned tabs and favorites, in step on iPhone and Mac. Bring your Arc sidebar over as is, and browse
-without ads or trackers.
+Opens right where you left off, follows every posture of iPhone Duo, and keeps your tabs in step with your Mac. No
+ads, no trackers, no accounts.
 
 **Description**:
 
 Boaz is a calm, fast browser that keeps your web organized the way you think.
 
-SPACES FOR EVERYTHING
-Keep work, home and projects apart. Each space has its own color, pinned tabs and favorites, and swiping moves
-between them.
+PICK UP WHERE YOU LEFT OFF
+On iPhone, Boaz opens on the last page you had open. A slim rail beside the page holds your recent tabs, search and
+the page menu. Tap the stack of tabs to flip through all of them.
+
+MADE FOR IPHONE DUO
+Folded, the page fills the screen. Open it and a sidebar with search and your tabs sits next to the page. Half-open
+like a laptop, the page stays on top and the controls move below. The page never reloads as the hinge moves.
+
+SEARCH THAT KNOWS YOUR TABS
+Suggestions from your search engine, mixed with your open tabs and history. Nothing is sent from Incognito.
+
+SPACES ON THE MAC
+Keep work, home and projects apart. Each space has its own color, pinned tabs and favorites.
 
 TABS THAT TIDY THEMSELVES
 New tabs land in Today. Ones you haven't opened in a while move to the Archive on their own, so the clutter never
 builds up. Pin what matters and it stays.
 
-MADE FOR IPHONE AND MAC
-Your spaces, pins and tabs stay in step through your private iCloud. On iPhone Duo, Boaz uses every posture:
-sidebar and page side by side when open, the page above and controls below when half-open like a laptop.
+IN STEP ON IPHONE AND MAC
+Pins, favorites and tabs sync through your private iCloud. Each device keeps its own Today list, and your iPhone
+can open the tabs on your Mac.
+
+ON-DEVICE INTELLIGENCE
+Summarize a page, ask it questions, or sort your tabs into folders, using Apple's on-device model on supported
+devices. Nothing leaves your device.
 
 BRING ARC WITH YOU
 On Mac, import your Arc spaces, pinned folders, favorites, themes and keyboard shortcuts as they are. Chrome, Brave,
@@ -69,11 +83,12 @@ the system only).
 
 ## Notes for App Review (paste into "Notes")
 
-No account or sign-in is needed; the app opens with a starter library.
+No account or sign-in is needed, and iCloud sync is optional during the short first-run setup.
 
-- iPhone: tap the search button to open a page; long-press a tab card to pin or close it; Settings is in the ≡
-  menu on the home screen. On iPhone Duo the layout follows the hinge (side by side when open, page above controls when half-open).
-  On other iPhones and on iPad the toolbar sits at the bottom.
+- iPhone: tap **+** on the rail beside the page to search or enter an address. The stack of tabs above it opens the
+  tab carousel: tap a card to open that tab, swipe it up to archive it; the gear button there opens Settings. **…**
+  opens the page menu (Back, Forward, Reload, Share, Pin, Reader and more). On iPhone Duo the layout follows the
+  hinge (a sidebar next to the page when open, page above controls when half-open). Other iPhones use the folded layout.
 - Mac: links from other apps open in a small "Little Boaz" window; "Open in Boaz" moves them into the main window.
 - Import from Arc (Mac, optional) needs Arc installed: File › Import from Arc… asks you to choose Arc's data folder
   (~/Library/Application Support/Arc). "Keep me signed in" (copy Arc's cookies) is a separate, opt-in checkbox; macOS then asks
