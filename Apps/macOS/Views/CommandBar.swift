@@ -87,6 +87,7 @@ struct CommandBar: View {
                 }
                 do { try await Task.sleep(for: .milliseconds(50)) } catch { return }
             }
+            if !fieldHasKeyboard { focused = true }
         }
         .onChange(of: text) { selection = 0 }
         // History is looked up once typing pauses, off the main thread.
