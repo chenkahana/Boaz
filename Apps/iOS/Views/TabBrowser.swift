@@ -295,6 +295,8 @@ struct TabBrowser: View {
     /// cheap text-length probe used to enable/disable the Reader button. A failed load is shown.
     private func trackNavigations(of page: WebPage) async {
         readableLength = 0
+        // A page shown again has loaded already, so no `.finished` comes to measure it.
+        if !page.isLoading, page.url != nil { Task { readableLength = await Reader.estimatedReadableLength(of: page) } }
         var requested: URL?
         while !Task.isCancelled {
             do {
