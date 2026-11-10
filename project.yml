@@ -21,6 +21,14 @@ settings:
     ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
     ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: NO
+  # CloudKit environment, a separate database each. Release builds use Production, like the DMG and App Store builds,
+  # so a Release build on a phone (`make device`) syncs with them. Debug builds use Development, whose schema grows
+  # as they save new fields.
+  configs:
+    Debug:
+      BOAZ_CLOUDKIT_ENVIRONMENT: Development
+    Release:
+      BOAZ_CLOUDKIT_ENVIRONMENT: Production
 targets:
   Boaz-iOS:
     type: application
@@ -40,6 +48,7 @@ targets:
           - group.com.chenkahana.boaz
         com.apple.developer.icloud-services: [CloudKit]
         com.apple.developer.icloud-container-identifiers: [iCloud.com.chenkahana.boaz]
+        com.apple.developer.icloud-container-environment: $(BOAZ_CLOUDKIT_ENVIRONMENT)
         aps-environment: development
     info:
       path: Apps/iOS/Info.plist
@@ -87,6 +96,7 @@ targets:
         com.apple.security.files.downloads.read-write: true
         com.apple.developer.icloud-services: [CloudKit]
         com.apple.developer.icloud-container-identifiers: [iCloud.com.chenkahana.boaz]
+        com.apple.developer.icloud-container-environment: $(BOAZ_CLOUDKIT_ENVIRONMENT)
         com.apple.developer.aps-environment: development
     info:
       path: Apps/macOS/Info.plist
