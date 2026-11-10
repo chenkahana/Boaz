@@ -359,6 +359,7 @@ struct ThemeEditor: View {
                     }
                     .buttonStyle(PresetStyle())
                     .help(name)
+                    .accessibilityLabel(name)
                 }
             }
             ForEach(ThemeJSON.Role.allCases) { role in

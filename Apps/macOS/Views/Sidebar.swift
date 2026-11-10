@@ -614,6 +614,7 @@ private struct SidebarBottomBar: View {
                 Button("Import from Arc…") { browser.showImport = true }
             } label: {
                 Image(systemName: "plus").font(.system(size: 12, weight: .semibold)).frame(width: 26, height: 26)
+                    .contentShape(Rectangle())
             }
             .menuStyle(.button)
             .buttonStyle(.plain)
