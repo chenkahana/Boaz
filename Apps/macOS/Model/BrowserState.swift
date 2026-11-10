@@ -144,8 +144,7 @@ final class BrowserState {
         recency.removeAll { $0 == tab.id }
         recency.append(tab.id)
         if let page = pages[tab.id] { return page }
-        let page = makePage(profileID: tab.profileID, context: .tab(tab.id))
-        if let url = tab.url { page.load(URLRequest(url: url)) }
+        let page = makePage(profileID: tab.profileID, context: .tab(tab.id), loading: tab.url)
         pages[tab.id] = page
         let pinnedIDs = [split?.leading, split?.trailing, activeTabID]
         while pages.count > maxLivePages, let victim = recency.first(where: { !pinnedIDs.contains($0) }) {
@@ -155,7 +154,7 @@ final class BrowserState {
         return page
     }
 
-    func makePage(profileID: String?, context: NavigationRouter.Context) -> WebPage {
+    func makePage(profileID: String?, context: NavigationRouter.Context, loading url: URL? = nil) -> WebPage {
         var configuration = WebPage.Configuration()
         configuration.websiteDataStore = dataStore(profileID: profileID)
         configuration.applicationNameForUserAgent = "Version/26.0 Safari/605.1.15"
@@ -165,6 +164,7 @@ final class BrowserState {
         #if DEBUG
         page.isInspectable = true
         #endif
+        if let url { model.load(url, in: page, configuration: configuration) }
         return page
     }
 
@@ -501,8 +501,7 @@ final class BrowserState {
     }
 
     func openPeek(_ url: URL, profileID: String?) {
-        let page = makePage(profileID: profileID ?? currentSpace?.profileID, context: .peek)
-        page.load(URLRequest(url: url))
+        let page = makePage(profileID: profileID ?? currentSpace?.profileID, context: .peek, loading: url)
         withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) { peek = Peek(page: page) }
     }
 
