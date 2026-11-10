@@ -35,14 +35,15 @@ struct TabPane: View {
         .onChange(of: page.url) { browser.updateSiteColor(tab.id, page: page) }
         .onChange(of: page.isLoading) { browser.updateSiteColor(tab.id, page: page) }
         .onChange(of: page.isLoading) { browser.pageDidFinishLoading(page: page) }
+        // A first load can settle before `track` subscribes.
+        .onChange(of: page.isLoading) { browser.didChangeURL(tab.id) }
     }
 
     /// The page's only `navigations` subscriber. A failed load ends the sequence with an error, so it
-    /// resubscribes rather than stopping for the life of the tab.
+    /// resubscribes rather than stopping for the life of the tab. A failure from before it subscribed (the tab's first
+    /// load, see `BrowserState.makePage`) stays until the next load starts.
     private func track(_ page: WebPage) async {
-        failure = nil
         var requested: URL?
-        var committed: URL?
         while !Task.isCancelled {
             do {
                 for try await event in page.navigations {
@@ -51,18 +52,14 @@ struct TabPane: View {
                         failure = nil
                         requested = page.url
                     case .receivedServerRedirect:
-                        // A hop to the same address, or an event read after the redirect, is the page shown now.
-                        // A hop from the page already shown (a form posting back to itself) recorded no visit of
-                        // its own, so its earlier visit stays.
-                        if let hop = requested, hop != page.url, hop != committed {
-                            browser.didRedirect(tab.id, from: hop)
-                        }
                         requested = page.url
                     case .committed, .finished:
                         if event == .committed, let blocked = LoadFailure(blocked: requested, committed: page.url) {
                             failure = blocked
                         }
-                        if event == .committed { requested = nil; committed = page.url }
+                        if event == .committed { requested = nil }
+                        // The address the page settled on, which `didChangeURL` skips while a load is in flight.
+                        browser.didChangeURL(tab.id, committed: true)
                         if PageZoom.level(for: page.url, isPrivate: browser.isIncognito) != 1 {
                             PageZoom.apply(to: page, isPrivate: browser.isIncognito)
                         }
@@ -100,6 +97,19 @@ struct LoadFailure {
         default: nsError.localizedDescription
         }
         url = nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL
+    }
+
+    /// Waits out one load: why it failed, or nil once it commits a page.
+    static func of(_ load: some AsyncSequence<WebPage.NavigationEvent, any Error>, page: WebPage,
+                   url: URL) async -> LoadFailure? {
+        do {
+            for try await event in load where event == .committed {
+                return LoadFailure(blocked: url, committed: page.url)
+            }
+            return nil
+        } catch {
+            return LoadFailure(error)
+        }
     }
 
     /// WebKit refuses some ports (1, 9, 25 and so on) without any navigation error: it commits about:blank instead.
@@ -166,6 +176,7 @@ struct LittleBoazWindow: View {
     @Environment(\.dismiss) private var dismiss
     let url: URL?
     @State private var page: WebPage?
+    @State private var failure: LoadFailure?
     @State private var address = ""
     @FocusState private var addressFocused: Bool
 
@@ -203,7 +214,9 @@ struct LittleBoazWindow: View {
             .background(Color.clear.contentShape(Rectangle()).gesture(WindowDragGesture()))
             Group {
                 if let page {
-                    WebView(page).overlay(alignment: .top) { LoadingGlow(page: page) }
+                    WebView(page)
+                        .overlay { if let failure { LoadFailureView(failure: failure, page: page) } }
+                        .overlay(alignment: .top) { LoadingGlow(page: page) }
                 } else {
                     Color(nsColor: .textBackgroundColor)
                 }
@@ -219,6 +232,23 @@ struct LittleBoazWindow: View {
         .onAppear {
             guard page == nil else { return }
             if let url { start(url) } else { addressFocused = true }
+        }
+        .task(id: page.map(ObjectIdentifier.init)) {
+            guard let page else { return }
+            // As a tab's pane does: a failed load ends the sequence, so it resubscribes.
+            while !Task.isCancelled {
+                do {
+                    for try await event in page.navigations where event == .startedProvisionalNavigation {
+                        failure = nil
+                    }
+                    return
+                } catch WebPage.NavigationError.pageClosed {
+                    return
+                } catch {
+                    failure = LoadFailure(error)
+                    try? await Task.sleep(for: .milliseconds(50))
+                }
+            }
         }
     }
 
@@ -238,7 +268,10 @@ struct LittleBoazWindow: View {
         let page = WebPage(configuration: configuration, navigationDecider: LittleRouter(holder: holder),
                            dialogPresenter: MacDialogs())
         holder.page = page
-        model.load(url, in: page, configuration: configuration)
+        // A page that never loads has no address of its own, so the field keeps the one asked for.
+        address = url.absoluteString
+        failure = nil
+        model.load(url, in: page, configuration: configuration) { failure = $0 }
         self.page = page
     }
 }
@@ -255,7 +288,9 @@ private struct LittleRouter: WebPage.NavigationDeciding {
             return .cancel
         }
         if action.target == nil, let url = action.request.url {
-            holder.page?.load(URLRequest(url: url))
+            if LinkDownloadMenu.takeRequest() { PageDownloads.start(url, store: holder.store) } else {
+                holder.page?.load(URLRequest(url: url))
+            }
             return .cancel
         }
         return .allow

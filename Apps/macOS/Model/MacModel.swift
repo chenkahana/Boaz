@@ -48,6 +48,11 @@ final class MacModel {
     /// The stale-tab sweep waits until the restored windows have their tabs back, which keeps those tabs out of it.
     @ObservationIgnored private var holdsSweeps = true
     @ObservationIgnored private var restoringWindows = 0
+    @ObservationIgnored private var browsers: [WeakBrowser] = []
+    @ObservationIgnored private var windowsToRestore = SavedWindow.load()
+    @ObservationIgnored private var openedRestoredWindows = false
+    /// Set once the app has agreed to quit, so the windows closing on the way out don't count as closed by hand.
+    @ObservationIgnored var isQuitting = false
 
     init() {
         Preferences.registerDefaults()
@@ -97,7 +102,9 @@ final class MacModel {
             loadError = String(describing: error)
             return
         }
-        await observeSidebar(store)
+        // Not tied to the window whose task started the app: closing that window would stop the sidebar following
+        // the library, and a new space wouldn't show until relaunch.
+        Task { await observeSidebar(store) }
     }
 
     /// Follows the library for the life of the app. Any database error ends an observation, so it starts again,
@@ -166,7 +173,8 @@ final class MacModel {
         restoringWindows -= 1
         Task {
             await Task.yield()
-            if restoringWindows == 0 { releaseSweeps() }
+            // Restored windows still opening haven't begun restoring yet.
+            if restoringWindows == 0 && windowsToRestore.isEmpty { releaseSweeps() }
         }
     }
 
@@ -215,6 +223,64 @@ final class MacModel {
     }
 
     func openWindow(id: String) { openWindowAction?(id: id) }
+
+    // MARK: Window restoration
+
+    /// macOS only reopens windows itself when "Close windows when quitting an application" is off, and it's on by
+    /// default. So the app remembers its main windows and reopens them at launch.
+    struct SavedWindow: Codable {
+        static let key = "openWindows"
+        var spaceID: String?
+        var tabID: String?
+        var frame: String?
+        var minimized: Bool?
+
+        static func load() -> [SavedWindow] {
+            guard let data = UserDefaults.standard.data(forKey: key) else { return [] }
+            return (try? JSONDecoder().decode([SavedWindow].self, from: data)) ?? []
+        }
+    }
+
+    private struct WeakBrowser { weak var browser: BrowserState? }
+
+    func register(_ browser: BrowserState) {
+        guard !browser.isIncognito else { return }
+        browsers.removeAll { $0.browser == nil || $0.browser === browser }
+        browsers.append(WeakBrowser(browser: browser))
+    }
+
+    func windowWillClose(_ browser: BrowserState) {
+        browsers.removeAll { $0.browser == nil || $0.browser === browser }
+        if !isQuitting { saveOpenWindows() }
+    }
+
+    /// Saves the open main windows, back to front, for the next launch.
+    func saveOpenWindows() {
+        // Until every saved window is back, the list on disk is still the one to restore.
+        guard windowsToRestore.isEmpty else { return }
+        let order = NSApp.orderedWindows
+        let depth = { (browser: BrowserState) in order.firstIndex { $0 === browser.window } ?? order.count }
+        let windows = browsers.compactMap(\.browser).filter {
+            $0.window?.isVisible == true || $0.window?.isMiniaturized == true
+        }
+        // While quitting, windows already gone would leave nothing to restore; what was saved last stands.
+        guard !(isQuitting && windows.isEmpty) else { return }
+        let saved = windows.sorted { depth($0) > depth($1) }
+            .map { SavedWindow(spaceID: $0.spaceID, tabID: $0.activeTabID, frame: $0.window?.frameDescriptor,
+                               minimized: $0.window?.isMiniaturized) }
+        UserDefaults.standard.set(try? JSONEncoder().encode(saved), forKey: SavedWindow.key)
+    }
+
+    /// The window a new main window brings back from the last run, if any. The first to ask opens the rest.
+    func claimSavedWindow() -> SavedWindow? {
+        guard !windowsToRestore.isEmpty else { return nil }
+        let saved = windowsToRestore.removeFirst()
+        if !openedRestoredWindows {
+            openedRestoredWindows = true
+            for _ in windowsToRestore { openWindowAction?(id: "main") }
+        }
+        return saved
+    }
 
     func openInNewWindow(_ tab: SidebarItem) {
         pendingMainTabID = tab.id
@@ -275,14 +341,21 @@ final class MacModel {
     }
 
     /// A new page's first load, held until the page has its block lists if they're still compiling.
-    func load(_ url: URL, in page: WebPage, configuration: WebPage.Configuration) {
+    /// `onFailure` hears why this load failed, if it does.
+    func load(_ url: URL, in page: WebPage, configuration: WebPage.Configuration,
+              onFailure: ((LoadFailure) -> Void)? = nil) {
+        let start = { (page: WebPage) in
+            let load = page.load(URLRequest(url: url))
+            guard let onFailure else { return }
+            Task { if let failure = await LoadFailure.of(load, page: page, url: url) { onFailure(failure) } }
+        }
         guard Preferences.blockTrackers, contentBlockLists == nil else {
-            page.load(URLRequest(url: url))
+            start(page)
             return
         }
         awaitingBlockLists.append((configuration.userContentController, { [weak page] in
             // Unless the page went somewhere else in the meantime.
-            if let page, page.url == nil { page.load(URLRequest(url: url)) }
+            if let page, page.url == nil { start(page) }
         }))
     }
 
@@ -328,7 +401,9 @@ final class MacModel {
         let pinned = isPinned(item)
         // WebKit shows about:blank for a load it refused outright; the tab keeps the address it was asked for.
         let newURL = pinned || url?.absoluteString == "about:blank" ? item.url : url ?? item.url
-        let newTitle = title.isEmpty || (pinned && item.title != nil) ? item.title : title
+        // A new page without a title yet doesn't take the previous page's.
+        let newTitle = pinned && item.title != nil ? item.title
+            : !title.isEmpty ? title : newURL == item.url ? item.title : nil
         if item.url != newURL || item.title != newTitle {
             item.url = newURL
             item.title = newTitle

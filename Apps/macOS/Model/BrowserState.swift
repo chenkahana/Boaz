@@ -1,5 +1,6 @@
 import AppKit
 import BoazKit
+import Carbon
 import SwiftUI
 import WebKit
 
@@ -39,7 +40,13 @@ final class BrowserState {
     var activeTabID: String?
     var split: Split?
     var peek: Peek?
-    var commandMode: CommandMode?
+    var commandMode: CommandMode? {
+        didSet {
+            if commandMode == nil { endTypeAhead() } else if oldValue == nil { beginTypeAhead() }
+        }
+    }
+    /// Changes each time the command bar opens, so a bar reopened during its closing animation starts empty.
+    private(set) var commandSession = UUID()
     var sidebarVisible = true { didSet { updateTrafficLights() } }
     var sidebarPeeking = false { didSet { updateTrafficLights() } }
     var findVisible = false
@@ -64,9 +71,17 @@ final class BrowserState {
     @ObservationIgnored private var recency: [String] = []
     /// Tabs whose title is cooling down after a save, and whether it changed again meanwhile (`didChangeTitle`).
     @ObservationIgnored private var titleCooldowns: [String: Bool] = [:]
+    /// Each tab's address as last saved, which a load in flight hasn't replaced yet.
+    @ObservationIgnored private var savedURLs: [String: URL] = [:]
     @ObservationIgnored private var lastTabPerSpace: [String: String] = [:]
     @ObservationIgnored private let privateStore: WKWebsiteDataStore?
     @ObservationIgnored private var keyObserver: NSObjectProtocol?
+    @ObservationIgnored private var closeObserver: NSObjectProtocol?
+    @ObservationIgnored private var typeAheadMonitor: Any?
+    /// What was typed after the command bar opened but before its field had the keyboard.
+    @ObservationIgnored private var typeAhead = ""
+    @ObservationIgnored private var typeAheadSubmits = false
+    @ObservationIgnored private var typeAheadClears = false
     private let maxLivePages = 10
 
     init(incognito: Bool) {
@@ -76,6 +91,8 @@ final class BrowserState {
 
     isolated deinit {
         if let keyObserver { NotificationCenter.default.removeObserver(keyObserver) }
+        if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
+        if let typeAheadMonitor { NSEvent.removeMonitor(typeAheadMonitor) }
     }
 
     // MARK: Window
@@ -98,6 +115,15 @@ final class BrowserState {
                 self.model.lastActiveBrowser = self
             }
         }
+        if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
+        closeObserver = NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window,
+                                                               queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.model.windowWillClose(self)
+            }
+        }
+        model.register(self)
     }
 
     /// Arc hides the traffic lights with the sidebar; they come back while the sidebar peeks.
@@ -127,9 +153,19 @@ final class BrowserState {
 
     var activeTab: SidebarItem? { tab(activeTabID) }
     var activePage: WebPage? { activeTab.map(page(for:)) }
-    /// The page's address, or the tab's while the page has none of its own (a failed or refused load).
+    /// The address that failed while the tab shows why; otherwise the page's address, or the tab's while the page has
+    /// none of its own.
     var activeURL: URL? {
-        activePage?.url.flatMap { $0.absoluteString == "about:blank" ? nil : $0 } ?? activeTab?.url
+        if let failed = activeFailure?.url { return failed }
+        return activePage?.url.flatMap { $0.absoluteString == "about:blank" ? nil : $0 } ?? activeTab?.url
+    }
+
+    var activeFailure: LoadFailure? { activeTabID.flatMap { loadFailures[$0] } }
+
+    /// Only a page that loaded over HTTPS: a failed load has no certificate to vouch for, and the previous page's
+    /// certificate isn't this address's.
+    var activeIsSecure: Bool {
+        activeFailure == nil && activeURL?.scheme == "https" && activePage?.serverTrust != nil
     }
 
     func isPrivate(_ tab: SidebarItem) -> Bool { isIncognito && incognitoTabs.contains { $0.id == tab.id } }
@@ -146,6 +182,7 @@ final class BrowserState {
         recency.removeAll { $0 == tab.id }
         recency.append(tab.id)
         if let page = pages[tab.id] { return page }
+        if loadFailures[tab.id] != nil { loadFailures[tab.id] = nil }
         let page = makePage(profileID: tab.profileID, context: .tab(tab.id), loading: tab.url)
         pages[tab.id] = page
         let pinnedIDs = [split?.leading, split?.trailing, activeTabID]
@@ -166,7 +203,12 @@ final class BrowserState {
         #if DEBUG
         page.isInspectable = true
         #endif
-        if let url { model.load(url, in: page, configuration: configuration) }
+        if let url {
+            // A tab's first load starts before its pane watches the page, so its failure is caught here.
+            model.load(url, in: page, configuration: configuration) { [weak self, weak page] failure in
+                if case .tab(let id) = context, let page, self?.pages[id] === page { self?.loadFailures[id] = failure }
+            }
+        }
         return page
     }
 
@@ -186,6 +228,7 @@ final class BrowserState {
     func unload(_ tabID: String) {
         pages[tabID] = nil
         loadFailures[tabID] = nil
+        savedURLs[tabID] = nil
         recency.removeAll { $0 == tabID }
     }
 
@@ -211,10 +254,17 @@ final class BrowserState {
     /// Link routing, Arc-style: ⌘-click peeks, ⌘⇧-click opens a tab; pages that open new windows get a peek
     /// when they're pinned (keeps the pinned app in place) and a new Today tab otherwise.
     func decide(_ action: WebPage.NavigationAction, context: NavigationRouter.Context) -> WKNavigationActionPolicy {
-        guard let url = action.request.url, url.scheme?.hasPrefix("http") == true else { return .allow }
-        if action.shouldPerformDownload { download(url, context: context); return .cancel }
-        let flags = NSEvent.modifierFlags
         let opensWindow = action.target == nil
+        let downloadRequested = opensWindow && LinkDownloadMenu.takeRequest()
+        guard let url = action.request.url, url.scheme?.hasPrefix("http") == true else {
+            if downloadRequested { model.showToast("Boaz can't download this link") }
+            return downloadRequested ? .cancel : .allow
+        }
+        if action.shouldPerformDownload || downloadRequested {
+            download(url, context: context)
+            return .cancel
+        }
+        let flags = NSEvent.modifierFlags
         let mainFrameLink = action.navigationType == .linkActivated && (action.target?.isMainFrame ?? true)
         switch context {
         case .peek:
@@ -274,24 +324,22 @@ final class BrowserState {
         model.didNavigate(tabID, url: url, title: title)
     }
 
-    /// A server redirect leaves the address it left in history as a second entry for the same load.
-    func didRedirect(_ tabID: String, from hop: URL) {
-        guard !isIncognito else { return }
-        model.store?.forgetRedirectedVisit(to: hop)
-    }
-
     /// Pages that animate their title (unread counts, timers) would otherwise save, sync and refetch the whole
     /// sidebar on every tick. A title change is saved at once, then at most every two seconds with the latest title.
     /// A new page gets its title saved at once, not after the previous page's cooldown.
-    func didChangeURL(_ tabID: String) {
+    /// While a load is in flight the page reports the address it's trying, which may never load: that address is
+    /// saved once the load commits (`committed`), so a failed load leaves no visit under the previous page's title.
+    func didChangeURL(_ tabID: String, committed: Bool = false) {
+        guard let page = pages[tabID], committed || !page.isLoading else { return }
         titleCooldowns[tabID] = nil
-        guard let page = pages[tabID] else { return }
+        savedURLs[tabID] = page.url
         didNavigate(tabID, url: page.url, title: page.title)
     }
 
     func didChangeTitle(_ tabID: String) {
         guard titleCooldowns[tabID] == nil else { titleCooldowns[tabID] = true; return }
-        guard let page = pages[tabID] else { return }
+        // The old page's title ticking while another address loads isn't that address's title.
+        guard let page = pages[tabID], !page.isLoading || page.url == savedURLs[tabID] else { return }
         didNavigate(tabID, url: page.url, title: page.title)
         titleCooldowns[tabID] = false
         Task { [weak self] in
@@ -470,6 +518,60 @@ final class BrowserState {
 
     /// Opens the space editor to name, icon and color the new space before it's created.
     func newSpace() { spaceEditor = SpaceEditorRequest(spaceID: nil) }
+
+    // MARK: Command bar
+
+    /// Keys typed right after ⌘T or ⌘L can arrive before the field has the keyboard, and would reach the page.
+    /// Until the bar takes them (`endTypeAhead`), plain typing is held here.
+    private func beginTypeAhead() {
+        commandSession = UUID()
+        endTypeAhead()
+        typeAheadMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            // Local monitors run on the main thread.
+            nonisolated(unsafe) let event = event
+            let held = MainActor.assumeIsolated { self?.holdTypeAhead(event) ?? false }
+            return held ? nil : event
+        }
+    }
+
+    private func holdTypeAhead(_ event: NSEvent) -> Bool {
+        // An input method (Japanese, Chinese, Korean) composes the keys itself, so they aren't held.
+        guard event.window === window, event.modifierFlags.isDisjoint(with: [.command, .control, .option]),
+              !Self.usesInputMethod else { return false }
+        // Nothing typed after Return belongs to what it submits; held, so it doesn't reach the page either.
+        if typeAheadSubmits { return true }
+        switch event.keyCode {
+        case 51: // Delete
+            if typeAhead.isEmpty { typeAheadClears = true } else { typeAhead.removeLast() }
+            return true
+        case 36, 76: // Return, Enter
+            typeAheadSubmits = true
+            return true
+        default:
+            // Printable text only: Escape, Tab and the arrow and function keys keep their meaning.
+            guard let text = event.characters, !text.isEmpty, text.unicodeScalars.allSatisfy({
+                !CharacterSet.controlCharacters.contains($0) && !(0xF700...0xF8FF).contains($0.value)
+            }) else { return false }
+            typeAhead += text
+            return true
+        }
+    }
+
+    private static var usesInputMethod: Bool {
+        guard let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
+              let type = TISGetInputSourceProperty(source, kTISPropertyInputSourceType) else { return false }
+        return Unmanaged<CFString>.fromOpaque(type).takeUnretainedValue() != kTISTypeKeyboardLayout
+    }
+
+    /// Stops holding keys and returns what was typed meanwhile, whether Delete was pressed with nothing typed, and
+    /// whether Return followed.
+    @discardableResult
+    func endTypeAhead() -> (text: String, clear: Bool, submit: Bool) {
+        if let typeAheadMonitor { NSEvent.removeMonitor(typeAheadMonitor) }
+        typeAheadMonitor = nil
+        defer { typeAhead = ""; typeAheadClears = false; typeAheadSubmits = false }
+        return (typeAhead, typeAheadClears, typeAheadSubmits)
+    }
 
     // MARK: Split view & peek
 

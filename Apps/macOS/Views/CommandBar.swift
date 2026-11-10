@@ -77,8 +77,12 @@ struct CommandBar: View {
         // editor. Another field that had the keyboard (the find bar) doesn't count.
         .task {
             let otherField = fieldEditorOwner
+            // A bar still closing while the next one opens leaves the keyboard and the held keys to that one.
+            let session = browser.commandSession
+            // Keys typed meanwhile were held for the field (`BrowserState.beginTypeAhead`).
+            defer { if browser.commandSession == session { takeTypeAhead() } }
             for _ in 0..<10 {
-                if fieldHasKeyboard(besides: otherField) { return }
+                if browser.commandSession != session || fieldHasKeyboard(besides: otherField) { return }
                 if focused {
                     // Asking again only takes effect once SwiftUI has seen the field unfocused.
                     focused = false
@@ -88,7 +92,7 @@ struct CommandBar: View {
                 }
                 do { try await Task.sleep(for: .milliseconds(50)) } catch { return }
             }
-            if !fieldHasKeyboard(besides: otherField) { focused = true }
+            if browser.commandSession == session, !fieldHasKeyboard(besides: otherField) { focused = true }
         }
         .onChange(of: text) { selection = 0 }
         // History is looked up once typing pauses, off the main thread.
@@ -102,6 +106,14 @@ struct CommandBar: View {
             let found = await model.historySuggestions(query)
             if !Task.isCancelled { history = found }
         }
+    }
+
+    private func takeTypeAhead() {
+        let (typed, clear, submit) = browser.endTypeAhead()
+        // ⌘L's address is selected on focus, so typing (or Delete) replaces it.
+        if mode == .currentTab, clear || !typed.isEmpty { text = typed } else { text += typed }
+        // With nothing typed, Return only means something for ⌘L's address.
+        if submit, !text.isEmpty { run(suggestions.first) }
     }
 
     /// Whether typing reaches the field: AppKit's first responder is a text field's editor, not the web view, and
