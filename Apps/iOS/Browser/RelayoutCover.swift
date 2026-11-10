@@ -108,7 +108,12 @@ struct RelayoutCover: ViewModifier {
         settling = Task {
             try? await Task.sleep(for: .milliseconds(150))
             guard !Task.isCancelled else { return }
-            await scroll.restore(on: page)
+            // A page busy with script may answer late, or never: the cover waits for it only so long.
+            let (answered, answer) = AsyncStream<Void>.makeStream()
+            Task { await scroll.restore(on: page); answer.yield() }
+            Task { try? await Task.sleep(for: .milliseconds(300)); answer.yield() }
+            for await _ in answered { break }
+            guard !Task.isCancelled else { return }
             scroll.isHeld = false
             withAnimation(.easeOut(duration: 0.2)) { cover = nil }
         }
