@@ -30,8 +30,8 @@ ads, no trackers, no accounts.
 Boaz is a calm, fast browser that keeps your web organized the way you think.
 
 PICK UP WHERE YOU LEFT OFF
-On iPhone, Boaz opens on the last page you had open. A slim rail beside the page holds your recent tabs, search and
-the page menu. Tap the stack of tabs to flip through all of them.
+On iPhone, Boaz opens on the last page you had open. A bar at the bottom, within thumb reach, holds your recent tabs,
+New Tab and the page menu. Tap the tabs to flip through all of them.
 
 MADE FOR IPHONE DUO
 Folded, the page fills the screen. Open it and a sidebar with search and your tabs sits next to the page. Half-open
@@ -85,10 +85,11 @@ the system only).
 
 No account or sign-in is needed, and iCloud sync is optional during the short first-run setup.
 
-- iPhone: tap **+** on the rail beside the page to search or enter an address. The stack of tabs above it opens the
-  tab carousel: tap a card to open that tab, swipe it up to archive it; the gear button there opens Settings. **…**
+- iPhone: tap **+** (New Tab) in the bar at the bottom to search or enter an address. The fan of tabs at its left
+  opens the tab carousel: tap a card to open that tab, swipe it up to archive it; the gear button there opens Settings. **…**
   opens the page menu (Back, Forward, Reload, Share, Pin, Reader and more). On iPhone Duo the layout follows the
-  hinge (a sidebar next to the page when open, page above controls when half-open). Other iPhones use the folded layout.
+  hinge (folded, the controls move to a rail beside the page; a sidebar next to the page when open; page above
+  controls when half-open).
 - Mac: links from other apps open in a small "Little Boaz" window; "Open in Boaz" moves them into the main window.
 - Import from Arc (Mac, optional) needs Arc installed: File › Import from Arc… asks you to choose Arc's data folder
   (~/Library/Application Support/Arc). "Keep me signed in" (copy Arc's cookies) is a separate, opt-in checkbox; macOS then asks

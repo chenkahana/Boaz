@@ -6,8 +6,8 @@
 
 **A calm web browser for iPhone and Mac.**
 
-On iPhone, the page fills the screen and opens where you left it, with a slim rail for your tabs and a layout
-that follows every posture of iPhone Duo. On the Mac, Arc-style spaces. Both stay in step through your private iCloud.
+On iPhone, the page fills the screen and opens where you left it, with your tabs, New Tab and the page menu
+within thumb reach and a layout that follows every posture of iPhone Duo. On the Mac, Arc-style spaces. Both stay in step through your private iCloud.
 
 [![CI](https://github.com/chenkahana/Boaz/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/chenkahana/Boaz/actions/workflows/ci.yml)
 ![iOS 27.1+](https://img.shields.io/badge/iOS-27.1%2B-000000?logo=apple)
@@ -27,14 +27,14 @@ that follows every posture of iPhone Duo. On the Mac, Arc-style spaces. Both sta
 
 | | |
 |---|---|
-| **Page first on iPhone** | Boaz opens on the last page you had open. A rail beside the page holds a stack of your previous tabs (most recent on top), **+** for search and **…** for the page menu. Tap the stack for a carousel of your tabs: tap one to open it, swipe one up to archive it. |
+| **Page first on iPhone** | Boaz opens on the last page you had open. A bar across the bottom holds a fan of your previous tabs (most recent on top), **+** (New Tab) for search and **…** for the page menu; on a folded iPhone Duo they sit in a rail beside the page. Tap the fan for a carousel of your tabs: tap one to open it, swipe one up to archive it. |
 | **Spaces on the Mac** | Keep work, home and projects apart. Each space has its own color theme, pinned tabs, folders and favorites. Spaces are a Mac idea; the iPhone shows your tabs without them. |
 | **Today and the Archive** | New tabs land in Today. Each device keeps its own Today list, and the iPhone can open the tabs on your Mac. Tabs you haven't opened in a while move to the Archive on their own; pinned tabs stay put. |
 | **Search** | Suggestions from your search engine (DuckDuckGo, Google, Bing, Brave, Kagi or Ecosia) mixed with your open tabs, history and address completion. Nothing is sent in Incognito, for addresses, or with suggestions turned off. |
 | **Page menu** | Back, Forward, Reload and Share, then Reader, Find on Page, Translate, Listen to Page, text size, desktop or mobile site, and per-site camera, microphone, pop-up and content-blocking settings. |
 | **On-device AI** | Summarize Page, Ask This Page and Tidy Tabs, using only Apple's on-device model. Nothing goes to a server. |
 | **iCloud sync** | Spaces, pins, folders, favorites and Today sync between iPhone and Mac through your **private** CloudKit database (`CKSyncEngine`). When iCloud is unavailable, a folder you choose works as a fallback. History and Incognito tabs never leave the device. |
-| **Built for iPhone Duo** | Folded: the page with the rail beside it, its edges tinted to match the site. Open: a sidebar with search and Today next to the page. Book: sidebar on the left half, page on the right. Laptop: page on top, controls on the lower half. The page is never reloaded as the hinge moves. Standard iPhones get the folded layout. |
+| **Built for iPhone Duo** | Folded: the page with the rail beside it, its edges tinted to match the site. Open: a sidebar with search and Today next to the page. Book: sidebar on the left half, page on the right. Laptop: page on top, controls on the lower half. The page is never reloaded as the hinge moves. Standard iPhones get the page with the bar across the bottom. |
 | **A full Mac browser** | Arc-style sidebar, command bar (⌘T / ⌘L), split view, rebindable shortcuts, downloads, and a small "Little Boaz" window for links opened from other apps. |
 | **Bring Arc with you** | On Mac, import Arc's spaces, pinned folders, favorites, themes, keyboard shortcuts and, if you opt in, cookies as they are. Chrome, Brave, Edge and Safari bookmarks import too. |
 | **Private by design** | Built-in ad and tracker blocking (EasyList), cookie-banner declining on iPhone, Incognito tabs and a reader view. No accounts, analytics or third-party SDKs. |
