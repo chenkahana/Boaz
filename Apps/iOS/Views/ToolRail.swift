@@ -2,20 +2,12 @@ import SwiftUI
 import TipKit
 import WebKit
 
-/// Whether a toolbar is out of the way. Scrolling down collapses it; scrolling back up, tapping the nub or pulling
-/// it out brings it back. Swiping the rail toward the edge tucks it away until it's pulled back out.
+/// Whether the rail is out of the way. It stays put while scrolling; swiping it toward the edge (or Hide Toolbar)
+/// tucks it away until it's tapped or pulled back out.
 @Observable final class ToolRailState {
-    /// Collapsed by scrolling down; cleared by scrolling up, nearing the top or navigating.
-    var scrolledAway = false
-    /// Tucked away by hand; scrolling doesn't bring it back.
-    var tucked = false
+    var isCollapsed = false
 
-    var isCollapsed: Bool { scrolledAway || tucked }
-
-    func expand() {
-        scrolledAway = false
-        tucked = false
-    }
+    func expand() { isCollapsed = false }
 }
 
 /// Puts a toolbar in the screen's right-hand column — the strip iPhone Duo reserves for the camera, time and
@@ -46,19 +38,22 @@ private struct ToolRailModifier<Rail: View>: ViewModifier {
             .environment(state)
         .onGeometryChange(for: EdgeInsets.self, of: { $0.safeAreaInsets }) { insets = $0 }
         // Only a deliberate tuck; scrolling collapses the rail too often for a tap each time.
-        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: state.tucked) { _, tucked in tucked }
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: state.isCollapsed) { _, collapsed in collapsed }
     }
 
     /// A bar gives content scrolling under it the system's scroll-edge effect. A web page fills that effect with
     /// its own background color, which can be far from what's showing (a pale band across a dark hero image), so
-    /// pages take an inset and run on under the bar's glass buttons, as in Safari. `edgeEffect` never changes for
-    /// a given use, so `content` keeps its place.
+    /// a page ends above its bar instead, which brings its own background. `edgeEffect` never changes for a given
+    /// use, so `content` keeps its place.
     @ViewBuilder private func bottomBar(_ content: Content, shown: Bool) -> some View {
         let bar = ZStack { if shown { rail(.horizontal).animation(motion, value: state.isCollapsed) } }
         if edgeEffect {
             content.safeAreaBar(edge: .bottom, spacing: 0) { bar }
         } else {
-            content.safeAreaInset(edge: .bottom, spacing: 0) { bar }
+            VStack(spacing: 0) {
+                content
+                bar
+            }
         }
     }
 
@@ -101,7 +96,7 @@ private struct ToolRailModifier<Rail: View>: ViewModifier {
                 withAnimation(motion) {
                     if sideways, state.isCollapsed, x < -30 { state.expand() }
                     else if sideways, !state.isCollapsed, x > 50 {
-                        state.tucked = true
+                        state.isCollapsed = true
                         TuckRailTip().invalidate(reason: .actionPerformed)
                     }
                     pull = 0
@@ -132,47 +127,6 @@ private struct ToolRailModifier<Rail: View>: ViewModifier {
 extension View {
     func toolRail<Rail: View>(edgeEffect: Bool = true, @ViewBuilder _ rail: @escaping (Axis) -> Rail) -> some View {
         modifier(ToolRailModifier(edgeEffect: edgeEffect, rail: rail))
-    }
-
-    /// Scrolling this view down collapses the enclosing tool rail; scrolling back up restores it.
-    func collapsesToolRail() -> some View { modifier(RailScrollCollapse(key: 0, webView: false, onScroll: nil)) }
-
-    /// For a `WebView`, whose scrolling only reports through WebKit's own geometry modifier. Also restores the
-    /// rail whenever `key` changes (e.g. the page navigates). Other uses of the same offset (pull to refresh) go
-    /// through `onScroll`, so the web view has a single scroll-geometry observer.
-    func webViewCollapsesToolRail(expandingOn key: some Equatable,
-                                  onScroll: ((CGFloat, CGFloat) -> Void)? = nil) -> some View {
-        modifier(RailScrollCollapse(key: key, webView: true, onScroll: onScroll))
-    }
-}
-
-private struct RailScrollCollapse<Key: Equatable>: ViewModifier {
-    let key: Key
-    let webView: Bool
-    let onScroll: ((CGFloat, CGFloat) -> Void)?
-    @Environment(ToolRailState.self) private var state: ToolRailState?
-
-    func body(content: Content) -> some View {
-        Group {
-            if webView {
-                content.webViewOnScrollGeometryChange(for: CGFloat.self, of: offset, action: scrolled)
-            } else {
-                content.onScrollGeometryChange(for: CGFloat.self, of: offset, action: scrolled)
-            }
-        }
-        .onChange(of: key) { state?.scrolledAway = false }
-    }
-
-    private func offset(_ geometry: ScrollGeometry) -> CGFloat { geometry.contentOffset.y + geometry.contentInsets.top }
-
-    private func scrolled(from old: CGFloat, to new: CGFloat) {
-        onScroll?(old, new)
-        guard let state else { return }
-        if new > 80, new > old + 4 {
-            if !state.scrolledAway { state.scrolledAway = true }
-        } else if new < old - 8 || new < 40 {
-            if state.scrolledAway { state.scrolledAway = false }
-        }
     }
 }
 

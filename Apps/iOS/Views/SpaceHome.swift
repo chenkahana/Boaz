@@ -52,7 +52,6 @@ private struct IncognitoPage: View {
             }
             .padding(.horizontal, 20).padding(.top, 24).padding(.bottom, 120)
         }
-        .collapsesToolRail()
         .foregroundStyle(.white)
         .environment(\.colorScheme, .dark)
     }
@@ -116,7 +115,6 @@ private struct SpacePage: View {
             .padding(.bottom, 40)
         }
         .scrollIndicators(.hidden)
-        .collapsesToolRail()
         // Both read at 4.5:1 on this space's backdrop; `.secondary` below resolves to the second.
         .foregroundStyle(style.foreground, style.secondary)
     }

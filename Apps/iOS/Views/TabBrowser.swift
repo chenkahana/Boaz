@@ -159,8 +159,8 @@ struct TabBrowser: View {
     private func webView(_ page: WebPage) -> some View {
         WebView(page)
             .webViewBackForwardNavigationGestures(.enabled)
-            .webViewCollapsesToolRail(expandingOn: page.url) { old, new in
-                handlePullGeometry(old: old, new: new, page: page)
+            .webViewOnScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y + $0.contentInsets.top }) {
+                handlePullGeometry(old: $0, new: $1, page: page)
             }
             .findNavigator(isPresented: $findVisible)
             .onDisappear { [tab, hostID] in model.releasePage(tab.id, host: hostID) }
@@ -357,7 +357,6 @@ private struct LoadFailure {
 private struct BrowserBar: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(ToolRailState.self) private var rail
     @Environment(\.homeControlsElsewhere) private var homeControlsElsewhere
     @Environment(\.siteEdges) private var edges
     @Environment(\.sidebar) private var sidebar
@@ -408,44 +407,23 @@ private struct BrowserBar: View {
         }
     }
 
+    /// Fixed across the bottom, the page ending above it. Frosted over the page's bottom color, with glyphs picked
+    /// for that color, so the buttons read on any page.
     private var bottomBar: some View {
-        Group {
-            if rail.isCollapsed {
-                Button { rail.expand() } label: {
-                    Text(host).font(.caption.weight(.semibold))
-                        .padding(.horizontal, 14).padding(.vertical, 6)
-                        .glassEffect(.regular.tint(edges?.bottom.color.opacity(0.45)), in: .capsule)
-                        // The capsule stays small; the target is a full 44pt.
-                        .frame(minHeight: 44)
-                        .contentShape(.rect)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Show Toolbar")
-                .accessibilityValue(host)
-            } else {
-                // The rail's two docks, laid across: the tabs and New Tab together, the page settings apart.
-                HStack(spacing: 10) {
-                    BarDock(site: edges?.bottom) {
-                        tabsButton
-                        RailButton(symbol: "plus", label: "New Tab", isSelected: model.searchTarget != nil,
-                                   action: toggleSearch)
-                    }
-                    Spacer(minLength: 0)
-                    BarDock(site: edges?.bottom) {
-                        RailButton(symbol: "ellipsis", label: "Page Settings", isSelected: model.showsPageSettings,
-                                   action: togglePageSettings)
-                    }
-                }
-                .padding(.horizontal, 12)
-                .popoverTip(SwipeTabsTip(), arrowEdge: .bottom)
-            }
+        HStack(spacing: 4) {
+            tabsButton
+            RailButton(symbol: "plus", label: "New Tab", isSelected: model.searchTarget != nil, action: toggleSearch)
+            Spacer(minLength: 0)
+            RailButton(symbol: "ellipsis", label: "Page Settings", isSelected: model.showsPageSettings,
+                       action: togglePageSettings)
         }
-        .padding(.top, rail.isCollapsed ? 0 : 6)
-        .padding(.bottom, rail.isCollapsed ? 0 : 4)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 2)
+        .popoverTip(SwipeTabsTip(), arrowEdge: .bottom)
         .frame(maxWidth: .infinity)
-        // Like the rail's docks, the bar takes the page color it sits on, so its glass and glyphs agree.
+        .background(.bar, ignoresSafeAreaEdges: .bottom)
+        .overlay(alignment: .top) { Divider() }
         .chromeScheme(edges?.bottom)
-        .environment(\.chromeTint, edges?.bottom.color)
     }
 
     /// New Tab opens the search panel; pressed again, it puts it away. One panel at a time.
@@ -468,8 +446,6 @@ private struct BrowserBar: View {
         guard let space = model.currentSpace else { return 0 }
         return model.todayTabs(in: space).count
     }
-
-    private var host: String { page.url?.host() ?? tab.url?.host() ?? "New Tab" }
 }
 
 /// Site monogram ringed by the page's loading progress.

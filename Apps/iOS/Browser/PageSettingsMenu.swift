@@ -159,7 +159,7 @@ struct PageSettingsPanel: View {
 
     @ViewBuilder private var tabActions: some View {
         if hasRail {
-            Button("Hide Toolbar", systemImage: "sidebar.trailing") { closeThen { rail?.tucked = true } }
+            Button("Hide Toolbar", systemImage: "sidebar.trailing") { closeThen { rail?.isCollapsed = true } }
         }
         Button("Reopen Closed Tab", systemImage: "arrow.uturn.backward") { closeThen(model.undoClose) }
             .disabled(!model.canReopenClosedTab)
