@@ -55,9 +55,10 @@ extension BoazStore {
         return data.flatMap { try? JSONDecoder().decode(CKSyncEngine.State.Serialization.self, from: $0) }
     }
 
-    public func saveSyncEngineState(_ state: CKSyncEngine.State.Serialization) throws {
+    /// Runs on the database's queue, like the other writes the engine's events make.
+    public func saveSyncEngineState(_ state: CKSyncEngine.State.Serialization) async throws {
         let data = try JSONEncoder().encode(state)
-        try writer.write { db in
+        try await writer.write { db in
             try db.execute(sql: "INSERT OR REPLACE INTO syncState(key, value) VALUES (?, ?)",
                            arguments: [Self.engineStateKey, data])
         }
@@ -129,8 +130,8 @@ extension BoazStore {
 
     /// Records the server's copy of uploaded records. A record edited again while in flight stays queued and is
     /// returned so the caller can hand it back to the engine.
-    public func didSave(serverRecords: [CKRecord]) throws -> [SyncPendingChange] {
-        try writer.write { db in
+    public func didSave(serverRecords: [CKRecord]) async throws -> [SyncPendingChange] {
+        try await writer.write { db in
             var requeue: [SyncPendingChange] = []
             for record in serverRecords {
                 guard let (type, id) = SyncMapping.parse(record.recordID) else { continue }
@@ -156,8 +157,8 @@ extension BoazStore {
     }
 
     /// Forgets records the server confirmed as deleted.
-    public func didDelete(recordIDs: [CKRecord.ID]) throws {
-        try writer.write { db in
+    public func didDelete(recordIDs: [CKRecord.ID]) async throws {
+        try await writer.write { db in
             for recordID in recordIDs {
                 guard let (type, id) = SyncMapping.parse(recordID) else { continue }
                 let key: [String: any DatabaseValueConvertible] = ["recordType": type.rawValue, "recordID": id]
@@ -168,8 +169,8 @@ extension BoazStore {
     }
 
     /// Drops change tags for records the server no longer knows (zone or record gone), so the next upload creates them.
-    public func clearSystemFields(_ recordIDs: [CKRecord.ID]) throws {
-        try writer.write { db in
+    public func clearSystemFields(_ recordIDs: [CKRecord.ID]) async throws {
+        try await writer.write { db in
             for recordID in recordIDs {
                 guard let (type, id) = SyncMapping.parse(recordID) else { continue }
                 _ = try SyncRecordMeta.deleteOne(db, key: ["recordType": type.rawValue, "recordID": id])

@@ -76,8 +76,8 @@ public enum StarterLibrary {
     /// existing library shows an extra, empty "Personal". Called after a full fetch, so anything another device
     /// put in the starter space has arrived first. Returns whether it removed it.
     @discardableResult
-    public static func retireUnusedStarterSpace(_ store: BoazStore, now: Date = .now) throws -> Bool {
-        try store.writer.write { db in
+    public static func retireUnusedStarterSpace(_ store: BoazStore, now: Date = .now) async throws -> Bool {
+        try await store.writer.write { db in
             let live = Column("deletedAt") == nil
             guard var space = try Space.filter(live && Column("id") == spaceID).fetchOne(db),
                   space.modifiedAt == starterStamp,
