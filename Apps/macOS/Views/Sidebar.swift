@@ -43,8 +43,10 @@ struct SidebarView: View {
         }
         .padding(.horizontal, 8)
         .padding(.bottom, 8)
-        // An Arc theme pinned to light or dark keeps the sidebar in that appearance, as Arc does.
-        .environment(\.colorScheme, browser.isIncognito ? scheme : SpaceStyle.colorScheme(of: browser.currentSpace) ?? scheme)
+        // An Arc theme pinned to light or dark keeps the sidebar in that appearance, as Arc does. A site's color
+        // overrides both while the sidebar wears it, so row fills match the text drawn on that color.
+        .environment(\.colorScheme, browser.isIncognito ? scheme
+                     : site?.colorScheme ?? SpaceStyle.colorScheme(of: browser.currentSpace) ?? scheme)
         .animation(SiteColor.fade(reduceMotion: reduceMotion)) {
             $0.foregroundStyle(browser.isIncognito ? .white : site?.foreground ?? style.foreground)
         }
