@@ -210,7 +210,7 @@ struct LittleBoazWindow: View {
         let page = WebPage(configuration: configuration, navigationDecider: LittleRouter(holder: holder),
                            dialogPresenter: MacDialogs())
         holder.page = page
-        page.load(URLRequest(url: url))
+        model.load(url, in: page, configuration: configuration)
         self.page = page
     }
 }
