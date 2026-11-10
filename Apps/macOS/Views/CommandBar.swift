@@ -70,7 +70,14 @@ struct CommandBar: View {
         }
         .onAppear {
             if mode == .currentTab { text = (browser.activePage?.url ?? browser.activeTab?.url)?.absoluteString ?? "" }
-            focused = true
+        }
+        // Focus set while the bar is still being inserted is dropped about half the time, so keep asking until
+        // the field has it.
+        .task {
+            for _ in 0..<10 where !focused {
+                focused = true
+                try? await Task.sleep(for: .milliseconds(50))
+            }
         }
         .onChange(of: text) { selection = 0 }
         // History is looked up once typing pauses, off the main thread.
