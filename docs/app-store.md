@@ -106,12 +106,14 @@ Generated into `docs/screenshots/` (not part of the app build).
 
 | Display | Required size | Files |
 |---|---|---|
-| iPhone 6.9" | 1320 × 2868 portrait | `iphone-69-*.png` |
+| iPhone 6.3" (Dynamic Island, required) | 1206 × 2622 portrait | `iphone-63-*.png` |
+| iPhone Duo | 1398 × 2034 portrait | `duo-1-page.png` … `duo-4-menu.png` |
 | Mac | 1440 × 900 | `mac-*.png` |
 
-The iOS 27.1 simulator only offers iPhone Duo, whose screens aren't an App Store size, so each `iphone-69-*` image is
-a Duo screenshot (`duo-*.png`, folded, and the unfolded inner screen) captioned on the brand gradient. The Mac images
-are the app window on the same gradient.
+The `iphone-63-*` images are an iPhone 17 Pro simulator showing boazbrowser.com with the bottom bar, captioned on the brand
+gradient. The iOS 27.1 simulator only offers iPhone Duo, so they came from a throwaway iOS 26.4 build of the app
+whose iOS 27-only hinge and screen-region APIs were stubbed out. The Duo slot takes the raw folded Duo screenshots
+as they are. The Mac images are the app window on the same gradient.
 
 iPad screenshots aren't needed for an iPhone-only app.
 
