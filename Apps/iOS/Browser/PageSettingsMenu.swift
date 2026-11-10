@@ -73,7 +73,7 @@ struct PageSettingsPanel: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title).font(.subheadline.weight(.semibold)).lineLimit(1)
                     HStack(spacing: 4) {
-                        if page.url?.scheme == "https" { Image(systemName: "lock.fill").imageScale(.small) }
+                        if page.url?.scheme == "https", page.serverTrust != nil { Image(systemName: "lock.fill").imageScale(.small) }
                         Text(host).lineLimit(1)
                     }
                     .font(.footnote)

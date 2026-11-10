@@ -174,7 +174,7 @@ struct LittleBoazWindow: View {
             HStack(spacing: 8) {
                 Spacer().frame(width: 64)
                 if let page, page.url != nil {
-                    Image(systemName: page.url?.scheme == "https" ? "lock.fill" : "globe")
+                    Image(systemName: page.url?.scheme == "https" && page.serverTrust != nil ? "lock.fill" : "globe")
                         .font(.caption).foregroundStyle(.secondary)
                     Text(page.title.isEmpty ? (page.url?.host() ?? "") : page.title)
                         .font(.callout.weight(.medium)).lineLimit(1)
