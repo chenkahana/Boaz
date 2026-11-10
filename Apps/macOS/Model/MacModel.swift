@@ -37,7 +37,10 @@ final class MacModel {
     /// Each entry is one undoable close: a single tab, or every tab from one Clear.
     @ObservationIgnored private var closedTabs: [[(tab: SidebarItem, archiveID: String?)]] = []
     @ObservationIgnored private var dataStores: [UUID: WKWebsiteDataStore] = [:]
-    @ObservationIgnored private var contentBlockLists: [WKContentRuleList] = []
+    /// `nil` until compiled. Pages made before then (the tabs reopened at launch) hold their first load until they
+    /// have the lists, so no page loads with its ads.
+    @ObservationIgnored private var contentBlockLists: [WKContentRuleList]?
+    @ObservationIgnored private var awaitingBlockLists: [(controller: WKUserContentController, load: () -> Void)] = []
     @ObservationIgnored private var themeSaves: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var started = false
     /// First launch: the first main window to appear shows the setup flow.
@@ -53,7 +56,12 @@ final class MacModel {
         guard !started else { return }
         started = true
         // Compiling EasyList the first time takes a few seconds; the library loads meanwhile.
-        Task { contentBlockLists = await ContentBlocking.compiledLists() }
+        Task {
+            let lists = await ContentBlocking.compiledLists()
+            contentBlockLists = lists
+            for page in awaitingBlockLists { lists.forEach(page.controller.add); page.load() }
+            awaitingBlockLists = []
+        }
         do {
             let store = try BoazStore.onDisk()
             self.store = store
@@ -211,8 +219,20 @@ final class MacModel {
 
     /// Ad and tracker blocking for a new page, when it's on.
     func applyContentBlocking(to configuration: inout WebPage.Configuration) {
-        guard Preferences.blockTrackers else { return }
+        guard Preferences.blockTrackers, let contentBlockLists else { return }
         contentBlockLists.forEach(configuration.userContentController.add)
+    }
+
+    /// A new page's first load, held until the page has its block lists if they're still compiling.
+    func load(_ url: URL, in page: WebPage, configuration: WebPage.Configuration) {
+        guard Preferences.blockTrackers, contentBlockLists == nil else {
+            page.load(URLRequest(url: url))
+            return
+        }
+        awaitingBlockLists.append((configuration.userContentController, { [weak page] in
+            // Unless the page went somewhere else in the meantime.
+            if let page, page.url == nil { page.load(URLRequest(url: url)) }
+        }))
     }
 
     func dataStore(for profileID: String) -> WKWebsiteDataStore {
