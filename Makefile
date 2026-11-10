@@ -38,7 +38,7 @@ archive: project ## Signed Release archives for App Store Connect, in build/arch
 	xcodebuild archive -project $(PROJECT) -scheme Boaz-macOS -configuration Release \
 		-destination 'generic/platform=macOS' -archivePath $(ARCHIVES)/Boaz-macOS.xcarchive -allowProvisioningUpdates
 
-dmg: ## Developer ID DMG for download outside the App Store: make dmg VERSION=1.2.0 (docs/release.md)
+dmg: ## Notarized DMG on GitHub Releases for tag vVERSION: make dmg VERSION=0.2.0 (docs/release.md)
 	Tools/release-mac.sh $(VERSION)
 
 clean: ## Remove build output (keeps release archives)

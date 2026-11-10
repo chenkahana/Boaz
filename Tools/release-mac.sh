@@ -1,44 +1,33 @@
 #!/bin/bash
-# Builds the Mac app for download outside the App Store: signed with Developer ID, notarized and stapled, in a DMG.
+# Releases the Mac app outside the App Store: signs it with Developer ID, has Apple notarize it, and publishes Boaz.dmg
+# on the GitHub release for tag vVERSION. Signing and notarization go through the Apple account signed in to Xcode
+# (Settings › Accounts), so no certificates or keys are kept anywhere else. See docs/release.md.
 #
-#   Tools/release-mac.sh 1.2.0 [build-number]
-#
-# Signing uses the "Developer ID Application" certificate in the keychain and the Developer ID provisioning profile
-# named by $PROFILE_NAME (default "Boaz Developer ID"). Notarization uses an App Store Connect API key
-# ($NOTARY_KEY_PATH, $NOTARY_KEY_ID, $NOTARY_ISSUER_ID) or, locally, a notarytool keychain profile ($NOTARY_PROFILE).
-# Output: build/release/Boaz.dmg and Boaz.dmg.sha256. See docs/release.md.
+#   Tools/release-mac.sh 0.2.0 [--no-publish]
 set -euo pipefail
 
-VERSION=${1:?usage: Tools/release-mac.sh VERSION [BUILD]}
-BUILD=${2:-$(date +%Y%m%d%H%M)}
+VERSION=${1:?usage: Tools/release-mac.sh VERSION [--no-publish]}
+PUBLISH=${2:-}
+TAG=v$VERSION
 TEAM_ID=DPF8459C2J
-PROFILE_NAME=${PROFILE_NAME:-Boaz Developer ID}
 OUT=build/release
 ARCHIVE=$OUT/Boaz-macOS.xcarchive
 
 cd "$(dirname "$0")/.."
+if [ "$PUBLISH" != "--no-publish" ]; then
+    git fetch -q origin tag "$TAG" 2>/dev/null || { echo "Tag $TAG isn't on GitHub yet: tag the release commit first."; exit 1; }
+    # Not checked out here: bash reads this script as it runs, so it can't change underneath itself.
+    [ "$(git rev-parse HEAD)" = "$(git rev-parse "$TAG^{commit}")" ] || { echo "Check out $TAG first."; exit 1; }
+fi
 rm -rf "$OUT" && mkdir -p "$OUT"
 
-if [ -n "${NOTARY_PROFILE:-}" ]; then
-    notary_auth=(--keychain-profile "$NOTARY_PROFILE")
-else
-    notary_auth=(--key "${NOTARY_KEY_PATH:?set NOTARY_KEY_PATH or NOTARY_PROFILE}" --key-id "${NOTARY_KEY_ID:?}"
-                 --issuer "${NOTARY_ISSUER_ID:?}")
-fi
-
-echo "==> Archiving Boaz $VERSION ($BUILD)"
+echo "==> Archiving Boaz $VERSION"
 xcodegen generate --quiet
-# A Developer ID profile carries the production push environment; the checked-in entitlements are for development.
-cp Apps/macOS/Boaz.entitlements "$OUT/Boaz.entitlements"
-plutil -replace com.apple.developer.aps-environment -string production "$OUT/Boaz.entitlements"
 xcodebuild archive -project Boaz.xcodeproj -scheme Boaz-macOS -configuration Release \
-    -destination 'generic/platform=macOS' -archivePath "$ARCHIVE" -quiet \
-    MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD" \
-    CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Developer ID Application" \
-    PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" DEVELOPMENT_TEAM="$TEAM_ID" \
-    CODE_SIGN_ENTITLEMENTS="$OUT/Boaz.entitlements"
+    -destination 'generic/platform=macOS' -archivePath "$ARCHIVE" -allowProvisioningUpdates -quiet \
+    MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$(date +%Y%m%d%H%M)"
 
-echo "==> Exporting with Developer ID"
+echo "==> Signing with Developer ID and sending to Apple for notarization"
 cat > "$OUT/ExportOptions.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -46,28 +35,36 @@ cat > "$OUT/ExportOptions.plist" <<EOF
 <dict>
     <key>method</key><string>developer-id</string>
     <key>teamID</key><string>$TEAM_ID</string>
-    <key>signingStyle</key><string>manual</string>
-    <key>signingCertificate</key><string>Developer ID Application</string>
-    <key>provisioningProfiles</key>
-    <dict><key>com.chenkahana.boaz</key><string>$PROFILE_NAME</string></dict>
+    <key>signingStyle</key><string>automatic</string>
+    <key>destination</key><string>upload</string>
 </dict>
 </plist>
 EOF
-xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportPath "$OUT/export" \
-    -exportOptionsPlist "$OUT/ExportOptions.plist" -quiet
+xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportPath "$OUT/upload" \
+    -exportOptionsPlist "$OUT/ExportOptions.plist" -allowProvisioningUpdates -quiet
+
+echo "==> Waiting for notarization"
+until xcodebuild -exportNotarizedApp -archivePath "$ARCHIVE" -exportPath "$OUT/export" -quiet 2>/dev/null; do
+    sleep 30
+done
+APP=$OUT/export/Boaz.app
+xcrun stapler validate "$APP"
+spctl --assess --type execute "$APP"
 
 echo "==> Making the DMG"
-staging=$OUT/dmg
-mkdir -p "$staging"
-cp -R "$OUT/export/Boaz.app" "$staging/"
-ln -s /Applications "$staging/Applications"
-hdiutil create -volname "Boaz" -srcfolder "$staging" -fs HFS+ -format UDZO -ov "$OUT/Boaz.dmg" -quiet
-codesign --sign "Developer ID Application" --timestamp "$OUT/Boaz.dmg"
-
-echo "==> Notarizing"
-xcrun notarytool submit "$OUT/Boaz.dmg" "${notary_auth[@]}" --wait
-xcrun stapler staple "$OUT/Boaz.dmg"
-
-echo "==> Checking"
-spctl --assess --type open --context context:primary-signature --verbose "$OUT/Boaz.dmg"
+mkdir -p "$OUT/dmg"
+cp -R "$APP" "$OUT/dmg/"
+ln -s /Applications "$OUT/dmg/Applications"
+hdiutil create -volname Boaz -srcfolder "$OUT/dmg" -fs HFS+ -format UDZO -ov "$OUT/Boaz.dmg" -quiet
 (cd "$OUT" && shasum -a 256 Boaz.dmg > Boaz.dmg.sha256 && cat Boaz.dmg.sha256)
+
+[ "$PUBLISH" = "--no-publish" ] && exit 0
+
+echo "==> Publishing $TAG"
+title="Boaz $VERSION"
+# 0.x versions are betas. Not marked as pre-releases, which "latest" (the README button) would skip.
+if [[ $VERSION == 0.* ]]; then title="$title (beta)"; fi
+awk -v v="$VERSION" '$0 ~ "^## \\[" v "\\]" {on=1; next} on && /^## \[/ {exit} on' CHANGELOG.md > "$OUT/notes.md"
+printf '\n---\nOpen the DMG and drag Boaz to Applications. Requires macOS 26. Signed with Developer ID and notarized by Apple.\n' \
+    >> "$OUT/notes.md"
+gh release create "$TAG" "$OUT/Boaz.dmg" "$OUT/Boaz.dmg.sha256" --title "$title" --notes-file "$OUT/notes.md" --verify-tag
