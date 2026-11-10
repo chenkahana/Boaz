@@ -186,6 +186,11 @@ final class AppModel {
         guard let ids = try? await store.loadSidebar().items.map(\.id) else { return }
         let saved = await SnapshotCache.load(keeping: Set(ids))
         snapshots.merge(saved) { live, _ in live }
+        // A snapshot that landed meanwhile (the launch sweep's, say) was pruned before these arrived.
+        if sidebarGeneration > 0 {
+            liveItemIDs = []
+            pruneSnapshots()
+        }
     }
 
     /// Refreshes this iPhone's name and last-seen time for the user's other devices.
@@ -602,7 +607,10 @@ final class AppModel {
     func setIncognito(_ on: Bool) {
         guard on != isIncognito else { return }
         if !on {
-            for tab in incognitoTabs { pages[tab.id] = nil }
+            for tab in incognitoTabs {
+                pages[tab.id] = nil
+                snapshots[tab.id] = nil
+            }
             pageRecency.removeAll { id in incognitoTabs.contains { $0.id == id } }
             incognitoTabs = []
             PageSettings.forgetPrivateChoices()
