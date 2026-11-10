@@ -397,18 +397,13 @@ private struct BrowserBar: View {
     /// sidebar lists the tabs. Book and laptop poses list the tabs beside or below the page, so there's none.
     @ViewBuilder private var tabsButton: some View {
         if let sidebar {
-            if axis == .vertical {
-                SidebarRailButton(sidebar: sidebar)
-            } else {
-                BarButton(symbol: "sidebar.left", action: sidebar.toggle)
-                    .accessibilityLabel(sidebar.isCollapsed ? "Show Sidebar" : "Hide Sidebar")
-            }
+            SidebarRailButton(sidebar: sidebar)
         } else if !homeControlsElsewhere {
             if axis == .vertical {
                 TabStack(space: model.currentSpace, cardSize: CGSize(width: 26, height: 36)).padding(.vertical, 4)
             } else {
                 TabStack(space: model.currentSpace, cardSize: CGSize(width: 22, height: 30))
-                    .frame(width: 44, height: 44)
+                    .frame(width: 46, height: 46)
             }
         }
     }
@@ -428,13 +423,18 @@ private struct BrowserBar: View {
                 .accessibilityLabel("Show Toolbar")
                 .accessibilityValue(host)
             } else {
+                // The rail's two docks, laid across: the tabs and New Tab together, the page settings apart.
                 HStack(spacing: 10) {
-                    tabsButton
-                    BarButton(symbol: "plus", isSelected: model.searchTarget != nil, action: toggleSearch)
-                        .accessibilityLabel("New Tab")
+                    BarDock(site: edges?.bottom) {
+                        tabsButton
+                        RailButton(symbol: "plus", label: "New Tab", isSelected: model.searchTarget != nil,
+                                   action: toggleSearch)
+                    }
                     Spacer(minLength: 0)
-                    BarButton(symbol: "ellipsis", isSelected: model.showsPageSettings, action: togglePageSettings)
-                        .accessibilityLabel("Page Settings")
+                    BarDock(site: edges?.bottom) {
+                        RailButton(symbol: "ellipsis", label: "Page Settings", isSelected: model.showsPageSettings,
+                                   action: togglePageSettings)
+                    }
                 }
                 .padding(.horizontal, 12)
                 .popoverTip(SwipeTabsTip(), arrowEdge: .bottom)
@@ -492,35 +492,6 @@ private struct SiteTile: View {
             }
             .contentTransition(.interpolate)
             .animation(reduceMotion ? .easeOut(duration: 0.2) : .bouncy, value: url?.host())
-    }
-}
-
-private struct BarButton: View {
-    let symbol: String
-    var isSelected = false
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) { BarIcon(symbol: symbol, isSelected: isSelected) }
-            .buttonStyle(.plain)
-            .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-}
-
-/// Round glass icon for the bottom bar.
-private struct BarIcon: View {
-    @Environment(\.chromeTint) private var tint
-    let symbol: String
-    var isSelected = false
-    @ScaledMetric(relativeTo: .body) private var glyph: CGFloat = 17
-
-    var body: some View {
-        Image(systemName: symbol)
-            // Grows with Dynamic Type, but stays inside its fixed-size circle.
-            .font(.system(size: min(glyph, 26)))
-            .frame(width: 44, height: 44)
-            .railSelection(isSelected)
-            .glassEffect(.chrome(tint), in: .circle)
     }
 }
 

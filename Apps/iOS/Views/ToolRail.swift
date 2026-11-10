@@ -229,6 +229,19 @@ extension Axis {
     }
 }
 
+/// A rail dock laid across the bottom bar: one glass capsule around its buttons.
+struct BarDock<Content: View>: View {
+    @Environment(\.chromeTint) private var tint
+    var site: SiteColor?
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        HStack(spacing: 2) { content }
+            .padding(3)
+            .glassEffect(.chrome(site?.color ?? tint), in: .capsule)
+    }
+}
+
 /// A button inside a rail dock (the dock supplies the glass).
 struct RailButton: View {
     let symbol: String

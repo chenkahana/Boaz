@@ -525,23 +525,19 @@ private struct CarouselRail: View {
             }
         } else {
             HStack(spacing: 10) {
-                barButton("desktopcomputer", label: "Tabs on Your Mac", action: onMacTabs)
-                    .disabled(!hasMac)
-                    .opacity(hasMac ? 1 : 0.4)
-                barButton("plus", label: "New Tab", action: onNewTab)
+                BarDock {
+                    RailButton(symbol: "desktopcomputer", label: "Tabs on Your Mac", action: onMacTabs)
+                        .disabled(!hasMac)
+                        .opacity(hasMac ? 1 : 0.4)
+                    RailButton(symbol: "plus", label: "New Tab", action: onNewTab)
+                }
                 Spacer(minLength: 0)
-                barButton("gearshape", label: "Settings", action: onSettings)
+                BarDock { RailButton(symbol: "gearshape", label: "Settings", action: onSettings) }
             }
             .padding(.horizontal, 12)
             .padding(.top, 6)
             .padding(.bottom, 4)
         }
-    }
-
-    private func barButton(_ symbol: String, label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) { RailIcon(symbol: symbol) }
-            .buttonStyle(.plain)
-            .accessibilityLabel(label)
     }
 }
 
