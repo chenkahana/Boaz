@@ -6,15 +6,13 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
-### Added
+## [0.1.0] - 2026-11-10
 
-- The Mac app can be downloaded as a notarized DMG from GitHub Releases, as well as from the App Store.
-
-## [1.0.0] - 2026-11-08
-
-First release, for iPhone and Mac.
+First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone app is built from source.
 
 ### Added
+
+- The Mac app can be downloaded as a notarized DMG from GitHub Releases.
 
 - Spaces with their own color themes, pinned tabs, folders and favorites.
 - Today tabs that move to the Archive after a period without use.
@@ -28,5 +26,5 @@ First release, for iPhone and Mac.
 - Share extension, search widget, App Shortcuts, the `boaz://` URL scheme and alternate app icons.
 - Privacy manifest, privacy policy and an About section with third-party notices.
 
-[Unreleased]: https://github.com/chenkahana/Boaz/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/chenkahana/Boaz/releases/tag/v1.0.0
+[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/chenkahana/Boaz/releases/tag/v0.1.0
