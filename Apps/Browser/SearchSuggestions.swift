@@ -37,6 +37,9 @@ extension SearchEngine {
     @ObservationIgnored private var cache = LRUCache(capacity: 120)
     /// Rows shown at most, so an engine that answers 20 doesn't push the local matches away.
     private let limit = 8
+    /// Longer text (a pasted paragraph or address) isn't sent: engines have nothing to suggest for it, and matching
+    /// every prefix of it against the cache on each keystroke would hold up typing.
+    private static let maxQueryLength = 100
 
     /// One connection pool for every request, so HTTP/2 keeps the connection to the engine alive between keystrokes.
     private static let session: URLSession = {
@@ -59,7 +62,7 @@ extension SearchEngine {
 
     func update(_ text: String, engine: SearchEngine) {
         let query = String(text.drop(while: \.isWhitespace))
-        guard !query.isEmpty else { return clear() }
+        guard !query.isEmpty, query.count <= Self.maxQueryLength else { return clear() }
         // The same text again (a field can report one edit twice): what's showing or loading already answers it.
         if query == self.query, engine == self.engine, request != nil || cache[key(engine, query)] != nil { return }
         self.query = query
