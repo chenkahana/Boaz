@@ -22,7 +22,15 @@ final class AppModel {
             UserDefaults(suiteName: BoazStore.appGroup)?.set(currentSpaceID, forKey: "currentSpaceID")
         }
     }
-    var activeTabID: String?
+    /// The page on screen. Remembered across launches: the app opens on it again (mobile has no home screen).
+    var activeTabID: String? {
+        didSet {
+            guard activeTabID != oldValue, let activeTabID, !incognitoTabs.contains(where: { $0.id == activeTabID })
+            else { return }
+            UserDefaults.standard.set(activeTabID, forKey: Self.lastTabKey)
+        }
+    }
+    private static let lastTabKey = "lastTabID"
     var searchTarget: SearchTarget? { didSet { if searchTarget == nil { remoteSuggestions.clear() } } }
     var searchText = "" { didSet { refreshHistorySuggestions(); refreshRemoteSuggestions() } }
     var historySuggestions: [HistoryVisit] = []
@@ -54,7 +62,10 @@ final class AppModel {
     /// iCloud sync with the user's other devices (a picked folder only when iCloud isn't available).
     @ObservationIgnored private(set) var sync: LibrarySync?
     /// Compiled once at launch; `nil` until ready, so the very first page or two may load unblocked.
-    @ObservationIgnored private var contentBlockLists: [WKContentRuleList] = []
+    /// `nil` until compiled. Pages opened before then (the tab reopened at launch) hold their first load until they
+    /// have the lists, so no page loads with its ads.
+    @ObservationIgnored private var contentBlockLists: [WKContentRuleList]?
+    @ObservationIgnored private var awaitingBlockLists: [(controller: WKUserContentController, load: () -> Void)] = []
     /// Runs once the current sheet has finished dismissing (a tab can't present while a sheet is leaving).
     @ObservationIgnored private var afterSheet: (() -> Void)?
     @ObservationIgnored private var historyLookup: Task<Void, Never>?
@@ -83,7 +94,15 @@ final class AppModel {
 
     func start() async {
         // Compiling EasyList the first time takes a few seconds; the library loads meanwhile.
-        Task { contentBlockLists = await ContentBlocking.compiledLists() }
+        Task {
+            let lists = await ContentBlocking.compiledLists()
+            contentBlockLists = lists
+            for page in awaitingBlockLists {
+                lists.forEach(page.controller.add)
+                page.load()
+            }
+            awaitingBlockLists = []
+        }
         let store: BoazStore
         do {
             let sync = try prepareSync()
@@ -122,6 +141,7 @@ final class AppModel {
                     // Also how the stale-tab sweep's archived tabs lose their previews: the sweep lands as an update.
                     pruneSnapshots()
                     if currentSpace == nil { currentSpaceID = snapshot.spaces.first?.id }
+                    if sidebarGeneration == 1 { reopenLastTab() }
                 }
                 return
             } catch {
@@ -239,9 +259,9 @@ final class AppModel {
         let tabIsPrivate = isPrivate(tab)
         var configuration = WebPage.Configuration()
         if tabIsPrivate { configuration.websiteDataStore = .nonPersistent() }
-        if Preferences.blockTrackers, PageSettings.settings(for: tab.url, isPrivate: tabIsPrivate).contentBlocking {
-            contentBlockLists.forEach(configuration.userContentController.add)
-        }
+        let blocksContent = Preferences.blockTrackers
+            && PageSettings.settings(for: tab.url, isPrivate: tabIsPrivate).contentBlocking
+        if blocksContent, let contentBlockLists { contentBlockLists.forEach(configuration.userContentController.add) }
         if Preferences.hideCookieBanners {
             configuration.userContentController.addUserScript(CookieBanners.userScript())
         }
@@ -268,7 +288,16 @@ final class AppModel {
             })
         let page = WebPage(configuration: configuration, navigationDecider: decider)
         page.customUserAgent = PageSettings.userAgent(forHost: tab.url?.host(), isPrivate: tabIsPrivate)
-        if let url = tab.url { page.load(URLRequest(url: url)) }
+        if let url = tab.url {
+            if blocksContent, contentBlockLists == nil {
+                awaitingBlockLists.append((configuration.userContentController, { [weak page] in
+                    // Unless the page went somewhere else in the meantime.
+                    if let page, page.url == nil { page.load(URLRequest(url: url)) }
+                }))
+            } else {
+                page.load(URLRequest(url: url))
+            }
+        }
         pages[tab.id] = page
         while pageRecency.count > maxLivePages {
             pages[pageRecency.removeFirst()] = nil
@@ -305,15 +334,16 @@ final class AppModel {
 
     /// Downscaled render of a tab's current page, dropped when the tab closes.
     private func captureSnapshot(of page: WebPage, tab: SidebarItem) {
-        let persist = !isPrivate(tab)
-        Task { [weak self] in
-            guard let data = try? await page.exported(as: .image(snapshotWidth: 400)),
-                  let image = UIImage(data: data),
-                  // The tab may have closed while the page rendered.
-                  let self, self.isLive(tab.id) else { return }
-            self.snapshots[tab.id] = image
-            if persist { SnapshotCache.save(data, for: tab.id) }
-        }
+        Task { await snapshot(page, tab: tab) }
+    }
+
+    private func snapshot(_ page: WebPage, tab: SidebarItem) async {
+        guard let data = try? await page.exported(as: .image(snapshotWidth: 400)),
+              let image = UIImage(data: data),
+              // The tab may have closed while the page rendered.
+              isLive(tab.id) else { return }
+        snapshots[tab.id] = image
+        if !isPrivate(tab) { SnapshotCache.save(data, for: tab.id) }
     }
 
     private func isLive(_ tabID: String) -> Bool {
@@ -487,19 +517,26 @@ final class AppModel {
         activeTabID = tab.id
     }
 
-    func goHome() {
-        if let tab = activeTab, let page = pages[tab.id] { captureSnapshot(of: page, tab: tab) }
-        showsPageSettings = false
-        activeTabID = nil
+    /// The page open when the app last closed, else the most recently used of this iPhone's tabs.
+    private func reopenLastTab() {
+        guard activeTabID == nil else { return }
+        let open = sidebar.items.filter { $0.kind == .tab && $0.deletedAt == nil }
+        if let id = UserDefaults.standard.string(forKey: Self.lastTabKey), open.contains(where: { $0.id == id }) {
+            activeTabID = id
+        } else if let space = currentSpace {
+            activeTabID = todayTabs(in: space).max { ($0.lastActiveAt ?? .distantPast) < ($1.lastActiveAt ?? .distantPast) }?.id
+        }
     }
 
     func openCoverFlow() {
-        // The page's card should show it as it is now, not as it first loaded.
-        if let tab = activeTab, let page = pages[tab.id] { captureSnapshot(of: page, tab: tab) }
         showsPageSettings = false
         searchTarget = nil
-        showsCoverFlow = true
-        coverFlowRequests += 1
+        Task {
+            // The deck grows out of the page's card, which must show the page as it is now, or the page jumps.
+            if let tab = activeTab, let page = pages[tab.id] { await snapshot(page, tab: tab) }
+            showsCoverFlow = true
+            coverFlowRequests += 1
+        }
     }
 
     /// Closing sends a tab to the archive (like Arc); undo brings it back and removes the archive entry.
@@ -615,7 +652,10 @@ final class AppModel {
             incognitoTabs = []
             PageSettings.forgetPrivateChoices()
             PageZoom.forgetPrivateLevels()
-            if let id = activeTabID, sidebar.items.first(where: { $0.id == id }) == nil { activeTabID = nil }
+            if let id = activeTabID, sidebar.items.first(where: { $0.id == id }) == nil {
+                activeTabID = nil
+                reopenLastTab()
+            }
         }
         isIncognito = on
         showToast(on ? "Incognito on" : "Incognito off — private tabs closed")

@@ -1,20 +1,18 @@
 import BoazKit
 import SwiftUI
 
-/// This iPhone's two most recently used Today tabs as a fanned pair of cards, with the tab count. Tapping opens
-/// the tab carousel. Folded layout only: on the page's rail and on the home screen.
+/// The tabs to go to: this iPhone's Today tabs (private tabs in Incognito) other than the one showing, the most
+/// recently used on top and the next one peeking out beneath it. Tapping opens the tab carousel. Folded layout only,
+/// on the rail.
 struct TabStack: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var scheme
-    /// The space whose Today this shows: each home page shows its own, even while swiping between them.
     let space: Space?
     let cardSize: CGSize
-    /// Where the open page zooms back to: the front card, which is always the tab used last.
-    var zoom: Namespace.ID?
 
     var body: some View {
         let tabs = todayTabs
-        let recent = tabs.sorted { ($0.lastActiveAt ?? $0.createdAt) > ($1.lastActiveAt ?? $1.createdAt) }.prefix(2)
+        let recent = tabs.filter { $0.id != model.activeTabID }.sorted { $0.lastUsed > $1.lastUsed }.prefix(2)
         Button { model.openCoverFlow() } label: {
             ZStack {
                 if recent.isEmpty {
@@ -24,14 +22,12 @@ struct TabStack: View {
                 }
                 ForEach(Array(recent.enumerated()).reversed(), id: \.element.id) { index, tab in
                     card(tab)
-                        .matchedTransitionSourceIfPresent(id: tab.id, in: index == 0 ? zoom : nil)
                         // The card behind peeks out up and to the left, turned a few degrees.
                         .rotationEffect(.degrees(index == 0 ? 0 : -9), anchor: .bottom)
                         .offset(x: index == 0 ? 0 : -cardSize.width * 0.14, y: index == 0 ? 0 : -cardSize.height * 0.05)
                 }
             }
             .frame(width: cardSize.width * 1.3, height: cardSize.height * 1.12)
-            .overlay(alignment: .topTrailing) { RailBadge(count: tabs.count) }
             .contentShape(.rect)
         }
         .buttonStyle(PressableStyle())
@@ -41,7 +37,9 @@ struct TabStack: View {
         .accessibilityHint("Shows your tabs side by side")
     }
 
-    private var todayTabs: [SidebarItem] { space.map(model.todayTabs(in:)) ?? [] }
+    private var todayTabs: [SidebarItem] {
+        model.isIncognito ? model.incognitoTabs : space.map(model.todayTabs(in:)) ?? []
+    }
 
     private var radius: CGFloat { max(cardSize.width * 0.16, 5) }
 
@@ -62,18 +60,14 @@ struct TabStack: View {
     }
 }
 
-/// Today's tabs as a deck in the page area, beside the rail: the focused tab large and in front at the right,
-/// earlier tabs peeking out to its left. Swipe sideways to move through them, tap one to open it, swipe one up to
-/// archive it. The rail switches to Tabs on Your Mac, New Tab and Settings. Folded layout only, over the page or
-/// the home screen. It grows out of the page as it opens and back into it as it closes, then clears
-/// `showsCoverFlow` itself.
+/// Today's tabs as a deck in the page area, beside the rail: the current tab large and in front at the right, the
+/// ones used before it peeking out to its left, most recent first. Swipe sideways to move through them, tap one to open it, swipe one up to
+/// archive it. The rail switches to Tabs on Your Mac, New Tab and Settings. Folded layout only, over the page. It
+/// grows out of the page as it opens and back into it as it closes, then clears `showsCoverFlow` itself.
 struct TabCarousel: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var scheme
-    /// The home screen's zoom namespace, which the page opens out of. Over a page there is none: the card
-    /// grows back into the page instead.
-    var zoom: Namespace.ID?
     /// The focused tab's index; fractional while swiping.
     @State private var position: Double = 0
     @State private var focusedID: String?
@@ -87,6 +81,9 @@ struct TabCarousel: View {
     @State private var sheet: Sheet?
     /// A Mac tab picked in the sheet, opened once the sheet has gone.
     @State private var macTab: SidebarItem?
+    /// The deck's order, fixed as it opens so picking a tab doesn't reshuffle it on the way out. The next time
+    /// it opens, that tab is in front.
+    @State private var order: [String] = []
 
     private enum Sheet: String, Identifiable { case macTabs, settings; var id: String { rawValue } }
     private enum DragMode: Equatable { case paging(from: Double), lifting, ignored }
@@ -104,7 +101,7 @@ struct TabCarousel: View {
                 } else {
                     DeckCards(tabs: tabs, position: position, metrics: metrics, presentation: presentation,
                               heroID: heroZooms ? (openingID ?? focusedID) : nil,
-                              liftedID: liftedID, lift: lift, zoom: zoom,
+                              liftedID: liftedID, lift: lift,
                               open: open, archive: archive)
                     caption(tabs, metrics: metrics)
                 }
@@ -128,12 +125,13 @@ struct TabCarousel: View {
         }
         .foregroundStyle(style.foreground, style.secondary)
         .background {
-            // The space gradient is translucent; the page or home screen mustn't show through it.
+            // The space gradient is translucent; the page mustn't show through it.
             style.gradient.background(Color(.systemBackground)).ignoresSafeArea().opacity(presentation)
         }
         .allowsHitTesting(presented)
         .sensoryFeedback(.selection, trigger: Int(position.rounded()))
         .onAppear {
+            order = tabs.map(\.id)
             let index = tabs.firstIndex { $0.id == model.activeTabID } ?? tabs.count - 1
             position = Double(max(index, 0))
             focusedID = tabs.indices.contains(index) ? tabs[index].id : nil
@@ -158,12 +156,17 @@ struct TabCarousel: View {
         .accessibilityAction(named: "Previous Tab") { step(by: -1, count: tabs.count) }
     }
 
-    /// The card grows back into the page; over the home screen the page zooms out of the card itself.
-    private var heroZooms: Bool { zoom == nil && !reduceMotion }
+    /// The card grows back into the page.
+    private var heroZooms: Bool { !reduceMotion }
 
     private var presentation: Double { presented ? 1 : 0 }
 
-    private var todayTabs: [SidebarItem] { model.currentSpace.map(model.todayTabs(in:)) ?? [] }
+    /// By last use, the current tab last (in front). Tabs opened while the deck is up go in front of the rest.
+    private var todayTabs: [SidebarItem] {
+        let tabs = model.isIncognito ? model.incognitoTabs : model.currentSpace.map(model.todayTabs(in:)) ?? []
+        let rank = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0) })
+        return tabs.sorted { (rank[$0.id] ?? .max, $0.lastUsed) < (rank[$1.id] ?? .max, $1.lastUsed) }
+    }
 
     private var hasMac: Bool { model.sidebar.devices.contains { $0.platform == .macOS } }
 
@@ -173,13 +176,6 @@ struct TabCarousel: View {
 
     private func header(count: Int) -> some View {
         HStack {
-            if model.activeTabID != nil {
-                // The page's rail opens this in place of going home, so home is one step on from here.
-                Button("Home", systemImage: "square.grid.2x2") {
-                    model.showsCoverFlow = false
-                    model.goHome()
-                }
-            }
             Spacer()
             Button("Done", action: dismiss).fontWeight(.semibold)
         }
@@ -332,8 +328,7 @@ struct TabCarousel: View {
         openingID = id
         // No animation: the page changes underneath the deck, which then grows back into it.
         if tab.id != model.activeTabID { model.activate(tab) }
-        // Over the home screen the page's own zoom opens it out of this card.
-        if zoom != nil { model.showsCoverFlow = false } else { close() }
+        close()
     }
 
     private func archive(_ id: String) {
@@ -427,7 +422,6 @@ private struct DeckCards: View, Animatable {
     let heroID: String?
     let liftedID: String?
     let lift: CGFloat
-    let zoom: Namespace.ID?
     let open: (String) -> Void
     let archive: (String) -> Void
 
@@ -465,7 +459,6 @@ private struct DeckCards: View, Animatable {
         return DeckCard(tab: tab, radius: isHero ? 22 * p : 22, dim: place.dim * Double(p),
                         shadow: Double(p))
             .frame(width: metrics.card.width, height: metrics.card.height)
-            .matchedTransitionSourceIfPresent(id: tab.id, in: zoom)
             .scaleEffect(scale)
             .opacity(isLifted ? opacity * Double(max(0.3, 1 + lift / 600)) : opacity)
             .position(x: center.x, y: center.y + (isLifted ? lift : 0))
@@ -600,4 +593,8 @@ private struct MacTabsSheet: View {
         }
         .contentShape(.rect)
     }
+}
+
+private extension SidebarItem {
+    var lastUsed: Date { lastActiveAt ?? createdAt }
 }

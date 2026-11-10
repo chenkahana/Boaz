@@ -26,7 +26,8 @@ struct TabBrowser: View {
     @State private var pullPeak: CGFloat = 0
     @State private var pullArmed = false
     @State private var reloading = false
-    private let pullThreshold: CGFloat = 70
+    /// Deep enough that the bounce off a flick to the top doesn't reload the page.
+    private let pullThreshold: CGFloat = 120
 
     @State private var readableLength = 0
     @State private var readerArticle: ReaderArticle?
@@ -47,10 +48,17 @@ struct TabBrowser: View {
         Group {
             if model.pageOwners[tab.id] == hostID {
                 webView(page)
-                    .overlay { EdgeBands(edges: edges, insets: outerInsets) }
+                    // Inset below the status bar (next line), the page has no top strip to cover: the band would
+                    // land on the page itself. The backdrop colors the status bar instead. At the bottom the page
+                    // runs on under the home indicator, as in Safari.
+                    .overlay { TopEdgeBand(edges: edges, height: statusAcrossTop ? 0 : outerInsets.top) }
                     // WebKit leaves the top safe area to the page while the web view touches the window's top edge,
                     // so the status cluster would sit on the page; one point of clearance makes it inset the page.
                     .padding(.top, statusAcrossTop ? 1 : 0)
+                    // The page ends where the rail begins. A web view touching the rail's column runs on under it,
+                    // and pages sized in `vw` (which counts that hidden strip) lose their right-hand side; one point
+                    // of clearance keeps it out of the column too.
+                    .padding(.trailing, hasRail ? 1 : 0)
             } else {
                 // Shown for the moment another layout's browser still holds this page.
                 Color(.systemBackground)
@@ -93,7 +101,7 @@ struct TabBrowser: View {
                 }
             }
             .onGeometryChange(for: Bool.self, of: { $0.safeAreaInsets.trailing >= 44 }) { hasRail = $0 }
-            .toolRail { axis in
+            .toolRail(edgeEffect: false) { axis in
                 BrowserBar(tab: tab, page: page, axis: axis)
                     .highPriorityGesture(paging(axis))
                     .accessibilityAction(named: "Next Tab") { pageTab(by: 1) }
@@ -381,7 +389,6 @@ private struct BrowserBar: View {
 
     /// The stack of Today tabs (opens the carousel); unfolded, the sidebar toggle takes its place, since the
     /// sidebar lists the tabs. Book and laptop poses list the tabs beside or below the page, so there's none.
-    /// Incognito keeps its own grid at home.
     @ViewBuilder private var tabsButton: some View {
         if let sidebar {
             if axis == .vertical {
@@ -391,17 +398,7 @@ private struct BrowserBar: View {
                     .accessibilityLabel(sidebar.isCollapsed ? "Show Sidebar" : "Hide Sidebar")
             }
         } else if !homeControlsElsewhere {
-            if model.isIncognito {
-                Button { model.goHome() } label: {
-                    Group {
-                        if axis == .vertical { RailGlyph(symbol: "square.grid.2x2") } else { BarIcon(symbol: "square.grid.2x2") }
-                    }
-                    .overlay(alignment: .topTrailing) { RailBadge(count: tabCount) }
-                }
-                .buttonStyle(PressableStyle())
-                .accessibilityLabel("Tabs")
-                .accessibilityValue("\(tabCount) open")
-            } else if axis == .vertical {
+            if axis == .vertical {
                 TabStack(space: model.currentSpace, cardSize: CGSize(width: 26, height: 36)).padding(.vertical, 4)
             } else {
                 TabStack(space: model.currentSpace, cardSize: CGSize(width: 22, height: 30))
@@ -520,21 +517,18 @@ private struct BarIcon: View {
     }
 }
 
-/// The page's top and bottom colors in the screen's safe areas above and below it, so the page seems to run under
-/// the status bar and home indicator. The status bar picks its own contrast from what's under it.
-private struct EdgeBands: View {
+/// The page's top color in the screen's top safe area, so the page seems to run under the status bar, which picks
+/// its own contrast from what's under it.
+private struct TopEdgeBand: View {
     let edges: SiteEdges?
-    let insets: EdgeInsets
+    let height: CGFloat
 
     var body: some View {
         ZStack {
             if let edges {
-                VStack(spacing: 0) {
-                    Rectangle().fill(edges.top.color).frame(height: insets.top)
-                    Spacer(minLength: 0)
-                    Rectangle().fill(edges.bottom.color).frame(height: insets.bottom)
-                }
-                .transition(.opacity)
+                Rectangle().fill(edges.top.color).frame(height: height)
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .transition(.opacity)
             }
         }
         .ignoresSafeArea()

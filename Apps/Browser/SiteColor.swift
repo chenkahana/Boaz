@@ -57,36 +57,23 @@ struct SiteEdges: Hashable {
     /// `theme-color` for the current appearance, else what's under the top edge.
     let top: SiteColor
     let bottom: SiteColor
-    /// Down the right-hand edge, top to bottom: where each run of one color starts and ends.
-    let trailing: [Stop]
-
-    struct Stop: Hashable {
-        let color: SiteColor
-        /// 0 at the top of the viewport, 1 at the bottom.
-        let location: Double
-    }
+    /// The page's own background (its page-sized wrappers, `body`, `html`), behind the rail. Unlike what's under the right-hand edge,
+    /// it doesn't change while scrolling past differently colored cards and sections.
+    let page: SiteColor
 
     /// The crossfade as the colors change (navigating, scrolling into a differently colored section).
     static func fade(reduceMotion: Bool) -> Animation { .easeInOut(duration: reduceMotion ? 0.15 : 0.25) }
 
-    /// From the sampler's flat array: top and bottom `r, g, b` (0–255), then `r, g, b, location` per trailing stop.
+    /// From the sampler's flat array: top, bottom and page `r, g, b` (0–255).
     init?(_ components: [Double]) {
-        guard components.count >= 6 + 4, (components.count - 6) % 4 == 0 else { return nil }
+        guard components.count == 9 else { return nil }
         func color(_ i: Int) -> SiteColor {
             SiteColor(red: components[i] / 255, green: components[i + 1] / 255, blue: components[i + 2] / 255)
         }
         top = color(0)
         bottom = color(3)
-        trailing = stride(from: 6, to: components.count, by: 4).map { Stop(color: color($0), location: components[$0 + 3]) }
+        page = color(6)
     }
-
-    /// The trailing color at a fraction (0 top … 1 bottom) of the page's height.
-    func trailing(at fraction: Double) -> SiteColor {
-        (trailing.last { $0.location <= fraction } ?? trailing[0]).color
-    }
-
-    /// The trailing colors as a gradient's stops, sharp where the page changes color.
-    var trailingStops: [Gradient.Stop] { trailing.map { Gradient.Stop(color: $0.color.color, location: $0.location) } }
 
     // MARK: Cache
 
@@ -174,8 +161,7 @@ struct SiteEdges: Hashable {
         })();
         """
 
-    /// Defines `sampleEdges()`, returning the top and bottom `r, g, b` (0–255), then `r, g, b, location` where each
-    /// run of one color starts and ends down the right-hand edge (probed every ~32 px). Colors
+    /// Defines `sampleEdges()`, returning the top, bottom and page background `r, g, b` (0–255). Colors
     /// go through a 1px canvas so WebKit's own CSS parser handles every syntax (names, hex, rgb, hsl, color(),
     /// oklch…) and converts it to sRGB. Each point composites the backgrounds stacked under it down to the first
     /// opaque one, skipping narrow elements (buttons, logos); then `body`, `html` and the canvas.
@@ -204,14 +190,22 @@ struct SiteEdges: Hashable {
                 && /dark/.test(getComputedStyle(document.documentElement).colorScheme);
             return dark ? [0, 0, 0] : [255, 255, 255];
         };
-        const colorAt = (x, y, minWidth) => {
+        const colorAt = (x, y, minWidth, minHeight = 0) => {
             const stack = document.elementsFromPoint(x, y);
             for (const el of [document.body, document.documentElement]) if (el && !stack.includes(el)) stack.push(el);
             const layers = [];
             for (const el of stack) {
-                if (el !== document.body && el !== document.documentElement
-                    && el.getBoundingClientRect().width < minWidth) continue;
-                const c = rgba(getComputedStyle(el).backgroundColor);
+                if (el !== document.body && el !== document.documentElement) {
+                    const r = el.getBoundingClientRect();
+                    if (r.width < minWidth || r.height < minHeight) continue;
+                }
+                const style = getComputedStyle(el);
+                let c = rgba(style.backgroundColor);
+                // A gradient background (often under a translucent header) counts as its first color.
+                if (c[3] < 255 && style.backgroundImage.includes('gradient')) {
+                    const stop = style.backgroundImage.match(/rgba?\\([^)]*\\)/);
+                    if (stop) { const g = rgba(stop[0]); if (g[3] > 0) { if (c[3] > 0) layers.push(c); c = g; } }
+                }
                 if (c[3] === 0) continue;
                 layers.push(c);
                 if (c[3] === 255) break;
@@ -227,16 +221,10 @@ struct SiteEdges: Hashable {
                 const c = rgba(meta.content);
                 if (c[3] > 0) top = over(c, colorAt(w / 2, 1, w * 0.9));
             }
-            const out = [...(top || colorAt(w / 2, 1, w * 0.9)), ...colorAt(w / 2, h - 2, w * 0.9)];
-            const n = Math.min(40, Math.max(8, Math.ceil(h / 32)));
-            const probes = [];
-            for (let i = 0; i < n; i++) {
-                const y = 1 + (h - 3) * i / (n - 1);
-                probes.push([...colorAt(w - 2, y, w * 0.5), y / h]);
-            }
-            const same = (a, b) => b && a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
-            probes.forEach((p, i) => { if (!same(p, probes[i - 1]) || !same(p, probes[i + 1])) out.push(...p); });
-            return out;
+            // The page's background: only page-sized layers (wrappers, `body`, `html`), never the cards and section
+            // bars scrolling past.
+            return [...(top || colorAt(w / 2, 1, w * 0.9)), ...colorAt(w / 2, h - 2, w * 0.9),
+                    ...colorAt(w - 2, h / 2, w * 0.9, h - 1)];
         };
         """
 }
