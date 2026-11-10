@@ -65,6 +65,8 @@ struct BrowserWindow: View {
         .onChange(of: browser.currentSpaceID) { if !browser.isIncognito { savedSpaceID = browser.currentSpaceID } }
         .onChange(of: browser.activeTabID) { if !browser.isIncognito { savedTabID = browser.activeTabID } }
         .task {
+            if !browser.isIncognito { model.beginRestoring() }
+            defer { if !browser.isIncognito { model.endRestoring() } }
             // Welcome can go up before the library has loaded; a URL to open has to wait for it.
             while model.sidebar.spaces.isEmpty && model.loadError == nil && !model.needsOnboarding {
                 try? await Task.sleep(for: .milliseconds(100))
@@ -77,7 +79,6 @@ struct BrowserWindow: View {
             if !browser.isIncognito {
                 if let id = savedSpaceID, model.space(id) != nil { browser.currentSpaceID = id }
                 if let tab = browser.tab(savedTabID) { browser.activate(tab) }
-                model.releaseSweeps()
             }
             browser.consumePendingURL()
         }

@@ -10,10 +10,17 @@ final class ObservedDictionary<Key: Hashable, Value> {
 
     private var slots: [Key: Slot] = [:]
 
-    /// Reading a key with no value yet still observes it, so the reader redraws once the value arrives.
+    /// Reading a key with no value yet still observes it, so the reader redraws once the value arrives. Removing a
+    /// value drops its slot after telling the readers, which observe a new one as they redraw.
     subscript(key: Key) -> Value? {
         get { slot(key).value }
-        set { slot(key).value = newValue }
+        set {
+            if let newValue {
+                slot(key).value = newValue
+            } else {
+                slots.removeValue(forKey: key)?.value = nil
+            }
+        }
     }
 
     /// The keys that hold a value.

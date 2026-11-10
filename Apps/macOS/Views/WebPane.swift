@@ -8,7 +8,11 @@ struct TabPane: View {
     @Environment(BrowserState.self) private var browser
     let tab: SidebarItem
     let inSplit: Bool
-    @State private var failure: LoadFailure?
+
+    private var failure: LoadFailure? {
+        get { browser.loadFailures[tab.id] }
+        nonmutating set { browser.loadFailures[tab.id] = newValue }
+    }
 
     var body: some View {
         let page = browser.page(for: tab)
@@ -38,6 +42,7 @@ struct TabPane: View {
     private func track(_ page: WebPage) async {
         failure = nil
         var requested: URL?
+        var committed: URL?
         while !Task.isCancelled {
             do {
                 for try await event in page.navigations {
@@ -47,13 +52,17 @@ struct TabPane: View {
                         requested = page.url
                     case .receivedServerRedirect:
                         // A hop to the same address, or an event read after the redirect, is the page shown now.
-                        if let hop = requested, hop != page.url { browser.didRedirect(tab.id, from: hop) }
+                        // A hop from the page already shown (a form posting back to itself) recorded no visit of
+                        // its own, so its earlier visit stays.
+                        if let hop = requested, hop != page.url, hop != committed {
+                            browser.didRedirect(tab.id, from: hop)
+                        }
                         requested = page.url
                     case .committed, .finished:
                         if event == .committed, let blocked = LoadFailure(blocked: requested, committed: page.url) {
                             failure = blocked
                         }
-                        if event == .committed { requested = nil }
+                        if event == .committed { requested = nil; committed = page.url }
                         if PageZoom.level(for: page.url, isPrivate: browser.isIncognito) != 1 {
                             PageZoom.apply(to: page, isPrivate: browser.isIncognito)
                         }

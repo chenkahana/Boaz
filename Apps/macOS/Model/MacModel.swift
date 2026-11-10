@@ -45,8 +45,9 @@ final class MacModel {
     @ObservationIgnored private var started = false
     /// First launch: the first main window to appear shows the setup flow.
     @ObservationIgnored var needsOnboarding = false
-    /// The stale-tab sweep waits until a restored window has its tab back, which keeps that tab out of the sweep.
+    /// The stale-tab sweep waits until the restored windows have their tabs back, which keeps those tabs out of it.
     @ObservationIgnored private var holdsSweeps = true
+    @ObservationIgnored private var restoringWindows = 0
 
     init() {
         Preferences.registerDefaults()
@@ -81,11 +82,6 @@ final class MacModel {
             try StarterLibrary.seedIfEmpty(store)
             if !askedEarly { needsOnboarding = Onboarding.shouldShow(store) }
             Task { await sync.start() }
-            // A launch without a main window (a link to Little Boaz) has nothing to restore.
-            Task {
-                try? await Task.sleep(for: .seconds(10))
-                releaseSweeps()
-            }
             registerDevice()
             Task { await archiveLoop() }
             Task { await fetchLoop(sync) }
@@ -108,11 +104,19 @@ final class MacModel {
     /// backing off while the errors persist.
     private func observeSidebar(_ store: BoazStore) async {
         var failures = 0
+        var loaded = false
         while !Task.isCancelled {
             do {
                 for try await snapshot in store.sidebarUpdates() {
                     failures = 0
                     sidebar = snapshot
+                    guard !loaded else { continue }
+                    loaded = true
+                    // A launch without a main window (a link to Little Boaz) has nothing to restore.
+                    Task {
+                        try? await Task.sleep(for: .seconds(10))
+                        releaseSweeps()
+                    }
                 }
                 return
             } catch {
@@ -154,8 +158,20 @@ final class MacModel {
         }
     }
 
-    /// Lets the stale-tab sweep run, once a main window has restored its tab (or there was none to restore).
-    func releaseSweeps() {
+    /// A main window waiting for the library to restore its tab. Windows restored together all wait for it, so
+    /// the sweep runs once none is left (a turn later, for one whose task hasn't started yet).
+    func beginRestoring() { restoringWindows += 1 }
+
+    func endRestoring() {
+        restoringWindows -= 1
+        Task {
+            await Task.yield()
+            if restoringWindows == 0 { releaseSweeps() }
+        }
+    }
+
+    /// Lets the stale-tab sweep run, once the main windows have restored their tabs (or there was none to restore).
+    private func releaseSweeps() {
         guard holdsSweeps else { return }
         holdsSweeps = false
         archiveStaleTabs()

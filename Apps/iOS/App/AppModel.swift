@@ -16,6 +16,8 @@ final class AppModel {
     var sidebar = Sidebar()
     /// Counts snapshots from the live observation (see `reloadSidebar`).
     @ObservationIgnored private var sidebarGeneration = 0
+    /// Counts sidebar saves, which show before they are written (see `reloadSidebar`).
+    @ObservationIgnored private var sidebarSaves = 0
     var currentSpaceID: String? {
         didSet {
             guard currentSpaceID != oldValue else { return }
@@ -67,6 +69,9 @@ final class AppModel {
     /// `nil` until compiled. Pages opened before then (the tab reopened at launch) hold their first load until they
     /// have the lists, so no page loads with its ads.
     @ObservationIgnored private var contentBlockLists: [WKContentRuleList]?
+    /// Keeps the app running in the background until the writes queued before it went there have landed.
+    @ObservationIgnored private var backgroundWrites = UIBackgroundTaskIdentifier.invalid
+    @ObservationIgnored private var suspendRequests = 0
     @ObservationIgnored private var awaitingBlockLists: [(controller: WKUserContentController, load: () -> Void)] = []
     /// Runs once the current sheet has finished dismissing (a tab can't present while a sheet is leaving).
     @ObservationIgnored private var afterSheet: (() -> Void)?
@@ -178,13 +183,39 @@ final class AppModel {
         if UIApplication.shared.applicationState == .background { BoazStore.suspendDatabases() }
     }
 
+    /// Suspends the database for the background once the writes already queued have run: suspending fails the
+    /// ones still waiting, and the sidebar would keep showing changes that were never saved.
+    func suspendDatabase() {
+        guard let store else { return BoazStore.suspendDatabases() }
+        suspendRequests += 1
+        let request = suspendRequests
+        if backgroundWrites == .invalid {
+            backgroundWrites = UIApplication.shared.beginBackgroundTask { [weak self] in self?.finishSuspending() }
+        }
+        Task {
+            await store.waitForQueuedWrites()
+            // A later request's wait covers this one's writes too, and it finishes last.
+            if request == suspendRequests { finishSuspending() }
+        }
+    }
+
+    private func finishSuspending() {
+        guard backgroundWrites != .invalid else { return }
+        if UIApplication.shared.applicationState == .background { BoazStore.suspendDatabases() }
+        UIApplication.shared.endBackgroundTask(backgroundWrites)
+        backgroundWrites = .invalid
+    }
+
     /// Picks up rows the share extension wrote while the app was away: the live observation only sees this
-    /// process's own commits. A snapshot the observation delivers meanwhile is newer, so this one is dropped.
+    /// process's own commits. It is read once the saves already queued are written, and dropped if the observation
+    /// delivers a newer snapshot or a save happens meanwhile, so it never takes back a change the sidebar shows.
     func reloadSidebar() {
         guard let store else { return }
-        let generation = sidebarGeneration
+        let generation = sidebarGeneration, saves = sidebarSaves
         Task {
-            guard let fresh = try? await store.loadSidebar(), generation == sidebarGeneration else { return }
+            await store.waitForQueuedWrites()
+            guard let fresh = try? await store.loadSidebar(), generation == sidebarGeneration, saves == sidebarSaves
+            else { return }
             sidebar = fresh
             pruneSnapshots()
         }
@@ -705,6 +736,7 @@ final class AppModel {
         var item = item
         item.modifiedAt = .now
         sidebar.upsert(item)
+        sidebarSaves += 1
         // Every tab tap and navigation lands here, so the write never holds up the main thread.
         store?.saveInBackground([item]) { [weak self] error in
             Self.log.error("Saving a sidebar item failed: \(String(describing: error))")

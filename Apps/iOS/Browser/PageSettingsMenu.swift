@@ -9,6 +9,8 @@ struct PageSettingsPanel: View {
     @Environment(\.chromeTint) private var tint
     let tab: SidebarItem
     let page: WebPage
+    /// The address the page failed to load, which Reload retries as Try Again does.
+    let failedURL: URL?
     let readableLength: Int
     let onReader: () -> Void
     let onDownloads: () -> Void
@@ -115,7 +117,7 @@ struct PageSettingsPanel: View {
             }
             .disabled(forwardList.isEmpty)
             Button {
-                if page.isLoading { page.stopLoading() } else { page.reload(tabURL: tab.url) }
+                if page.isLoading { page.stopLoading() } else { page.reload(tabURL: failedURL ?? tab.url) }
             } label: {
                 NavTile(symbol: page.isLoading ? "xmark" : "arrow.clockwise", title: page.isLoading ? "Stop" : "Reload")
             }

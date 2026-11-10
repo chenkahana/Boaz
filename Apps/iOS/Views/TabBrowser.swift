@@ -92,7 +92,8 @@ struct TabBrowser: View {
                 // In the page area: beside the rail, above the bottom bar.
                 if model.showsPageSettings {
                     BottomPanel(site: edges?.bottom, maxHeight: 0.56, onDismiss: closePageSettings) {
-                        PageSettingsPanel(tab: tab, page: page, readableLength: readableLength,
+                        PageSettingsPanel(tab: tab, page: page, failedURL: loadFailure?.url,
+                                          readableLength: readableLength,
                                           onReader: { Task { readerArticle = await Reader.extract(from: page) } },
                                           onDownloads: { showingDownloads = true },
                                           onFind: { findVisible = true },
@@ -246,7 +247,9 @@ struct TabBrowser: View {
         reloading = true
         Task {
             do {
-                for try await event in page.reload(tabURL: tab.url) where event == .finished { break }
+                for try await event in page.reload(tabURL: loadFailure?.url ?? tab.url) where event == .finished {
+                    break
+                }
             } catch {
                 // Reload failed; still clear the indicator below.
             }
@@ -280,6 +283,7 @@ struct TabBrowser: View {
     private func trackNavigations(of page: WebPage) async {
         readableLength = 0
         var requested: URL?
+        var committed: URL?
         while !Task.isCancelled {
             do {
                 for try await event in page.navigations {
@@ -289,11 +293,16 @@ struct TabBrowser: View {
                         requested = page.url
                     case .receivedServerRedirect:
                         // A hop to the same address, or an event read after the redirect, is the page shown now.
-                        if let hop = requested, hop != page.url { model.didRedirect(tab, from: hop) }
+                        // A hop from the page already shown (a form posting back to itself) recorded no visit of
+                        // its own, so its earlier visit stays.
+                        if let hop = requested, hop != page.url, hop != committed {
+                            model.didRedirect(tab, from: hop)
+                        }
                         requested = page.url
                     case .committed:
                         loadFailure = LoadFailure(blocked: requested, committed: page.url)
                         requested = nil
+                        committed = page.url
                         applyTextSize(to: page)
                     case .finished:
                         applyTextSize(to: page)

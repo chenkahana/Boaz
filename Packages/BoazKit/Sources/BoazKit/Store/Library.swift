@@ -71,15 +71,21 @@ extension BoazStore {
     /// Most recent visits, newest first, optionally filtered by title or address. Searching scans the whole
     /// history, so it runs on the database's queue, never the caller's.
     public func history(matching query: String = "", limit: Int = 300) async throws -> [HistoryVisit] {
-        let pattern = Self.containsPattern(query)
-        return try await writer.read { db in
-            var request = HistoryVisit.order(Column("visitedAt").desc).limit(limit)
-            if !query.isEmpty {
-                request = request.filter(Column("url").like(pattern, escape: "\\")
-                                         || Column("title").like(pattern, escape: "\\"))
-            }
-            return try request.fetchAll(db)
-        }
+        let request = Self.historyRequest(matching: query, limit: limit)
+        return try await writer.read { db in try request.fetchAll(db) }
+    }
+
+    /// `history(matching:limit:)`, again after every committed change to the history.
+    public func historyUpdates(matching query: String = "", limit: Int = 300) -> AsyncValueObservation<[HistoryVisit]> {
+        let request = Self.historyRequest(matching: query, limit: limit)
+        return ValueObservation.tracking { db in try request.fetchAll(db) }.removeDuplicates().values(in: writer)
+    }
+
+    private static func historyRequest(matching query: String, limit: Int) -> QueryInterfaceRequest<HistoryVisit> {
+        let request = HistoryVisit.order(Column("visitedAt").desc).limit(limit)
+        guard !query.isEmpty else { return request }
+        let pattern = containsPattern(query)
+        return request.filter(Column("url").like(pattern, escape: "\\") || Column("title").like(pattern, escape: "\\"))
     }
 
     /// One entry per address, most recently visited first, for search suggestions. Runs on the database's queue.

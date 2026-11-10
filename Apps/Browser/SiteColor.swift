@@ -184,11 +184,12 @@ struct SiteEdges: Hashable {
                     : isTitle(r.target) || [...r.addedNodes, ...r.removedNodes].some(n => isThemeColor(n) || isTitle(n)))) schedule(100);
             }).observe(document.head || document.documentElement,
                 { subtree: true, childList: true, attributes: true, attributeFilter: ['content', 'media', 'name'] });
-            // Theme switches flip a class or attribute on <html> or <body>; their transitions finish later.
+            // Theme switches flip a class or attribute on <html> or <body>; their transitions finish later. Pages
+            // that keep rewriting them (scroll locks, animations) sample once at the start and once they stop.
             const settled = () => {
-                schedule(50);
+                if (!settleTimer) schedule(50);
                 clearTimeout(settleTimer);
-                settleTimer = setTimeout(() => schedule(), 450);
+                settleTimer = setTimeout(() => { settleTimer = 0; schedule(); }, 450);
             };
             new MutationObserver(settled).observe(document.documentElement, { attributes: true });
             if (document.body) new MutationObserver(settled).observe(document.body, { attributes: true });
