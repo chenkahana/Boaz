@@ -526,13 +526,18 @@ private struct BlurredBackdrop: NSViewRepresentable {
     let blending: NSVisualEffectView.BlendingMode
 
     func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
+        let view = StillEffectView()
         view.material = .underWindowBackground
         view.state = .active
         return view
     }
 
     func updateNSView(_ view: NSVisualEffectView, context: Context) { view.blendingMode = blending }
+
+    /// A drag on empty backdrop doesn't move the window, as it didn't before the blur was there.
+    private final class StillEffectView: NSVisualEffectView {
+        override var mouseDownCanMoveWindow: Bool { false }
+    }
 }
 
 /// The shared space editor, saving through the store; a new space opens as soon as it's created.
