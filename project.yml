@@ -103,6 +103,8 @@ targets:
         # Same bundle ID as the iPhone app: one App Store record (universal purchase) and one iCloud App ID.
         PRODUCT_BUNDLE_IDENTIFIER: com.chenkahana.boaz
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        # Required for notarization (the DMG on GitHub Releases); allowed on the App Store.
+        ENABLE_HARDENED_RUNTIME: YES
   ShareExtension:
     type: app-extension
     platform: iOS
