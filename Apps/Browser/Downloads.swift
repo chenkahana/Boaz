@@ -46,10 +46,10 @@ enum Downloads {
                 request.setValue(value, forHTTPHeaderField: field)
             }
         }
-        // A private page's download leaves no cookies or cache behind, as the page itself doesn't.
-        let session = dataStore.isPersistent ? URLSession.shared : URLSession(configuration: .ephemeral)
-        defer { if session !== URLSession.shared { session.finishTasksAndInvalidate() } }
-        let (tempURL, finalResponse) = try await session.download(for: request)
+        // Ephemeral: the download leaves no cookies or cache behind; the page's own store keeps its cookies.
+        let session = URLSession(configuration: .ephemeral)
+        defer { session.finishTasksAndInvalidate() }
+        let (tempURL, finalResponse) = try await session.download(for: request, delegate: RedirectGuard())
         let name = suggestedName(for: finalResponse, fallbackURL: sourceURL)
         let dest = uniqueDestination(named: name, in: try directory())
         try? FileManager.default.removeItem(at: dest)
@@ -106,5 +106,17 @@ enum Downloads {
             index += 1
         } while FileManager.default.fileExists(atPath: candidate.path)
         return candidate
+    }
+}
+
+/// Drops the page's cookies when a download is redirected to another host: URLSession carries headers set by hand,
+/// such as `Cookie`, across redirects.
+private final class RedirectGuard: NSObject, URLSessionTaskDelegate {
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest) async -> URLRequest? {
+        guard request.url?.host() != task.originalRequest?.url?.host() else { return request }
+        var request = request
+        request.setValue(nil, forHTTPHeaderField: "Cookie")
+        return request
     }
 }
