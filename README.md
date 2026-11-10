@@ -15,6 +15,8 @@ within thumb reach and a layout that follows every posture of iPhone Duo. On the
 ![Swift 6](https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white)
 [![License](https://img.shields.io/badge/license-MPL--2.0-brightgreen)](LICENSE)
 
+[![Download for Mac](https://img.shields.io/badge/Download_for_Mac-Boaz.dmg-6E4BFF?style=for-the-badge&logo=apple)](https://github.com/chenkahana/Boaz/releases/latest/download/Boaz.dmg)
+
 [Features](#features) · [Screenshots](#screenshots) · [Architecture](#architecture) · [Getting started](#getting-started) · [Privacy](#privacy) · [Contributing](#contributing)
 
 <img src="docs/assets/hero.png" alt="Boaz on Mac and iPhone" width="900">

@@ -6,6 +6,10 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- The Mac app can be downloaded as a notarized DMG from GitHub Releases, as well as from the App Store.
+
 ## [1.0.0] - 2026-11-08
 
 First release, for iPhone and Mac.
