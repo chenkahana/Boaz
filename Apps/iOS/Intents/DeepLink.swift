@@ -55,7 +55,8 @@ enum DeepLink {
     @MainActor
     static func handle(_ url: URL, model: AppModel) {
         guard let intent = parse(url) else { return }
-        guard model.currentSpace != nil else {
+        // Only a new tab needs a space; the search field can come up at once.
+        guard model.currentSpace != nil || intent == .focusSearch else {
             pending = intent
             Task { await waitForLibraryThenReplay(model: model) }
             return
