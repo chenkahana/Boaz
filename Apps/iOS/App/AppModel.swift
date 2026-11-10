@@ -73,6 +73,8 @@ final class AppModel {
     @ObservationIgnored private var titleCooldowns: [String: Bool] = [:]
     /// The tab ids `pruneSnapshots` last saw.
     @ObservationIgnored private var liveItemIDs: Set<String> = []
+    /// The stale-tab sweep waits until the tab open at the last quit is back on screen, which keeps it out of the sweep.
+    @ObservationIgnored private var holdsSweeps = true
     private let maxLivePages = 8
     /// This iPhone, in the device list: Today shows only the tabs opened here (see `SidebarItem.deviceID`).
     let deviceID = Device.localID(in: UserDefaults(suiteName: BoazStore.appGroup) ?? .standard)
@@ -103,11 +105,9 @@ final class AppModel {
             }
             awaitingBlockLists = []
         }
-        let store: BoazStore
         do {
             let sync = try prepareSync()
-            guard let opened = self.store else { return }
-            store = opened
+            guard let store else { return }
             // A device joining an existing library gets it from there; a lone device starts with a Personal space.
             if try store.isEmpty() {
                 // Welcome goes up at once; the library (joined or starter) lands behind it.
@@ -118,14 +118,12 @@ final class AppModel {
             showOnboarding = showOnboarding || Onboarding.shouldShow(store)
             Task { await restoreSnapshots(from: store) }
             Task { await sync.start() }
-            archiveStaleTabs()
             registerDevice()
+            await observeSidebar(store)
         } catch {
             Self.log.error("Opening the library failed: \(String(describing: error))")
             showToast("Couldn't open your library. Try reopening Boaz.")
-            return
         }
-        await observeSidebar(store)
     }
 
     /// Follows the library for the life of the app. Any database error ends an observation (a fetch interrupted
@@ -141,7 +139,11 @@ final class AppModel {
                     // Also how the stale-tab sweep's archived tabs lose their previews: the sweep lands as an update.
                     pruneSnapshots()
                     if currentSpace == nil { currentSpaceID = snapshot.spaces.first?.id }
-                    if sidebarGeneration == 1 { reopenLastTab() }
+                    if sidebarGeneration == 1 {
+                        reopenLastTab()
+                        holdsSweeps = false
+                        archiveStaleTabs()
+                    }
                 }
                 return
             } catch {
@@ -189,7 +191,7 @@ final class AppModel {
     /// Moves Today tabs untouched for the chosen interval into the archive, as Arc does.
     func archiveStaleTabs() {
         let interval = Preferences.archiveAfter
-        guard interval != .never, let store else { return }
+        guard interval != .never, !holdsSweeps, let store else { return }
         Task {
             do {
                 let count = try await store.archiveStaleTabs(olderThan: TimeInterval(interval.rawValue), onDevice: deviceID)
@@ -523,14 +525,16 @@ final class AppModel {
         activeTabID = tab.id
     }
 
-    /// The page open when the app last closed, else the most recently used of this iPhone's tabs.
+    /// The page open when the app last closed, else the most recently used of this iPhone's tabs. Opened in its own
+    /// space, and marked active like any tab the user opens.
     private func reopenLastTab() {
         guard activeTabID == nil else { return }
-        let open = sidebar.items.filter { $0.kind == .tab && $0.deletedAt == nil }
-        if let id = UserDefaults.standard.string(forKey: Self.lastTabKey), open.contains(where: { $0.id == id }) {
-            activeTabID = id
-        } else if let space = currentSpace {
-            activeTabID = todayTabs(in: space).max { ($0.lastActiveAt ?? .distantPast) < ($1.lastActiveAt ?? .distantPast) }?.id
+        let last = UserDefaults.standard.string(forKey: Self.lastTabKey)
+        if let tab = sidebar.items.first(where: { $0.id == last && $0.kind == .tab }) {
+            activate(tab)
+        } else if let space = currentSpace,
+                  let tab = todayTabs(in: space).max(by: { ($0.lastActiveAt ?? .distantPast) < ($1.lastActiveAt ?? .distantPast) }) {
+            activate(tab)
         }
     }
 

@@ -42,6 +42,8 @@ final class MacModel {
     @ObservationIgnored private var started = false
     /// First launch: the first main window to appear shows the setup flow.
     @ObservationIgnored var needsOnboarding = false
+    /// The stale-tab sweep waits until a restored window has its tab back, which keeps that tab out of the sweep.
+    @ObservationIgnored private var holdsSweeps = true
 
     init() {
         Preferences.registerDefaults()
@@ -71,7 +73,11 @@ final class MacModel {
             try StarterLibrary.seedIfEmpty(store)
             if !askedEarly { needsOnboarding = Onboarding.shouldShow(store) }
             Task { await sync.start() }
-            archiveStaleTabs()
+            // A launch without a main window (a link to Little Boaz) has nothing to restore.
+            Task {
+                try? await Task.sleep(for: .seconds(10))
+                releaseSweeps()
+            }
             registerDevice()
             Task { await archiveLoop() }
             Task { await fetchLoop(sync) }
@@ -129,7 +135,7 @@ final class MacModel {
     /// Moves Today tabs untouched for the chosen interval into the archive (same setting as iOS).
     func archiveStaleTabs() {
         let interval = Preferences.archiveAfter
-        guard interval != .never, let store else { return }
+        guard interval != .never, !holdsSweeps, let store else { return }
         Task {
             do {
                 let count = try await store.archiveStaleTabs(olderThan: TimeInterval(interval.rawValue), onDevice: deviceID)
@@ -138,6 +144,13 @@ final class MacModel {
                 showToast("Couldn't archive tabs: \(error.localizedDescription)")
             }
         }
+    }
+
+    /// Lets the stale-tab sweep run, once a main window has restored its tab (or there was none to restore).
+    func releaseSweeps() {
+        guard holdsSweeps else { return }
+        holdsSweeps = false
+        archiveStaleTabs()
     }
 
     /// Refreshes this Mac's name and last-seen time, so the iPhone can say which Mac a tab is open on.

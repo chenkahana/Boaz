@@ -77,6 +77,7 @@ struct BrowserWindow: View {
             if !browser.isIncognito {
                 if let id = savedSpaceID, model.space(id) != nil { browser.currentSpaceID = id }
                 if let tab = browser.tab(savedTabID) { browser.activate(tab) }
+                model.releaseSweeps()
             }
             browser.consumePendingURL()
         }
