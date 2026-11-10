@@ -9,6 +9,7 @@ import Security
 @_spi(SyncTesting) public enum CloudKitEntitlements {
     static let servicesKey = "com.apple.developer.icloud-services"
     static let containersKey = "com.apple.developer.icloud-container-identifiers"
+    static let environmentKey = "com.apple.developer.icloud-container-environment"
 
     /// Nil when this process may use CloudKit with `containerIdentifier`; otherwise the reason it can't.
     public static func missingReason(containerIdentifier: String) -> String? {
@@ -20,6 +21,11 @@ import Security
         }
         return nil
     }
+
+    /// The CloudKit environment this build talks to. Development and Production are separate databases. Builds
+    /// exported for the App Store or Developer ID always carry the key; a development-signed build without it uses
+    /// Development.
+    public static var environment: String { (value(for: environmentKey) as? String) ?? "Development" }
 
     // Read once: entitlements can't change while the process runs, and views ask on every redraw (`canSyncNow`).
     private static let services = list(value(for: servicesKey))
