@@ -106,6 +106,8 @@ struct WindowBackdrop: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
+    /// What the translucent gradient blurs: other windows, or for the peeking sidebar the page beneath it.
+    var blending: NSVisualEffectView.BlendingMode = .behindWindow
 
     var body: some View {
         Group {
@@ -129,6 +131,7 @@ struct WindowBackdrop: View {
                 }
             }
         }
+        .background(BlurredBackdrop(blending: blending))
         .animation(.easeInOut(duration: 0.45), value: browser.currentSpace)
         .animation(SiteColor.fade(reduceMotion: reduceMotion), value: site)
     }
@@ -154,7 +157,7 @@ private struct PeekingSidebar: View {
             if browser.sidebarPeeking {
                 SidebarView()
                     .frame(width: width)
-                    .background { WindowBackdrop() }
+                    .background { WindowBackdrop(blending: .withinWindow) }
                     .clipShape(.rect(cornerRadius: MacRadius.card, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: MacRadius.card, style: .continuous).strokeBorder(.white.opacity(0.25)))
                     .shadow(color: .black.opacity(0.3), radius: 24, x: 6)
@@ -505,6 +508,21 @@ struct WindowAccessor: NSViewRepresentable {
     func updateNSView(_ view: NSView, context: Context) {
         DispatchQueue.main.async { if let window = view.window { onWindow(window) } }
     }
+}
+
+/// A blur under the backdrop's translucent gradient, so what shows through is a wash of color, never legible
+/// text from another window.
+private struct BlurredBackdrop: NSViewRepresentable {
+    let blending: NSVisualEffectView.BlendingMode
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .underWindowBackground
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) { view.blendingMode = blending }
 }
 
 /// The shared space editor, saving through the store; a new space opens as soon as it's created.
