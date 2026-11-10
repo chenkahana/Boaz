@@ -305,12 +305,19 @@ extension View {
     /// Chrome drawn over a site color takes the appearance legible on it: dark glyphs and light glass on a light
     /// color, and the reverse. Unchanged without one. The glyph color is explicit because glass otherwise picks
     /// its content's vibrancy from the system appearance.
-    @ViewBuilder func chromeScheme(_ site: SiteColor?) -> some View {
-        if let site {
-            foregroundStyle(site.isLight ? Color.black : Color.white).environment(\.colorScheme, site.colorScheme)
-        } else {
-            self
-        }
+    func chromeScheme(_ site: SiteColor?) -> some View { modifier(ChromeScheme(site: site)) }
+}
+
+/// The same view with a site color or without: a branch on it would rebuild the chrome when a page's colors arrive,
+/// taking the keyboard from the search field.
+private struct ChromeScheme: ViewModifier {
+    let site: SiteColor?
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        content
+            .foregroundStyle(site.map { AnyShapeStyle($0.isLight ? Color.black : Color.white) } ?? AnyShapeStyle(.foreground))
+            .environment(\.colorScheme, site?.colorScheme ?? colorScheme)
     }
 }
 
