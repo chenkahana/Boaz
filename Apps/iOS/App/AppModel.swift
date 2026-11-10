@@ -314,8 +314,10 @@ final class AppModel {
 
     func isPrivate(_ tab: SidebarItem) -> Bool { tab.parentID == Self.incognitoParent }
 
-    /// Whether a tab is open: every Today tab is, and a pinned tab or favorite once its page has been opened.
-    func isOpen(_ tab: SidebarItem) -> Bool { !isPinned(tab) || pages[tab.id] != nil }
+    /// Whether a tab is open here: every Today tab of this iPhone is, and any tab whose page has been opened.
+    func isOpen(_ tab: SidebarItem) -> Bool {
+        pages[tab.id] != nil || !isPinned(tab) && (tab.deviceID == nil || tab.deviceID == deviceID)
+    }
 
     // MARK: Pages
 
