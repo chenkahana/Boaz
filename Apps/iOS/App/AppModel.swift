@@ -617,6 +617,8 @@ final class AppModel {
         commit(item)
         if let space = tab.spaceID { currentSpaceID = space }
         activeTabID = tab.id
+        // A normal tab can't show in Incognito: opening one leaves it, closing the private tabs as Leave Incognito does.
+        if isIncognito, !isPrivate(tab) { setIncognito(false) }
     }
 
     /// Entering the split, the page on screen takes the leading pane and the most recently used other tab the
@@ -746,9 +748,15 @@ final class AppModel {
         afterSheet = nil
     }
 
+    /// Entering starts on Incognito's own empty page, in both panes, so nothing browsed next is a normal tab's;
+    /// leaving goes back to the normal tabs that were open.
     func setIncognito(_ on: Bool) {
         guard on != isIncognito else { return }
-        if !on {
+        if on {
+            otherPaneTabID = nil
+            activeTabID = incognitoTabs.last?.id
+            isIncognito = true
+        } else {
             for tab in incognitoTabs {
                 pages[tab.id] = nil
                 snapshots[tab.id] = nil
@@ -759,12 +767,14 @@ final class AppModel {
             PageSettings.forgetPrivateChoices()
             PageZoom.forgetPrivateLevels()
             if let id = otherPaneTabID, sidebar.items.first(where: { $0.id == id }) == nil { otherPaneTabID = nil }
-            if let id = activeTabID, sidebar.items.first(where: { $0.id == id }) == nil {
+            // Before the panes are filled again, which pick from the phone's tabs (`phoneTabs`), not the private ones.
+            isIncognito = false
+            if !sidebar.items.contains(where: { $0.id == activeTabID }) {
                 activeTabID = nil
                 reopenLastTab()
             }
+            if isSplit, otherPaneTabID == nil { otherPaneTabID = mostRecentTab(excluding: [activeTabID])?.id }
         }
-        isIncognito = on
         showToast(on ? "Incognito on" : "Incognito off — private tabs closed")
     }
 
