@@ -92,7 +92,7 @@ struct TabBrowser: View {
                 // In the page area: beside the rail, above the bottom bar.
                 if model.showsPageSettings {
                     BottomPanel(site: edges?.bottom, maxHeight: 0.56, onDismiss: closePageSettings) {
-                        PageSettingsPanel(tab: tab, page: page, readableLength: readableLength, hasRail: hasRail,
+                        PageSettingsPanel(tab: tab, page: page, readableLength: readableLength,
                                           onReader: { Task { readerArticle = await Reader.extract(from: page) } },
                                           onDownloads: { showingDownloads = true },
                                           onFind: { findVisible = true },
@@ -377,8 +377,6 @@ private struct BrowserBar: View {
             } bottom: {
                 RailButton(symbol: "ellipsis", label: "Page Settings", isSelected: model.showsPageSettings,
                            action: togglePageSettings)
-            } nub: {
-                SiteTile(url: page.url ?? tab.url, page: page, size: 30)
             }
             .animation(reduceMotion ? .easeOut(duration: 0.2) : .bouncy(duration: 0.35), value: tabCount)
             .popoverTip(SwipeTabsTip(), arrowEdge: .trailing)
@@ -440,29 +438,6 @@ private struct BrowserBar: View {
         if model.isIncognito { return model.incognitoTabs.count }
         guard let space = model.currentSpace else { return 0 }
         return model.todayTabs(in: space).count
-    }
-}
-
-/// Site monogram ringed by the page's loading progress.
-private struct SiteTile: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    let url: URL?
-    let page: WebPage
-    let size: CGFloat
-
-    var body: some View {
-        Monogram(url: url, tint: Theme.brand, size: size)
-            .overlay {
-                RoundedRectangle(cornerRadius: (size + 7) * 0.3)
-                    .trim(from: 0, to: page.isLoading ? max(page.estimatedProgress, 0.06) : 1)
-                    .stroke(Theme.glow, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                    .padding(-3.5)
-                    .opacity(page.isLoading ? 1 : 0)
-                    .animation(.easeOut(duration: 0.25), value: page.estimatedProgress)
-                    .animation(.easeOut(duration: 0.4), value: page.isLoading)
-            }
-            .contentTransition(.interpolate)
-            .animation(reduceMotion ? .easeOut(duration: 0.2) : .bouncy, value: url?.host())
     }
 }
 

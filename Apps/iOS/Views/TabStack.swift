@@ -520,8 +520,6 @@ private struct CarouselRail: View {
                 RailButton(symbol: "plus", label: "New Tab", action: onNewTab)
             } bottom: {
                 RailButton(symbol: "gearshape", label: "Settings", action: onSettings)
-            } nub: {
-                RailGlyph(symbol: "square.on.square", size: 30)
             }
         } else {
             HStack(spacing: 10) {

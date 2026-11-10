@@ -218,10 +218,6 @@ struct HomeBar: View {
             } bottom: {
                 if let sidebar { SidebarRailButton(sidebar: sidebar) }
                 HomeMenu(inDock: true)
-            } nub: {
-                RailGlyph(symbol: searchSymbol, size: 30)
-                    .foregroundStyle(.white)
-                    .background(Theme.brand.gradient, in: .circle)
             }
         } else {
             VStack(spacing: 8) {

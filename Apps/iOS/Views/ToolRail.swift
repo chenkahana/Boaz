@@ -2,23 +2,14 @@ import SwiftUI
 import TipKit
 import WebKit
 
-/// Whether the rail is out of the way: Hide Toolbar tucks it away until its column is tapped. Nothing else moves it.
-@Observable final class ToolRailState {
-    var isCollapsed = false
-
-    func expand() { isCollapsed = false }
-}
-
 /// Puts a toolbar in the screen's right-hand column — the strip iPhone Duo reserves for the camera, time and
 /// status icons — stacked vertically below those icons. Falls back to a bottom bar where there's no such column.
 private struct ToolRailModifier<Rail: View>: ViewModifier {
     /// Whether content scrolling under the bottom bar gets the system's scroll-edge effect.
     let edgeEffect: Bool
     let rail: (Axis) -> Rail
-    @State private var state = ToolRailState()
     /// The content's safe-area insets. Measured here because a reader that ignores the safe area sees none.
     @State private var insets = EdgeInsets()
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.siteEdges) private var edges
 
     func body(content: Content) -> some View {
@@ -32,7 +23,6 @@ private struct ToolRailModifier<Rail: View>: ViewModifier {
                         .ignoresSafeArea()
                 }
             }
-            .environment(state)
         .onGeometryChange(for: EdgeInsets.self, of: { $0.safeAreaInsets }) { insets = $0 }
     }
 
@@ -41,7 +31,7 @@ private struct ToolRailModifier<Rail: View>: ViewModifier {
     /// a page ends above its bar instead, which brings its own background. `edgeEffect` never changes for a given
     /// use, so `content` keeps its place.
     @ViewBuilder private func bottomBar(_ content: Content, shown: Bool) -> some View {
-        let bar = ZStack { if shown { rail(.horizontal).animation(motion, value: state.isCollapsed) } }
+        let bar = ZStack { if shown { rail(.horizontal) } }
         if edgeEffect {
             content.safeAreaBar(edge: .bottom, spacing: 0) { bar }
         } else {
@@ -53,30 +43,17 @@ private struct ToolRailModifier<Rail: View>: ViewModifier {
     }
 
     private func column(in proxy: GeometryProxy) -> some View {
-        ZStack(alignment: .top) {
-            if state.isCollapsed {
-                // Tapping anywhere in the empty column brings the rail back.
-                Color.clear
-                    .contentShape(.rect)
-                    .onTapGesture { state.expand() }
-            }
-            rail(.vertical)
-                .frame(maxHeight: .infinity, alignment: .top)
-                .padding(.top, railTop(in: proxy))
-                .padding(.bottom, insets.bottom + 12)
-        }
-        .frame(width: insets.trailing)
+        rail(.vertical)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .padding(.top, railTop(in: proxy))
+            .padding(.bottom, insets.bottom + 12)
+            .frame(width: insets.trailing)
         // The page's own background, so the page seems to run under the camera and status icons (which pick
         // their contrast from what's under them). It holds still while the page scrolls.
         .background {
             if let edges { Rectangle().fill(edges.page.color).transition(.opacity) }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
-        .animation(motion, value: state.isCollapsed)
-    }
-
-    private var motion: Animation {
-        reduceMotion ? .easeInOut(duration: 0.2) : .bouncy(duration: 0.42, extraBounce: 0.08)
     }
 
     /// Just below the camera/status cluster at the top of the column.
@@ -97,40 +74,20 @@ extension View {
 }
 
 /// The vertical rail: two glass docks of controls at the bottom, within thumb reach, the main one (`top`) above the
-/// other. Collapsed, the main dock melts into a small nub in its place and the other dissolves; both morph back out.
-struct RailColumn<Top: View, Bottom: View, Nub: View>: View {
-    @Environment(ToolRailState.self) private var state
+/// other. Always shown; nothing tucks it away.
+struct RailColumn<Top: View, Bottom: View>: View {
     @Environment(\.chromeTint) private var tint
     @Environment(\.siteEdges) private var edges
-    @Namespace private var glass
     @ViewBuilder var top: Top
     @ViewBuilder var bottom: Bottom
-    @ViewBuilder var nub: Nub
 
     var body: some View {
         // Both docks sit on the page's background.
         let site = edges?.page
-        // Closer than the docks' gap, so the glass doesn't melt them into one shape.
-        GlassEffectContainer(spacing: 8) {
-            VStack(spacing: 0) {
-                Spacer(minLength: 0)
-                if state.isCollapsed {
-                    nub
-                        .padding(5)
-                        .glassEffect(.chrome(site?.color ?? tint), in: .capsule)
-                        .glassEffectID("top", in: glass)
-                        .contentShape(.capsule)
-                        .onTapGesture { state.expand() }
-                        .accessibilityAddTraits(.isButton)
-                        .accessibilityLabel("Show Toolbar")
-                        .chromeScheme(site)
-                } else {
-                    dock(top, on: site).glassEffectID("top", in: glass)
-                }
-                if !state.isCollapsed {
-                    dock(bottom, on: site).glassEffectID("bottom", in: glass).padding(.top, 12)
-                }
-            }
+        VStack(spacing: 12) {
+            Spacer(minLength: 0)
+            dock(top, on: site)
+            dock(bottom, on: site)
         }
     }
 
