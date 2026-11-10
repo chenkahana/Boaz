@@ -530,16 +530,21 @@ final class AppModel {
     }
 
     /// The page open when the app last closed, else the most recently used of this iPhone's tabs. Opened in its own
-    /// space, and marked active like any tab the user opens.
+    /// space, and marked active like any tab the user opens (which keeps it out of the launch sweep). Unlike
+    /// `activate`, it leaves a search panel a deep link opened meanwhile up.
     private func reopenLastTab() {
         guard activeTabID == nil else { return }
         let last = UserDefaults.standard.string(forKey: Self.lastTabKey)
-        if let tab = sidebar.items.first(where: { $0.id == last && $0.kind == .tab }) {
-            activate(tab)
-        } else if let space = currentSpace,
-                  let tab = todayTabs(in: space).max(by: { ($0.lastActiveAt ?? .distantPast) < ($1.lastActiveAt ?? .distantPast) }) {
-            activate(tab)
-        }
+        guard var tab = sidebar.items.first(where: { $0.id == last && $0.kind == .tab })
+                ?? currentSpace.flatMap({ space in
+                    todayTabs(in: space).max { ($0.lastActiveAt ?? .distantPast) < ($1.lastActiveAt ?? .distantPast) }
+                })
+        else { return }
+        tab.lastActiveAt = .now
+        tab.isUnread = false
+        commit(tab)
+        if let space = tab.spaceID { currentSpaceID = space }
+        activeTabID = tab.id
     }
 
     func openCoverFlow() {
