@@ -355,6 +355,7 @@ private struct LoadFailure {
 
 private struct BrowserBar: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(ToolRailState.self) private var rail
     @Environment(\.homeControlsElsewhere) private var homeControlsElsewhere
     @Environment(\.siteEdges) private var edges
@@ -384,7 +385,7 @@ private struct BrowserBar: View {
             } nub: {
                 SiteTile(url: page.url ?? tab.url, page: page, size: 30)
             }
-            .animation(.bouncy(duration: 0.35), value: tabCount)
+            .animation(reduceMotion ? .easeOut(duration: 0.2) : .bouncy(duration: 0.35), value: tabCount)
             .popoverTip(railTips.currentTip, arrowEdge: .trailing)
         } else {
             bottomBar
@@ -472,6 +473,7 @@ private struct BrowserBar: View {
 
 /// Site monogram ringed by the page's loading progress.
 private struct SiteTile: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let url: URL?
     let page: WebPage
     let size: CGFloat
@@ -488,7 +490,7 @@ private struct SiteTile: View {
                     .animation(.easeOut(duration: 0.4), value: page.isLoading)
             }
             .contentTransition(.interpolate)
-            .animation(.bouncy, value: url?.host())
+            .animation(reduceMotion ? .easeOut(duration: 0.2) : .bouncy, value: url?.host())
     }
 }
 

@@ -7,6 +7,7 @@ import SwiftUI
 struct TabStack: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let space: Space?
     let cardSize: CGSize
 
@@ -31,7 +32,7 @@ struct TabStack: View {
             .contentShape(.rect)
         }
         .buttonStyle(PressableStyle())
-        .animation(.bouncy(duration: 0.35), value: recent.map(\.id))
+        .animation(reduceMotion ? .easeOut(duration: 0.2) : .bouncy(duration: 0.35), value: recent.map(\.id))
         .accessibilityLabel("Tabs")
         .accessibilityValue("\(tabs.count) open")
         .accessibilityHint("Shows your tabs side by side")

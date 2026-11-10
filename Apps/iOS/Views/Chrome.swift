@@ -224,6 +224,7 @@ struct SearchPanel: View {
 
 struct ToastView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let toast: AppModel.Toast
 
     var body: some View {
@@ -239,7 +240,7 @@ struct ToastView: View {
         // A capsule while the message fits one line; a rounded card once it wraps.
         .glassEffect(.regular, in: .rect(cornerRadius: 22))
         .frame(maxWidth: 360)
-        .transition(.move(edge: .top).combined(with: .opacity))
+        .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
     }
 }
 

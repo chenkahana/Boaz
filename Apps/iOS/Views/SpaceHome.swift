@@ -287,6 +287,7 @@ private struct TodayGrid: View {
     let tabs: [SidebarItem]
     let tint: Color
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .subheadline) private var minCardWidth: CGFloat = 100
 
     var body: some View {
@@ -299,7 +300,7 @@ private struct TodayGrid: View {
                 TabCard(tab: tab, tint: tint)
             }
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: tabs.map(\.id))
+        .animation(reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.4, dampingFraction: 0.8), value: tabs.map(\.id))
     }
 }
 
