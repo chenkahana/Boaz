@@ -324,6 +324,12 @@ final class BrowserState {
         model.didNavigate(tabID, url: url, title: title)
     }
 
+    /// A tab's page committed a new load, which its history visit is recorded for. Private tabs leave none.
+    func didCommitLoad(_ tabID: String) {
+        guard !incognitoTabs.contains(where: { $0.id == tabID }), let page = pages[tabID] else { return }
+        model.didCommitLoad(tabID, url: page.url)
+    }
+
     /// Pages that animate their title (unread counts, timers) would otherwise save, sync and refetch the whole
     /// sidebar on every tick. A title change is saved at once, then at most every two seconds with the latest title.
     /// A new page gets its title saved at once, not after the previous page's cooldown.
@@ -333,6 +339,9 @@ final class BrowserState {
         guard let page = pages[tabID], committed || !page.isLoading else { return }
         titleCooldowns[tabID] = nil
         savedURLs[tabID] = page.url
+        if !committed, !incognitoTabs.contains(where: { $0.id == tabID }) {
+            model.didChangeAddress(tabID, url: page.url, title: page.title)
+        }
         didNavigate(tabID, url: page.url, title: page.title)
     }
 

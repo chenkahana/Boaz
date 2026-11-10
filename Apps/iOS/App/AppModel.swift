@@ -85,8 +85,15 @@ final class AppModel {
     @ObservationIgnored private var historyLookup: Task<Void, Never>?
     /// The previews waiting for their pages to stop scrolling, by tab (see `pageDidScroll`).
     @ObservationIgnored private var settledCaptures: [String: Task<Void, Never>] = [:]
+    /// Where each tab's page last came to rest, and at which address; a page loaded again (evicted from the live
+    /// pages, or after a relaunch) goes back there. Kept across launches; private tabs' aren't kept.
+    @ObservationIgnored private var scrollPositions = ScrollPosition.saved()
+    /// Positions waiting for their tab's page to finish loading (`pageDidFinishLoading`).
+    @ObservationIgnored private var pendingScrolls: [String: ScrollPosition] = [:]
     /// Tabs whose title is cooling down after a save, and whether it changed again meanwhile (`didChangeTitle`).
     @ObservationIgnored private var titleCooldowns: [String: Bool] = [:]
+    /// The address each tab's current page was recorded at in history, which its later titles name (`didCommitLoad`).
+    @ObservationIgnored private var visitURLs: [String: URL] = [:]
     /// The tab ids `pruneSnapshots` last saw.
     @ObservationIgnored private var liveItemIDs: Set<String> = []
     /// The stale-tab sweep waits until the tab open at the last quit is back on screen, which keeps it out of the sweep.
@@ -307,6 +314,11 @@ final class AppModel {
 
     func isPrivate(_ tab: SidebarItem) -> Bool { tab.parentID == Self.incognitoParent }
 
+    /// Whether a tab is open here: every Today tab of this iPhone is, and any tab whose page has been opened.
+    func isOpen(_ tab: SidebarItem) -> Bool {
+        pages[tab.id] != nil || !isPinned(tab) && (tab.deviceID == nil || tab.deviceID == deviceID)
+    }
+
     // MARK: Pages
 
     func page(for tab: SidebarItem) -> WebPage {
@@ -316,6 +328,9 @@ final class AppModel {
         let tabIsPrivate = isPrivate(tab)
         var configuration = WebPage.Configuration()
         if tabIsPrivate { configuration.websiteDataStore = .nonPersistent() }
+        // Videos play in the page, as in Safari, rather than jumping to fullscreen (the iPhone default). Autoplay keeps
+        // WebKit's default: nothing plays before the user taps.
+        configuration.mediaPlaybackBehavior = .allowsInlinePlayback
         let blocksContent = Preferences.blockTrackers
             && PageSettings.settings(for: tab.url, isPrivate: tabIsPrivate).contentBlocking
         if blocksContent, let contentBlockLists { contentBlockLists.forEach(configuration.userContentController.add) }
@@ -356,6 +371,7 @@ final class AppModel {
             }
         }
         pages[tab.id] = page
+        if let position = scrollPositions[tab.id], position.url == tab.url { pendingScrolls[tab.id] = position }
         while pageRecency.count > maxLivePages {
             pages[pageRecency.removeFirst()] = nil
         }
@@ -368,6 +384,9 @@ final class AppModel {
         guard let page = pages[tab.id] else { return }
         let tabIsPrivate = isPrivate(tab)
         captureSnapshot(of: page, tab: tab)
+        if let position = pendingScrolls.removeValue(forKey: tab.id), position.url == page.url {
+            Task { _ = try? await page.callJavaScript(ScrollPosition.restoreScript, arguments: ["y": position.y]) }
+        }
         Task {
             guard let pageURL = page.url,
                   let href = try? await page.callJavaScript(Favicons.discoveryScript, contentWorld: .defaultClient) as? String,
@@ -409,8 +428,27 @@ final class AppModel {
             try? await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled, let page = pages[tab.id] else { return }
             settledCaptures[tab.id] = nil
+            await rememberScroll(of: page, tab: tab)
             await snapshot(page, tab: tab)
         }
+    }
+
+    /// Drops a position waiting to be put back once the page is no longer loading the address it was saved at: it
+    /// finished while its browser wasn't watching, or went somewhere else first.
+    func dropStalePendingScroll(_ tab: SidebarItem) {
+        guard let position = pendingScrolls[tab.id], let page = pages[tab.id], let url = page.url,
+              !page.isLoading || !url.isSamePage(as: position.url) else { return }
+        pendingScrolls[tab.id] = nil
+    }
+
+    /// Saves where the page came to rest. Not while it loads: a page loading again sits at the top until its
+    /// position is put back.
+    private func rememberScroll(of page: WebPage, tab: SidebarItem) async {
+        guard !isPrivate(tab), !page.isLoading, let url = page.url,
+              let y = (try? await page.callJavaScript("return window.scrollY;") as? NSNumber)?.doubleValue,
+              scrollPositions[tab.id] != ScrollPosition(url: url, y: y) else { return }
+        scrollPositions[tab.id] = ScrollPosition(url: url, y: y)
+        ScrollPosition.save(scrollPositions)
     }
 
     private func snapshot(_ page: WebPage, tab: SidebarItem) async {
@@ -440,6 +478,11 @@ final class AppModel {
         for id in snapshots.keys where !live.contains(id) {
             snapshots[id] = nil
             SnapshotCache.remove(id)
+        }
+        let kept = scrollPositions.filter { ids.contains($0.key) }
+        if kept.count != scrollPositions.count {
+            scrollPositions = kept
+            ScrollPosition.save(kept)
         }
     }
 
@@ -508,7 +551,7 @@ final class AppModel {
         }
     }
 
-    /// Persists where a tab has navigated to, and records the visit in history (except private tabs).
+    /// Persists where a tab has navigated to. In history it only names the visit its load recorded (`didCommitLoad`).
     func didNavigate(_ tab: SidebarItem, url: URL?, title: String) {
         guard var item = sidebar.items.first(where: { $0.id == tab.id }) ?? incognitoTabs.first(where: { $0.id == tab.id })
         else { return }
@@ -522,15 +565,34 @@ final class AppModel {
             item.title = newTitle
             commit(item)
         }
-        if !isPrivate(item), let url, url.scheme?.hasPrefix("http") == true {
-            store?.recordVisit(profileID: item.profileID, url: url, title: title.isEmpty ? newTitle : title)
+        // Only the page the visit was recorded for names it: the address is still the previous page's while the
+        // next one loads, and that page's title may arrive before its commit is seen.
+        if !title.isEmpty, let url, let visit = visitURLs[tab.id], url.isSamePage(as: visit) {
+            store?.updateVisitTitle(title, for: visit, profileID: item.profileID)
         }
     }
 
-    /// A server redirect leaves the address it left in history as a second entry for the same load.
-    func didRedirect(_ tab: SidebarItem, from hop: URL) {
-        guard !isPrivate(tab) else { return }
-        store?.forgetRedirectedVisit(to: hop)
+    /// A page committed a new load: one history visit (except private tabs), at the address the load ended on. The
+    /// address also changes for a load that hasn't committed yet, at every server redirect hop and for same-document
+    /// updates (`replaceState`, fragments); none of those commit, so none adds a visit.
+    func didCommitLoad(_ tab: SidebarItem) {
+        guard !isPrivate(tab), let page = pages[tab.id], let url = page.url, url.scheme?.hasPrefix("http") == true else {
+            visitURLs[tab.id] = nil
+            return
+        }
+        visitURLs[tab.id] = url
+        // The title at commit may still be the previous page's; the page's own arrives through `didNavigate`.
+        store?.recordVisit(profileID: tab.profileID, url: url, title: nil)
+    }
+
+    /// A page that isn't loading changed address on its own (`pushState`, as single-page sites navigate): a new page
+    /// in history, unless only the fragment changed. `replaceState` while a load is in flight (a search page tidying
+    /// its address) adds none.
+    private func recordSameDocumentVisit(_ tab: SidebarItem, page: WebPage) {
+        guard !isPrivate(tab), !page.isLoading, let url = page.url, url.scheme?.hasPrefix("http") == true,
+              visitURLs[tab.id].map({ !url.isSamePage(as: $0) }) ?? true else { return }
+        visitURLs[tab.id] = url
+        store?.recordVisit(profileID: tab.profileID, url: url, title: page.title.isEmpty ? nil : page.title)
     }
 
     /// Pages that animate their title (unread counts, timers) would otherwise save, sync and refetch the whole
@@ -539,6 +601,7 @@ final class AppModel {
     func didChangeURL(_ tab: SidebarItem) {
         titleCooldowns[tab.id] = nil
         guard let page = pages[tab.id] else { return }
+        recordSameDocumentVisit(tab, page: page)
         didNavigate(tab, url: page.url, title: page.title)
     }
 
@@ -611,6 +674,8 @@ final class AppModel {
         commit(item)
         if let space = tab.spaceID { currentSpaceID = space }
         activeTabID = tab.id
+        // A normal tab can't show in Incognito: opening one leaves it, closing the private tabs as Leave Incognito does.
+        if isIncognito, !isPrivate(tab) { setIncognito(false) }
     }
 
     /// Entering the split, the page on screen takes the leading pane and the most recently used other tab the
@@ -740,9 +805,15 @@ final class AppModel {
         afterSheet = nil
     }
 
+    /// Entering starts on Incognito's own empty page, in both panes, so nothing browsed next is a normal tab's;
+    /// leaving goes back to the normal tabs that were open.
     func setIncognito(_ on: Bool) {
         guard on != isIncognito else { return }
-        if !on {
+        if on {
+            otherPaneTabID = nil
+            activeTabID = incognitoTabs.last?.id
+            isIncognito = true
+        } else {
             for tab in incognitoTabs {
                 pages[tab.id] = nil
                 snapshots[tab.id] = nil
@@ -753,12 +824,14 @@ final class AppModel {
             PageSettings.forgetPrivateChoices()
             PageZoom.forgetPrivateLevels()
             if let id = otherPaneTabID, sidebar.items.first(where: { $0.id == id }) == nil { otherPaneTabID = nil }
-            if let id = activeTabID, sidebar.items.first(where: { $0.id == id }) == nil {
+            // Before the panes are filled again, which pick from the phone's tabs (`phoneTabs`), not the private ones.
+            isIncognito = false
+            if !sidebar.items.contains(where: { $0.id == activeTabID }) {
                 activeTabID = nil
                 reopenLastTab()
             }
+            if isSplit, otherPaneTabID == nil { otherPaneTabID = mostRecentTab(excluding: [activeTabID])?.id }
         }
-        isIncognito = on
         showToast(on ? "Incognito on" : "Incognito off — private tabs closed")
     }
 
@@ -846,6 +919,34 @@ final class AppModel {
             if self.toast == toast { self.toast = nil }
         }
     }
+}
+
+/// A page's vertical scroll offset in CSS pixels (`window.scrollY`), and the address it was on.
+struct ScrollPosition: Codable, Equatable {
+    var url: URL
+    var y: Double
+
+    private static let key = "scrollPositions"
+
+    static func saved() -> [String: ScrollPosition] {
+        UserDefaults.standard.data(forKey: key).flatMap { try? JSONDecoder().decode([String: Self].self, from: $0) } ?? [:]
+    }
+
+    static func save(_ positions: [String: ScrollPosition]) {
+        UserDefaults.standard.set(try? JSONEncoder().encode(positions), forKey: key)
+    }
+
+    /// Scrolls to `y`, trying again for two seconds while the page is still too short to get there (late images,
+    /// lazy content). Stops as soon as the user scrolls it.
+    static let restoreScript = """
+    var tries = 0, last = null;
+    (function go() {
+      if (last !== null && Math.abs(window.scrollY - last) > 2) { return; }
+      window.scrollTo(0, y);
+      last = window.scrollY;
+      if (Math.abs(last - y) > 2 && ++tries < 20) { setTimeout(go, 100); }
+    })();
+    """
 }
 
 enum ArchiveInterval: Int, CaseIterable, Identifiable {

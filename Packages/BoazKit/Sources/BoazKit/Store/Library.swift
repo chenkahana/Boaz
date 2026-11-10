@@ -17,6 +17,14 @@ public struct HistoryVisit: Codable, Identifiable, Hashable, Sendable, Fetchable
     }
 }
 
+extension URL {
+    /// Whether both are the same page, as history counts pages: a jump to a `#fragment` stays on it.
+    public func isSamePage(as other: URL) -> Bool {
+        func page(_ url: URL) -> Substring { url.absoluteString.prefix { $0 != "#" } }
+        return page(self) == page(other)
+    }
+}
+
 extension ArchiveItem {
     /// Whether the title or address contains `query`, as the archive search matches it.
     public func matches(_ query: String) -> Bool {
@@ -56,15 +64,15 @@ extension BoazStore {
         }
     }
 
-    /// Drops the visit just recorded for `hop`, an address the server redirected away from, so one load leaves one
-    /// entry. The redirect's target may already be recorded after it, so the last two visits are checked, and only
-    /// a visit from the last half minute goes. Queued in turn with `recordVisit`.
-    public func forgetRedirectedVisit(to hop: URL, at date: Date = .now) {
+    /// Names the profile's latest visit to `url` with the title its page reported after the visit was recorded.
+    /// Never adds a visit. Queued in turn with `recordVisit`.
+    public func updateVisitTitle(_ title: String, for url: URL, profileID: String) {
         writeInBackground { db in
-            let recent = try HistoryVisit.order(Column("visitedAt").desc).limit(2).fetchAll(db)
-            guard let visit = recent.first(where: { $0.url == hop }), date.timeIntervalSince(visit.visitedAt) < 30
-            else { return }
-            try visit.delete(db)
+            guard var visit = try HistoryVisit.filter(Column("url") == url && Column("profileID") == profileID)
+                    .order(Column("visitedAt").desc).fetchOne(db),
+                  visit.title != title else { return }
+            visit.title = title
+            try visit.update(db)
         }
     }
 

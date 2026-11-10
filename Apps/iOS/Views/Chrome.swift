@@ -110,7 +110,9 @@ struct SearchPanel: View {
                     Monogram(url: item.url, tint: Theme.brand, size: 24)
                     titleAndHost(item.title, item.url)
                     Spacer(minLength: 0)
-                    Text("Switch to Tab").font(.caption).foregroundStyle(Theme.textSecondary)
+                    if model.isOpen(item) {
+                        Text("Switch to Tab").font(.caption).foregroundStyle(Theme.textSecondary)
+                    }
                     Image(systemName: "arrow.right.circle").foregroundStyle(Theme.textSecondary)
                 }
             }

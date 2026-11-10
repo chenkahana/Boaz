@@ -32,6 +32,8 @@ final class MacModel {
     @ObservationIgnored private var pendingExternalURLs: [URL] = []
     /// A URL waiting for the next main window to appear ("Open in Boaz" from a Quick Window with no window open).
     @ObservationIgnored var pendingMainURL: URL?
+    /// The address each tab's current page was recorded at in history, which its later titles name (`didCommitLoad`).
+    @ObservationIgnored private var visitURLs: [String: URL] = [:]
     /// A tab the next main window should show ("Open in New Window").
     @ObservationIgnored var pendingMainTabID: String?
     /// Each entry is one undoable close: a single tab, or every tab from one Clear.
@@ -394,7 +396,8 @@ final class MacModel {
         commit(item)
     }
 
-    /// Persists where a tab navigated and records the visit (callers skip private tabs).
+    /// Persists where a tab navigated (callers skip private tabs). In history it only names the visit its load
+    /// recorded (`didCommitLoad`).
     func didNavigate(_ tabID: String, url: URL?, title: String) {
         guard var item = item(tabID) else { return }
         // A pinned or favorite tab keeps its saved address and title; only Today tabs follow the page.
@@ -409,9 +412,34 @@ final class MacModel {
             item.title = newTitle
             commit(item)
         }
-        if let url, url.scheme?.hasPrefix("http") == true {
-            store?.recordVisit(profileID: item.profileID, url: url, title: title.isEmpty ? newTitle : title)
+        // Only the page the visit was recorded for names it: the address is still the previous page's while the
+        // next one loads, and that page's title may arrive before its commit is seen.
+        if !title.isEmpty, let url, let visit = visitURLs[tabID], url.isSamePage(as: visit) {
+            store?.updateVisitTitle(title, for: visit, profileID: item.profileID)
         }
+    }
+
+    /// A tab's page committed a new load: one history visit, at the address the load ended on (callers skip private
+    /// tabs). Server redirect hops and same-document address changes (`replaceState`, fragments) never commit, so
+    /// none adds a visit.
+    func didCommitLoad(_ tabID: String, url: URL?) {
+        guard let item = item(tabID), let url, url.scheme?.hasPrefix("http") == true else {
+            visitURLs[tabID] = nil
+            return
+        }
+        visitURLs[tabID] = url
+        // The title at commit may still be the previous page's; the page's own arrives through `didNavigate`.
+        store?.recordVisit(profileID: item.profileID, url: url, title: nil)
+    }
+
+    /// A settled page changed address on its own (`pushState`, as single-page sites navigate): a new page in history,
+    /// unless only the fragment changed (callers skip private tabs and pages still loading). `replaceState` while a
+    /// load is in flight (a search page tidying its address) adds none.
+    func didChangeAddress(_ tabID: String, url: URL?, title: String) {
+        guard let item = item(tabID), let url, url.scheme?.hasPrefix("http") == true,
+              visitURLs[tabID].map({ !url.isSamePage(as: $0) }) ?? true else { return }
+        visitURLs[tabID] = url
+        store?.recordVisit(profileID: item.profileID, url: url, title: title.isEmpty ? nil : title)
     }
 
     /// Closing a Today tab archives it; ⌘⇧T brings it back.

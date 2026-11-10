@@ -127,9 +127,11 @@ struct TabBrowser: View {
             .sheet(item: $readerArticle) { article in ReaderView(article: article, tint: Theme.brand) }
             .pageAISheet(tab: tab, page: page)
             .sheet(isPresented: $showingDownloads) { DownloadsView() }
+            // Unfolded it's a popover, which can't attach to the whole page (there's no room around it): it hangs
+            // from the top instead.
             .translationPresentation(isPresented: Binding(get: { translationText != nil },
                                                             set: { if !$0 { translationText = nil } }),
-                                      text: translationText ?? "")
+                                      text: translationText ?? "", attachmentAnchor: .point(.top))
     }
 
     /// The cluster lies across the top (wider than tall) on the upright inner screen; in landscape it stands in the
@@ -295,8 +297,10 @@ struct TabBrowser: View {
     /// cheap text-length probe used to enable/disable the Reader button. A failed load is shown.
     private func trackNavigations(of page: WebPage) async {
         readableLength = 0
+        // A page shown again has loaded already, so no `.finished` comes to measure it.
+        if !page.isLoading, page.url != nil { Task { readableLength = await Reader.estimatedReadableLength(of: page) } }
+        model.dropStalePendingScroll(tab)
         var requested: URL?
-        var committed: URL?
         while !Task.isCancelled {
             do {
                 for try await event in page.navigations {
@@ -304,18 +308,13 @@ struct TabBrowser: View {
                     case .startedProvisionalNavigation:
                         loadFailure = nil
                         requested = page.url
+                        model.dropStalePendingScroll(tab)
                     case .receivedServerRedirect:
-                        // A hop to the same address, or an event read after the redirect, is the page shown now.
-                        // A hop from the page already shown (a form posting back to itself) recorded no visit of
-                        // its own, so its earlier visit stays.
-                        if let hop = requested, hop != page.url, hop != committed {
-                            model.didRedirect(tab, from: hop)
-                        }
                         requested = page.url
                     case .committed:
                         loadFailure = LoadFailure(blocked: requested, committed: page.url)
                         requested = nil
-                        committed = page.url
+                        model.didCommitLoad(tab)
                         applyTextSize(to: page)
                     case .finished:
                         applyTextSize(to: page)
