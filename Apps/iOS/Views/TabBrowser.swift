@@ -348,7 +348,7 @@ private struct LoadFailure {
     init?(blocked requested: URL?, committed: URL?) {
         guard committed?.absoluteString == "about:blank", let requested, requested.scheme?.hasPrefix("http") == true
         else { return nil }
-        message = "Boaz doesn't open addresses on this port."
+        message = "Boaz couldn't open this address."
         url = requested
     }
 }
