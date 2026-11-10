@@ -27,6 +27,8 @@ struct RootView: View {
             Pane(index: 0)
             if case .split = arrangement { Pane(index: 1).layoutValue(key: PaneSlot.self, value: 1) }
         }
+        // The keyboard doesn't move the fold: the panes keep to their halves and it comes up over them.
+        .ignoresSafeArea(.keyboard, edges: arrangement == .single || arrangement.hasStrip ? [] : .all)
         .environment(\.listsTabsElsewhere, arrangement.hasStrip)
         // Unfolded and taller than wide: the bar gets out of the way while reading.
         .environment(\.collapsesBar, fold != nil && arrangement == .single)
