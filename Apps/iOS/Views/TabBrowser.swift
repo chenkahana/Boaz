@@ -363,11 +363,6 @@ private struct BrowserBar: View {
     let tab: SidebarItem
     let page: WebPage
     let axis: Axis
-    /// The rail teaches both of its swipes, one at a time.
-    @State private var railTips = TipGroup(.firstAvailable) {
-        SwipeTabsTip()
-        TuckRailTip()
-    }
 
     var body: some View {
         bar.onChange(of: tabCount, initial: true) { SwipeTabsTip.openTabs = tabCount }
@@ -386,7 +381,7 @@ private struct BrowserBar: View {
                 SiteTile(url: page.url ?? tab.url, page: page, size: 30)
             }
             .animation(reduceMotion ? .easeOut(duration: 0.2) : .bouncy(duration: 0.35), value: tabCount)
-            .popoverTip(railTips.currentTip, arrowEdge: .trailing)
+            .popoverTip(SwipeTabsTip(), arrowEdge: .trailing)
         } else {
             bottomBar
         }

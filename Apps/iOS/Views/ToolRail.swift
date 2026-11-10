@@ -2,8 +2,7 @@ import SwiftUI
 import TipKit
 import WebKit
 
-/// Whether the rail is out of the way. It stays put while scrolling; swiping it toward the edge (or Hide Toolbar)
-/// tucks it away until it's tapped or pulled back out.
+/// Whether the rail is out of the way: Hide Toolbar tucks it away until its column is tapped. Nothing else moves it.
 @Observable final class ToolRailState {
     var isCollapsed = false
 
@@ -19,8 +18,6 @@ private struct ToolRailModifier<Rail: View>: ViewModifier {
     @State private var state = ToolRailState()
     /// The content's safe-area insets. Measured here because a reader that ignores the safe area sees none.
     @State private var insets = EdgeInsets()
-    /// Live horizontal pull on the rail, toward the edge (tuck) or out of it (pop back).
-    @State private var pull: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.siteEdges) private var edges
 
@@ -37,8 +34,6 @@ private struct ToolRailModifier<Rail: View>: ViewModifier {
             }
             .environment(state)
         .onGeometryChange(for: EdgeInsets.self, of: { $0.safeAreaInsets }) { insets = $0 }
-        // Only a deliberate tuck; scrolling collapses the rail too often for a tap each time.
-        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: state.isCollapsed) { _, collapsed in collapsed }
     }
 
     /// A bar gives content scrolling under it the system's scroll-edge effect. A web page fills that effect with
@@ -60,7 +55,7 @@ private struct ToolRailModifier<Rail: View>: ViewModifier {
     private func column(in proxy: GeometryProxy) -> some View {
         ZStack(alignment: .top) {
             if state.isCollapsed {
-                // The whole empty column pulls the rail back out.
+                // Tapping anywhere in the empty column brings the rail back.
                 Color.clear
                     .contentShape(.rect)
                     .onTapGesture { state.expand() }
@@ -69,7 +64,6 @@ private struct ToolRailModifier<Rail: View>: ViewModifier {
                 .frame(maxHeight: .infinity, alignment: .top)
                 .padding(.top, railTop(in: proxy))
                 .padding(.bottom, insets.bottom + 12)
-                .offset(x: pull)
         }
         .frame(width: insets.trailing)
         // The page's own background, so the page seems to run under the camera and status icons (which pick
@@ -78,35 +72,7 @@ private struct ToolRailModifier<Rail: View>: ViewModifier {
             if let edges { Rectangle().fill(edges.page.color).transition(.opacity) }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
-        .simultaneousGesture(tuckAndPull)
         .animation(motion, value: state.isCollapsed)
-    }
-
-    /// Swipe the rail toward the edge to tuck it away; swipe out of the column to bring it back.
-    private var tuckAndPull: some Gesture {
-        DragGesture(minimumDistance: 12)
-            .onChanged { value in
-                let x = value.translation.width
-                guard abs(x) > abs(value.translation.height) else { return }
-                pull = state.isCollapsed ? rubberBand(min(x, 0)) : rubberBand(max(x, 0))
-            }
-            .onEnded { value in
-                let x = value.predictedEndTranslation.width
-                let sideways = abs(value.translation.width) > abs(value.translation.height)
-                withAnimation(motion) {
-                    if sideways, state.isCollapsed, x < -30 { state.expand() }
-                    else if sideways, !state.isCollapsed, x > 50 {
-                        state.isCollapsed = true
-                        TuckRailTip().invalidate(reason: .actionPerformed)
-                    }
-                    pull = 0
-                }
-            }
-    }
-
-    private func rubberBand(_ x: CGFloat) -> CGFloat {
-        let limit: CGFloat = 40
-        return x.sign == .minus ? -limit * (1 - exp(x / limit)) : limit * (1 - exp(-x / limit))
     }
 
     private var motion: Animation {
