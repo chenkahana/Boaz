@@ -394,30 +394,34 @@ private struct BrowserBar: View {
             if axis == .vertical {
                 TabStack(space: model.currentSpace, cardSize: CGSize(width: 26, height: 36)).padding(.vertical, 4)
             } else {
-                TabStack(space: model.currentSpace, cardSize: CGSize(width: 22, height: 30))
-                    .frame(width: 46, height: 46)
+                TabStack(space: model.currentSpace, cardSize: CGSize(width: 34, height: 46))
             }
         }
     }
 
-    /// The phone's own toolbar, as Safari lays it out: the address in the middle, the tabs at the leading end, New Tab
-    /// and the page menu at the trailing end, each a piece of glass. Fixed across the bottom on a frosted strip in the
-    /// page's bottom color, with the page ending above it.
+    /// The phone's own toolbar: the tab fan at the leading end (unfolded, the sidebar toggle), New Tab as a glass pill
+    /// in the middle, the page menu in a glass circle at the trailing end. Fixed across the bottom on a frosted strip
+    /// in the page's bottom color, with the page ending above it.
     private var bottomBar: some View {
-        GlassEffectContainer(spacing: 8) {
-            HStack(spacing: 8) {
-                tabsButton.glassEffect(.regular.interactive(), in: .circle)
-                addressField
-                HStack(spacing: 0) {
-                    RailButton(symbol: "plus", label: "New Tab", isSelected: model.searchTarget == .newTab,
-                               action: toggleSearch)
-                    RailButton(symbol: "ellipsis", label: "Page Settings", isSelected: model.showsPageSettings,
-                               action: togglePageSettings)
-                }
-                .glassEffect(.regular.interactive(), in: .capsule)
+        HStack(spacing: 0) {
+            leadingControl.frame(maxWidth: .infinity, alignment: .leading)
+            Button(action: toggleSearch) {
+                Image(systemName: "plus")
+                    .font(.title3.weight(.semibold))
+                    .frame(width: 116, height: 50)
+                    .railSelection(model.searchTarget != nil)
+                    .contentShape(.capsule)
             }
+            .buttonStyle(PressableStyle())
+            .glassEffect(.regular.interactive(), in: .capsule)
+            .accessibilityLabel("New Tab")
+            .accessibilityAddTraits(model.searchTarget != nil ? .isSelected : [])
+            RailButton(symbol: "ellipsis", label: "Page Settings", isSelected: model.showsPageSettings,
+                       action: togglePageSettings)
+                .glassEffect(.regular.interactive(), in: .circle)
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 4)
         .popoverTip(SwipeTabsTip(), arrowEdge: .bottom)
@@ -427,48 +431,12 @@ private struct BrowserBar: View {
         .chromeScheme(edges?.bottom)
     }
 
-    /// The site's icon and name; tapped, it opens the search panel on the page's address. A line along its foot shows
-    /// the page loading.
-    private var addressField: some View {
-        Button(action: editAddress) {
-            HStack(spacing: 8) {
-                Monogram(url: page.url ?? tab.url, tint: Theme.brand, size: 20)
-                Text(host).font(.subheadline.weight(.semibold)).lineLimit(1)
-            }
-            .padding(.horizontal, 16)
-            .frame(maxWidth: .infinity, minHeight: 46)
-            .overlay(alignment: .bottomLeading) {
-                if page.isLoading {
-                    GeometryReader { proxy in
-                        Capsule().fill(Theme.glow)
-                            .frame(width: proxy.size.width * max(page.estimatedProgress, 0.06), height: 2.5)
-                    }
-                    .frame(height: 2.5)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 3)
-                    .transition(.opacity)
-                }
-            }
-            .animation(.easeOut(duration: 0.25), value: page.estimatedProgress)
-            .contentShape(.capsule)
-        }
-        .buttonStyle(PressableStyle())
-        .glassEffect(.regular.interactive(), in: .capsule)
-        .accessibilityLabel("Address")
-        .accessibilityValue(host)
-        .accessibilityHint("Edit the address or search")
-    }
-
-    private var host: String {
-        guard let host = (page.url ?? tab.url)?.host() else { return "Search or enter address" }
-        return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
-    }
-
-    /// The address opens the search panel on the page's own address; pressed again, it puts it away.
-    private func editAddress() {
-        withAnimation(BottomPanelStyle.motion) {
-            model.showsPageSettings = false
-            if model.searchTarget != nil { model.searchTarget = nil } else { model.beginSearch(.currentTab) }
+    /// The tab fan stands on its own; the sidebar toggle that replaces it unfolded gets a glass circle.
+    @ViewBuilder private var leadingControl: some View {
+        if let sidebar {
+            SidebarRailButton(sidebar: sidebar).glassEffect(.regular.interactive(), in: .circle)
+        } else {
+            tabsButton
         }
     }
 
