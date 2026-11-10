@@ -78,9 +78,12 @@ jobs:
         run: |
           # The notes are the version's section of CHANGELOG.md.
           version="${GITHUB_REF_NAME#v}"
+          title="Boaz $version"
+          # 0.x versions are betas. Not marked as pre-releases, which "latest" (the README button) would skip.
+          if [[ $version == 0.* ]]; then title="$title (beta)"; fi
           awk -v v="$version" '$0 ~ "^## \\[" v "\\]" {on=1; next} on && /^## \[/ {exit} on' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
           gh release create "$GITHUB_REF_NAME" build/release/Boaz.dmg build/release/Boaz.dmg.sha256 \
-            --title "Boaz $version" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
+            --title "$title" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag
 
       - name: Remove the signing material
         if: always()
