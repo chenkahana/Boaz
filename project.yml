@@ -25,6 +25,7 @@ targets:
   Boaz-iOS:
     type: application
     platform: iOS
+    scheme: {}
     sources: [Apps/iOS, Apps/Shared, Apps/Browser]
     dependencies:
       - package: BoazKit
@@ -72,6 +73,7 @@ targets:
   Boaz-macOS:
     type: application
     platform: macOS
+    scheme: {}
     sources: [Apps/macOS, Apps/Shared, Apps/Browser]
     dependencies:
       - package: BoazKit

@@ -123,3 +123,16 @@ iPad screenshots aren't needed for an iPhone-only app.
    Raise `CURRENT_PROJECT_VERSION` in `project.yml` for every new upload, and add the release to `CHANGELOG.md`.
 4. Fill the listing from this file, upload the screenshots, answer App Privacy and Age Rating as above.
 5. Add both builds to version 1.0 and **Submit for Review**.
+
+## Xcode Cloud
+
+`ci_scripts/` makes the repo buildable on Xcode Cloud, which only sees what's checked in:
+
+- `ci_post_clone.sh` installs the pinned XcodeGen (same release and SHA-256 as GitHub CI), sets
+  `CURRENT_PROJECT_VERSION` to Xcode Cloud's build number, generates `Boaz.xcodeproj`, and copies
+  `Packages/BoazKit/Package.resolved` into it (Xcode Cloud never resolves packages on its own).
+- `ci_post_xcodebuild.sh` fills TestFlight's "What to Test" with the last five commit subjects after an App Store archive.
+
+The `Boaz-iOS` and `Boaz-macOS` schemes are shared (`scheme: {}` in `project.yml`), which Xcode Cloud requires.
+Create the workflows once in Xcode (Product › Xcode Cloud › Create Workflow): Archive `Boaz-iOS` and `Boaz-macOS`
+on pushes to `master`, with TestFlight (Internal Testing) as the post-action, on the newest Xcode 27 environment.
