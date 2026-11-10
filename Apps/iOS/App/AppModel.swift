@@ -43,15 +43,17 @@ final class AppModel {
     var isIncognito = false
     private(set) var incognitoTabs: [SidebarItem] = []
     /// Last rendered image of each tab, shown on its card. Saved in Caches (`SnapshotCache`), except private tabs'.
-    var snapshots: [String: UIImage] = [:]
+    /// Observed per tab, so one new preview redraws only its own card.
+    let snapshots = ObservedDictionary<String, UIImage>()
     /// The folded layout's tab carousel of Today tabs, over the page or the home screen.
     var showsCoverFlow = false
     /// Counts requests to open the carousel, so one made while it is still closing brings it back.
     private(set) var coverFlowRequests = 0
     /// The page's settings panel, from the rail's "…" (the search panel is `searchTarget`; one panel at a time).
     var showsPageSettings = false
-    /// Each tab's page colors along the viewport's edges, which the screen edges and chrome take on.
-    private(set) var siteEdges: [String: SiteEdges] = [:]
+    /// Each tab's page colors along the viewport's edges, which the screen edges and chrome take on. Observed per
+    /// tab, so a background tab's sample doesn't redraw the one on screen.
+    let siteEdges = ObservedDictionary<String, SiteEdges>()
     /// Bumped on every edge-swipe back/forward commit; `TabBrowser` fires a haptic off it.
     var backForwardHaptic = 0
 
@@ -208,7 +210,7 @@ final class AppModel {
         let started = Date.now
         guard let ids = try? await store.loadSidebar().items.map(\.id) else { return }
         let saved = await SnapshotCache.load(keeping: Set(ids), writtenBefore: started)
-        snapshots.merge(saved) { live, _ in live }
+        for (id, image) in saved where snapshots[id] == nil { snapshots[id] = image }
         // A snapshot that landed meanwhile (the launch sweep's, say) was pruned before these arrived.
         if sidebarGeneration > 0 {
             liveItemIDs = []
