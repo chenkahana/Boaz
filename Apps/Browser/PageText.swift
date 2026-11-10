@@ -23,15 +23,22 @@ struct PageText {
       var skippedTags = /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|SVG|CANVAS|IFRAME|OBJECT|FORM|BUTTON|INPUT|SELECT|TEXTAREA|NAV|ASIDE|HEADER|FOOTER|DIALOG)$/;
       var skippedRoles = /^(navigation|complementary|contentinfo|banner|search|dialog|note)$/;
       var skippedNames = /(^|[\\s_-])(references?|reflist|citation|cite|navbox|catlinks|editsection|toc|infobox|sidebar|side-box|metadata|hatnote|ambox|footnotes?|comments?|related|share|social|newsletter|promo|advert|ads?|cookie|breadcrumbs?|menu|banner|popup|modal)([\\s_-]|$)/i;
-      var keptNames = /article|main|content|body|post|story|entry/i;
+      var keptNames = /(^|[_-])(article|main|content|body|post|story|entry)([_-]|$)/i;
       function skipped(el) {
         if (skippedTags.test(el.tagName.toUpperCase())) { return true; }
         if (el.getAttribute('aria-hidden') === 'true') { return true; }
         var role = el.getAttribute('role');
         if (role && skippedRoles.test(role)) { return true; }
-        var names = (typeof el.className === 'string' ? el.className : '') + ' ' + (el.id || '');
-        // A wrapper named for the article ("main-content", "post-body with-sidebar") holds it, whatever else it says.
-        return skippedNames.test(names) && !keptNames.test(names);
+        // Each class name and the id on its own: one naming the article ("main-content", "post-body") keeps a wrapper
+        // that another name ("with-sidebar") would skip. A name with a skip word in it ("comment-body",
+        // "related-content") keeps nothing.
+        var names = ((typeof el.className === 'string' ? el.className : '') + ' ' + (el.id || '')).split(/\\s+/);
+        var skip = false, keep = false;
+        for (var i = 0; i < names.length; i++) {
+          if (!names[i]) { continue; }
+          if (skippedNames.test(names[i])) { skip = true; } else if (keptNames.test(names[i])) { keep = true; }
+        }
+        return skip && !keep;
       }
 
       // Per element: its text length (without whitespace), the part in links, and its paragraphs. Skipped ones count none.
