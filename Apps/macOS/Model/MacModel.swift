@@ -412,17 +412,32 @@ final class MacModel {
             item.title = newTitle
             commit(item)
         }
-        if !title.isEmpty, let visit = visitURLs[tabID] { store?.updateVisitTitle(title, for: visit) }
+        // Only the page the visit was recorded for names it: the address is still the previous page's while the
+        // next one loads, and that page's title may arrive before its commit is seen.
+        if !title.isEmpty, let url, let visit = visitURLs[tabID], url.isSamePage(as: visit) {
+            store?.updateVisitTitle(title, for: visit, profileID: item.profileID)
+        }
     }
 
     /// A tab's page committed a new load: one history visit, at the address the load ended on (callers skip private
     /// tabs). Server redirect hops and same-document address changes (`replaceState`, fragments) never commit, so
     /// none adds a visit.
-    func didCommitLoad(_ tabID: String, url: URL?, title: String) {
+    func didCommitLoad(_ tabID: String, url: URL?) {
         guard let item = item(tabID), let url, url.scheme?.hasPrefix("http") == true else {
             visitURLs[tabID] = nil
             return
         }
+        visitURLs[tabID] = url
+        // The title at commit may still be the previous page's; the page's own arrives through `didNavigate`.
+        store?.recordVisit(profileID: item.profileID, url: url, title: nil)
+    }
+
+    /// A settled page changed address on its own (`pushState`, as single-page sites navigate): a new page in history,
+    /// unless only the fragment changed (callers skip private tabs and pages still loading). `replaceState` while a
+    /// load is in flight (a search page tidying its address) adds none.
+    func didChangeAddress(_ tabID: String, url: URL?, title: String) {
+        guard let item = item(tabID), let url, url.scheme?.hasPrefix("http") == true,
+              visitURLs[tabID].map({ !url.isSamePage(as: $0) }) ?? true else { return }
         visitURLs[tabID] = url
         store?.recordVisit(profileID: item.profileID, url: url, title: title.isEmpty ? nil : title)
     }

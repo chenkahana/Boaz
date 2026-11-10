@@ -17,6 +17,14 @@ public struct HistoryVisit: Codable, Identifiable, Hashable, Sendable, Fetchable
     }
 }
 
+extension URL {
+    /// Whether both are the same page, as history counts pages: a jump to a `#fragment` stays on it.
+    public func isSamePage(as other: URL) -> Bool {
+        func page(_ url: URL) -> Substring { url.absoluteString.prefix { $0 != "#" } }
+        return page(self) == page(other)
+    }
+}
+
 extension ArchiveItem {
     /// Whether the title or address contains `query`, as the archive search matches it.
     public func matches(_ query: String) -> Bool {
@@ -56,11 +64,12 @@ extension BoazStore {
         }
     }
 
-    /// Names the latest visit to `url` with the title its page reported after the load was recorded. Never adds a
-    /// visit. Queued in turn with `recordVisit`.
-    public func updateVisitTitle(_ title: String, for url: URL) {
+    /// Names the profile's latest visit to `url` with the title its page reported after the visit was recorded.
+    /// Never adds a visit. Queued in turn with `recordVisit`.
+    public func updateVisitTitle(_ title: String, for url: URL, profileID: String) {
         writeInBackground { db in
-            guard var visit = try HistoryVisit.filter(Column("url") == url).order(Column("visitedAt").desc).fetchOne(db),
+            guard var visit = try HistoryVisit.filter(Column("url") == url && Column("profileID") == profileID)
+                    .order(Column("visitedAt").desc).fetchOne(db),
                   visit.title != title else { return }
             visit.title = title
             try visit.update(db)

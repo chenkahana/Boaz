@@ -555,7 +555,11 @@ final class AppModel {
             item.title = newTitle
             commit(item)
         }
-        if !title.isEmpty, let visit = visitURLs[tab.id] { store?.updateVisitTitle(title, for: visit) }
+        // Only the page the visit was recorded for names it: the address is still the previous page's while the
+        // next one loads, and that page's title may arrive before its commit is seen.
+        if !title.isEmpty, let url, let visit = visitURLs[tab.id], url.isSamePage(as: visit) {
+            store?.updateVisitTitle(title, for: visit, profileID: item.profileID)
+        }
     }
 
     /// A page committed a new load: one history visit (except private tabs), at the address the load ended on. The
@@ -567,6 +571,17 @@ final class AppModel {
             return
         }
         visitURLs[tab.id] = url
+        // The title at commit may still be the previous page's; the page's own arrives through `didNavigate`.
+        store?.recordVisit(profileID: tab.profileID, url: url, title: nil)
+    }
+
+    /// A page that isn't loading changed address on its own (`pushState`, as single-page sites navigate): a new page
+    /// in history, unless only the fragment changed. `replaceState` while a load is in flight (a search page tidying
+    /// its address) adds none.
+    private func recordSameDocumentVisit(_ tab: SidebarItem, page: WebPage) {
+        guard !isPrivate(tab), !page.isLoading, let url = page.url, url.scheme?.hasPrefix("http") == true,
+              visitURLs[tab.id].map({ !url.isSamePage(as: $0) }) ?? true else { return }
+        visitURLs[tab.id] = url
         store?.recordVisit(profileID: tab.profileID, url: url, title: page.title.isEmpty ? nil : page.title)
     }
 
@@ -576,6 +591,7 @@ final class AppModel {
     func didChangeURL(_ tab: SidebarItem) {
         titleCooldowns[tab.id] = nil
         guard let page = pages[tab.id] else { return }
+        recordSameDocumentVisit(tab, page: page)
         didNavigate(tab, url: page.url, title: page.title)
     }
 
