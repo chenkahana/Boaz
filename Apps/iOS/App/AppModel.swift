@@ -85,6 +85,11 @@ final class AppModel {
     @ObservationIgnored private var historyLookup: Task<Void, Never>?
     /// The previews waiting for their pages to stop scrolling, by tab (see `pageDidScroll`).
     @ObservationIgnored private var settledCaptures: [String: Task<Void, Never>] = [:]
+    /// Where each tab's page last came to rest, and at which address; a page loaded again (evicted from the live
+    /// pages, or after a relaunch) goes back there. Kept across launches; private tabs' aren't kept.
+    @ObservationIgnored private var scrollPositions = ScrollPosition.saved()
+    /// Positions waiting for their tab's page to finish loading (`pageDidFinishLoading`).
+    @ObservationIgnored private var pendingScrolls: [String: ScrollPosition] = [:]
     /// Tabs whose title is cooling down after a save, and whether it changed again meanwhile (`didChangeTitle`).
     @ObservationIgnored private var titleCooldowns: [String: Bool] = [:]
     /// The address each tab's current page was recorded at in history, which its later titles name (`didCommitLoad`).
@@ -361,6 +366,7 @@ final class AppModel {
             }
         }
         pages[tab.id] = page
+        if let position = scrollPositions[tab.id], position.url == tab.url { pendingScrolls[tab.id] = position }
         while pageRecency.count > maxLivePages {
             pages[pageRecency.removeFirst()] = nil
         }
@@ -373,6 +379,9 @@ final class AppModel {
         guard let page = pages[tab.id] else { return }
         let tabIsPrivate = isPrivate(tab)
         captureSnapshot(of: page, tab: tab)
+        if let position = pendingScrolls.removeValue(forKey: tab.id), position.url == page.url {
+            Task { _ = try? await page.callJavaScript(ScrollPosition.restoreScript, arguments: ["y": position.y]) }
+        }
         Task {
             guard let pageURL = page.url,
                   let href = try? await page.callJavaScript(Favicons.discoveryScript, contentWorld: .defaultClient) as? String,
@@ -414,8 +423,19 @@ final class AppModel {
             try? await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled, let page = pages[tab.id] else { return }
             settledCaptures[tab.id] = nil
+            await rememberScroll(of: page, tab: tab)
             await snapshot(page, tab: tab)
         }
+    }
+
+    /// Saves where the page came to rest. Not while it loads: a page loading again sits at the top until its
+    /// position is put back.
+    private func rememberScroll(of page: WebPage, tab: SidebarItem) async {
+        guard !isPrivate(tab), !page.isLoading, let url = page.url,
+              let y = (try? await page.callJavaScript("return window.scrollY;") as? NSNumber)?.doubleValue,
+              scrollPositions[tab.id] != ScrollPosition(url: url, y: y) else { return }
+        scrollPositions[tab.id] = ScrollPosition(url: url, y: y)
+        ScrollPosition.save(scrollPositions)
     }
 
     private func snapshot(_ page: WebPage, tab: SidebarItem) async {
@@ -445,6 +465,11 @@ final class AppModel {
         for id in snapshots.keys where !live.contains(id) {
             snapshots[id] = nil
             SnapshotCache.remove(id)
+        }
+        let kept = scrollPositions.filter { ids.contains($0.key) }
+        if kept.count != scrollPositions.count {
+            scrollPositions = kept
+            ScrollPosition.save(kept)
         }
     }
 
@@ -865,6 +890,34 @@ final class AppModel {
             if self.toast == toast { self.toast = nil }
         }
     }
+}
+
+/// A page's vertical scroll offset in CSS pixels (`window.scrollY`), and the address it was on.
+struct ScrollPosition: Codable, Equatable {
+    var url: URL
+    var y: Double
+
+    private static let key = "scrollPositions"
+
+    static func saved() -> [String: ScrollPosition] {
+        UserDefaults.standard.data(forKey: key).flatMap { try? JSONDecoder().decode([String: Self].self, from: $0) } ?? [:]
+    }
+
+    static func save(_ positions: [String: ScrollPosition]) {
+        UserDefaults.standard.set(try? JSONEncoder().encode(positions), forKey: key)
+    }
+
+    /// Scrolls to `y`, trying again for two seconds while the page is still too short to get there (late images,
+    /// lazy content). Stops as soon as the user scrolls it.
+    static let restoreScript = """
+    var tries = 0, last = null;
+    (function go() {
+      if (last !== null && Math.abs(window.scrollY - last) > 2) { return; }
+      window.scrollTo(0, y);
+      last = window.scrollY;
+      if (Math.abs(last - y) > 2 && ++tries < 20) { setTimeout(go, 100); }
+    })();
+    """
 }
 
 enum ArchiveInterval: Int, CaseIterable, Identifiable {
