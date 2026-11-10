@@ -16,6 +16,8 @@ final class AppModel {
     var sidebar = Sidebar()
     /// Counts snapshots from the live observation (see `reloadSidebar`).
     @ObservationIgnored private var sidebarGeneration = 0
+    /// Counts sidebar saves, which show before they are written (see `reloadSidebar`).
+    @ObservationIgnored private var sidebarSaves = 0
     var currentSpaceID: String? {
         didSet {
             guard currentSpaceID != oldValue else { return }
@@ -205,12 +207,15 @@ final class AppModel {
     }
 
     /// Picks up rows the share extension wrote while the app was away: the live observation only sees this
-    /// process's own commits. A snapshot the observation delivers meanwhile is newer, so this one is dropped.
+    /// process's own commits. It is read once the saves already queued are written, and dropped if the observation
+    /// delivers a newer snapshot or a save happens meanwhile, so it never takes back a change the sidebar shows.
     func reloadSidebar() {
         guard let store else { return }
-        let generation = sidebarGeneration
+        let generation = sidebarGeneration, saves = sidebarSaves
         Task {
-            guard let fresh = try? await store.loadSidebar(), generation == sidebarGeneration else { return }
+            await store.waitForQueuedWrites()
+            guard let fresh = try? await store.loadSidebar(), generation == sidebarGeneration, saves == sidebarSaves
+            else { return }
             sidebar = fresh
             pruneSnapshots()
         }
@@ -731,6 +736,7 @@ final class AppModel {
         var item = item
         item.modifiedAt = .now
         sidebar.upsert(item)
+        sidebarSaves += 1
         // Every tab tap and navigation lands here, so the write never holds up the main thread.
         store?.saveInBackground([item]) { [weak self] error in
             Self.log.error("Saving a sidebar item failed: \(String(describing: error))")
