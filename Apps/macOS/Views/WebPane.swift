@@ -49,6 +49,7 @@ struct TabPane: View {
                         if event == .committed, let blocked = LoadFailure(blocked: requested, committed: page.url) {
                             failure = blocked
                         }
+                        if event == .committed { requested = nil }
                         if PageZoom.level(for: page.url, isPrivate: browser.isIncognito) != 1 {
                             PageZoom.apply(to: page, isPrivate: browser.isIncognito)
                         }

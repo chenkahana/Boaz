@@ -289,6 +289,7 @@ struct TabBrowser: View {
                         requested = page.url
                     case .committed:
                         loadFailure = LoadFailure(blocked: requested, committed: page.url)
+                        requested = nil
                         applyTextSize(to: page)
                     case .finished:
                         applyTextSize(to: page)
