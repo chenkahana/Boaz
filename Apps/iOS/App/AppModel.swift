@@ -274,7 +274,15 @@ final class AppModel {
     var currentSpace: Space? { sidebar.spaces.first { $0.id == currentSpaceID } }
     var activeTab: SidebarItem? { activeTabID.flatMap(item(withID:)) }
 
-    func todayTabs(in space: Space) -> [SidebarItem] { sidebar.todayTabs(in: space.id, onDevice: deviceID) }
+    /// This iPhone's Today tabs in a space, in order. Tabs the Mac filed into folders under Today stand in their
+    /// folder's place: the phone lists no folders.
+    func todayTabs(in space: Space) -> [SidebarItem] {
+        func tabs(under parent: String) -> [SidebarItem] {
+            sidebar.children(of: parent).flatMap { $0.kind == .folder ? tabs(under: $0.id) : $0.kind == .tab ? [$0] : [] }
+        }
+        return sidebar.container(.unpinned, in: space.id).map { tabs(under: $0.id) }?
+            .filter { $0.deviceID == nil || $0.deviceID == deviceID } ?? []
+    }
 
     /// The phone's tabs: this iPhone's Today tabs in the current space, or the private ones in Incognito.
     var phoneTabs: [SidebarItem] { isIncognito ? incognitoTabs : currentSpace.map(todayTabs(in:)) ?? [] }
