@@ -144,15 +144,23 @@ private struct Pane: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let index: Int
+    /// The side the next tab slides in from; set while the finger is still down, so the outgoing page
+    /// has already rendered with it by the time the tab changes.
+    @State private var pageDirection: Edge = .trailing
+    @State private var bump = 0
 
     var body: some View {
         ZStack {
             if let tab = model.tab(inPane: index) {
-                TabBrowser(tab: tab).environment(\.isPrivateBrowsing, model.isPrivate(tab))
+                TabBrowser(tab: tab, pageDirection: $pageDirection, bump: $bump)
+                    .environment(\.isPrivateBrowsing, model.isPrivate(tab))
+                    .id(tab.id)
+                    .transition(pageTransition)
             } else {
                 EmptyBrowser().toolRail { axis in HomeBar(axis: axis) }
             }
         }
+        .sensoryFeedback(.selection, trigger: bump)
         // The animation stays on the carousel: a tab opened from it changes the page underneath without sliding.
         .overlay {
             ZStack {
@@ -165,6 +173,12 @@ private struct Pane: View {
         }
         .environment(\.paneIndex, index)
         .simultaneousGesture(TapGesture().onEnded { model.focusPane(index) }, including: model.isSplit ? .all : .subviews)
+    }
+
+    private var pageTransition: AnyTransition {
+        if reduceMotion { return .opacity }
+        return .asymmetric(insertion: .move(edge: pageDirection),
+                           removal: .move(edge: pageDirection == .trailing ? .leading : .trailing))
     }
 
     private var carouselMotion: Animation {

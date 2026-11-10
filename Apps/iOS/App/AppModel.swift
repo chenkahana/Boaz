@@ -27,8 +27,10 @@ final class AppModel {
     /// The page on screen. Remembered across launches: the app opens on it again (mobile has no home screen).
     var activeTabID: String? {
         didSet {
-            guard activeTabID != oldValue, let activeTabID, !incognitoTabs.contains(where: { $0.id == activeTabID })
-            else { return }
+            guard activeTabID != oldValue else { return }
+            // One page never shows in both panes: the other pane takes this pane's tab in trade.
+            if activeTabID != nil, activeTabID == otherPaneTabID { otherPaneTabID = oldValue }
+            guard let activeTabID, !incognitoTabs.contains(where: { $0.id == activeTabID }) else { return }
             UserDefaults.standard.set(activeTabID, forKey: Self.lastTabKey)
         }
     }
@@ -586,14 +588,21 @@ final class AppModel {
 
     func activate(_ tab: SidebarItem) {
         guard tab.kind == .tab else { return }
+        guard tab.id == otherPaneTabID else { return show(tab) }
+        // The panes trade tabs (see `activeTabID`) in place: neither page slides, even when the change animates. All
+        // of it goes in the transaction, which first publishes the changes made before it.
+        var swap = Transaction(animation: nil)
+        swap.disablesAnimations = true
+        withTransaction(swap) { show(tab) }
+    }
+
+    private func show(_ tab: SidebarItem) {
         searchTarget = nil
         var item = tab
         item.lastActiveAt = .now
         item.isUnread = false
         commit(item)
         if let space = tab.spaceID { currentSpaceID = space }
-        // The other pane's tab trades places with this pane's: one page never shows in both.
-        if tab.id == otherPaneTabID { otherPaneTabID = activeTabID }
         activeTabID = tab.id
     }
 
@@ -612,9 +621,10 @@ final class AppModel {
         guard isSplit, pane != focusedPane else { return }
         showsCoverFlow = false
         showsPageSettings = false
+        // Each pane keeps its tab, so nothing here may publish a moment where they've traded (see `activate`).
         focusedPane = pane
         if let tab = otherPaneTabID.flatMap(item(withID:)) {
-            activate(tab)
+            show(tab)
         } else {
             otherPaneTabID = activeTabID
             activeTabID = nil

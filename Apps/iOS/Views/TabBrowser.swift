@@ -14,11 +14,11 @@ struct TabBrowser: View {
     @Environment(\.paneIndex) private var pane
     @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
     let tab: SidebarItem
+    /// The side the next tab slides in from, and a count of tab turns for the haptic; both outlive this tab's
+    /// browser (each tab gets its own), so the pane keeps them.
+    @Binding var pageDirection: Edge
+    @Binding var bump: Int
     @State private var dragX: CGFloat = 0
-    /// The side the next tab slides in from; set while the finger is still down, so the outgoing page
-    /// has already rendered with it by the time the tab changes.
-    @State private var pageDirection: Edge = .trailing
-    @State private var bump = 0
     @State private var loadFailure: LoadFailure?
     @State private var findVisible = false
 
@@ -35,7 +35,8 @@ struct TabBrowser: View {
     @State private var readableLength = 0
     @State private var readerArticle: ReaderArticle?
     @State private var showingDownloads = false
-    /// Identifies this browser when claiming the page (see `AppModel.claimPage`).
+    /// Identifies this browser when claiming the page (see `AppModel.claimPage`). The pane gives every tab a
+    /// browser of its own, so the outgoing tab's, still sliding away, never releases the incoming one's page.
     @State private var hostID = UUID()
     /// Whether a status cluster lies across the top of the page (the inner screen held upright).
     @State private var statusAcrossTop = false
@@ -81,10 +82,6 @@ struct TabBrowser: View {
                 model.restoreSiteEdges(for: tab)
             }
             .onDisappear { model.releasePage(tab.id, host: hostID) }
-            .onChange(of: tab.id) { old, new in
-                model.releasePage(old, host: hostID)
-                model.claimPage(new, host: hostID)
-            }
             .offset(x: dragX)
             .overlay(alignment: .top) { LoadingGlow(page: page) }
             .overlay(alignment: .top) {
@@ -120,28 +117,19 @@ struct TabBrowser: View {
             .environment(\.chromeTint, edges?.top.color)
             .environment(\.siteEdges, edges)
             .animation(SiteEdges.fade(reduceMotion: reduceMotion), value: edges)
-            .sensoryFeedback(.selection, trigger: bump)
             .sensoryFeedback(.selection, trigger: model.backForwardHaptic)
             .sensoryFeedback(.impact(weight: .light), trigger: pullArmed) { old, new in new && !old }
             .onChange(of: page.url) { model.didChangeURL(tab) }
             .onChange(of: page.title) { model.didChangeTitle(tab) }
             .onChange(of: page.url) { model.restoreSiteEdges(for: tab) }
             .onChange(of: collapsesBar) { barCollapsed = false }
-            .task(id: tab.id) { await trackNavigations(of: page) }
+            .task { await trackNavigations(of: page) }
             .sheet(item: $readerArticle) { article in ReaderView(article: article, tint: Theme.brand) }
             .pageAISheet(tab: tab, page: page)
             .sheet(isPresented: $showingDownloads) { DownloadsView() }
             .translationPresentation(isPresented: Binding(get: { translationText != nil },
                                                             set: { if !$0 { translationText = nil } }),
                                       text: translationText ?? "")
-            .id(tab.id)
-            .transition(pageTransition)
-    }
-
-    private var pageTransition: AnyTransition {
-        if reduceMotion { return .opacity }
-        return .asymmetric(insertion: .move(edge: pageDirection),
-                           removal: .move(edge: pageDirection == .trailing ? .leading : .trailing))
     }
 
     /// The cluster lies across the top (wider than tall) on the upright inner screen; in landscape it stands in the
@@ -213,6 +201,7 @@ struct TabBrowser: View {
 
     /// Steps to a neighbouring tab, for VoiceOver's Next Tab and Previous Tab actions.
     private func pageTab(by offset: Int) {
+        model.focusPane(pane)
         pageDirection = offset > 0 ? .trailing : .leading
         withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
             if model.pageTab(by: offset) { bump += 1 }
