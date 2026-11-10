@@ -92,7 +92,7 @@ struct TabBrowser: View {
                 // In the page area: beside the rail, above the bottom bar.
                 if model.showsPageSettings {
                     BottomPanel(site: edges?.bottom, maxHeight: 0.56, onDismiss: closePageSettings) {
-                        PageSettingsPanel(tab: tab, page: page, readableLength: readableLength, hasRail: hasRail,
+                        PageSettingsPanel(tab: tab, page: page, readableLength: readableLength,
                                           onReader: { Task { readerArticle = await Reader.extract(from: page) } },
                                           onDownloads: { showingDownloads = true },
                                           onFind: { findVisible = true },
@@ -159,8 +159,8 @@ struct TabBrowser: View {
     private func webView(_ page: WebPage) -> some View {
         WebView(page)
             .webViewBackForwardNavigationGestures(.enabled)
-            .webViewCollapsesToolRail(expandingOn: page.url) { old, new in
-                handlePullGeometry(old: old, new: new, page: page)
+            .webViewOnScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y + $0.contentInsets.top }) {
+                handlePullGeometry(old: $0, new: $1, page: page)
             }
             .findNavigator(isPresented: $findVisible)
             .onDisappear { [tab, hostID] in model.releasePage(tab.id, host: hostID) }
@@ -357,18 +357,12 @@ private struct LoadFailure {
 private struct BrowserBar: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(ToolRailState.self) private var rail
     @Environment(\.homeControlsElsewhere) private var homeControlsElsewhere
     @Environment(\.siteEdges) private var edges
     @Environment(\.sidebar) private var sidebar
     let tab: SidebarItem
     let page: WebPage
     let axis: Axis
-    /// The rail teaches both of its swipes, one at a time.
-    @State private var railTips = TipGroup(.firstAvailable) {
-        SwipeTabsTip()
-        TuckRailTip()
-    }
 
     var body: some View {
         bar.onChange(of: tabCount, initial: true) { SwipeTabsTip.openTabs = tabCount }
@@ -383,11 +377,9 @@ private struct BrowserBar: View {
             } bottom: {
                 RailButton(symbol: "ellipsis", label: "Page Settings", isSelected: model.showsPageSettings,
                            action: togglePageSettings)
-            } nub: {
-                SiteTile(url: page.url ?? tab.url, page: page, size: 30)
             }
             .animation(reduceMotion ? .easeOut(duration: 0.2) : .bouncy(duration: 0.35), value: tabCount)
-            .popoverTip(railTips.currentTip, arrowEdge: .trailing)
+            .popoverTip(SwipeTabsTip(), arrowEdge: .trailing)
         } else {
             bottomBar
         }
@@ -397,55 +389,34 @@ private struct BrowserBar: View {
     /// sidebar lists the tabs. Book and laptop poses list the tabs beside or below the page, so there's none.
     @ViewBuilder private var tabsButton: some View {
         if let sidebar {
-            if axis == .vertical {
-                SidebarRailButton(sidebar: sidebar)
-            } else {
-                BarButton(symbol: "sidebar.left", action: sidebar.toggle)
-                    .accessibilityLabel(sidebar.isCollapsed ? "Show Sidebar" : "Hide Sidebar")
-            }
+            SidebarRailButton(sidebar: sidebar)
         } else if !homeControlsElsewhere {
             if axis == .vertical {
                 TabStack(space: model.currentSpace, cardSize: CGSize(width: 26, height: 36)).padding(.vertical, 4)
             } else {
                 TabStack(space: model.currentSpace, cardSize: CGSize(width: 22, height: 30))
-                    .frame(width: 44, height: 44)
+                    .frame(width: 46, height: 46)
             }
         }
     }
 
+    /// Fixed across the bottom, the page ending above it. Frosted over the page's bottom color, with glyphs picked
+    /// for that color, so the buttons read on any page.
     private var bottomBar: some View {
-        Group {
-            if rail.isCollapsed {
-                Button { rail.expand() } label: {
-                    Text(host).font(.caption.weight(.semibold))
-                        .padding(.horizontal, 14).padding(.vertical, 6)
-                        .glassEffect(.regular.tint(edges?.bottom.color.opacity(0.45)), in: .capsule)
-                        // The capsule stays small; the target is a full 44pt.
-                        .frame(minHeight: 44)
-                        .contentShape(.rect)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Show Toolbar")
-                .accessibilityValue(host)
-            } else {
-                HStack(spacing: 10) {
-                    tabsButton
-                    BarButton(symbol: "plus", isSelected: model.searchTarget != nil, action: toggleSearch)
-                        .accessibilityLabel("New Tab")
-                    Spacer(minLength: 0)
-                    BarButton(symbol: "ellipsis", isSelected: model.showsPageSettings, action: togglePageSettings)
-                        .accessibilityLabel("Page Settings")
-                }
-                .padding(.horizontal, 12)
-                .popoverTip(SwipeTabsTip(), arrowEdge: .bottom)
-            }
+        HStack(spacing: 4) {
+            tabsButton
+            RailButton(symbol: "plus", label: "New Tab", isSelected: model.searchTarget != nil, action: toggleSearch)
+            Spacer(minLength: 0)
+            RailButton(symbol: "ellipsis", label: "Page Settings", isSelected: model.showsPageSettings,
+                       action: togglePageSettings)
         }
-        .padding(.top, rail.isCollapsed ? 0 : 6)
-        .padding(.bottom, rail.isCollapsed ? 0 : 4)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 2)
+        .popoverTip(SwipeTabsTip(), arrowEdge: .bottom)
         .frame(maxWidth: .infinity)
-        // Like the rail's docks, the bar takes the page color it sits on, so its glass and glyphs agree.
+        .background(.bar, ignoresSafeAreaEdges: .bottom)
+        .overlay(alignment: .top) { Divider() }
         .chromeScheme(edges?.bottom)
-        .environment(\.chromeTint, edges?.bottom.color)
     }
 
     /// New Tab opens the search panel; pressed again, it puts it away. One panel at a time.
@@ -467,60 +438,6 @@ private struct BrowserBar: View {
         if model.isIncognito { return model.incognitoTabs.count }
         guard let space = model.currentSpace else { return 0 }
         return model.todayTabs(in: space).count
-    }
-
-    private var host: String { page.url?.host() ?? tab.url?.host() ?? "New Tab" }
-}
-
-/// Site monogram ringed by the page's loading progress.
-private struct SiteTile: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    let url: URL?
-    let page: WebPage
-    let size: CGFloat
-
-    var body: some View {
-        Monogram(url: url, tint: Theme.brand, size: size)
-            .overlay {
-                RoundedRectangle(cornerRadius: (size + 7) * 0.3)
-                    .trim(from: 0, to: page.isLoading ? max(page.estimatedProgress, 0.06) : 1)
-                    .stroke(Theme.glow, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                    .padding(-3.5)
-                    .opacity(page.isLoading ? 1 : 0)
-                    .animation(.easeOut(duration: 0.25), value: page.estimatedProgress)
-                    .animation(.easeOut(duration: 0.4), value: page.isLoading)
-            }
-            .contentTransition(.interpolate)
-            .animation(reduceMotion ? .easeOut(duration: 0.2) : .bouncy, value: url?.host())
-    }
-}
-
-private struct BarButton: View {
-    let symbol: String
-    var isSelected = false
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) { BarIcon(symbol: symbol, isSelected: isSelected) }
-            .buttonStyle(.plain)
-            .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-}
-
-/// Round glass icon for the bottom bar.
-private struct BarIcon: View {
-    @Environment(\.chromeTint) private var tint
-    let symbol: String
-    var isSelected = false
-    @ScaledMetric(relativeTo: .body) private var glyph: CGFloat = 17
-
-    var body: some View {
-        Image(systemName: symbol)
-            // Grows with Dynamic Type, but stays inside its fixed-size circle.
-            .font(.system(size: min(glyph, 26)))
-            .frame(width: 44, height: 44)
-            .railSelection(isSelected)
-            .glassEffect(.chrome(tint), in: .circle)
     }
 }
 

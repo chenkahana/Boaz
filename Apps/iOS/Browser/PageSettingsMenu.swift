@@ -6,13 +6,10 @@ import WebKit
 /// (pin, find, reader, text size, desktop site…) and its website settings inline. Shown in a `BottomPanel`.
 struct PageSettingsPanel: View {
     @Environment(AppModel.self) private var model
-    @Environment(ToolRailState.self) private var rail: ToolRailState?
     @Environment(\.chromeTint) private var tint
     let tab: SidebarItem
     let page: WebPage
     let readableLength: Int
-    /// Whether the page's toolbar is the side rail (it can be tucked away) rather than the bottom bar.
-    let hasRail: Bool
     let onReader: () -> Void
     let onDownloads: () -> Void
     let onFind: () -> Void
@@ -158,9 +155,6 @@ struct PageSettingsPanel: View {
     }
 
     @ViewBuilder private var tabActions: some View {
-        if hasRail {
-            Button("Hide Toolbar", systemImage: "sidebar.trailing") { closeThen { rail?.tucked = true } }
-        }
         Button("Reopen Closed Tab", systemImage: "arrow.uturn.backward") { closeThen(model.undoClose) }
             .disabled(!model.canReopenClosedTab)
         Button("Archive Tab", systemImage: "archivebox") { closeThen { model.close(tab) } }
