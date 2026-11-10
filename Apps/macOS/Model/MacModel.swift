@@ -317,8 +317,9 @@ final class MacModel {
         removed.deletedAt = .now
         sidebar.upsert(removed)
         do {
-            let archived = try store?.archive(tab, reason: reason)
-            return (tab, archived?.id)
+            // Undo after the sweep got there first would bring back a tab that is also in the archive.
+            guard case .archived(let entry)? = try store?.archive(tab, reason: reason) else { return nil }
+            return (tab, entry?.id)
         } catch {
             showToast("Couldn't archive tab: \(error.localizedDescription)")
             return nil
@@ -334,7 +335,7 @@ final class MacModel {
         guard !tabs.isEmpty, let store else { return }
         let now = Date.now
         let emptied = folders.map { var folder = $0; folder.deletedAt = now; folder.modifiedAt = now; return folder }
-        let archived: [ArchiveItem?]
+        let archived: [ArchiveOutcome]
         do {
             archived = try store.archive(tabs, reason: "cleared", saving: emptied, at: now)
         } catch {
@@ -344,7 +345,12 @@ final class MacModel {
         var updated = sidebar
         for item in tabs.map({ var tab = $0; tab.deletedAt = now; return tab }) + emptied { updated.upsert(item) }
         sidebar = updated
-        closedTabs.append(zip(tabs, archived).map { (tab: $0, archiveID: $1?.id) } + folders.map { (tab: $0, archiveID: nil) })
+        // Tabs the sweep archived first stay archived on Undo.
+        let entries = zip(tabs, archived).compactMap { tab, outcome -> (tab: SidebarItem, archiveID: String?)? in
+            guard case .archived(let entry) = outcome else { return nil }
+            return (tab, entry?.id)
+        }
+        closedTabs.append(entries + folders.map { (tab: $0, archiveID: nil) })
         showToast("Archived \(tabs.count) tab\(tabs.count == 1 ? "" : "s")", canUndo: true)
     }
 

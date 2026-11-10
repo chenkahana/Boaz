@@ -12,6 +12,19 @@ public struct HistoryVisit: Codable, Identifiable, Hashable, Sendable, Fetchable
     public static let databaseTableName = "historyVisit"
 }
 
+/// What archiving a tab did.
+public enum ArchiveOutcome: Sendable {
+    /// The tab went to the archive. `item` is its entry, which a tab without an address doesn't get.
+    case archived(ArchiveItem?)
+    /// It was archived already (a close racing the stale-tab sweep, say), so nothing changed.
+    case alreadyArchived
+
+    /// The new archive entry, if any.
+    public var item: ArchiveItem? {
+        if case .archived(let item) = self { item } else { nil }
+    }
+}
+
 extension BoazStore {
     // MARK: History
 
@@ -92,7 +105,7 @@ extension BoazStore {
 
     /// Moves a tab into the archive: tombstones the tab and records an archive item, atomically.
     @discardableResult
-    public func archive(_ tab: SidebarItem, reason: String, at date: Date = .now) throws -> ArchiveItem? {
+    public func archive(_ tab: SidebarItem, reason: String, at date: Date = .now) throws -> ArchiveOutcome {
         try writer.write { db in try Self.archive(tab, reason: reason, at: date, in: db) }
     }
 
@@ -100,7 +113,7 @@ extension BoazStore {
     /// the sidebar observation sees one change however many tabs go.
     @discardableResult
     public func archive(_ tabs: [SidebarItem], reason: String, saving others: [SidebarItem] = [],
-                        at date: Date = .now) throws -> [ArchiveItem?] {
+                        at date: Date = .now) throws -> [ArchiveOutcome] {
         try writer.write { db in
             for record in others { try record.save(db) }
             return try tabs.map { try Self.archive($0, reason: reason, at: date, in: db) }
@@ -154,17 +167,17 @@ extension BoazStore {
         }
     }
 
-    static func archive(_ tab: SidebarItem, reason: String, at date: Date, in db: Database) throws -> ArchiveItem? {
-        // Already archived (a close racing the stale-tab sweep, say): one archive entry is enough.
-        guard try SidebarItem.fetchOne(db, key: tab.id)?.deletedAt == nil else { return nil }
+    static func archive(_ tab: SidebarItem, reason: String, at date: Date, in db: Database) throws -> ArchiveOutcome {
+        // One archive entry is enough.
+        guard try SidebarItem.fetchOne(db, key: tab.id)?.deletedAt == nil else { return .alreadyArchived }
         var tab = tab
         tab.deletedAt = date
         tab.modifiedAt = date
         try tab.save(db)
-        guard let url = tab.url else { return nil }
+        guard let url = tab.url else { return .archived(nil) }
         let item = ArchiveItem(id: UUID().uuidString, profileID: tab.profileID, spaceID: tab.spaceID,
                                title: tab.title, url: url, archivedAt: date, reason: reason, modifiedAt: date)
         try item.insert(db)
-        return item
+        return .archived(item)
     }
 }

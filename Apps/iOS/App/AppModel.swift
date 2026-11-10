@@ -566,8 +566,9 @@ final class AppModel {
         removed.deletedAt = .now
         sidebar.upsert(removed)
         do {
-            let archived = try store?.archive(tab, reason: "closed")
-            closedTabs.append((tab, archived?.id))
+            // Undo after the sweep got there first would bring back a tab that is also in the archive.
+            guard case .archived(let entry)? = try store?.archive(tab, reason: "closed") else { return }
+            closedTabs.append((tab, entry?.id))
             showToast("Tab archived", canUndo: true)
         } catch {
             Self.log.error("Archiving a tab failed: \(String(describing: error))")
