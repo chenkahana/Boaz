@@ -199,6 +199,8 @@ private struct GeneralSettings: View {
             AboutSection()
         }
         .formStyle(.grouped)
+        // The Settings window takes this tab's height and can't be resized; without it About sat below the fold.
+        .frame(minHeight: 600)
         .onChange(of: archiveAfter) { model.archiveStaleTabs() }
     }
 }
