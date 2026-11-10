@@ -138,7 +138,10 @@ private struct AddressPill: View {
         let url = browser.activeURL
         Button { browser.commandMode = browser.activeTab == nil ? .newTab : .currentTab } label: {
             HStack(spacing: 6) {
-                if url?.scheme == "https" { Image(systemName: "lock.fill").font(.caption2).opacity(0.6) }
+                // Only for a page that loaded over HTTPS: a failed load has no certificate to vouch for.
+                if url?.scheme == "https", browser.activePage?.serverTrust != nil {
+                    Image(systemName: "lock.fill").font(.caption2).opacity(0.6)
+                }
                 Text(url?.host()?.replacingOccurrences(of: "www.", with: "") ?? "Search or enter address")
                     .font(.callout)
                     .opacity(url == nil ? 0.6 : 1)
