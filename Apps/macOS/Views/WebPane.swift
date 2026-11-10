@@ -45,6 +45,9 @@ struct TabPane: View {
                     case .startedProvisionalNavigation:
                         failure = nil
                         requested = page.url
+                    case .receivedServerRedirect:
+                        if let hop = requested { browser.didRedirect(tab.id, from: hop) }
+                        requested = page.url
                     case .committed, .finished:
                         if event == .committed, let blocked = LoadFailure(blocked: requested, committed: page.url) {
                             failure = blocked

@@ -287,6 +287,9 @@ struct TabBrowser: View {
                     case .startedProvisionalNavigation:
                         loadFailure = nil
                         requested = page.url
+                    case .receivedServerRedirect:
+                        if let hop = requested { model.didRedirect(tab, from: hop) }
+                        requested = page.url
                     case .committed:
                         loadFailure = LoadFailure(blocked: requested, committed: page.url)
                         requested = nil

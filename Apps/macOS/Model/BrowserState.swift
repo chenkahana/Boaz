@@ -266,6 +266,12 @@ final class BrowserState {
         model.didNavigate(tabID, url: url, title: title)
     }
 
+    /// A server redirect leaves the address it left in history as a second entry for the same load.
+    func didRedirect(_ tabID: String, from hop: URL) {
+        guard !isIncognito else { return }
+        try? model.store?.forgetRedirectedVisit(to: hop)
+    }
+
     /// Pages that animate their title (unread counts, timers) would otherwise save, sync and refetch the whole
     /// sidebar on every tick. A title change is saved at once, then at most every two seconds with the latest title.
     /// A new page gets its title saved at once, not after the previous page's cooldown.
