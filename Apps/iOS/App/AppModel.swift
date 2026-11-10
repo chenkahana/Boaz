@@ -205,8 +205,9 @@ final class AppModel {
 
     /// Brings back the previews saved before the last quit, and forgets those of tabs that are gone.
     private func restoreSnapshots(from store: BoazStore) async {
+        let started = Date.now
         guard let ids = try? await store.loadSidebar().items.map(\.id) else { return }
-        let saved = await SnapshotCache.load(keeping: Set(ids))
+        let saved = await SnapshotCache.load(keeping: Set(ids), writtenBefore: started)
         snapshots.merge(saved) { live, _ in live }
         // A snapshot that landed meanwhile (the launch sweep's, say) was pruned before these arrived.
         if sidebarGeneration > 0 {

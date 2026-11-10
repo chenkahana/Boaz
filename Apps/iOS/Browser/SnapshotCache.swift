@@ -29,19 +29,24 @@ enum SnapshotCache {
         queue.async { try? FileManager.default.removeItem(at: file) }
     }
 
-    /// The saved previews of `tabIDs`. Every other tab's file (archived or removed meanwhile) is deleted.
-    static func load(keeping tabIDs: Set<String>) async -> [String: UIImage] {
-        await Task.detached(priority: .utility) {
-            let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
-            var images: [String: UIImage] = [:]
-            for file in files {
-                if tabIDs.contains(file.lastPathComponent), let image = UIImage(contentsOfFile: file.path) {
-                    images[file.lastPathComponent] = image
-                } else {
-                    try? FileManager.default.removeItem(at: file)
+    /// The saved previews of `tabIDs`. Other tabs' files (archived or removed meanwhile) are deleted, except those
+    /// written since `cutoff`: they belong to tabs opened after `tabIDs` was read. Runs in turn with saves and removals.
+    static func load(keeping tabIDs: Set<String>, writtenBefore cutoff: Date) async -> [String: UIImage] {
+        await withCheckedContinuation { continuation in
+            queue.async {
+                let files = (try? FileManager.default.contentsOfDirectory(
+                    at: folder, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+                var images: [String: UIImage] = [:]
+                for file in files {
+                    if tabIDs.contains(file.lastPathComponent), let image = UIImage(contentsOfFile: file.path) {
+                        images[file.lastPathComponent] = image
+                    } else if let written = try? file.resourceValues(forKeys: [.contentModificationDateKey])
+                        .contentModificationDate, written < cutoff {
+                        try? FileManager.default.removeItem(at: file)
+                    }
                 }
+                continuation.resume(returning: images)
             }
-            return images
-        }.value
+        }
     }
 }
