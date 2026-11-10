@@ -37,12 +37,18 @@ struct TabPane: View {
     /// resubscribes rather than stopping for the life of the tab.
     private func track(_ page: WebPage) async {
         failure = nil
+        var requested: URL?
         while !Task.isCancelled {
             do {
                 for try await event in page.navigations {
                     switch event {
-                    case .startedProvisionalNavigation: failure = nil
+                    case .startedProvisionalNavigation:
+                        failure = nil
+                        requested = page.url
                     case .committed, .finished:
+                        if event == .committed, let blocked = LoadFailure(blocked: requested, committed: page.url) {
+                            failure = blocked
+                        }
                         if PageZoom.level(for: page.url, isPrivate: browser.isIncognito) != 1 {
                             PageZoom.apply(to: page, isPrivate: browser.isIncognito)
                         }
@@ -80,6 +86,14 @@ struct LoadFailure {
         default: nsError.localizedDescription
         }
         url = nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL
+    }
+
+    /// WebKit refuses some ports (1, 9, 25 and so on) without any navigation error: it commits about:blank instead.
+    init?(blocked requested: URL?, committed: URL?) {
+        guard committed?.absoluteString == "about:blank", let requested, requested.scheme?.hasPrefix("http") == true
+        else { return nil }
+        message = "Boaz doesn't open addresses on this port."
+        url = requested
     }
 }
 

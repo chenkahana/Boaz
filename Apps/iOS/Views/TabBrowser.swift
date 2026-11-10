@@ -271,14 +271,16 @@ struct TabBrowser: View {
     /// cheap text-length probe used to enable/disable the Reader button. A failed load is shown.
     private func trackNavigations(of page: WebPage) async {
         readableLength = 0
+        var requested: URL?
         while !Task.isCancelled {
             do {
                 for try await event in page.navigations {
                     switch event {
                     case .startedProvisionalNavigation:
                         loadFailure = nil
+                        requested = page.url
                     case .committed:
-                        loadFailure = nil
+                        loadFailure = LoadFailure(blocked: requested, committed: page.url)
                         applyTextSize(to: page)
                     case .finished:
                         applyTextSize(to: page)
@@ -328,6 +330,14 @@ private struct LoadFailure {
         if nsError.domain == "WebKitErrorDomain", nsError.code == 102 { return nil }
         message = nsError.localizedDescription
         url = nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL
+    }
+
+    /// WebKit refuses some ports (1, 9, 25 and so on) without any navigation error: it commits about:blank instead.
+    init?(blocked requested: URL?, committed: URL?) {
+        guard committed?.absoluteString == "about:blank", let requested, requested.scheme?.hasPrefix("http") == true
+        else { return nil }
+        message = "Boaz doesn't open addresses on this port."
+        url = requested
     }
 }
 

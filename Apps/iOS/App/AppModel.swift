@@ -397,7 +397,8 @@ final class AppModel {
         else { return }
         // A pinned tab keeps its saved address and title; only Today tabs follow the page.
         let pinned = isPinned(item)
-        let newURL = pinned ? item.url : url ?? item.url
+        // WebKit shows about:blank for a load it refused outright; the tab keeps the address it was asked for.
+        let newURL = pinned || url?.absoluteString == "about:blank" ? item.url : url ?? item.url
         let newTitle = title.isEmpty || (pinned && item.title != nil) ? item.title : title
         if item.url != newURL || item.title != newTitle {
             item.url = newURL

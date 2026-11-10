@@ -69,7 +69,7 @@ struct CommandBar: View {
             .padding(.top, 110)
         }
         .onAppear {
-            if mode == .currentTab { text = (browser.activePage?.url ?? browser.activeTab?.url)?.absoluteString ?? "" }
+            if mode == .currentTab { text = browser.activeURL?.absoluteString ?? "" }
         }
         // Focus set while the bar is still being inserted is dropped about half the time, so keep asking until
         // the field has it.
@@ -117,7 +117,7 @@ struct CommandBar: View {
                               isSearch: isSearch))
         }
         // Skip tab matching while the field still holds the current page's own URL (⌘L).
-        let currentURL = (browser.activePage?.url ?? browser.activeTab?.url)?.absoluteString
+        let currentURL = browser.activeURL?.absoluteString
         guard query != currentURL else { return result }
         let tabs = openTabs.filter { tab in
             tab.id != browser.activeTabID && (query.isEmpty

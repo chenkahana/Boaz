@@ -120,6 +120,10 @@ final class BrowserState {
 
     var activeTab: SidebarItem? { tab(activeTabID) }
     var activePage: WebPage? { activeTab.map(page(for:)) }
+    /// The page's address, or the tab's while the page has none of its own (a failed or refused load).
+    var activeURL: URL? {
+        activePage?.url.flatMap { $0.absoluteString == "about:blank" ? nil : $0 } ?? activeTab?.url
+    }
 
     func isPrivate(_ tab: SidebarItem) -> Bool { isIncognito && incognitoTabs.contains { $0.id == tab.id } }
 
@@ -348,7 +352,7 @@ final class BrowserState {
     }
 
     func copyActiveURL() {
-        guard let url = activePage?.url ?? activeTab?.url else { return }
+        guard let url = activeURL else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(url.absoluteString, forType: .string)
         model.showToast("Copied URL")

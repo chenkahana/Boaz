@@ -135,7 +135,7 @@ private struct AddressPill: View {
     @State private var hovering = false
 
     var body: some View {
-        let url = browser.activePage?.url ?? browser.activeTab?.url
+        let url = browser.activeURL
         Button { browser.commandMode = browser.activeTab == nil ? .newTab : .currentTab } label: {
             HStack(spacing: 6) {
                 if url?.scheme == "https" { Image(systemName: "lock.fill").font(.caption2).opacity(0.6) }
