@@ -72,6 +72,10 @@ final class BrowserState {
         privateStore = incognito ? .nonPersistent() : nil
     }
 
+    isolated deinit {
+        if let keyObserver { NotificationCenter.default.removeObserver(keyObserver) }
+    }
+
     // MARK: Window
 
     func attach(_ window: NSWindow) {
@@ -84,6 +88,7 @@ final class BrowserState {
         window.tabbingMode = .disallowed
         updateTrafficLights()
         if !isIncognito { model.lastActiveBrowser = self }
+        if let keyObserver { NotificationCenter.default.removeObserver(keyObserver) }
         keyObserver = NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: window,
                                                              queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
