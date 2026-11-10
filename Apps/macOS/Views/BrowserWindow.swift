@@ -11,6 +11,9 @@ struct BrowserWindow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var browser: BrowserState
     @AppStorage("sidebarWidth") private var sidebarWidth = 250.0
+    /// The space and tab this window showed, brought back when macOS restores the window at launch.
+    @SceneStorage("spaceID") private var savedSpaceID: String?
+    @SceneStorage("tabID") private var savedTabID: String?
 
     init(incognito: Bool) {
         _browser = State(initialValue: BrowserState(incognito: incognito))
@@ -59,6 +62,8 @@ struct BrowserWindow: View {
         .sheet(item: $browser.rename) { request in RenameSheet(request: request).environment(browser) }
         .sheet(item: $browser.ai) { MacAISheet(request: $0).environment(model).environment(browser) }
         .onAppear { model.registerOpenWindow(openWindow) }
+        .onChange(of: browser.currentSpaceID) { if !browser.isIncognito { savedSpaceID = browser.currentSpaceID } }
+        .onChange(of: browser.activeTabID) { if !browser.isIncognito { savedTabID = browser.activeTabID } }
         .task {
             // Welcome can go up before the library has loaded; a URL to open has to wait for it.
             while model.sidebar.spaces.isEmpty && model.loadError == nil && !model.needsOnboarding {
@@ -69,6 +74,10 @@ struct BrowserWindow: View {
                 browser.onboarding = .welcome
             }
             while model.sidebar.spaces.isEmpty && model.loadError == nil { try? await Task.sleep(for: .milliseconds(100)) }
+            if !browser.isIncognito {
+                if let id = savedSpaceID, model.space(id) != nil { browser.currentSpaceID = id }
+                if let tab = browser.tab(savedTabID) { browser.activate(tab) }
+            }
             browser.consumePendingURL()
         }
     }
