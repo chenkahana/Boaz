@@ -52,6 +52,8 @@ final class BrowserState {
     var showImport = false
     var onboarding: OnboardingView.Step?
     private(set) var incognitoTabs: [SidebarItem] = []
+    /// The load each tab's page shows as failed. Kept here so ⌘R retries a refused address as Try Again does.
+    var loadFailures: [String: LoadFailure] = [:]
     /// Each tab's site color, which the window takes on. Never sampled in incognito.
     private(set) var siteColors: [String: SiteColor] = [:]
 
@@ -183,6 +185,7 @@ final class BrowserState {
 
     func unload(_ tabID: String) {
         pages[tabID] = nil
+        loadFailures[tabID] = nil
         recency.removeAll { $0 == tabID }
     }
 
@@ -370,7 +373,9 @@ final class BrowserState {
         model.showToast("Copied URL")
     }
 
-    func reload() { activePage?.reload(tabURL: activeTab?.url) }
+    func reload() {
+        activePage?.reload(tabURL: activeTabID.flatMap { loadFailures[$0]?.url } ?? activeTab?.url)
+    }
 
     func goBack() {
         guard let page = activePage, let item = page.backForwardList.backList.last else { return }

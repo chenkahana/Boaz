@@ -8,7 +8,11 @@ struct TabPane: View {
     @Environment(BrowserState.self) private var browser
     let tab: SidebarItem
     let inSplit: Bool
-    @State private var failure: LoadFailure?
+
+    private var failure: LoadFailure? {
+        get { browser.loadFailures[tab.id] }
+        nonmutating set { browser.loadFailures[tab.id] = newValue }
+    }
 
     var body: some View {
         let page = browser.page(for: tab)

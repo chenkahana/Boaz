@@ -92,7 +92,8 @@ struct TabBrowser: View {
                 // In the page area: beside the rail, above the bottom bar.
                 if model.showsPageSettings {
                     BottomPanel(site: edges?.bottom, maxHeight: 0.56, onDismiss: closePageSettings) {
-                        PageSettingsPanel(tab: tab, page: page, readableLength: readableLength,
+                        PageSettingsPanel(tab: tab, page: page, failedURL: loadFailure?.url,
+                                          readableLength: readableLength,
                                           onReader: { Task { readerArticle = await Reader.extract(from: page) } },
                                           onDownloads: { showingDownloads = true },
                                           onFind: { findVisible = true },
@@ -246,7 +247,9 @@ struct TabBrowser: View {
         reloading = true
         Task {
             do {
-                for try await event in page.reload(tabURL: tab.url) where event == .finished { break }
+                for try await event in page.reload(tabURL: loadFailure?.url ?? tab.url) where event == .finished {
+                    break
+                }
             } catch {
                 // Reload failed; still clear the indicator below.
             }
