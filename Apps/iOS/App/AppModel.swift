@@ -710,6 +710,8 @@ final class AppModel {
             if !historySuggestions.isEmpty { historySuggestions = [] }
             return
         }
+        // Until the lookup lands, only rows that still match are offered (and completed to).
+        if historySuggestions.contains(where: { !$0.matches(query) }) { historySuggestions.removeAll { !$0.matches(query) } }
         historyLookup = Task {
             try? await Task.sleep(for: .milliseconds(100))
             guard !Task.isCancelled, let found = try? await store.historySuggestions(matching: query, limit: 4),

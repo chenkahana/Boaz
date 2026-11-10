@@ -10,6 +10,11 @@ public struct HistoryVisit: Codable, Identifiable, Hashable, Sendable, Fetchable
     public var visitedAt: Date
 
     public static let databaseTableName = "historyVisit"
+
+    /// Whether the title or address contains `query`, as the history search matches it.
+    public func matches(_ query: String) -> Bool {
+        url.absoluteString.localizedCaseInsensitiveContains(query) || title?.localizedCaseInsensitiveContains(query) == true
+    }
 }
 
 /// What archiving a tab did.

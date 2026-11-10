@@ -93,6 +93,8 @@ struct CommandBar: View {
         .task(id: text) {
             let query = text.trimmingCharacters(in: .whitespaces)
             guard !browser.isIncognito, query.count >= 2 else { history = []; return }
+            // Until the lookup lands, only rows that still match are offered.
+            history.removeAll { !$0.matches(query) }
             try? await Task.sleep(for: .milliseconds(100))
             guard !Task.isCancelled else { return }
             let found = await model.historySuggestions(query)
