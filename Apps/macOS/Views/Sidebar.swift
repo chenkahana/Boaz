@@ -21,8 +21,12 @@ struct SidebarView: View {
     @State private var swipe: CGFloat = 0
 
     var body: some View {
-        let style = SpaceStyle(browser.currentSpace, scheme: browser.isIncognito ? .dark : scheme)
         let site = browser.activeSiteColor(enabled: tintWithSiteColors)
+        // An Arc theme pinned to light or dark keeps the sidebar in that appearance, as Arc does. A site's color
+        // overrides both while the sidebar wears it, so row fills and tints match the text drawn on that color.
+        let appearance = browser.isIncognito ? scheme
+            : site?.colorScheme ?? SpaceStyle.colorScheme(of: browser.currentSpace) ?? scheme
+        let style = SpaceStyle(browser.currentSpace, scheme: browser.isIncognito ? .dark : appearance)
         VStack(alignment: .leading, spacing: 8) {
             SidebarTopBar()
             AddressPill()
@@ -43,10 +47,7 @@ struct SidebarView: View {
         }
         .padding(.horizontal, 8)
         .padding(.bottom, 8)
-        // An Arc theme pinned to light or dark keeps the sidebar in that appearance, as Arc does. A site's color
-        // overrides both while the sidebar wears it, so row fills match the text drawn on that color.
-        .environment(\.colorScheme, browser.isIncognito ? scheme
-                     : site?.colorScheme ?? SpaceStyle.colorScheme(of: browser.currentSpace) ?? scheme)
+        .environment(\.colorScheme, appearance)
         .animation(SiteColor.fade(reduceMotion: reduceMotion)) {
             $0.foregroundStyle(browser.isIncognito ? .white : site?.foreground ?? style.foreground)
         }
