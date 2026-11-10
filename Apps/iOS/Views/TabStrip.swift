@@ -9,14 +9,20 @@ struct TabStrip: View {
 
     var body: some View {
         let style = SpaceStyle(model.currentSpace, scheme: scheme)
-        List {
-            Button { model.beginSearch(.newTab) } label: {
-                Label("New Tab", systemImage: "plus").frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+        ScrollViewReader { proxy in
+            List {
+                Button { model.beginSearch(.newTab) } label: {
+                    Label("New Tab", systemImage: "plus").frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+                }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                ForEach(model.phoneTabs) { tab in
+                    TabStripRow(tab: tab, tint: style.tint)
+                }
             }
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-            ForEach(model.phoneTabs) { tab in
-                TabStripRow(tab: tab, tint: style.tint)
+            // The selected tab stays in view, wherever it was picked (the carousel, a link, a relaunch).
+            .onChange(of: model.activeTabID, initial: true) { _, id in
+                if let id { proxy.scrollTo(id) }
             }
         }
         .listStyle(.plain)

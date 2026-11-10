@@ -15,8 +15,10 @@ struct RootView: View {
     private var arrangement: PostureLayout.Arrangement {
         guard let fold else { return .single }
         if model.isSplit { return .split(fold: fold) }
-        // The window's shape, not the layout's: the keyboard doesn't turn a tall screen wide.
-        return window.width > window.height ? .strip(width: min(max(window.width * 0.18, 150), 260)) : .single
+        // The window's shape, not the layout's: the keyboard doesn't turn a tall screen wide. Whole points, so the
+        // page beside the strip is too: WebKit lays a page out in whole points and leaves the rest of a fractional
+        // width as a sliver of the backdrop.
+        return window.width > window.height ? .strip(width: min(max(window.width * 0.18, 150), 260).rounded()) : .single
     }
 
     var body: some View {
