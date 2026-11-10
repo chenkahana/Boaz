@@ -341,6 +341,7 @@ final class BrowserState {
             activeTabID = next?.id
         }
         unload(tab.id)
+        siteColors[tab.id] = nil
         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
             if isPrivate(tab) {
                 incognitoTabs.removeAll { $0.id == tab.id }
