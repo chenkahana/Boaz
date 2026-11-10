@@ -160,7 +160,8 @@ extension BoazStore {
         let merged = RecordState.merge(current ?? remote, remote, groups: R.mergeGroups)
         // A peer's record this build can't read is skipped before anything is stored: throwing would fail every
         // pass, and a stored unreadable state would also break this device's own flushes.
-        guard var value = try? merged.value(R.self), value.survivesStorage else { return ([], []) }
+        guard var value = try? merged.value(R.self), value.survivesStorage, value.hasOnlyWebAddresses
+        else { return ([], []) }
         try setFieldState(merged, R.syncType, entry.id, in: db)
         if let row { value.keepDeviceLocalFields(from: row) }
         if value != row { try value.save(db) }
