@@ -57,7 +57,10 @@ struct TabPane: View {
                         if event == .committed, let blocked = LoadFailure(blocked: requested, committed: page.url) {
                             failure = blocked
                         }
-                        if event == .committed { requested = nil }
+                        if event == .committed {
+                            requested = nil
+                            browser.didCommitLoad(tab.id)
+                        }
                         // The address the page settled on, which `didChangeURL` skips while a load is in flight.
                         browser.didChangeURL(tab.id, committed: true)
                         if PageZoom.level(for: page.url, isPrivate: browser.isIncognito) != 1 {
