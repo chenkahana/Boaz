@@ -286,6 +286,8 @@ private struct DeskControls: View {
                             let selected = tab.id == model.activeTabID
                             Button { model.activate(tab) } label: {
                                 Text(tab.title ?? tab.url?.host() ?? "New Tab").lineLimit(1)
+                                    // A long title truncates instead of making one chip screens wide.
+                                    .frame(maxWidth: 220)
                                     .padding(.horizontal, 14).padding(.vertical, 12)
                                     .frame(minHeight: 44)
                                     .glassEffect(selected ? .regular.tint(Theme.brand) : .regular, in: .capsule)

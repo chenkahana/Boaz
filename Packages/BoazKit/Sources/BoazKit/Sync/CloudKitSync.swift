@@ -261,7 +261,7 @@ extension CloudKitSync: CKSyncEngineDelegate {
         guard syncEngine === engine else { return }
         switch event {
         case .stateUpdate(let update):
-            do { try store.saveSyncEngineState(update.stateSerialization) } catch { report(error) }
+            do { try await store.saveSyncEngineState(update.stateSerialization) } catch { report(error) }
 
         case .accountChange(let change):
             Self.log.notice("Account change: \(String(describing: change.changeType), privacy: .public)")
@@ -333,7 +333,7 @@ extension CloudKitSync: CKSyncEngineDelegate {
         case .didFetchChanges, .didSendChanges:
             if case .syncing = status { status = .upToDate(.now) }
             // Everything the server had is here now, so an empty starter space can tell it isn't needed.
-            if case .didFetchChanges = event { _ = try? StarterLibrary.retireUnusedStarterSpace(store) }
+            if case .didFetchChanges = event { _ = try? await StarterLibrary.retireUnusedStarterSpace(store) }
 
         case .didFetchRecordZoneChanges(let fetch):
             if let error = fetch.error { report(error) }
@@ -361,9 +361,9 @@ extension CloudKitSync: CKSyncEngineDelegate {
         var conflicts: [CKRecord] = [], unknown: [CKRecord.ID] = []
         var needsZone = false
         do {
-            requeue += try store.didSave(serverRecords: sent.savedRecords).compactMap(\.engineChange)
+            requeue += try await store.didSave(serverRecords: sent.savedRecords).compactMap(\.engineChange)
             let goneAnyway = sent.failedRecordDeletes.filter { $0.value.code == .unknownItem }.map(\.key)
-            try store.didDelete(recordIDs: sent.deletedRecordIDs + goneAnyway)
+            try await store.didDelete(recordIDs: sent.deletedRecordIDs + goneAnyway)
         } catch { report(error) }
 
         for failure in sent.failedRecordSaves {
@@ -387,7 +387,7 @@ extension CloudKitSync: CKSyncEngineDelegate {
         }
         do {
             if !unknown.isEmpty {
-                try store.clearSystemFields(unknown)
+                try await store.clearSystemFields(unknown)
                 requeue += unknown.map { .saveRecord($0) }
             }
             if !conflicts.isEmpty {

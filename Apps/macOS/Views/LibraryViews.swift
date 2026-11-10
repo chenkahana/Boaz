@@ -7,19 +7,21 @@ import UniformTypeIdentifiers
 struct ArchiveWindow: View {
     @Environment(MacModel.self) private var model
     @State private var items: [ArchiveItem] = []
+    /// The search's results, from the whole archive: `items` holds only the newest entries.
+    @State private var matches: (query: String, items: [ArchiveItem])?
     @State private var query = ""
     @State private var selection: ArchiveItem.ID?
     @State private var confirmClear = false
 
     var body: some View {
-        let filtered = query.isEmpty ? items : items.filter {
-            ($0.title ?? "").localizedCaseInsensitiveContains(query) || $0.url.absoluteString.localizedCaseInsensitiveContains(query)
-        }
+        // Until the search for the current text lands, the newest entries that match it.
+        let filtered = query.isEmpty ? items
+            : matches.flatMap { $0.query == query ? $0.items : nil } ?? items.filter { $0.matches(query) }
         let days = Dictionary(grouping: filtered) { Calendar.current.startOfDay(for: $0.archivedAt) }
             .sorted { $0.key > $1.key }
         List(selection: $selection) {
             ForEach(days, id: \.key) { day, entries in
-                Section(day.formatted(.relative(presentation: .named, unitsStyle: .wide)).capitalized) {
+                Section(dayTitle(day)) {
                     ForEach(entries) { item in
                         HStack(spacing: 10) {
                             SiteMonogram(url: item.url, tint: Theme.brand, size: 20)
@@ -36,14 +38,18 @@ struct ArchiveWindow: View {
                         .tag(item.id)
                         .contextMenu {
                             Button("Restore") { restore(item) }
-                            Button("Delete", role: .destructive) { try? model.store?.removeFromArchive(item.id); reload() }
+                            Button("Delete", role: .destructive) {
+                                try? model.store?.removeFromArchive(item.id)
+                                matches?.items.removeAll { $0.id == item.id }
+                                reload()
+                            }
                         }
                     }
                 }
             }
         }
         .contextMenu(forSelectionType: ArchiveItem.ID.self) { _ in } primaryAction: { ids in
-            for id in ids { if let item = items.first(where: { $0.id == id }) { restore(item) } }
+            for id in ids { if let item = filtered.first(where: { $0.id == id }) { restore(item) } }
         }
         .overlay {
             if items.isEmpty {
@@ -56,16 +62,37 @@ struct ArchiveWindow: View {
             Button("Clear Archive", systemImage: "trash") { confirmClear = true }
                 .disabled(items.isEmpty)
                 .confirmationDialog("Clear the Archive?", isPresented: $confirmClear, titleVisibility: .visible) {
-                    Button("Clear Archive", role: .destructive) { try? model.store?.clearArchive(); reload() }
+                    Button("Clear Archive", role: .destructive) {
+                        try? model.store?.clearArchive()
+                        matches = nil
+                        reload()
+                    }
                 } message: {
                     Text("This can't be undone.")
                 }
         }
         .navigationTitle("Archive")
-        .task(id: model.sidebar) { reload() }
+        .task(id: model.sidebar) {
+            reload()
+            await search()
+        }
+        .task(id: query) {
+            if !query.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
+            await search()
+        }
     }
 
     private func reload() { items = (try? model.store?.archivedItems()) ?? [] }
+
+    /// Searches the whole archive in the database, off the main thread.
+    private func search() async {
+        let searched = query
+        guard !searched.isEmpty else { matches = nil; return }
+        guard !Task.isCancelled, let store = model.store,
+              let found = try? await store.archivedItems(matching: searched), !Task.isCancelled, searched == query
+        else { return }
+        matches = (searched, found)
+    }
 
     private func restore(_ item: ArchiveItem) {
         guard let tab = model.restore(item) else { return }
@@ -91,7 +118,7 @@ struct HistoryWindow: View {
             .sorted { $0.key > $1.key }
         List(selection: $selection) {
             ForEach(days, id: \.key) { day, entries in
-                Section(day.formatted(.relative(presentation: .named, unitsStyle: .wide)).capitalized) {
+                Section(dayTitle(day)) {
                     ForEach(entries) { visit in
                         HStack(spacing: 10) {
                             SiteMonogram(url: visit.url, tint: Theme.brand, size: 20)
@@ -130,17 +157,38 @@ struct HistoryWindow: View {
             Button("Clear History", systemImage: "trash") { confirmClear = true }
                 .disabled(visits.isEmpty && query.isEmpty)
                 .confirmationDialog("Clear all history?", isPresented: $confirmClear, titleVisibility: .visible) {
-                    Button("Clear History", role: .destructive) { try? model.store?.clearHistory(); reload() }
+                    Button("Clear History", role: .destructive) { try? model.store?.clearHistory(); visits = [] }
                 } message: {
                     Text("This can't be undone.")
                 }
         }
         .navigationTitle("History")
-        .task(id: query) { reload() }
-        .task(id: model.sidebar) { reload() }
+        .task(id: query) {
+            if !query.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
+            await reload()
+        }
+        .task(id: model.sidebar) { await reload() }
     }
 
-    private func reload() { visits = (try? model.store?.history(matching: query, limit: 1000)) ?? [] }
+    /// Searches in the database, off the main thread: matching scans the whole history.
+    private func reload() async {
+        let searched = query
+        guard !Task.isCancelled, let store = model.store,
+              let found = try? await store.history(matching: searched, limit: 1000), !Task.isCancelled,
+              searched == query else { return }
+        visits = found
+    }
+}
+
+/// A calendar day's section title. Relative formatting counts from now, so this morning read as "Yesterday"
+/// late at night.
+private func dayTitle(_ day: Date) -> String {
+    let calendar = Calendar.current
+    if calendar.isDateInToday(day) { return "Today" }
+    if calendar.isDateInYesterday(day) { return "Yesterday" }
+    // The archive keeps entries for good, so older days name their year.
+    let date = Date.FormatStyle.dateTime.weekday(.wide).month().day()
+    return day.formatted(calendar.isDate(day, equalTo: .now, toGranularity: .year) ? date : date.year())
 }
 
 /// Boaz ▸ Settings: same preferences as iOS, plus keyboard shortcut overrides.
@@ -178,6 +226,8 @@ private struct GeneralSettings: View {
             AboutSection()
         }
         .formStyle(.grouped)
+        // The Settings window takes this tab's height and can't be resized; without it About sat below the fold.
+        .frame(minHeight: 600)
         .onChange(of: archiveAfter) { model.archiveStaleTabs() }
     }
 }
@@ -237,7 +287,8 @@ private struct SyncSettings: View {
                         if ICloudSignIn.needsSignIn(sync.status) {
                             Button("Sign In to iCloud…") { if let url = ICloudSignIn.settingsURL { openURL(url) } }
                         } else {
-                            Button("Sync Now") { Task { await sync.syncNow(userInitiated: true) } }.disabled(sync.status == .syncing)
+                            Button("Sync Now") { Task { await sync.syncNow(userInitiated: true) } }
+                                .disabled(sync.status == .syncing || !sync.canSyncNow)
                         }
                     } label: {
                         SyncStatusLabel(status: sync.status)
@@ -340,6 +391,7 @@ struct ThemeEditor: View {
                     }
                     .buttonStyle(PresetStyle())
                     .help(name)
+                    .accessibilityLabel(name)
                 }
             }
             ForEach(ThemeJSON.Role.allCases) { role in

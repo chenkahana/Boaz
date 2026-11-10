@@ -9,6 +9,8 @@ struct LibrarySheet: View {
     @State private var tab = 0
     @State private var query = ""
     @State private var archive: [ArchiveItem] = []
+    /// The archive search's results, from the whole archive: `archive` holds only the newest entries.
+    @State private var archiveMatches: (query: String, items: [ArchiveItem])?
     @State private var history: [HistoryVisit] = []
     @State private var confirmClear = false
 
@@ -24,7 +26,8 @@ struct LibrarySheet: View {
                                     .swipeActions {
                                         Button("Delete", systemImage: "trash", role: .destructive) {
                                             try? model.store?.removeFromArchive(item.id)
-                                            reload()
+                                            archiveMatches?.items.removeAll { $0.id == item.id }
+                                            reloadArchive()
                                         }
                                     }
                             }
@@ -77,8 +80,14 @@ struct LibrarySheet: View {
                         .confirmationDialog(tab == 0 ? "Clear the whole Archive?" : "Clear all history?",
                                             isPresented: $confirmClear, titleVisibility: .visible) {
                             Button(tab == 0 ? "Clear Archive" : "Clear History", role: .destructive) {
-                                if tab == 0 { try? model.store?.clearArchive() } else { try? model.store?.clearHistory() }
-                                reload()
+                                if tab == 0 {
+                                    try? model.store?.clearArchive()
+                                    archiveMatches = nil
+                                    reloadArchive()
+                                } else {
+                                    try? model.store?.clearHistory()
+                                    history = []
+                                }
                             }
                         } message: {
                             Text("This can't be undone.")
@@ -86,26 +95,40 @@ struct LibrarySheet: View {
                 }
             }
         }
-        .onAppear(perform: reload)
-        .onChange(of: query) { reload() }
+        .onAppear(perform: reloadArchive)
+        .task(id: query) { await search() }
     }
 
+    /// Until the search for the current text lands, the newest entries that match it.
     private var filteredArchive: [ArchiveItem] {
-        guard !query.isEmpty else { return archive }
-        return archive.filter { ($0.title ?? "").localizedCaseInsensitiveContains(query)
-            || $0.url.absoluteString.localizedCaseInsensitiveContains(query) }
+        if query.isEmpty { return archive }
+        if let archiveMatches, archiveMatches.query == query { return archiveMatches.items }
+        return archive.filter { $0.matches(query) }
     }
 
-    private func reload() {
+    private func reloadArchive() {
         archive = (try? model.store?.archivedItems()) ?? []
-        history = (try? model.store?.history(matching: query)) ?? []
+    }
+
+    /// History and the archive are searched in the database, once typing pauses.
+    private func search() async {
+        if !query.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
+        guard !Task.isCancelled, let store = model.store,
+              let found = try? await store.history(matching: query), !Task.isCancelled else { return }
+        history = found
+        let searched = query
+        guard !searched.isEmpty, let matches = try? await store.archivedItems(matching: searched), !Task.isCancelled
+        else { return }
+        archiveMatches = (searched, matches)
     }
 
     private func dayLabel(_ day: Date) -> String {
         let calendar = Calendar.current
         if calendar.isDateInToday(day) { return "Today" }
         if calendar.isDateInYesterday(day) { return "Yesterday" }
-        return day.formatted(.dateTime.weekday(.wide).month().day())
+        // The archive keeps entries for good, so older days name their year.
+        let date = Date.FormatStyle.dateTime.weekday(.wide).month().day()
+        return day.formatted(calendar.isDate(day, equalTo: .now, toGranularity: .year) ? date : date.year())
     }
 
     private func grouped<T: Identifiable>(_ items: [T], by date: KeyPath<T, Date>) -> [(day: Date, items: [T])] {
@@ -212,7 +235,7 @@ private struct SyncSettingsSection: View {
                     Button("Sign In to iCloud") { if let url = ICloudSignIn.settingsURL { openURL(url) } }
                 } else {
                     Button("Sync Now") { Task { await sync.syncNow(userInitiated: true) } }
-                        .disabled(sync.status == .syncing)
+                        .disabled(sync.status == .syncing || !sync.canSyncNow)
                 }
                 if sync.offersFolder {
                     LabeledContent("Sync Folder", value: sync.folderURL?.lastPathComponent ?? "None")

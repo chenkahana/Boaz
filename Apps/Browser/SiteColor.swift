@@ -34,7 +34,9 @@ struct SiteColor: Hashable {
     // MARK: Sampling
 
     /// Last color seen per host, so a tab arriving at a known site is tinted before its page finishes loading.
+    /// The 300 most recently sampled hosts.
     private static var cache: [String: SiteColor] = [:]
+    private static var cacheRecency: [String] = []
 
     static func cached(for url: URL?) -> SiteColor? { url?.host().flatMap { cache[$0] } }
 
@@ -46,7 +48,14 @@ struct SiteColor: Hashable {
               let edges = SiteEdges(values.map(\.doubleValue))
         else { return nil }
         let usable = edges.top.isPlainWhite ? nil : edges.top
-        cache[host] = usable
+        cacheRecency.removeAll { $0 == host }
+        if let usable {
+            cache[host] = usable
+            cacheRecency.append(host)
+            if cacheRecency.count > 300 { cache[cacheRecency.removeFirst()] = nil }
+        } else {
+            cache[host] = nil
+        }
         return usable
     }
 }
@@ -77,10 +86,12 @@ struct SiteEdges: Hashable {
 
     // MARK: Cache
 
-    /// Per page (a site's pages differ), then per host for a page not seen yet. Kept in memory only.
+    /// Per page (a site's pages differ), then per host for a page not seen yet. Kept in memory only, for the 300
+    /// most recent of each.
     private static var pages: [String: SiteEdges] = [:]
     private static var hosts: [String: SiteEdges] = [:]
     private static var recency: [String] = []
+    private static var hostRecency: [String] = []
 
     static func cached(for url: URL?) -> SiteEdges? {
         guard let url else { return nil }
@@ -93,7 +104,10 @@ struct SiteEdges: Hashable {
             recency.append(key)
             if recency.count > 300 { pages[recency.removeFirst()] = nil }
         }
-        if let host = url.host() { hosts[host] = edges }
+        if let host = url.host(), hosts.updateValue(edges, forKey: host) == nil {
+            hostRecency.append(host)
+            if hostRecency.count > 300 { hosts[hostRecency.removeFirst()] = nil }
+        }
     }
 
     private static func pageKey(_ url: URL) -> String {
@@ -106,9 +120,10 @@ struct SiteEdges: Hashable {
 
     static let messageName = "boazSiteEdges"
 
-    /// Samples once the document is ready, then again (only posting changes) on load, scroll (at most every
-    /// 150 ms), resize, back-forward cache restores, `theme-color` edits, appearance changes and theme toggles
-    /// on the root elements. Runs in the client world, so pages can't see or spoof it.
+    /// Samples once the document is ready, then again (only posting changes) on load, once scrolling or resizing
+    /// settles (at most once a second while it goes on), back-forward cache restores, `theme-color` edits,
+    /// appearance changes and theme toggles on the root elements. A hidden page (another tab, or a page not on
+    /// screen) doesn't sample until it shows again. Runs in the client world, so pages can't see or spoof it.
     static func userScript() -> WKUserScript {
         WKUserScript(source: liveScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: .defaultClient)
     }
@@ -132,9 +147,10 @@ struct SiteEdges: Hashable {
             if (window.__boazSiteEdges) return;
             window.__boazSiteEdges = true;
             \(sampler)
-            let last = '', timer = 0, lastRun = 0;
+            let last = '', timer = 0, lastRun = 0, missed = false, scrollTimer = 0, settleTimer = 0;
             const post = () => {
                 timer = 0;
+                if (document.hidden) { missed = true; return; }
                 lastRun = Date.now();
                 const c = sampleEdges(), key = c.join();
                 if (key === last) return;
@@ -143,18 +159,37 @@ struct SiteEdges: Hashable {
             };
             const schedule = (delay = 0) => {
                 if (timer) return;
+                if (document.hidden) { missed = true; return; }
                 timer = setTimeout(() => requestAnimationFrame(post), delay);
             };
-            const throttled = () => schedule(Math.max(0, 150 - (Date.now() - lastRun)));
-            addEventListener('scroll', throttled, { passive: true, capture: true });
-            addEventListener('resize', throttled, { passive: true });
+            const moved = () => {
+                clearTimeout(scrollTimer);
+                if (Date.now() - lastRun > 1000) schedule();
+                scrollTimer = setTimeout(() => schedule(), 150);
+            };
+            addEventListener('scroll', moved, { passive: true, capture: true });
+            addEventListener('resize', moved, { passive: true });
             addEventListener('load', () => schedule());
             addEventListener('pageshow', () => { last = ''; schedule(); });
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden && missed) { missed = false; schedule(); }
+            });
             matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => schedule(50));
-            new MutationObserver(() => schedule(100)).observe(document.head || document.documentElement,
-                { subtree: true, childList: true, attributes: true, attributeFilter: ['content', 'media'] });
+            // Theme-color changes count, and <title> changes, which mark a single-page app's route change. Other tags in
+            // <head> churn constantly.
+            const isThemeColor = n => n.nodeName === 'META' && /^theme-color$/i.test(n.getAttribute('name') || '');
+            const isTitle = n => n.nodeName === 'TITLE';
+            new MutationObserver(records => {
+                if (records.some(r => r.type === 'attributes' ? isThemeColor(r.target)
+                    : isTitle(r.target) || [...r.addedNodes, ...r.removedNodes].some(n => isThemeColor(n) || isTitle(n)))) schedule(100);
+            }).observe(document.head || document.documentElement,
+                { subtree: true, childList: true, attributes: true, attributeFilter: ['content', 'media', 'name'] });
             // Theme switches flip a class or attribute on <html> or <body>; their transitions finish later.
-            const settled = () => { schedule(50); setTimeout(() => schedule(), 450); };
+            const settled = () => {
+                schedule(50);
+                clearTimeout(settleTimer);
+                settleTimer = setTimeout(() => schedule(), 450);
+            };
             new MutationObserver(settled).observe(document.documentElement, { attributes: true });
             if (document.body) new MutationObserver(settled).observe(document.body, { attributes: true });
             schedule();
@@ -219,7 +254,9 @@ struct SiteEdges: Hashable {
                 .find(m => m.content && (!m.media || matchMedia(m.media).matches));
             if (meta) {
                 const c = rgba(meta.content);
-                if (c[3] > 0) top = over(c, colorAt(w / 2, 1, w * 0.9));
+                // Only a translucent theme-color needs what's under it.
+                if (c[3] === 255) top = c.slice(0, 3);
+                else if (c[3] > 0) top = over(c, colorAt(w / 2, 1, w * 0.9));
             }
             // The page's background: only page-sized layers (wrappers, `body`, `html`), never the cards and section
             // bars scrolling past.

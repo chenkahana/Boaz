@@ -277,10 +277,12 @@ struct RailIcon: View {
     @Environment(\.chromeTint) private var tint
     let symbol: String
     var size: CGFloat = 44
+    @ScaledMetric(relativeTo: .body) private var glyph: CGFloat = 17
 
     var body: some View {
         Image(systemName: symbol)
-            .font(.body.weight(.medium))
+            // Grows with Dynamic Type, but stays inside its fixed-size circle.
+            .font(.system(size: min(glyph, 26), weight: .medium))
             .frame(width: size, height: size)
             .glassEffect(.chrome(tint), in: .circle)
     }
@@ -303,12 +305,19 @@ extension View {
     /// Chrome drawn over a site color takes the appearance legible on it: dark glyphs and light glass on a light
     /// color, and the reverse. Unchanged without one. The glyph color is explicit because glass otherwise picks
     /// its content's vibrancy from the system appearance.
-    @ViewBuilder func chromeScheme(_ site: SiteColor?) -> some View {
-        if let site {
-            foregroundStyle(site.isLight ? Color.black : Color.white).environment(\.colorScheme, site.colorScheme)
-        } else {
-            self
-        }
+    func chromeScheme(_ site: SiteColor?) -> some View { modifier(ChromeScheme(site: site)) }
+}
+
+/// The same view with a site color or without: a branch on it would rebuild the chrome when a page's colors arrive,
+/// taking the keyboard from the search field.
+private struct ChromeScheme: ViewModifier {
+    let site: SiteColor?
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        content
+            .foregroundStyle(site.map { AnyShapeStyle($0.isLight ? Color.black : Color.white) } ?? AnyShapeStyle(.foreground))
+            .environment(\.colorScheme, site?.colorScheme ?? colorScheme)
     }
 }
 

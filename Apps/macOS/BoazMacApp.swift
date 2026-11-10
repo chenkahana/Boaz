@@ -99,8 +99,16 @@ struct BoazCommands: Commands {
             Button("Open Location…") { browser?.commandMode = browser?.activeTab == nil ? .newTab : .currentTab }
                 .keyboardShortcut(key(.openLocation)).disabled(browser == nil)
             Divider()
-            Button("Close Tab") { browser?.closeActive() }
-                .keyboardShortcut(key(.closeTab)).disabled(browser == nil)
+            // Owning ⌘W takes it off the system's Close item, so this closes the other windows (History, Settings) too.
+            Button(browser?.activeTab == nil ? "Close Window" : "Close Tab") {
+                if let browser {
+                    browser.closeActive()
+                } else if let window = NSApp.keyWindow, window.styleMask.contains(.closable), window.sheetParent == nil {
+                    // Not WebKit's full-screen video window or a sheet, which have no close button of their own.
+                    window.performClose(nil)
+                }
+            }
+            .keyboardShortcut(key(.closeTab))
             Button("Reopen Closed Tab") { browser?.reopenClosedTab() }
                 .keyboardShortcut(key(.reopenClosedTab)).disabled(browser == nil)
             Divider()
@@ -162,10 +170,11 @@ struct BoazCommands: Commands {
             Button("Next Tab") { browser?.cycleTab(by: 1) }.keyboardShortcut(key(.nextTab)).disabled(browser == nil)
             Button("Previous Tab") { browser?.cycleTab(by: -1) }.keyboardShortcut(key(.previousTab)).disabled(browser == nil)
             Divider()
+            let favoriteCount = browser.map { model.favorites(profileID: $0.currentSpace?.profileID).count } ?? 0
             ForEach(1...9, id: \.self) { number in
                 Button("Favorite \(number)") { browser?.selectFavorite(number) }
                     .keyboardShortcut(KeyEquivalent(Character("\(number)")), modifiers: .command)
-                    .disabled(browser == nil)
+                    .disabled(number > favoriteCount)
             }
         }
 

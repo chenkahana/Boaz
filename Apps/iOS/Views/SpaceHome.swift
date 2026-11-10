@@ -67,7 +67,8 @@ private struct SpacePage: View {
     var body: some View {
         let style = SpaceStyle(space, scheme: scheme)
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+            // Lazy, so a long Today list only builds (and fetches icons for) the rows on screen.
+            LazyVStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 8) {
                     searchField(style)
                     if let sidebar {
@@ -102,7 +103,7 @@ private struct SpacePage: View {
 
                 let today = model.todayTabs(in: space)
                 // Today like Arc: a new-tab row, then one row per tab.
-                VStack(spacing: 0) {
+                LazyVStack(spacing: 0) {
                     Capsule().fill(style.foreground.opacity(0.12)).frame(height: 1)
                         .padding(.horizontal, 10).padding(.bottom, 6)
                     TodayRow.newTab(tint: style.tint)
@@ -159,6 +160,8 @@ private struct TodayRow: View {
         .overlay(alignment: .trailing) {
             Button("Close", systemImage: "xmark") { withAnimation(.snappy) { model.close(tab) } }
                 .labelStyle(.iconOnly)
+                // Every row has one, so VoiceOver names the tab it closes.
+                .accessibilityLabel("Close \(tab.title ?? tab.url?.host() ?? "New Tab")")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(active ? .primary : .secondary)
                 .frame(width: 44)
@@ -219,7 +222,6 @@ struct HomeBar: View {
                 HomeMenu(inDock: true)
             } nub: {
                 RailGlyph(symbol: searchSymbol, size: 30)
-                    .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(.white)
                     .background(Theme.brand.gradient, in: .circle)
             }
@@ -287,6 +289,7 @@ private struct TodayGrid: View {
     let tabs: [SidebarItem]
     let tint: Color
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .subheadline) private var minCardWidth: CGFloat = 100
 
     var body: some View {
@@ -299,7 +302,7 @@ private struct TodayGrid: View {
                 TabCard(tab: tab, tint: tint)
             }
         }
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: tabs.map(\.id))
+        .animation(reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.4, dampingFraction: 0.8), value: tabs.map(\.id))
     }
 }
 

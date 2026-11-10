@@ -45,6 +45,8 @@ final class MacModel {
     @ObservationIgnored private var started = false
     /// First launch: the first main window to appear shows the setup flow.
     @ObservationIgnored var needsOnboarding = false
+    /// The stale-tab sweep waits until a restored window has its tab back, which keeps that tab out of the sweep.
+    @ObservationIgnored private var holdsSweeps = true
 
     init() {
         Preferences.registerDefaults()
@@ -62,8 +64,9 @@ final class MacModel {
             for page in awaitingBlockLists { lists.forEach(page.controller.add); page.load() }
             awaitingBlockLists = []
         }
+        let store: BoazStore
         do {
-            let store = try BoazStore.onDisk()
+            store = try BoazStore.onDisk()
             self.store = store
             let sync = LibrarySync(store: store)
             self.sync = sync
@@ -78,7 +81,11 @@ final class MacModel {
             try StarterLibrary.seedIfEmpty(store)
             if !askedEarly { needsOnboarding = Onboarding.shouldShow(store) }
             Task { await sync.start() }
-            archiveStaleTabs()
+            // A launch without a main window (a link to Little Boaz) has nothing to restore.
+            Task {
+                try? await Task.sleep(for: .seconds(10))
+                releaseSweeps()
+            }
             registerDevice()
             Task { await archiveLoop() }
             Task { await fetchLoop(sync) }
@@ -90,9 +97,30 @@ final class MacModel {
                     Task { await sync.syncNow() }
                 }
             }
-            for try await snapshot in store.sidebarUpdates() { sidebar = snapshot }
         } catch {
             loadError = String(describing: error)
+            return
+        }
+        await observeSidebar(store)
+    }
+
+    /// Follows the library for the life of the app. Any database error ends an observation, so it starts again,
+    /// backing off while the errors persist.
+    private func observeSidebar(_ store: BoazStore) async {
+        var failures = 0
+        while !Task.isCancelled {
+            do {
+                for try await snapshot in store.sidebarUpdates() {
+                    failures = 0
+                    sidebar = snapshot
+                }
+                return
+            } catch {
+                failures += 1
+                // Windows waiting for a library that never loaded stop waiting.
+                if sidebar.spaces.isEmpty { loadError = String(describing: error) }
+                try? await Task.sleep(for: .seconds(min(1 << min(failures, 5), 30)))
+            }
         }
     }
 
@@ -115,7 +143,7 @@ final class MacModel {
     /// Moves Today tabs untouched for the chosen interval into the archive (same setting as iOS).
     func archiveStaleTabs() {
         let interval = Preferences.archiveAfter
-        guard interval != .never, let store else { return }
+        guard interval != .never, !holdsSweeps, let store else { return }
         Task {
             do {
                 let count = try await store.archiveStaleTabs(olderThan: TimeInterval(interval.rawValue), onDevice: deviceID)
@@ -124,6 +152,13 @@ final class MacModel {
                 showToast("Couldn't archive tabs: \(error.localizedDescription)")
             }
         }
+    }
+
+    /// Lets the stale-tab sweep run, once a main window has restored its tab (or there was none to restore).
+    func releaseSweeps() {
+        guard holdsSweeps else { return }
+        holdsSweeps = false
+        archiveStaleTabs()
     }
 
     /// Refreshes this Mac's name and last-seen time, so the iPhone can say which Mac a tab is open on.
@@ -243,8 +278,9 @@ final class MacModel {
         return store
     }
 
-    func historySuggestions(_ query: String) -> [HistoryVisit] {
-        (try? store?.historySuggestions(matching: query, limit: 6)) ?? []
+    func historySuggestions(_ query: String) async -> [HistoryVisit] {
+        guard let store else { return [] }
+        return (try? await store.historySuggestions(matching: query, limit: 6)) ?? []
     }
 
     // MARK: Tabs
@@ -274,7 +310,8 @@ final class MacModel {
         guard var item = item(tabID) else { return }
         // A pinned or favorite tab keeps its saved address and title; only Today tabs follow the page.
         let pinned = isPinned(item)
-        let newURL = pinned ? item.url : url ?? item.url
+        // WebKit shows about:blank for a load it refused outright; the tab keeps the address it was asked for.
+        let newURL = pinned || url?.absoluteString == "about:blank" ? item.url : url ?? item.url
         let newTitle = title.isEmpty || (pinned && item.title != nil) ? item.title : title
         if item.url != newURL || item.title != newTitle {
             item.url = newURL
@@ -282,7 +319,7 @@ final class MacModel {
             commit(item)
         }
         if let url, url.scheme?.hasPrefix("http") == true {
-            try? store?.recordVisit(profileID: item.profileID, url: url, title: title.isEmpty ? newTitle : title)
+            store?.recordVisit(profileID: item.profileID, url: url, title: title.isEmpty ? newTitle : title)
         }
     }
 
@@ -294,12 +331,15 @@ final class MacModel {
     }
 
     private func archiveEntry(_ tab: SidebarItem, reason: String) -> (tab: SidebarItem, archiveID: String?)? {
+        // A second close of the same tab (a double click, say) would archive it twice.
+        guard item(tab.id) != nil else { return nil }
         var removed = tab
         removed.deletedAt = .now
         sidebar.upsert(removed)
         do {
-            let archived = try store?.archive(tab, reason: reason)
-            return (tab, archived?.id)
+            // Undo after the sweep got there first would bring back a tab that is also in the archive.
+            guard case .archived(let entry)? = try store?.archive(tab, reason: reason) else { return nil }
+            return (tab, entry?.id)
         } catch {
             showToast("Couldn't archive tab: \(error.localizedDescription)")
             return nil
@@ -312,11 +352,26 @@ final class MacModel {
         let folders = sidebar.container(.unpinned, in: space.id)
             .map { sidebar.children(of: $0.id).filter { $0.kind == .folder } } ?? []
         let tabs = todayTabs(in: space) + folders.flatMap { sidebar.children(of: $0.id).filter { $0.kind == .tab } }
-        let archived = tabs.compactMap { archiveEntry($0, reason: "cleared") }
-        guard !archived.isEmpty else { return }
-        commit(folders.map { var folder = $0; folder.deletedAt = .now; return folder })
-        closedTabs.append(archived + folders.map { (tab: $0, archiveID: nil) })
-        showToast("Archived \(archived.count) tab\(archived.count == 1 ? "" : "s")", canUndo: true)
+        guard !tabs.isEmpty, let store else { return }
+        let now = Date.now
+        let emptied = folders.map { var folder = $0; folder.deletedAt = now; folder.modifiedAt = now; return folder }
+        let archived: [ArchiveOutcome]
+        do {
+            archived = try store.archive(tabs, reason: "cleared", saving: emptied, at: now)
+        } catch {
+            showToast("Couldn't archive tabs: \(error.localizedDescription)")
+            return
+        }
+        var updated = sidebar
+        for item in tabs.map({ var tab = $0; tab.deletedAt = now; return tab }) + emptied { updated.upsert(item) }
+        sidebar = updated
+        // Tabs the sweep archived first stay archived on Undo.
+        let entries = zip(tabs, archived).compactMap { tab, outcome -> (tab: SidebarItem, archiveID: String?)? in
+            guard case .archived(let entry) = outcome else { return nil }
+            return (tab, entry?.id)
+        }
+        closedTabs.append(entries + folders.map { (tab: $0, archiveID: nil) })
+        showToast("Archived \(tabs.count) tab\(tabs.count == 1 ? "" : "s")", canUndo: true)
     }
 
     /// Restores the last close (all of a Clear's tabs) and returns the first restored tab.
@@ -452,7 +507,8 @@ final class MacModel {
     func commit(_ items: [SidebarItem]) {
         let items = items.map { var item = $0; item.modifiedAt = .now; return item }
         for item in items { sidebar.upsert(item) }
-        do { try store?.save(items) } catch { showToast("Couldn't save: \(error.localizedDescription)") }
+        // Every tab click and navigation lands here, so the write never holds up the main thread.
+        store?.saveInBackground(items) { [weak self] error in self?.showToast("Couldn't save: \(error.localizedDescription)") }
     }
 
     func showToast(_ message: String, canUndo: Bool = false) {

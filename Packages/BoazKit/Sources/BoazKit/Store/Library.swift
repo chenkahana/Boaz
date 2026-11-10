@@ -10,14 +10,40 @@ public struct HistoryVisit: Codable, Identifiable, Hashable, Sendable, Fetchable
     public var visitedAt: Date
 
     public static let databaseTableName = "historyVisit"
+
+    /// Whether the title or address contains `query`, as the history search matches it.
+    public func matches(_ query: String) -> Bool {
+        url.absoluteString.localizedCaseInsensitiveContains(query) || title?.localizedCaseInsensitiveContains(query) == true
+    }
+}
+
+extension ArchiveItem {
+    /// Whether the title or address contains `query`, as the archive search matches it.
+    public func matches(_ query: String) -> Bool {
+        url.absoluteString.localizedCaseInsensitiveContains(query) || title?.localizedCaseInsensitiveContains(query) == true
+    }
+}
+
+/// What archiving a tab did.
+public enum ArchiveOutcome: Sendable {
+    /// The tab went to the archive. `item` is its entry, which a tab without an address doesn't get.
+    case archived(ArchiveItem?)
+    /// It was archived already (a close racing the stale-tab sweep, say), so nothing changed.
+    case alreadyArchived
+
+    /// The new archive entry, if any.
+    public var item: ArchiveItem? {
+        if case .archived(let item) = self { item } else { nil }
+    }
 }
 
 extension BoazStore {
     // MARK: History
 
-    /// Records a visit. Repeated loads of the same URL within ten minutes update the existing visit.
-    public func recordVisit(profileID: String, url: URL, title: String?, at date: Date = .now) throws {
-        try writer.write { db in
+    /// Records a visit. Repeated loads of the same URL within ten minutes update the existing visit. Queued like
+    /// `saveInBackground`, so navigating never waits on the database.
+    public func recordVisit(profileID: String, url: URL, title: String?, at date: Date = .now) {
+        writeInBackground { db in
             if var last = try HistoryVisit.order(Column("visitedAt").desc).fetchOne(db),
                last.url == url, date.timeIntervalSince(last.visitedAt) < 600 {
                 if let title, !title.isEmpty { last.title = title }
@@ -30,29 +56,51 @@ extension BoazStore {
         }
     }
 
-    /// Most recent visits, newest first, optionally filtered by title or address.
-    public func history(matching query: String = "", limit: Int = 300) throws -> [HistoryVisit] {
-        try writer.read { db in
+    /// Drops the visit just recorded for `hop`, an address the server redirected away from, so one load leaves one
+    /// entry. The redirect's target may already be recorded after it, so the last two visits are checked, and only
+    /// a visit from the last half minute goes. Queued in turn with `recordVisit`.
+    public func forgetRedirectedVisit(to hop: URL, at date: Date = .now) {
+        writeInBackground { db in
+            let recent = try HistoryVisit.order(Column("visitedAt").desc).limit(2).fetchAll(db)
+            guard let visit = recent.first(where: { $0.url == hop }), date.timeIntervalSince(visit.visitedAt) < 30
+            else { return }
+            try visit.delete(db)
+        }
+    }
+
+    /// Most recent visits, newest first, optionally filtered by title or address. Searching scans the whole
+    /// history, so it runs on the database's queue, never the caller's.
+    public func history(matching query: String = "", limit: Int = 300) async throws -> [HistoryVisit] {
+        let pattern = Self.containsPattern(query)
+        return try await writer.read { db in
             var request = HistoryVisit.order(Column("visitedAt").desc).limit(limit)
             if !query.isEmpty {
-                let pattern = "%\(query)%"
-                request = request.filter(Column("url").like(pattern) || Column("title").like(pattern))
+                request = request.filter(Column("url").like(pattern, escape: "\\")
+                                         || Column("title").like(pattern, escape: "\\"))
             }
             return try request.fetchAll(db)
         }
     }
 
-    /// One entry per address, most recently visited first, for search suggestions.
-    public func historySuggestions(matching query: String, limit: Int = 5) throws -> [HistoryVisit] {
+    /// One entry per address, most recently visited first, for search suggestions. Runs on the database's queue.
+    public func historySuggestions(matching query: String, limit: Int = 5) async throws -> [HistoryVisit] {
         guard !query.isEmpty else { return [] }
-        let pattern = "%\(query)%"
-        return try writer.read { db in
+        let pattern = Self.containsPattern(query)
+        return try await writer.read { db in
             try HistoryVisit.fetchAll(db, sql: """
                 SELECT id, profileID, url, title, MAX(visitedAt) AS visitedAt FROM historyVisit
-                WHERE url LIKE ? OR title LIKE ?
+                WHERE url LIKE ? ESCAPE '\\' OR title LIKE ? ESCAPE '\\'
                 GROUP BY url ORDER BY visitedAt DESC LIMIT ?
                 """, arguments: [pattern, pattern, limit])
         }
+    }
+
+    /// A LIKE pattern for text containing `query`, with `%` and `_` in it matched as themselves.
+    private static func containsPattern(_ query: String) -> String {
+        let escaped = query.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "%", with: "\\%")
+            .replacingOccurrences(of: "_", with: "\\_")
+        return "%\(escaped)%"
     }
 
     public func clearHistory() throws {
@@ -60,6 +108,17 @@ extension BoazStore {
     }
 
     // MARK: Archive
+
+    /// Archived tabs whose title or address contains `query`, newest first. Covers the whole archive, not only the
+    /// newest entries `archivedItems` lists, so it runs on the database's queue.
+    public func archivedItems(matching query: String, limit: Int = 500) async throws -> [ArchiveItem] {
+        let pattern = Self.containsPattern(query)
+        return try await writer.read { db in
+            try ArchiveItem.filter(Column("deletedAt") == nil)
+                .filter(Column("url").like(pattern, escape: "\\") || Column("title").like(pattern, escape: "\\"))
+                .order(Column("archivedAt").desc).limit(limit).fetchAll(db)
+        }
+    }
 
     public func archivedItems(limit: Int = 500) throws -> [ArchiveItem] {
         try writer.read { db in
@@ -70,8 +129,19 @@ extension BoazStore {
 
     /// Moves a tab into the archive: tombstones the tab and records an archive item, atomically.
     @discardableResult
-    public func archive(_ tab: SidebarItem, reason: String, at date: Date = .now) throws -> ArchiveItem? {
+    public func archive(_ tab: SidebarItem, reason: String, at date: Date = .now) throws -> ArchiveOutcome {
         try writer.write { db in try Self.archive(tab, reason: reason, at: date, in: db) }
+    }
+
+    /// Archives several tabs, and saves `others` (such as the folders they leave empty), in one transaction, so
+    /// the sidebar observation sees one change however many tabs go.
+    @discardableResult
+    public func archive(_ tabs: [SidebarItem], reason: String, saving others: [SidebarItem] = [],
+                        at date: Date = .now) throws -> [ArchiveOutcome] {
+        try writer.write { db in
+            for record in others { try record.save(db) }
+            return try tabs.map { try Self.archive($0, reason: reason, at: date, in: db) }
+        }
     }
 
     /// Archives Today tabs that haven't been active for `interval`. Pinned and favorite tabs are never archived.
@@ -121,15 +191,17 @@ extension BoazStore {
         }
     }
 
-    static func archive(_ tab: SidebarItem, reason: String, at date: Date, in db: Database) throws -> ArchiveItem? {
+    static func archive(_ tab: SidebarItem, reason: String, at date: Date, in db: Database) throws -> ArchiveOutcome {
+        // One archive entry is enough.
+        guard try SidebarItem.fetchOne(db, key: tab.id)?.deletedAt == nil else { return .alreadyArchived }
         var tab = tab
         tab.deletedAt = date
         tab.modifiedAt = date
         try tab.save(db)
-        guard let url = tab.url else { return nil }
+        guard let url = tab.url else { return .archived(nil) }
         let item = ArchiveItem(id: UUID().uuidString, profileID: tab.profileID, spaceID: tab.spaceID,
                                title: tab.title, url: url, archivedAt: date, reason: reason, modifiedAt: date)
         try item.insert(db)
-        return item
+        return .archived(item)
     }
 }

@@ -31,22 +31,25 @@ enum Downloads {
     /// Fetches `response.url` with the originating page's cookies and saves it under Documents/Downloads.
     /// Returns the saved file's URL and suggested display name.
     @MainActor
-    static func save(_ response: URLResponse, cookieStore: WKHTTPCookieStore) async throws -> (url: URL, name: String) {
+    static func save(_ response: URLResponse, dataStore: WKWebsiteDataStore) async throws -> (url: URL, name: String) {
         guard let sourceURL = response.url else { throw DownloadError.noFilename }
-        return try await save(sourceURL, cookieStore: cookieStore)
+        return try await save(sourceURL, dataStore: dataStore)
     }
 
     /// Fetches `sourceURL` with the page's cookies and saves it to `directory()`.
     @MainActor
-    static func save(_ sourceURL: URL, cookieStore: WKHTTPCookieStore) async throws -> (url: URL, name: String) {
+    static func save(_ sourceURL: URL, dataStore: WKWebsiteDataStore) async throws -> (url: URL, name: String) {
         var request = URLRequest(url: sourceURL)
-        let cookies = await cookies(for: sourceURL, in: cookieStore)
+        let cookies = await cookies(for: sourceURL, in: dataStore.httpCookieStore)
         if !cookies.isEmpty {
             for (field, value) in HTTPCookie.requestHeaderFields(with: cookies) {
                 request.setValue(value, forHTTPHeaderField: field)
             }
         }
-        let (tempURL, finalResponse) = try await URLSession.shared.download(for: request)
+        // A private page's download leaves no cookies or cache behind, as the page itself doesn't.
+        let session = dataStore.isPersistent ? URLSession.shared : URLSession(configuration: .ephemeral)
+        defer { if session !== URLSession.shared { session.finishTasksAndInvalidate() } }
+        let (tempURL, finalResponse) = try await session.download(for: request)
         let name = suggestedName(for: finalResponse, fallbackURL: sourceURL)
         let dest = uniqueDestination(named: name, in: try directory())
         try? FileManager.default.removeItem(at: dest)

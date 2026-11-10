@@ -25,8 +25,8 @@ struct TabPane: View {
                 .overlay(alignment: .top) { LoadingGlow(page: page) }
         }
         .task(id: ObjectIdentifier(page)) { await track(page) }
-        .onChange(of: page.url) { browser.didNavigate(tab.id, url: page.url, title: page.title) }
-        .onChange(of: page.title) { browser.didNavigate(tab.id, url: page.url, title: page.title) }
+        .onChange(of: page.url) { browser.didChangeURL(tab.id) }
+        .onChange(of: page.title) { browser.didChangeTitle(tab.id) }
         .onAppear { browser.updateSiteColor(tab.id, page: page) }
         .onChange(of: page.url) { browser.updateSiteColor(tab.id, page: page) }
         .onChange(of: page.isLoading) { browser.updateSiteColor(tab.id, page: page) }
@@ -37,12 +37,23 @@ struct TabPane: View {
     /// resubscribes rather than stopping for the life of the tab.
     private func track(_ page: WebPage) async {
         failure = nil
+        var requested: URL?
         while !Task.isCancelled {
             do {
                 for try await event in page.navigations {
                     switch event {
-                    case .startedProvisionalNavigation: failure = nil
+                    case .startedProvisionalNavigation:
+                        failure = nil
+                        requested = page.url
+                    case .receivedServerRedirect:
+                        // A hop to the same address, or an event read after the redirect, is the page shown now.
+                        if let hop = requested, hop != page.url { browser.didRedirect(tab.id, from: hop) }
+                        requested = page.url
                     case .committed, .finished:
+                        if event == .committed, let blocked = LoadFailure(blocked: requested, committed: page.url) {
+                            failure = blocked
+                        }
+                        if event == .committed { requested = nil }
                         if PageZoom.level(for: page.url, isPrivate: browser.isIncognito) != 1 {
                             PageZoom.apply(to: page, isPrivate: browser.isIncognito)
                         }
@@ -80,6 +91,14 @@ struct LoadFailure {
         default: nsError.localizedDescription
         }
         url = nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL
+    }
+
+    /// WebKit refuses some ports (1, 9, 25 and so on) without any navigation error: it commits about:blank instead.
+    init?(blocked requested: URL?, committed: URL?) {
+        guard committed?.absoluteString == "about:blank", let requested, requested.scheme?.hasPrefix("http") == true
+        else { return nil }
+        message = "Boaz couldn't open this address."
+        url = requested
     }
 }
 

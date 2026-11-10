@@ -103,6 +103,7 @@ struct OnboardingView: View {
                         .labelStyle(.iconOnly)
                         .buttonStyle(.glass)
                         .tint(.white.opacity(0.12))
+                        .foregroundStyle(.white)
                         .keyboardShortcut("[", modifiers: .command)
                         .help("Back")
                 }
@@ -112,6 +113,7 @@ struct OnboardingView: View {
                 Button(secondary) { go(by: 1) }
                     .buttonStyle(.glass)
                     .tint(.white.opacity(0.12))
+                    .foregroundStyle(.white)
                     .keyboardShortcut(.cancelAction)
             }
             Button(primary, action: primaryAction)

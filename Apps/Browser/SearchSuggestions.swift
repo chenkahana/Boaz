@@ -33,6 +33,7 @@ extension SearchEngine {
     @ObservationIgnored private var query = ""
     @ObservationIgnored private var engine = SearchEngine.duckDuckGo
     @ObservationIgnored private var request: Task<Void, Never>?
+    @ObservationIgnored private var lastWarm: (engine: SearchEngine, at: Date)?
     @ObservationIgnored private var cache = LRUCache(capacity: 120)
     /// Rows shown at most, so an engine that answers 20 doesn't push the local matches away.
     private let limit = 8
@@ -76,9 +77,12 @@ extension SearchEngine {
         request = Task { [weak self] in await self?.load(query, engine: engine) }
     }
 
-    /// Opens the connection to the engine so the first keystroke's request doesn't pay for DNS and TLS.
+    /// Opens the connection to the engine so the first keystroke's request doesn't pay for DNS and TLS. A connection
+    /// opened in the last minute is still open, so opening the panel again sends nothing.
     func warm(_ engine: SearchEngine) {
-        guard let url = Self.url(engine, query: "") else { return }
+        guard lastWarm.map({ $0.engine != engine || $0.at.timeIntervalSinceNow < -60 }) ?? true,
+              let url = Self.url(engine, query: "") else { return }
+        lastWarm = (engine, .now)
         Task { _ = try? await Self.session.data(for: Self.request(url)) }
     }
 
@@ -92,7 +96,9 @@ extension SearchEngine {
     private func load(_ query: String, engine: SearchEngine) async {
         // Not cancelled means no newer update replaced this request.
         defer { if !Task.isCancelled { request = nil } }
-        guard let url = Self.url(engine, query: query),
+        // A fast typist's next keystroke usually comes sooner, and would cancel this request right after sending it.
+        try? await Task.sleep(for: .milliseconds(100))
+        guard !Task.isCancelled, let url = Self.url(engine, query: query),
               let (data, response) = try? await Self.session.data(for: Self.request(url)),
               (response as? HTTPURLResponse)?.statusCode == 200,
               let answer = Self.parse(data) else { return }

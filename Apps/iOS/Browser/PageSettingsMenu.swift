@@ -56,6 +56,8 @@ struct PageSettingsPanel: View {
         }
         // Rows scrolling past the panel's rounded bottom corners stay inside them.
         .clipShape(.rect(cornerRadius: BottomPanelStyle.cornerRadius))
+        // A named container: the label mustn't replace each row's own.
+        .accessibilityElement(children: .contain)
         .accessibilityLabel("Page Settings")
     }
 
@@ -116,7 +118,7 @@ struct PageSettingsPanel: View {
             }
             .disabled(forwardList.isEmpty)
             Button {
-                if page.isLoading { page.stopLoading() } else { _ = page.reload() }
+                if page.isLoading { page.stopLoading() } else { page.reload(tabURL: tab.url) }
             } label: {
                 NavTile(symbol: page.isLoading ? "xmark" : "arrow.clockwise", title: page.isLoading ? "Stop" : "Reload")
             }

@@ -7,32 +7,46 @@ enum SnapshotCache {
         URL.cachesDirectory.appending(path: "Snapshots", directoryHint: .isDirectory)
     }
 
-    nonisolated private static func file(for tabID: String) -> URL { folder.appending(path: tabID) }
+    /// Saves and removals run in order, so a tab closed right after its preview was taken leaves no file behind.
+    nonisolated private static let queue = DispatchQueue(label: "com.chenkahana.boaz.snapshots", qos: .utility)
+
+    /// Nil unless the id is a plain file name: ids from a synced folder's JSON can't be trusted to stay in `folder`.
+    nonisolated private static func file(for tabID: String) -> URL? {
+        guard !tabID.isEmpty, !tabID.contains("/"), tabID != ".", tabID != ".." else { return nil }
+        return folder.appending(path: tabID)
+    }
 
     static func save(_ data: Data, for tabID: String) {
-        Task.detached(priority: .utility) {
+        guard let file = file(for: tabID) else { return }
+        queue.async {
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            try? data.write(to: file(for: tabID), options: .atomic)
+            try? data.write(to: file, options: .atomic)
         }
     }
 
     static func remove(_ tabID: String) {
-        Task.detached(priority: .utility) { try? FileManager.default.removeItem(at: file(for: tabID)) }
+        guard let file = file(for: tabID) else { return }
+        queue.async { try? FileManager.default.removeItem(at: file) }
     }
 
-    /// The saved previews of `tabIDs`. Every other tab's file (archived or removed meanwhile) is deleted.
-    static func load(keeping tabIDs: Set<String>) async -> [String: UIImage] {
-        await Task.detached(priority: .utility) {
-            let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []
-            var images: [String: UIImage] = [:]
-            for file in files {
-                if tabIDs.contains(file.lastPathComponent), let image = UIImage(contentsOfFile: file.path) {
-                    images[file.lastPathComponent] = image
-                } else {
-                    try? FileManager.default.removeItem(at: file)
+    /// The saved previews of `tabIDs`. Other tabs' files (archived or removed meanwhile) are deleted, except those
+    /// written since `cutoff`: they belong to tabs opened after `tabIDs` was read. Runs in turn with saves and removals.
+    static func load(keeping tabIDs: Set<String>, writtenBefore cutoff: Date) async -> [String: UIImage] {
+        await withCheckedContinuation { continuation in
+            queue.async {
+                let files = (try? FileManager.default.contentsOfDirectory(
+                    at: folder, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+                var images: [String: UIImage] = [:]
+                for file in files {
+                    if tabIDs.contains(file.lastPathComponent), let image = UIImage(contentsOfFile: file.path) {
+                        images[file.lastPathComponent] = image
+                    } else if let written = try? file.resourceValues(forKeys: [.contentModificationDateKey])
+                        .contentModificationDate, written < cutoff {
+                        try? FileManager.default.removeItem(at: file)
+                    }
                 }
+                continuation.resume(returning: images)
             }
-            return images
-        }.value
+        }
     }
 }

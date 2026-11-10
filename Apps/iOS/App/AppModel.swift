@@ -43,15 +43,17 @@ final class AppModel {
     var isIncognito = false
     private(set) var incognitoTabs: [SidebarItem] = []
     /// Last rendered image of each tab, shown on its card. Saved in Caches (`SnapshotCache`), except private tabs'.
-    var snapshots: [String: UIImage] = [:]
+    /// Observed per tab, so one new preview redraws only its own card.
+    let snapshots = ObservedDictionary<String, UIImage>()
     /// The folded layout's tab carousel of Today tabs, over the page or the home screen.
     var showsCoverFlow = false
     /// Counts requests to open the carousel, so one made while it is still closing brings it back.
     private(set) var coverFlowRequests = 0
     /// The page's settings panel, from the rail's "…" (the search panel is `searchTarget`; one panel at a time).
     var showsPageSettings = false
-    /// Each tab's page colors along the viewport's edges, which the screen edges and chrome take on.
-    private(set) var siteEdges: [String: SiteEdges] = [:]
+    /// Each tab's page colors along the viewport's edges, which the screen edges and chrome take on. Observed per
+    /// tab, so a background tab's sample doesn't redraw the one on screen.
+    let siteEdges = ObservedDictionary<String, SiteEdges>()
     /// Bumped on every edge-swipe back/forward commit; `TabBrowser` fires a haptic off it.
     var backForwardHaptic = 0
 
@@ -68,6 +70,13 @@ final class AppModel {
     @ObservationIgnored private var awaitingBlockLists: [(controller: WKUserContentController, load: () -> Void)] = []
     /// Runs once the current sheet has finished dismissing (a tab can't present while a sheet is leaving).
     @ObservationIgnored private var afterSheet: (() -> Void)?
+    @ObservationIgnored private var historyLookup: Task<Void, Never>?
+    /// Tabs whose title is cooling down after a save, and whether it changed again meanwhile (`didChangeTitle`).
+    @ObservationIgnored private var titleCooldowns: [String: Bool] = [:]
+    /// The tab ids `pruneSnapshots` last saw.
+    @ObservationIgnored private var liveItemIDs: Set<String> = []
+    /// The stale-tab sweep waits until the tab open at the last quit is back on screen, which keeps it out of the sweep.
+    @ObservationIgnored private var holdsSweeps = true
     private let maxLivePages = 8
     /// This iPhone, in the device list: Today shows only the tabs opened here (see `SidebarItem.deviceID`).
     let deviceID = Device.localID(in: UserDefaults(suiteName: BoazStore.appGroup) ?? .standard)
@@ -100,7 +109,7 @@ final class AppModel {
         }
         do {
             let sync = try prepareSync()
-            guard let store = self.store else { return }
+            guard let store else { return }
             // A device joining an existing library gets it from there; a lone device starts with a Personal space.
             if try store.isEmpty() {
                 // Welcome goes up at once; the library (joined or starter) lands behind it.
@@ -111,19 +120,41 @@ final class AppModel {
             showOnboarding = showOnboarding || Onboarding.shouldShow(store)
             Task { await restoreSnapshots(from: store) }
             Task { await sync.start() }
-            archiveStaleTabs()
             registerDevice()
-            for try await snapshot in store.sidebarUpdates() {
-                sidebar = snapshot
-                sidebarGeneration += 1
-                // Also how the stale-tab sweep's archived tabs lose their previews: the sweep lands as an update.
-                pruneSnapshots()
-                if currentSpace == nil { currentSpaceID = snapshot.spaces.first?.id }
-                if sidebarGeneration == 1 { reopenLastTab() }
-            }
+            await observeSidebar(store)
         } catch {
             Self.log.error("Opening the library failed: \(String(describing: error))")
             showToast("Couldn't open your library. Try reopening Boaz.")
+        }
+    }
+
+    /// Follows the library for the life of the app. Any database error ends an observation (a fetch interrupted
+    /// by the background suspension, say), so it starts again, backing off while the errors persist.
+    private func observeSidebar(_ store: BoazStore) async {
+        var failures = 0
+        while !Task.isCancelled {
+            do {
+                for try await snapshot in store.sidebarUpdates() {
+                    failures = 0
+                    sidebar = snapshot
+                    sidebarGeneration += 1
+                    // Also how the stale-tab sweep's archived tabs lose their previews: the sweep lands as an update.
+                    pruneSnapshots()
+                    if currentSpace == nil { currentSpaceID = snapshot.spaces.first?.id }
+                    if sidebarGeneration == 1 {
+                        reopenLastTab()
+                        holdsSweeps = false
+                        archiveStaleTabs()
+                    }
+                }
+                return
+            } catch {
+                failures += 1
+                Self.log.error("Following the library failed: \(String(describing: error))")
+                // Only a library that never showed up is worth telling the user about.
+                if failures == 1, sidebarGeneration == 0 { showToast("Couldn't open your library. Try reopening Boaz.") }
+                try? await Task.sleep(for: .seconds(min(1 << min(failures, 5), 30)))
+            }
         }
     }
 
@@ -162,7 +193,7 @@ final class AppModel {
     /// Moves Today tabs untouched for the chosen interval into the archive, as Arc does.
     func archiveStaleTabs() {
         let interval = Preferences.archiveAfter
-        guard interval != .never, let store else { return }
+        guard interval != .never, !holdsSweeps, let store else { return }
         Task {
             do {
                 let count = try await store.archiveStaleTabs(olderThan: TimeInterval(interval.rawValue), onDevice: deviceID)
@@ -176,9 +207,15 @@ final class AppModel {
 
     /// Brings back the previews saved before the last quit, and forgets those of tabs that are gone.
     private func restoreSnapshots(from store: BoazStore) async {
+        let started = Date.now
         guard let ids = try? await store.loadSidebar().items.map(\.id) else { return }
-        let saved = await SnapshotCache.load(keeping: Set(ids))
-        snapshots.merge(saved) { live, _ in live }
+        let saved = await SnapshotCache.load(keeping: Set(ids), writtenBefore: started)
+        for (id, image) in saved where snapshots[id] == nil { snapshots[id] = image }
+        // A snapshot that landed meanwhile (the launch sweep's, say) was pruned before these arrived.
+        if sidebarGeneration > 0 {
+            liveItemIDs = []
+            pruneSnapshots()
+        }
     }
 
     /// Refreshes this iPhone's name and last-seen time for the user's other devices.
@@ -319,8 +356,13 @@ final class AppModel {
     }
 
     /// Forgets the previews of tabs that are gone: archived by the stale-tab sweep, or closed on another device.
+    /// Most updates only edit tabs that are still there, so nothing is checked until the set of tabs changes.
     private func pruneSnapshots() {
-        for id in snapshots.keys where !isLive(id) {
+        let ids = Set(sidebar.items.map(\.id))
+        guard ids != liveItemIDs else { return }
+        liveItemIDs = ids
+        let live = ids.union(incognitoTabs.map(\.id))
+        for id in snapshots.keys where !live.contains(id) {
             snapshots[id] = nil
             SnapshotCache.remove(id)
         }
@@ -366,6 +408,7 @@ final class AppModel {
         pages[tabID] = nil
         pageRecency.removeAll { $0 == tabID }
         snapshots[tabID] = nil
+        siteEdges[tabID] = nil
         SnapshotCache.remove(tabID)
         if isPrivate(tab) {
             incognitoTabs.removeAll { $0.id == tabID }
@@ -380,7 +423,7 @@ final class AppModel {
     private func handleDownload(_ response: URLResponse, dataStore: WKWebsiteDataStore) {
         Task { [weak self] in
             do {
-                let (_, name) = try await Downloads.save(response, cookieStore: dataStore.httpCookieStore)
+                let (_, name) = try await Downloads.save(response, dataStore: dataStore)
                 self?.showToast("Downloaded \(name)")
             } catch {
                 Self.log.error("Download failed: \(String(describing: error))")
@@ -395,7 +438,8 @@ final class AppModel {
         else { return }
         // A pinned tab keeps its saved address and title; only Today tabs follow the page.
         let pinned = isPinned(item)
-        let newURL = pinned ? item.url : url ?? item.url
+        // WebKit shows about:blank for a load it refused outright; the tab keeps the address it was asked for.
+        let newURL = pinned || url?.absoluteString == "about:blank" ? item.url : url ?? item.url
         let newTitle = title.isEmpty || (pinned && item.title != nil) ? item.title : title
         if item.url != newURL || item.title != newTitle {
             item.url = newURL
@@ -403,7 +447,33 @@ final class AppModel {
             commit(item)
         }
         if !isPrivate(item), let url, url.scheme?.hasPrefix("http") == true {
-            try? store?.recordVisit(profileID: item.profileID, url: url, title: title.isEmpty ? newTitle : title)
+            store?.recordVisit(profileID: item.profileID, url: url, title: title.isEmpty ? newTitle : title)
+        }
+    }
+
+    /// A server redirect leaves the address it left in history as a second entry for the same load.
+    func didRedirect(_ tab: SidebarItem, from hop: URL) {
+        guard !isPrivate(tab) else { return }
+        store?.forgetRedirectedVisit(to: hop)
+    }
+
+    /// Pages that animate their title (unread counts, timers) would otherwise save, sync and refetch the whole
+    /// sidebar on every tick. A title change is saved at once, then at most every two seconds with the latest title.
+    /// A new page gets its title saved at once, not after the previous page's cooldown.
+    func didChangeURL(_ tab: SidebarItem) {
+        titleCooldowns[tab.id] = nil
+        guard let page = pages[tab.id] else { return }
+        didNavigate(tab, url: page.url, title: page.title)
+    }
+
+    func didChangeTitle(_ tab: SidebarItem) {
+        guard titleCooldowns[tab.id] == nil else { titleCooldowns[tab.id] = true; return }
+        guard let page = pages[tab.id] else { return }
+        didNavigate(tab, url: page.url, title: page.title)
+        titleCooldowns[tab.id] = false
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            if titleCooldowns.removeValue(forKey: tab.id) == true { didChangeTitle(tab) }
         }
     }
 
@@ -416,6 +486,8 @@ final class AppModel {
     }
 
     func submitSearch() {
+        // A second Go or suggestion tap while the panel closes would open a duplicate tab.
+        guard searchTarget != nil else { return }
         defer { searchTarget = nil }
         guard let url = SearchInput.url(for: searchText, searchTemplate: Preferences.searchEngine.template) else { return }
         if searchTarget == .currentTab, let tab = activeTab {
@@ -457,15 +529,22 @@ final class AppModel {
         activeTabID = tab.id
     }
 
-    /// The page open when the app last closed, else the most recently used of this iPhone's tabs.
+    /// The page open when the app last closed, else the most recently used of this iPhone's tabs. Opened in its own
+    /// space, and marked active like any tab the user opens (which keeps it out of the launch sweep). Unlike
+    /// `activate`, it leaves a search panel a deep link opened meanwhile up.
     private func reopenLastTab() {
         guard activeTabID == nil else { return }
-        let open = sidebar.items.filter { $0.kind == .tab && $0.deletedAt == nil }
-        if let id = UserDefaults.standard.string(forKey: Self.lastTabKey), open.contains(where: { $0.id == id }) {
-            activeTabID = id
-        } else if let space = currentSpace {
-            activeTabID = todayTabs(in: space).max { ($0.lastActiveAt ?? .distantPast) < ($1.lastActiveAt ?? .distantPast) }?.id
-        }
+        let last = UserDefaults.standard.string(forKey: Self.lastTabKey)
+        guard var tab = sidebar.items.first(where: { $0.id == last && $0.kind == .tab })
+                ?? currentSpace.flatMap({ space in
+                    todayTabs(in: space).max { ($0.lastActiveAt ?? .distantPast) < ($1.lastActiveAt ?? .distantPast) }
+                })
+        else { return }
+        tab.lastActiveAt = .now
+        tab.isUnread = false
+        commit(tab)
+        if let space = tab.spaceID { currentSpaceID = space }
+        activeTabID = tab.id
     }
 
     func openCoverFlow() {
@@ -481,10 +560,13 @@ final class AppModel {
 
     /// Closing sends a tab to the archive (like Arc); undo brings it back and removes the archive entry.
     func close(_ tab: SidebarItem) {
+        // A second close of the same tab (a double tap, say) would archive it twice.
+        guard isLive(tab.id) else { return }
         if activeTabID == tab.id { activeTabID = neighbor(of: tab)?.id }
         pages[tab.id] = nil
         pageRecency.removeAll { $0 == tab.id }
         snapshots[tab.id] = nil
+        siteEdges[tab.id] = nil
         SnapshotCache.remove(tab.id)
         if isPrivate(tab) {
             incognitoTabs.removeAll { $0.id == tab.id }
@@ -494,8 +576,9 @@ final class AppModel {
         removed.deletedAt = .now
         sidebar.upsert(removed)
         do {
-            let archived = try store?.archive(tab, reason: "closed")
-            closedTabs.append((tab, archived?.id))
+            // Undo after the sweep got there first would bring back a tab that is also in the archive.
+            guard case .archived(let entry)? = try store?.archive(tab, reason: "closed") else { return }
+            closedTabs.append((tab, entry?.id))
             showToast("Tab archived", canUndo: true)
         } catch {
             Self.log.error("Archiving a tab failed: \(String(describing: error))")
@@ -582,7 +665,11 @@ final class AppModel {
     func setIncognito(_ on: Bool) {
         guard on != isIncognito else { return }
         if !on {
-            for tab in incognitoTabs { pages[tab.id] = nil }
+            for tab in incognitoTabs {
+                pages[tab.id] = nil
+                snapshots[tab.id] = nil
+                siteEdges[tab.id] = nil
+            }
             pageRecency.removeAll { id in incognitoTabs.contains { $0.id == id } }
             incognitoTabs = []
             PageSettings.forgetPrivateChoices()
@@ -618,18 +705,29 @@ final class AppModel {
         var item = item
         item.modifiedAt = .now
         sidebar.upsert(item)
-        do {
-            try store?.save([item])
-        } catch {
+        // Every tab tap and navigation lands here, so the write never holds up the main thread.
+        store?.saveInBackground([item]) { [weak self] error in
             Self.log.error("Saving a sidebar item failed: \(String(describing: error))")
-            showToast("Couldn't save. Try again.")
+            self?.showToast("Couldn't save. Try again.")
         }
     }
 
+    /// Looks history up once typing pauses, off the main thread: matching scans the whole history.
     private func refreshHistorySuggestions() {
+        historyLookup?.cancel()
         let query = searchText.trimmingCharacters(in: .whitespaces)
-        historySuggestions = searchTarget == .newTab && !isIncognito && query.count > 1
-            ? (try? store?.historySuggestions(matching: query, limit: 4)) ?? [] : []
+        guard searchTarget == .newTab, !isIncognito, query.count > 1, let store else {
+            if !historySuggestions.isEmpty { historySuggestions = [] }
+            return
+        }
+        // Until the lookup lands, only rows that still match are offered (and completed to).
+        if historySuggestions.contains(where: { !$0.matches(query) }) { historySuggestions.removeAll { !$0.matches(query) } }
+        historyLookup = Task {
+            try? await Task.sleep(for: .milliseconds(100))
+            guard !Task.isCancelled, let found = try? await store.historySuggestions(matching: query, limit: 4),
+                  !Task.isCancelled else { return }
+            historySuggestions = found
+        }
     }
 
     /// Whether typing may be sent to the search engine for suggestions: never in private browsing.

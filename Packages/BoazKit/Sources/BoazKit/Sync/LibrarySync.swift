@@ -61,6 +61,11 @@ public final class LibrarySync {
     /// The fallback folder in use, if any.
     public var folderURL: URL? { folder?.folderURL }
 
+    /// Whether Sync Now can do anything: a build without the iCloud entitlement can only sync through a folder.
+    public var canSyncNow: Bool {
+        folderURL != nil || CloudKitEntitlements.missingReason(containerIdentifier: cloud.containerIdentifier) == nil
+    }
+
     /// Whether this device's library is connected to other devices (it may still be waiting for their data).
     public var isConnected: Bool { cloud.isRunning || folderURL != nil }
 

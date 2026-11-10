@@ -21,8 +21,12 @@ struct SidebarView: View {
     @State private var swipe: CGFloat = 0
 
     var body: some View {
-        let style = SpaceStyle(browser.currentSpace, scheme: browser.isIncognito ? .dark : scheme)
         let site = browser.activeSiteColor(enabled: tintWithSiteColors)
+        // An Arc theme pinned to light or dark keeps the sidebar in that appearance, as Arc does. A site's color
+        // overrides both while the sidebar wears it, so row fills and tints match the text drawn on that color.
+        let appearance = browser.isIncognito ? scheme
+            : site?.colorScheme ?? SpaceStyle.colorScheme(of: browser.currentSpace) ?? scheme
+        let style = SpaceStyle(browser.currentSpace, scheme: browser.isIncognito ? .dark : appearance)
         VStack(alignment: .leading, spacing: 8) {
             SidebarTopBar()
             AddressPill()
@@ -43,8 +47,7 @@ struct SidebarView: View {
         }
         .padding(.horizontal, 8)
         .padding(.bottom, 8)
-        // An Arc theme pinned to light or dark keeps the sidebar in that appearance, as Arc does.
-        .environment(\.colorScheme, browser.isIncognito ? scheme : SpaceStyle.colorScheme(of: browser.currentSpace) ?? scheme)
+        .environment(\.colorScheme, appearance)
         .animation(SiteColor.fade(reduceMotion: reduceMotion)) {
             $0.foregroundStyle(browser.isIncognito ? .white : site?.foreground ?? style.foreground)
         }
@@ -133,10 +136,13 @@ private struct AddressPill: View {
     @State private var hovering = false
 
     var body: some View {
-        let url = browser.activePage?.url ?? browser.activeTab?.url
+        let url = browser.activeURL
         Button { browser.commandMode = browser.activeTab == nil ? .newTab : .currentTab } label: {
             HStack(spacing: 6) {
-                if url?.scheme == "https" { Image(systemName: "lock.fill").font(.caption2).opacity(0.6) }
+                // Only for a page that loaded over HTTPS: a failed load has no certificate to vouch for.
+                if url?.scheme == "https", browser.activePage?.serverTrust != nil {
+                    Image(systemName: "lock.fill").font(.caption2).opacity(0.6)
+                }
                 Text(url?.host()?.replacingOccurrences(of: "www.", with: "") ?? "Search or enter address")
                     .font(.callout)
                     .opacity(url == nil ? 0.6 : 1)
@@ -609,6 +615,7 @@ private struct SidebarBottomBar: View {
                 Button("Import from Arc…") { browser.showImport = true }
             } label: {
                 Image(systemName: "plus").font(.system(size: 12, weight: .semibold)).frame(width: 26, height: 26)
+                    .contentShape(Rectangle())
             }
             .menuStyle(.button)
             .buttonStyle(.plain)

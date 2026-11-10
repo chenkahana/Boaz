@@ -115,8 +115,8 @@ struct TabBrowser: View {
             .sensoryFeedback(.selection, trigger: bump)
             .sensoryFeedback(.selection, trigger: model.backForwardHaptic)
             .sensoryFeedback(.impact(weight: .light), trigger: pullArmed) { old, new in new && !old }
-            .onChange(of: page.url) { model.didNavigate(tab, url: page.url, title: page.title) }
-            .onChange(of: page.title) { model.didNavigate(tab, url: page.url, title: page.title) }
+            .onChange(of: page.url) { model.didChangeURL(tab) }
+            .onChange(of: page.title) { model.didChangeTitle(tab) }
             .onChange(of: page.url) { model.restoreSiteEdges(for: tab) }
             .task(id: tab.id) { await trackNavigations(of: page) }
             .sheet(item: $readerArticle) { article in ReaderView(article: article, tint: Theme.brand) }
@@ -246,7 +246,7 @@ struct TabBrowser: View {
         reloading = true
         Task {
             do {
-                for try await event in page.reload() where event == .finished { break }
+                for try await event in page.reload(tabURL: tab.url) where event == .finished { break }
             } catch {
                 // Reload failed; still clear the indicator below.
             }
@@ -279,14 +279,21 @@ struct TabBrowser: View {
     /// cheap text-length probe used to enable/disable the Reader button. A failed load is shown.
     private func trackNavigations(of page: WebPage) async {
         readableLength = 0
+        var requested: URL?
         while !Task.isCancelled {
             do {
                 for try await event in page.navigations {
                     switch event {
                     case .startedProvisionalNavigation:
                         loadFailure = nil
+                        requested = page.url
+                    case .receivedServerRedirect:
+                        // A hop to the same address, or an event read after the redirect, is the page shown now.
+                        if let hop = requested, hop != page.url { model.didRedirect(tab, from: hop) }
+                        requested = page.url
                     case .committed:
-                        loadFailure = nil
+                        loadFailure = LoadFailure(blocked: requested, committed: page.url)
+                        requested = nil
                         applyTextSize(to: page)
                     case .finished:
                         applyTextSize(to: page)
@@ -302,6 +309,8 @@ struct TabBrowser: View {
             } catch {
                 // A failed navigation ends the sequence; go round again so later loads are still tracked.
                 if let failure = LoadFailure(error) { loadFailure = failure }
+                // Never spin if resubscribing fails straight away.
+                try? await Task.sleep(for: .milliseconds(50))
             }
         }
     }
@@ -335,13 +344,21 @@ private struct LoadFailure {
         message = nsError.localizedDescription
         url = nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL
     }
+
+    /// WebKit refuses some ports (1, 9, 25 and so on) without any navigation error: it commits about:blank instead.
+    init?(blocked requested: URL?, committed: URL?) {
+        guard committed?.absoluteString == "about:blank", let requested, requested.scheme?.hasPrefix("http") == true
+        else { return nil }
+        message = "Boaz couldn't open this address."
+        url = requested
+    }
 }
 
 private struct BrowserBar: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(ToolRailState.self) private var rail
     @Environment(\.homeControlsElsewhere) private var homeControlsElsewhere
-    @Environment(\.chromeTint) private var tint
     @Environment(\.siteEdges) private var edges
     @Environment(\.sidebar) private var sidebar
     let tab: SidebarItem
@@ -369,7 +386,7 @@ private struct BrowserBar: View {
             } nub: {
                 SiteTile(url: page.url ?? tab.url, page: page, size: 30)
             }
-            .animation(.bouncy(duration: 0.35), value: tabCount)
+            .animation(reduceMotion ? .easeOut(duration: 0.2) : .bouncy(duration: 0.35), value: tabCount)
             .popoverTip(railTips.currentTip, arrowEdge: .trailing)
         } else {
             bottomBar
@@ -402,7 +419,7 @@ private struct BrowserBar: View {
                 Button { rail.expand() } label: {
                     Text(host).font(.caption.weight(.semibold))
                         .padding(.horizontal, 14).padding(.vertical, 6)
-                        .glassEffect(.regular.tint(tint?.opacity(0.45)), in: .capsule)
+                        .glassEffect(.regular.tint(edges?.bottom.color.opacity(0.45)), in: .capsule)
                         // The capsule stays small; the target is a full 44pt.
                         .frame(minHeight: 44)
                         .contentShape(.rect)
@@ -426,7 +443,9 @@ private struct BrowserBar: View {
         .padding(.top, rail.isCollapsed ? 0 : 6)
         .padding(.bottom, rail.isCollapsed ? 0 : 4)
         .frame(maxWidth: .infinity)
+        // Like the rail's docks, the bar takes the page color it sits on, so its glass and glyphs agree.
         .chromeScheme(edges?.bottom)
+        .environment(\.chromeTint, edges?.bottom.color)
     }
 
     /// New Tab opens the search panel; pressed again, it puts it away. One panel at a time.
@@ -455,6 +474,7 @@ private struct BrowserBar: View {
 
 /// Site monogram ringed by the page's loading progress.
 private struct SiteTile: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let url: URL?
     let page: WebPage
     let size: CGFloat
@@ -471,7 +491,7 @@ private struct SiteTile: View {
                     .animation(.easeOut(duration: 0.4), value: page.isLoading)
             }
             .contentTransition(.interpolate)
-            .animation(.bouncy, value: url?.host())
+            .animation(reduceMotion ? .easeOut(duration: 0.2) : .bouncy, value: url?.host())
     }
 }
 
@@ -492,9 +512,12 @@ private struct BarIcon: View {
     @Environment(\.chromeTint) private var tint
     let symbol: String
     var isSelected = false
+    @ScaledMetric(relativeTo: .body) private var glyph: CGFloat = 17
 
     var body: some View {
         Image(systemName: symbol)
+            // Grows with Dynamic Type, but stays inside its fixed-size circle.
+            .font(.system(size: min(glyph, 26)))
             .frame(width: 44, height: 44)
             .railSelection(isSelected)
             .glassEffect(.chrome(tint), in: .circle)

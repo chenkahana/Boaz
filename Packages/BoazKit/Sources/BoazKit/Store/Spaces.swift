@@ -121,7 +121,7 @@ extension BoazStore {
             let items = try SidebarItem.filter(Column("spaceID") == id && live).fetchAll(db)
             var archived = 0
             for tab in items where tab.kind == .tab {
-                if try Self.archive(tab, reason: "spaceDeleted", at: date, in: db) != nil { archived += 1 }
+                if try Self.archive(tab, reason: "spaceDeleted", at: date, in: db).item != nil { archived += 1 }
             }
             for var item in items where item.kind != .tab {
                 item.deletedAt = date

@@ -12,15 +12,18 @@ import Security
 
     /// Nil when this process may use CloudKit with `containerIdentifier`; otherwise the reason it can't.
     public static func missingReason(containerIdentifier: String) -> String? {
-        let services = list(value(for: servicesKey))
         guard services.contains("CloudKit") || services.contains("*") else {
             return "This build isn't signed for iCloud."
         }
-        guard list(value(for: containersKey)).contains(containerIdentifier) else {
+        guard containers.contains(containerIdentifier) else {
             return "This build isn't entitled to the iCloud container \(containerIdentifier)."
         }
         return nil
     }
+
+    // Read once: entitlements can't change while the process runs, and views ask on every redraw (`canSyncNow`).
+    private static let services = list(value(for: servicesKey))
+    private static let containers = list(value(for: containersKey))
 
     private static func list(_ value: Any?) -> [String] {
         (value as? [String]) ?? (value as? String).map { [$0] } ?? []

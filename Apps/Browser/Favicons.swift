@@ -43,7 +43,8 @@ final class Favicons {
     return best;
     """
 
-    private(set) var resolved: [String: PlatformImage] = [:]
+    /// Observed per host, so an icon arriving redraws only the tiles showing that site.
+    @ObservationIgnored private let resolved = ObservedDictionary<String, PlatformImage>()
 
     @ObservationIgnored private var inFlight: Set<String> = []
     @ObservationIgnored private var negativeCache: [String: Date] = [:]
@@ -80,26 +81,23 @@ final class Favicons {
     /// so private hosts leave no trace on disk.
     func request(_ url: URL?, isPrivate: Bool = false) {
         guard let host = Self.hostKey(url), resolved[host] == nil, !inFlight.contains(host) else { return }
-        if isPrivate {
-            if let onDisk = loadFromDisk(host: host) { resolved[host] = onDisk }
+        if !isPrivate, let missedAt = negativeCache[host], Date().timeIntervalSince(missedAt) < negativeCacheLifetime {
             return
         }
-        if let missedAt = negativeCache[host], Date().timeIntervalSince(missedAt) < negativeCacheLifetime { return }
         inFlight.insert(host)
         Task { [weak self] in
             guard let self else { return }
             defer { self.inFlight.remove(host) }
-            if let onDisk = self.loadFromDisk(host: host) {
+            if let onDisk = await self.loadFromDisk(host: host) {
                 self.resolved[host] = onDisk
                 return
             }
+            guard !isPrivate else { return }
             guard let image = await self.fetchWellKnownIcon(host: host) else {
                 self.negativeCache[host] = .now
                 return
             }
-            self.resolved[host] = image
-            self.negativeCache[host] = nil
-            self.saveToDisk(image, host: host)
+            self.keep(image, for: host)
         }
     }
 
@@ -112,10 +110,16 @@ final class Favicons {
         learned[host] = iconURL
         Task { [weak self] in
             guard let self, let image = await self.download(iconURL) else { return }
-            self.resolved[host] = image
-            self.negativeCache[host] = nil
-            self.saveToDisk(image, host: host)
+            self.keep(image, for: host)
         }
+    }
+
+    /// Holds a downloaded icon at the size it's saved at, not the full download (touch icons run to 512 px).
+    private func keep(_ image: PlatformImage, for host: String) {
+        let small = Self.downscaled(image, maxDimension: 128)
+        resolved[host] = small
+        negativeCache[host] = nil
+        saveToDisk(small, host: host)
     }
 
     /// Seeds the cache with an icon another browser already had for `pageURL` (Arc import), so imported tabs
@@ -125,7 +129,7 @@ final class Favicons {
               !FileManager.default.fileExists(atPath: file.path),
               let image = PlatformImage(data: data), Self.isUsable(image) else { return }
         try? data.write(to: file, options: .atomic)
-        resolved[host] = image
+        resolved[host] = Self.downscaled(image, maxDimension: 128)
         negativeCache[host] = nil
     }
 
@@ -138,16 +142,22 @@ final class Favicons {
     }
 
     private func download(_ url: URL) async -> PlatformImage? {
-        await gate.wait()
-        defer { gate.signal() }
-        guard let (data, response) = try? await Self.session.data(from: url),
-              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
-              data.count > 128, let image = PlatformImage(data: data), Self.isUsable(image)
-        else { return nil }
-        return image
+        await Self.usableIcon(at: url, gate: gate).flatMap(PlatformImage.init(data:))
     }
 
-    private static let session: URLSession = {
+    /// The icon's data if it decodes to something worth showing. Fetching and checking it (which copies the whole
+    /// bitmap) stay off the main thread.
+    nonisolated private static func usableIcon(at url: URL, gate: FetchGate) async -> Data? {
+        await gate.wait()
+        defer { gate.signal() }
+        guard let (data, response) = try? await session.data(from: url),
+              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              data.count > 128, let image = PlatformImage(data: data), isUsable(image)
+        else { return nil }
+        return data
+    }
+
+    nonisolated private static let session: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         config.timeoutIntervalForRequest = 6
         config.timeoutIntervalForResource = 10
@@ -158,7 +168,7 @@ final class Favicons {
 
     /// Rejects corrupt decodes, icons too small to bother with, and placeholder images that are
     /// effectively blank (sampled alpha channel comes back fully transparent).
-    private static func isUsable(_ image: PlatformImage) -> Bool {
+    nonisolated private static func isUsable(_ image: PlatformImage) -> Bool {
         guard let cg = image.validationCGImage, cg.width >= 8, cg.height >= 8 else { return false }
         guard cg.bitsPerPixel == 32, let data = cg.dataProvider?.data, let bytes = CFDataGetBytePtr(data) else { return true }
         let length = CFDataGetLength(data)
@@ -178,8 +188,11 @@ final class Favicons {
         diskDirectory?.appendingPathComponent(host.replacingOccurrences(of: "/", with: "_")).appendingPathExtension("png")
     }
 
-    private func loadFromDisk(host: String) -> PlatformImage? {
-        guard let url = diskURL(host: host), let data = try? Data(contentsOf: url) else { return nil }
+    /// Reads the file off the main thread; the image decodes when it's first drawn.
+    private func loadFromDisk(host: String) async -> PlatformImage? {
+        guard let url = diskURL(host: host),
+              let data = await Task.detached(priority: .utility, operation: { try? Data(contentsOf: url) }).value
+        else { return nil }
         return PlatformImage(data: data)
     }
 
@@ -192,7 +205,7 @@ final class Favicons {
 
 /// Caps concurrent favicon network fetches (~4). A plain lock-based gate rather than an actor, so
 /// `signal()` can run synchronously from a `defer`.
-private final class FetchGate: @unchecked Sendable {
+private nonisolated final class FetchGate: @unchecked Sendable {
     private let lock = NSLock()
     private var available: Int
     private var waiters: [CheckedContinuation<Void, Never>] = []
@@ -228,7 +241,7 @@ private final class FetchGate: @unchecked Sendable {
 
 #if canImport(UIKit)
 private extension PlatformImage {
-    var validationCGImage: CGImage? { cgImage }
+    nonisolated var validationCGImage: CGImage? { cgImage }
 }
 
 private extension Favicons {
@@ -244,7 +257,7 @@ private extension Favicons {
 }
 #else
 private extension PlatformImage {
-    var validationCGImage: CGImage? {
+    nonisolated var validationCGImage: CGImage? {
         var rect = CGRect(origin: .zero, size: size)
         return cgImage(forProposedRect: &rect, context: nil, hints: nil)
     }

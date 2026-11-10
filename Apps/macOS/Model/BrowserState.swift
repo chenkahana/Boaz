@@ -60,6 +60,8 @@ final class BrowserState {
     @ObservationIgnored weak var window: NSWindow?
     @ObservationIgnored private var pages: [String: WebPage] = [:]
     @ObservationIgnored private var recency: [String] = []
+    /// Tabs whose title is cooling down after a save, and whether it changed again meanwhile (`didChangeTitle`).
+    @ObservationIgnored private var titleCooldowns: [String: Bool] = [:]
     @ObservationIgnored private var lastTabPerSpace: [String: String] = [:]
     @ObservationIgnored private let privateStore: WKWebsiteDataStore?
     @ObservationIgnored private var keyObserver: NSObjectProtocol?
@@ -68,6 +70,10 @@ final class BrowserState {
     init(incognito: Bool) {
         isIncognito = incognito
         privateStore = incognito ? .nonPersistent() : nil
+    }
+
+    isolated deinit {
+        if let keyObserver { NotificationCenter.default.removeObserver(keyObserver) }
     }
 
     // MARK: Window
@@ -82,6 +88,7 @@ final class BrowserState {
         window.tabbingMode = .disallowed
         updateTrafficLights()
         if !isIncognito { model.lastActiveBrowser = self }
+        if let keyObserver { NotificationCenter.default.removeObserver(keyObserver) }
         keyObserver = NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: window,
                                                              queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -118,6 +125,10 @@ final class BrowserState {
 
     var activeTab: SidebarItem? { tab(activeTabID) }
     var activePage: WebPage? { activeTab.map(page(for:)) }
+    /// The page's address, or the tab's while the page has none of its own (a failed or refused load).
+    var activeURL: URL? {
+        activePage?.url.flatMap { $0.absoluteString == "about:blank" ? nil : $0 } ?? activeTab?.url
+    }
 
     func isPrivate(_ tab: SidebarItem) -> Bool { isIncognito && incognitoTabs.contains { $0.id == tab.id } }
 
@@ -150,7 +161,9 @@ final class BrowserState {
         model.applyContentBlocking(to: &configuration)
         let page = WebPage(configuration: configuration, navigationDecider: NavigationRouter(browser: self, context: context),
                            dialogPresenter: MacDialogs())
+        #if DEBUG
         page.isInspectable = true
+        #endif
         if let url { model.load(url, in: page, configuration: configuration) }
         return page
     }
@@ -251,11 +264,37 @@ final class BrowserState {
 
     func didNavigate(_ tabID: String, url: URL?, title: String) {
         if let index = incognitoTabs.firstIndex(where: { $0.id == tabID }) {
-            if let url { incognitoTabs[index].url = url }
+            if let url, url.absoluteString != "about:blank" { incognitoTabs[index].url = url }
             if !title.isEmpty { incognitoTabs[index].title = title }
             return
         }
         model.didNavigate(tabID, url: url, title: title)
+    }
+
+    /// A server redirect leaves the address it left in history as a second entry for the same load.
+    func didRedirect(_ tabID: String, from hop: URL) {
+        guard !isIncognito else { return }
+        model.store?.forgetRedirectedVisit(to: hop)
+    }
+
+    /// Pages that animate their title (unread counts, timers) would otherwise save, sync and refetch the whole
+    /// sidebar on every tick. A title change is saved at once, then at most every two seconds with the latest title.
+    /// A new page gets its title saved at once, not after the previous page's cooldown.
+    func didChangeURL(_ tabID: String) {
+        titleCooldowns[tabID] = nil
+        guard let page = pages[tabID] else { return }
+        didNavigate(tabID, url: page.url, title: page.title)
+    }
+
+    func didChangeTitle(_ tabID: String) {
+        guard titleCooldowns[tabID] == nil else { titleCooldowns[tabID] = true; return }
+        guard let page = pages[tabID] else { return }
+        didNavigate(tabID, url: page.url, title: page.title)
+        titleCooldowns[tabID] = false
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            if self?.titleCooldowns.removeValue(forKey: tabID) == true { self?.didChangeTitle(tabID) }
+        }
     }
 
     /// Samples the tab's site color once its page has loaded; while it loads, uses the color last seen for the host.
@@ -302,6 +341,7 @@ final class BrowserState {
             activeTabID = next?.id
         }
         unload(tab.id)
+        siteColors[tab.id] = nil
         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
             if isPrivate(tab) {
                 incognitoTabs.removeAll { $0.id == tab.id }
@@ -324,13 +364,13 @@ final class BrowserState {
     }
 
     func copyActiveURL() {
-        guard let url = activePage?.url ?? activeTab?.url else { return }
+        guard let url = activeURL else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(url.absoluteString, forType: .string)
         model.showToast("Copied URL")
     }
 
-    func reload() { _ = activePage?.reload() }
+    func reload() { activePage?.reload(tabURL: activeTab?.url) }
 
     func goBack() {
         guard let page = activePage, let item = page.backForwardList.backList.last else { return }

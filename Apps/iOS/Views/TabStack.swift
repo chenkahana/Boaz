@@ -7,6 +7,7 @@ import SwiftUI
 struct TabStack: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let space: Space?
     let cardSize: CGSize
 
@@ -31,7 +32,7 @@ struct TabStack: View {
             .contentShape(.rect)
         }
         .buttonStyle(PressableStyle())
-        .animation(.bouncy(duration: 0.35), value: recent.map(\.id))
+        .animation(reduceMotion ? .easeOut(duration: 0.2) : .bouncy(duration: 0.35), value: recent.map(\.id))
         .accessibilityLabel("Tabs")
         .accessibilityValue("\(tabs.count) open")
         .accessibilityHint("Shows your tabs side by side")
@@ -392,11 +393,12 @@ private struct DeckMetrics {
     private var peekSpan: CGFloat { max(front.x - card.width / 2 - 12, 24) }
 
     /// Cards worth drawing: up to four earlier ones, and the next one while it slides in.
-    func visible(around position: Double, count: Int) -> ClosedRange<Int> {
-        guard count > 0 else { return 0...0 }
-        let lower = max(Int((position - 4).rounded(.down)), 0)
+    func visible(around position: Double, count: Int) -> Range<Int> {
+        guard count > 0 else { return 0..<0 }
+        // `position` can still point past the end for a frame after tabs vanish, before refocusing catches up.
+        let lower = min(max(Int((position - 4).rounded(.down)), 0), count - 1)
         let upper = min(Int((position + 1).rounded(.up)), count - 1)
-        return lower...max(lower, upper)
+        return lower..<(max(lower, upper) + 1)
     }
 
     /// `offset` is the card's index minus the focused position: negative for earlier cards.
@@ -519,7 +521,7 @@ private struct CarouselRail: View {
             } bottom: {
                 RailButton(symbol: "gearshape", label: "Settings", action: onSettings)
             } nub: {
-                RailGlyph(symbol: "square.on.square", size: 30).font(.system(size: 13, weight: .bold))
+                RailGlyph(symbol: "square.on.square", size: 30)
             }
         } else {
             HStack(spacing: 10) {

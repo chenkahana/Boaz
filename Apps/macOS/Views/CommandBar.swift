@@ -1,3 +1,4 @@
+import AppKit
 import BoazKit
 import SwiftUI
 
@@ -69,14 +70,42 @@ struct CommandBar: View {
             .padding(.top, 110)
         }
         .onAppear {
-            if mode == .currentTab { text = (browser.activePage?.url ?? browser.activeTab?.url)?.absoluteString ?? "" }
-            focused = true
+            if mode == .currentTab { text = browser.activeURL?.absoluteString ?? "" }
         }
-        .onChange(of: text) {
-            selection = 0
+        // While the web view is first responder, SwiftUI can report the field focused and the keys still go to the
+        // page. So the web view gives the keyboard up, and the field is asked until AppKit's first responder is its
+        // editor.
+        .task {
+            for _ in 0..<10 {
+                if fieldHasKeyboard { return }
+                if focused {
+                    // Asking again only takes effect once SwiftUI has seen the field unfocused.
+                    focused = false
+                } else {
+                    browser.window?.makeFirstResponder(nil)
+                    focused = true
+                }
+                do { try await Task.sleep(for: .milliseconds(50)) } catch { return }
+            }
+            if !fieldHasKeyboard { focused = true }
+        }
+        .onChange(of: text) { selection = 0 }
+        // History is looked up once typing pauses, off the main thread.
+        .task(id: text) {
             let query = text.trimmingCharacters(in: .whitespaces)
-            history = browser.isIncognito || query.count < 2 ? [] : model.historySuggestions(query)
+            guard !browser.isIncognito, query.count >= 2 else { history = []; return }
+            // Until the lookup lands, only rows that still match are offered.
+            history.removeAll { !$0.matches(query) }
+            try? await Task.sleep(for: .milliseconds(100))
+            guard !Task.isCancelled else { return }
+            let found = await model.historySuggestions(query)
+            if !Task.isCancelled { history = found }
         }
+    }
+
+    /// Whether typing reaches the field: AppKit's first responder is a text field's editor, not the web view.
+    private var fieldHasKeyboard: Bool {
+        focused && (browser.window?.firstResponder as? NSTextView)?.isFieldEditor == true
     }
 
     private var icon: String {
@@ -105,7 +134,7 @@ struct CommandBar: View {
                               isSearch: isSearch))
         }
         // Skip tab matching while the field still holds the current page's own URL (⌘L).
-        let currentURL = (browser.activePage?.url ?? browser.activeTab?.url)?.absoluteString
+        let currentURL = browser.activeURL?.absoluteString
         guard query != currentURL else { return result }
         let tabs = openTabs.filter { tab in
             tab.id != browser.activeTabID && (query.isEmpty

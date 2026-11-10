@@ -11,6 +11,9 @@ struct BrowserWindow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var browser: BrowserState
     @AppStorage("sidebarWidth") private var sidebarWidth = 250.0
+    /// The space and tab this window showed, brought back when macOS restores the window at launch.
+    @SceneStorage("spaceID") private var savedSpaceID: String?
+    @SceneStorage("tabID") private var savedTabID: String?
 
     init(incognito: Bool) {
         _browser = State(initialValue: BrowserState(incognito: incognito))
@@ -59,6 +62,8 @@ struct BrowserWindow: View {
         .sheet(item: $browser.rename) { request in RenameSheet(request: request).environment(browser) }
         .sheet(item: $browser.ai) { MacAISheet(request: $0).environment(model).environment(browser) }
         .onAppear { model.registerOpenWindow(openWindow) }
+        .onChange(of: browser.currentSpaceID) { if !browser.isIncognito { savedSpaceID = browser.currentSpaceID } }
+        .onChange(of: browser.activeTabID) { if !browser.isIncognito { savedTabID = browser.activeTabID } }
         .task {
             // Welcome can go up before the library has loaded; a URL to open has to wait for it.
             while model.sidebar.spaces.isEmpty && model.loadError == nil && !model.needsOnboarding {
@@ -69,6 +74,11 @@ struct BrowserWindow: View {
                 browser.onboarding = .welcome
             }
             while model.sidebar.spaces.isEmpty && model.loadError == nil { try? await Task.sleep(for: .milliseconds(100)) }
+            if !browser.isIncognito {
+                if let id = savedSpaceID, model.space(id) != nil { browser.currentSpaceID = id }
+                if let tab = browser.tab(savedTabID) { browser.activate(tab) }
+                model.releaseSweeps()
+            }
             browser.consumePendingURL()
         }
     }
@@ -106,6 +116,8 @@ struct WindowBackdrop: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
+    /// What the translucent gradient blurs: other windows, or for the peeking sidebar the page beneath it.
+    var blending: NSVisualEffectView.BlendingMode = .behindWindow
 
     var body: some View {
         Group {
@@ -129,6 +141,7 @@ struct WindowBackdrop: View {
                 }
             }
         }
+        .background(BlurredBackdrop(blending: blending))
         .animation(.easeInOut(duration: 0.45), value: browser.currentSpace)
         .animation(SiteColor.fade(reduceMotion: reduceMotion), value: site)
     }
@@ -154,7 +167,7 @@ private struct PeekingSidebar: View {
             if browser.sidebarPeeking {
                 SidebarView()
                     .frame(width: width)
-                    .background { WindowBackdrop() }
+                    .background { WindowBackdrop(blending: .withinWindow) }
                     .clipShape(.rect(cornerRadius: MacRadius.card, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: MacRadius.card, style: .continuous).strokeBorder(.white.opacity(0.25)))
                     .shadow(color: .black.opacity(0.3), radius: 24, x: 6)
@@ -504,6 +517,26 @@ struct WindowAccessor: NSViewRepresentable {
 
     func updateNSView(_ view: NSView, context: Context) {
         DispatchQueue.main.async { if let window = view.window { onWindow(window) } }
+    }
+}
+
+/// A blur under the backdrop's translucent gradient, so what shows through is a wash of color, never legible
+/// text from another window.
+private struct BlurredBackdrop: NSViewRepresentable {
+    let blending: NSVisualEffectView.BlendingMode
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = StillEffectView()
+        view.material = .underWindowBackground
+        view.state = .active
+        return view
+    }
+
+    func updateNSView(_ view: NSVisualEffectView, context: Context) { view.blendingMode = blending }
+
+    /// A drag on empty backdrop doesn't move the window, as it didn't before the blur was there.
+    private final class StillEffectView: NSVisualEffectView {
+        override var mouseDownCanMoveWindow: Bool { false }
     }
 }
 

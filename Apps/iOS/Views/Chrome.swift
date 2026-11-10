@@ -12,17 +12,19 @@ struct SearchPanel: View {
     @State private var completes = true
 
     var body: some View {
+        // Matched once per keystroke, however many times the rows are laid out.
+        let tabs = tabSuggestions
         BottomPanel(site: site, maxHeight: 0.85, onDismiss: dismiss) {
             VStack(spacing: 4) {
                 field
                 if expanded {
-                    ScrollView { VStack(spacing: 0) { rows } }
+                    ScrollView { VStack(spacing: 0) { rows(tabs) } }
                         .scrollBounceBehavior(.basedOnSize)
                         .transition(.opacity)
                 } else if !query.isEmpty {
                     ViewThatFits(in: .vertical) {
-                        VStack(spacing: 0) { rows }
-                        ScrollView { VStack(spacing: 0) { rows } }
+                        VStack(spacing: 0) { rows(tabs) }
+                        ScrollView { VStack(spacing: 0) { rows(tabs) } }
                     }
                     .transition(.opacity)
                 }
@@ -72,7 +74,7 @@ struct SearchPanel: View {
         .background(Color.primary.opacity(0.07), in: .capsule)
     }
 
-    @ViewBuilder private var rows: some View {
+    @ViewBuilder private func rows(_ tabSuggestions: [SidebarItem]) -> some View {
         if let completion {
             Button(action: submit) {
                 row {
@@ -114,8 +116,12 @@ struct SearchPanel: View {
             }
             .buttonStyle(.plain)
         }
-        ForEach(historySuggestions) { visit in
-            Button { model.openNewTab(visit.url, title: visit.title) } label: {
+        ForEach(historySuggestions(besides: tabSuggestions)) { visit in
+            Button {
+                // Ignored once the panel is closing, like Go (`submitSearch`).
+                guard model.searchTarget != nil else { return }
+                model.openNewTab(visit.url, title: visit.title)
+            } label: {
                 row {
                     Image(systemName: "clock.arrow.circlepath").frame(width: 24).foregroundStyle(Theme.textSecondary)
                     titleAndHost(visit.title, visit.url)
@@ -199,25 +205,26 @@ struct SearchPanel: View {
     }
 
     /// History matches, minus addresses already open as a tab (those show as "switch to tab" above).
-    private var historySuggestions: [HistoryVisit] {
-        let open = Set(tabSuggestions.compactMap(\.url))
+    private func historySuggestions(besides tabs: [SidebarItem]) -> [HistoryVisit] {
+        let open = Set(tabs.compactMap(\.url))
         return model.historySuggestions.filter { !open.contains($0.url) }.prefix(3).map { $0 }
     }
 
-    /// Open and pinned tabs whose title or address matches what's typed.
+    /// Open and pinned tabs whose title or address matches what's typed. Stops at the third match, and matches
+    /// without lowercasing a copy of every title and address.
     private var tabSuggestions: [SidebarItem] {
-        let query = query.lowercased()
+        let query = query
         guard query.count > 1, model.searchTarget == .newTab, !model.isIncognito else { return [] }
-        return model.sidebar.items
-            .filter { $0.kind == .tab && (($0.title ?? "").lowercased().contains(query)
-                                           || ($0.url?.absoluteString.lowercased().contains(query) ?? false)) }
-            .prefix(3)
-            .map { $0 }
+        func contains(_ text: String?) -> Bool { text?.range(of: query, options: .caseInsensitive) != nil }
+        return Array(model.sidebar.items.lazy
+            .filter { $0.kind == .tab && (contains($0.title) || contains($0.url?.absoluteString)) }
+            .prefix(3))
     }
 }
 
 struct ToastView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let toast: AppModel.Toast
 
     var body: some View {
@@ -233,7 +240,7 @@ struct ToastView: View {
         // A capsule while the message fits one line; a rounded card once it wraps.
         .glassEffect(.regular, in: .rect(cornerRadius: 22))
         .frame(maxWidth: 360)
-        .transition(.move(edge: .top).combined(with: .opacity))
+        .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
     }
 }
 
