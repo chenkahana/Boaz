@@ -127,9 +127,11 @@ struct TabBrowser: View {
             .sheet(item: $readerArticle) { article in ReaderView(article: article, tint: Theme.brand) }
             .pageAISheet(tab: tab, page: page)
             .sheet(isPresented: $showingDownloads) { DownloadsView() }
+            // Unfolded it's a popover, which can't attach to the whole page (there's no room around it): it hangs
+            // from the top instead.
             .translationPresentation(isPresented: Binding(get: { translationText != nil },
                                                             set: { if !$0 { translationText = nil } }),
-                                      text: translationText ?? "")
+                                      text: translationText ?? "", attachmentAnchor: .point(.top))
     }
 
     /// The cluster lies across the top (wider than tall) on the upright inner screen; in landscape it stands in the
