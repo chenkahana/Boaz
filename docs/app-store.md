@@ -91,6 +91,10 @@ Generated into `docs/screenshots/` (not part of the app build).
 | iPhone 6.9" | 1320 × 2868 portrait | `iphone-69-*.png` |
 | Mac | 1440 × 900 | `mac-*.png` |
 
+The iOS 27.1 simulator only offers iPhone Duo, whose screens aren't an App Store size, so each `iphone-69-*` image is
+a Duo screenshot (`duo-*.png`, folded, and the unfolded inner screen) captioned on the brand gradient. The Mac images
+are the app window on the same gradient.
+
 iPad screenshots aren't needed for an iPhone-only app.
 
 ## Owner checklist (in order)

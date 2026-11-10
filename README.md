@@ -53,12 +53,17 @@ iPhone Duo, folded:
   </tr>
 </table>
 
+iPhone Duo, open:
+
+<img src="docs/screenshots/duo-5-open.png" alt="Unfolded: the sidebar with search and Today next to the page" width="640">
+
 Mac:
 
 <table>
   <tr>
-    <td><img src="docs/screenshots/mac-1-personal.png" alt="Boaz for Mac, Personal space" width="440"></td>
-    <td><img src="docs/screenshots/mac-2-work.png" alt="Boaz for Mac, Work space" width="440"></td>
+    <td><img src="docs/screenshots/mac-1-personal.png" alt="Boaz for Mac, Personal space" width="290"></td>
+    <td><img src="docs/screenshots/mac-2-work.png" alt="Boaz for Mac, Work space" width="290"></td>
+    <td><img src="docs/screenshots/mac-3-travel.png" alt="Boaz for Mac, Travel space" width="290"></td>
   </tr>
 </table>
 
