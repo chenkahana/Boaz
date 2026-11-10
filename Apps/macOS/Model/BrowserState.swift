@@ -251,7 +251,7 @@ final class BrowserState {
         if unpinning, let page = pages[tab.id] { model.didNavigate(tab.id, url: page.url, title: page.title) }
     }
 
-    /// Link routing, Arc-style: ⌘-click peeks, ⌘⇧-click opens a tab; pages that open new windows get a peek
+    /// Link routing: ⌘-click peeks, ⌘⇧-click opens a tab; pages that open new windows get a peek
     /// when they're pinned (keeps the pinned app in place) and a new Today tab otherwise.
     func decide(_ action: WebPage.NavigationAction, context: NavigationRouter.Context) -> WKNavigationActionPolicy {
         let opensWindow = action.target == nil

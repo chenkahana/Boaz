@@ -1,7 +1,7 @@
 import SwiftUI
 import WebKit
 
-/// A site's own color, which the browser chrome takes on (Arc-style). Comes from the page's `theme-color` for the
+/// A site's own color, which the browser chrome takes on. Comes from the page's `theme-color` for the
 /// current appearance, else the background of whatever spans the top of the viewport: a header bar, or the page.
 struct SiteColor: Hashable {
     let red: Double

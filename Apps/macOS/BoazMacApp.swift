@@ -33,8 +33,8 @@ struct BoazMacApp: App {
         .handlesExternalEvents(matching: [])
         .restorationBehavior(.disabled)
 
-        WindowGroup("Little Boaz", id: "little", for: URL.self) { $url in
-            LittleBoazWindow(url: url)
+        WindowGroup("Quick Window", id: "little", for: URL.self) { $url in
+            QuickWindow(url: url)
                 .environment(model)
                 .task { await model.start() }
         }
@@ -85,7 +85,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { await MacModel.shared.sync?.syncNow() }
     }
 
-    /// Links opened from other apps (Boaz as the target of `open -a` or as default browser) go to Little Boaz.
+    /// Links opened from other apps (Boaz as the target of `open -a` or as default browser) go to a Quick Window.
     func application(_ application: NSApplication, open urls: [URL]) {
         MacModel.shared.openExternal(urls)
     }
@@ -108,7 +108,7 @@ struct BoazCommands: Commands {
                 .keyboardShortcut(key(.newTab)).disabled(browser == nil)
             Button("New Window") { openWindow(id: "main") }.keyboardShortcut(key(.newWindow))
             Button("New Incognito Window") { openWindow(id: "incognito") }.keyboardShortcut(key(.newIncognitoWindow))
-            Button("New Little Boaz Window") { openWindow(id: "little") }.keyboardShortcut(key(.newLittleWindow))
+            Button("New Quick Window") { openWindow(id: "little") }.keyboardShortcut(key(.newLittleWindow))
             Divider()
             Button("Open Location…") { browser?.commandMode = browser?.activeTab == nil ? .newTab : .currentTab }
                 .keyboardShortcut(key(.openLocation)).disabled(browser == nil)

@@ -87,7 +87,7 @@ and error states look intentional. Check RTL text too (for example ynet.co.il).
 - [ ] **Settings**: General (the About links are visible without scrolling), Privacy, Sync (Sync Now is disabled when
       sync can't run), Shortcuts (rebind one key, then reset it). ⌘W closes the window.
 - [ ] **Incognito window** and its command bar.
-- [ ] **Little Boaz**: `open -a Boaz https://example.com` from Terminal opens it, File › New Little Boaz Window
+- [ ] **Quick Window**: `open -a Boaz https://example.com` from Terminal opens it, File › New Quick Window
       opens it, and "Open in Boaz" moves the page into the main window.
 - [ ] **Import**: from Arc (use a copy of an Arc data folder, not your own), and from Chrome, Brave, Edge and Safari
       bookmarks.

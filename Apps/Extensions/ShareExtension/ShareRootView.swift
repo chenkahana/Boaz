@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// "Add to Boaz" sheet shown by the share extension — Arc-styled like the rest of the app.
+/// "Add to Boaz" sheet shown by the share extension, styled like the rest of the app.
 struct ShareRootView: View {
     @State private var model: ShareModel
 

@@ -20,7 +20,7 @@ First release, for iPhone and Mac.
 - Today tabs that move to the Archive after a period without use.
 - iCloud sync of the library through the private CloudKit database, with a folder-based fallback.
 - iPhone Duo layouts for the folded, open, book and laptop postures.
-- Mac app with sidebar, command bar, split view, rebindable shortcuts, downloads and a Little Boaz window for links
+- Mac app with sidebar, command bar, split view, rebindable shortcuts, downloads and a Quick Window for links
   from other apps.
 - Import from Arc (spaces, pinned folders, favorites, themes, shortcuts and optional cookies) and from Chrome, Brave,
   Edge and Safari bookmarks.
