@@ -58,7 +58,8 @@ private struct ToolRailModifier<Rail: View>: ViewModifier {
         // The page's own background, so the page seems to run under the camera and status icons (which pick
         // their contrast from what's under them). It holds still while the page scrolls.
         .background {
-            if let edges { Rectangle().fill(edges.page.color).transition(.opacity) }
+            // One point wider: it also fills the clearance the page keeps from the column (`TabBrowser`).
+            if let edges { Rectangle().fill(edges.page.color).padding(.leading, -1).transition(.opacity) }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
     }
