@@ -34,7 +34,9 @@ struct SiteColor: Hashable {
     // MARK: Sampling
 
     /// Last color seen per host, so a tab arriving at a known site is tinted before its page finishes loading.
+    /// The 300 most recently sampled hosts.
     private static var cache: [String: SiteColor] = [:]
+    private static var cacheRecency: [String] = []
 
     static func cached(for url: URL?) -> SiteColor? { url?.host().flatMap { cache[$0] } }
 
@@ -46,7 +48,14 @@ struct SiteColor: Hashable {
               let edges = SiteEdges(values.map(\.doubleValue))
         else { return nil }
         let usable = edges.top.isPlainWhite ? nil : edges.top
-        cache[host] = usable
+        cacheRecency.removeAll { $0 == host }
+        if let usable {
+            cache[host] = usable
+            cacheRecency.append(host)
+            if cacheRecency.count > 300 { cache[cacheRecency.removeFirst()] = nil }
+        } else {
+            cache[host] = nil
+        }
         return usable
     }
 }
@@ -77,10 +86,12 @@ struct SiteEdges: Hashable {
 
     // MARK: Cache
 
-    /// Per page (a site's pages differ), then per host for a page not seen yet. Kept in memory only.
+    /// Per page (a site's pages differ), then per host for a page not seen yet. Kept in memory only, for the 300
+    /// most recent of each.
     private static var pages: [String: SiteEdges] = [:]
     private static var hosts: [String: SiteEdges] = [:]
     private static var recency: [String] = []
+    private static var hostRecency: [String] = []
 
     static func cached(for url: URL?) -> SiteEdges? {
         guard let url else { return nil }
@@ -93,7 +104,10 @@ struct SiteEdges: Hashable {
             recency.append(key)
             if recency.count > 300 { pages[recency.removeFirst()] = nil }
         }
-        if let host = url.host() { hosts[host] = edges }
+        if let host = url.host(), hosts.updateValue(edges, forKey: host) == nil {
+            hostRecency.append(host)
+            if hostRecency.count > 300 { hosts[hostRecency.removeFirst()] = nil }
+        }
     }
 
     private static func pageKey(_ url: URL) -> String {
