@@ -1,3 +1,4 @@
+import AppKit
 import BoazKit
 import SwiftUI
 
@@ -71,12 +72,20 @@ struct CommandBar: View {
         .onAppear {
             if mode == .currentTab { text = browser.activeURL?.absoluteString ?? "" }
         }
-        // Focus set while the bar is still being inserted is dropped about half the time, so keep asking until
-        // the field has it.
+        // While the web view is first responder, SwiftUI can report the field focused and the keys still go to the
+        // page. So the web view gives the keyboard up, and the field is asked until AppKit's first responder is its
+        // editor.
         .task {
-            for _ in 0..<10 where !focused {
-                focused = true
-                try? await Task.sleep(for: .milliseconds(50))
+            for _ in 0..<10 {
+                if fieldHasKeyboard { return }
+                if focused {
+                    // Asking again only takes effect once SwiftUI has seen the field unfocused.
+                    focused = false
+                } else {
+                    browser.window?.makeFirstResponder(nil)
+                    focused = true
+                }
+                do { try await Task.sleep(for: .milliseconds(50)) } catch { return }
             }
         }
         .onChange(of: text) { selection = 0 }
@@ -89,6 +98,11 @@ struct CommandBar: View {
             let found = await model.historySuggestions(query)
             if !Task.isCancelled { history = found }
         }
+    }
+
+    /// Whether typing reaches the field: AppKit's first responder is a text field's editor, not the web view.
+    private var fieldHasKeyboard: Bool {
+        focused && (browser.window?.firstResponder as? NSTextView)?.isFieldEditor == true
     }
 
     private var icon: String {
