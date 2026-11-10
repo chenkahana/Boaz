@@ -318,6 +318,9 @@ final class AppModel {
         let tabIsPrivate = isPrivate(tab)
         var configuration = WebPage.Configuration()
         if tabIsPrivate { configuration.websiteDataStore = .nonPersistent() }
+        // Videos play in the page, as in Safari, rather than jumping to fullscreen (the iPhone default). Autoplay keeps
+        // WebKit's default: nothing plays before the user taps.
+        configuration.mediaPlaybackBehavior = .allowsInlinePlayback
         let blocksContent = Preferences.blockTrackers
             && PageSettings.settings(for: tab.url, isPrivate: tabIsPrivate).contentBlocking
         if blocksContent, let contentBlockLists { contentBlockLists.forEach(configuration.userContentController.add) }
