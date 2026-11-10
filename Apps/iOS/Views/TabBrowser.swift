@@ -397,7 +397,9 @@ private struct BrowserBar: View {
         if axis == .vertical {
             RailColumn {
                 tabsButton
-                RailButton(symbol: "plus", label: "New Tab", isSelected: searching, action: toggleSearch)
+                // Like the empty page's search button: a private tab's says so.
+                RailButton(symbol: model.isPrivate(tab) ? "eyeglasses" : "plus", label: "New Tab",
+                           isSelected: searching, action: toggleSearch)
             } bottom: {
                 RailButton(symbol: "ellipsis", label: "Page Settings", isSelected: showsPageSettings,
                            action: togglePageSettings)
@@ -427,7 +429,10 @@ private struct BrowserBar: View {
         HStack(spacing: 0) {
             tabsButton.frame(maxWidth: .infinity, alignment: .leading)
             Button(action: toggleSearch) {
-                Image(systemName: "plus")
+                HStack(spacing: 10) {
+                    if model.isPrivate(tab) { Image(systemName: "eyeglasses") }
+                    Image(systemName: "plus")
+                }
                     .font(.title3.weight(.semibold))
                     .frame(width: 116, height: 50)
                     .railSelection(searching)
