@@ -100,8 +100,13 @@ struct BoazCommands: Commands {
                 .keyboardShortcut(key(.openLocation)).disabled(browser == nil)
             Divider()
             // Owning ⌘W takes it off the system's Close item, so this closes the other windows (History, Settings) too.
-            Button(browser == nil ? "Close Window" : "Close Tab") {
-                if let browser { browser.closeActive() } else { NSApp.keyWindow?.performClose(nil) }
+            Button(browser?.activeTab == nil ? "Close Window" : "Close Tab") {
+                if let browser {
+                    browser.closeActive()
+                } else if let window = NSApp.keyWindow, window.styleMask.contains(.closable), window.sheetParent == nil {
+                    // Not WebKit's full-screen video window or a sheet, which have no close button of their own.
+                    window.performClose(nil)
+                }
             }
             .keyboardShortcut(key(.closeTab))
             Button("Reopen Closed Tab") { browser?.reopenClosedTab() }
