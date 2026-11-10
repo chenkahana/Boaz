@@ -165,10 +165,11 @@ struct BoazCommands: Commands {
             Button("Next Tab") { browser?.cycleTab(by: 1) }.keyboardShortcut(key(.nextTab)).disabled(browser == nil)
             Button("Previous Tab") { browser?.cycleTab(by: -1) }.keyboardShortcut(key(.previousTab)).disabled(browser == nil)
             Divider()
+            let favoriteCount = browser.map { model.favorites(profileID: $0.currentSpace?.profileID).count } ?? 0
             ForEach(1...9, id: \.self) { number in
                 Button("Favorite \(number)") { browser?.selectFavorite(number) }
                     .keyboardShortcut(KeyEquivalent(Character("\(number)")), modifiers: .command)
-                    .disabled(browser == nil)
+                    .disabled(number > favoriteCount)
             }
         }
 
