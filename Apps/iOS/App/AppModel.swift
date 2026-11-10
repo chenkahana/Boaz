@@ -27,8 +27,10 @@ final class AppModel {
     /// The page on screen. Remembered across launches: the app opens on it again (mobile has no home screen).
     var activeTabID: String? {
         didSet {
-            guard activeTabID != oldValue, let activeTabID, !incognitoTabs.contains(where: { $0.id == activeTabID })
-            else { return }
+            guard activeTabID != oldValue else { return }
+            // One page never shows in both panes: the other pane takes this pane's tab in trade.
+            if activeTabID != nil, activeTabID == otherPaneTabID { otherPaneTabID = oldValue }
+            guard let activeTabID, !incognitoTabs.contains(where: { $0.id == activeTabID }) else { return }
             UserDefaults.standard.set(activeTabID, forKey: Self.lastTabKey)
         }
     }
@@ -47,7 +49,12 @@ final class AppModel {
     /// Last rendered image of each tab, shown on its card. Saved in Caches (`SnapshotCache`), except private tabs'.
     /// Observed per tab, so one new preview redraws only its own card.
     let snapshots = ObservedDictionary<String, UIImage>()
-    /// The folded layout's tab carousel of Today tabs, over the page or the home screen.
+    /// Half-open, the screen holds two panes: the focused one shows `activeTabID`, the other `otherPaneTabID`.
+    private(set) var isSplit = false
+    /// The pane the user last touched (0 is the leading or top one); always 0 outside the split.
+    private(set) var focusedPane = 0
+    private(set) var otherPaneTabID: String?
+    /// The focused pane's tab carousel, over its page.
     var showsCoverFlow = false
     /// Counts requests to open the carousel, so one made while it is still closing brings it back.
     private(set) var coverFlowRequests = 0
@@ -76,8 +83,8 @@ final class AppModel {
     /// Runs once the current sheet has finished dismissing (a tab can't present while a sheet is leaving).
     @ObservationIgnored private var afterSheet: (() -> Void)?
     @ObservationIgnored private var historyLookup: Task<Void, Never>?
-    /// The preview waiting for the showing page to stop scrolling (see `pageDidScroll`).
-    @ObservationIgnored private var settledCapture: Task<Void, Never>?
+    /// The previews waiting for their pages to stop scrolling, by tab (see `pageDidScroll`).
+    @ObservationIgnored private var settledCaptures: [String: Task<Void, Never>] = [:]
     /// Tabs whose title is cooling down after a save, and whether it changed again meanwhile (`didChangeTitle`).
     @ObservationIgnored private var titleCooldowns: [String: Bool] = [:]
     /// The tab ids `pruneSnapshots` last saw.
@@ -227,6 +234,12 @@ final class AppModel {
     func archiveStaleTabs() {
         let interval = Preferences.archiveAfter
         guard interval != .never, !holdsSweeps, let store else { return }
+        // The pages on screen are in use, however long ago they were picked (the second pane's may never have been).
+        let showing = [activeTabID, otherPaneTabID].compactMap { $0.flatMap(item(withID:)) }.filter { !isPrivate($0) }
+        for var tab in showing {
+            tab.lastActiveAt = .now
+            commit(tab)
+        }
         Task {
             do {
                 let count = try await store.archiveStaleTabs(olderThan: TimeInterval(interval.rawValue), onDevice: deviceID)
@@ -267,19 +280,25 @@ final class AppModel {
 
     var spaces: [Space] { sidebar.spaces }
     var currentSpace: Space? { sidebar.spaces.first { $0.id == currentSpaceID } }
-    var activeTab: SidebarItem? {
-        activeTabID.flatMap { id in sidebar.items.first { $0.id == id } ?? incognitoTabs.first { $0.id == id } }
+    var activeTab: SidebarItem? { activeTabID.flatMap(item(withID:)) }
+
+    /// This iPhone's Today tabs in a space, in order. Tabs the Mac filed into folders under Today stand in their
+    /// folder's place: the phone lists no folders.
+    func todayTabs(in space: Space) -> [SidebarItem] {
+        func tabs(under parent: String) -> [SidebarItem] {
+            sidebar.children(of: parent).flatMap { $0.kind == .folder ? tabs(under: $0.id) : $0.kind == .tab ? [$0] : [] }
+        }
+        return sidebar.container(.unpinned, in: space.id).map { tabs(under: $0.id) }?
+            .filter { $0.deviceID == nil || $0.deviceID == deviceID } ?? []
     }
-    var isDeskPosture: Bool { hinge?.status == .partiallyOpen }
 
-    func todayTabs(in space: Space) -> [SidebarItem] { sidebar.todayTabs(in: space.id, onDevice: deviceID) }
+    /// The phone's tabs: this iPhone's Today tabs in the current space, or the private ones in Incognito.
+    var phoneTabs: [SidebarItem] { isIncognito ? incognitoTabs : currentSpace.map(todayTabs(in:)) ?? [] }
 
-    func pinnedItems(in space: Space) -> [SidebarItem] {
-        guard let box = sidebar.container(.pinned, in: space.id) else { return [] }
-        return sidebar.children(of: box.id)
-    }
+    /// The tab a pane shows; the second pane exists only in the split.
+    func tabID(inPane pane: Int) -> String? { pane == focusedPane ? activeTabID : otherPaneTabID }
 
-    func favorites(for space: Space) -> [SidebarItem] { sidebar.favorites(profileID: space.profileID) }
+    func tab(inPane pane: Int) -> SidebarItem? { tabID(inPane: pane).flatMap(item(withID:)) }
 
     func isPinned(_ tab: SidebarItem) -> Bool {
         guard let parent = tab.parentID, !isPrivate(tab) else { return false }
@@ -382,13 +401,14 @@ final class AppModel {
         if let tab = activeTab, let page = pages[tab.id] { captureSnapshot(of: page, tab: tab) }
     }
 
-    /// Keeps the showing tab's preview at what it shows once its page comes to rest. By the time a tab is left
-    /// its page is already moving (the toolbar drags it) or gone, and no longer renders what was on screen.
+    /// Keeps a showing tab's preview (either pane's) at what it shows once its page comes to rest. By the time a
+    /// tab is left its page is already moving (the toolbar drags it) or gone, and no longer renders what was on screen.
     func pageDidScroll(_ tab: SidebarItem) {
-        settledCapture?.cancel()
-        settledCapture = Task {
+        settledCaptures[tab.id]?.cancel()
+        settledCaptures[tab.id] = Task {
             try? await Task.sleep(for: .milliseconds(500))
-            guard !Task.isCancelled, activeTabID == tab.id, let page = pages[tab.id] else { return }
+            guard !Task.isCancelled, let page = pages[tab.id] else { return }
+            settledCaptures[tab.id] = nil
             await snapshot(page, tab: tab)
         }
     }
@@ -460,6 +480,7 @@ final class AppModel {
               let tab = sidebar.items.first(where: { $0.id == tabID }) ?? incognitoTabs.first(where: { $0.id == tabID }),
               !isPinned(tab) else { return }
         if activeTabID == tabID { activeTabID = nil }
+        if otherPaneTabID == tabID { otherPaneTabID = nil }
         pages[tabID] = nil
         pageRecency.removeAll { $0 == tabID }
         snapshots[tabID] = nil
@@ -574,6 +595,15 @@ final class AppModel {
 
     func activate(_ tab: SidebarItem) {
         guard tab.kind == .tab else { return }
+        guard tab.id == otherPaneTabID else { return show(tab) }
+        // The panes trade tabs (see `activeTabID`) in place: neither page slides, even when the change animates. All
+        // of it goes in the transaction, which first publishes the changes made before it.
+        var swap = Transaction(animation: nil)
+        swap.disablesAnimations = true
+        withTransaction(swap) { show(tab) }
+    }
+
+    private func show(_ tab: SidebarItem) {
         searchTarget = nil
         var item = tab
         item.lastActiveAt = .now
@@ -581,6 +611,40 @@ final class AppModel {
         commit(item)
         if let space = tab.spaceID { currentSpaceID = space }
         activeTabID = tab.id
+    }
+
+    /// Entering the split, the page on screen takes the leading pane and the most recently used other tab the
+    /// trailing one. Leaving it, the focused pane's tab stays on screen.
+    func setSplit(_ on: Bool) {
+        guard on != isSplit else { return }
+        if !on, activeTabID == nil { activeTabID = otherPaneTabID }
+        focusedPane = 0
+        otherPaneTabID = on ? mostRecentTab(excluding: [activeTabID])?.id : nil
+        isSplit = on
+    }
+
+    /// Touching a pane makes its tab the active one; the other pane's panels go away.
+    func focusPane(_ pane: Int) {
+        guard isSplit, pane != focusedPane else { return }
+        showsCoverFlow = false
+        showsPageSettings = false
+        // Each pane keeps its tab, so nothing here may publish a moment where they've traded (see `activate`).
+        focusedPane = pane
+        if let tab = otherPaneTabID.flatMap(item(withID:)) {
+            show(tab)
+        } else {
+            otherPaneTabID = activeTabID
+            activeTabID = nil
+        }
+    }
+
+    /// The tab stack: the phone's tabs, most recently used first.
+    private func mostRecentTab(excluding ids: [String?]) -> SidebarItem? {
+        phoneTabs.filter { !ids.contains($0.id) }.max { ($0.lastActiveAt ?? $0.createdAt) < ($1.lastActiveAt ?? $1.createdAt) }
+    }
+
+    private func item(withID id: String) -> SidebarItem? {
+        sidebar.items.first { $0.id == id } ?? incognitoTabs.first { $0.id == id }
     }
 
     /// The page open when the app last closed, else the most recently used of this iPhone's tabs. Opened in its own
@@ -616,8 +680,11 @@ final class AppModel {
     func close(_ tab: SidebarItem) {
         // A second close of the same tab (a double tap, say) would archive it twice.
         guard isLive(tab.id) else { return }
-        if activeTabID == tab.id { activeTabID = neighbor(of: tab)?.id }
+        // A pane whose tab goes shows the next most recent tab the other pane isn't showing.
+        if activeTabID == tab.id { activeTabID = mostRecentTab(excluding: [tab.id, otherPaneTabID])?.id }
+        if otherPaneTabID == tab.id { otherPaneTabID = mostRecentTab(excluding: [tab.id, activeTabID])?.id }
         pages[tab.id] = nil
+        settledCaptures.removeValue(forKey: tab.id)?.cancel()
         pageRecency.removeAll { $0 == tab.id }
         let snapshot = snapshots[tab.id]
         snapshots[tab.id] = nil
@@ -673,55 +740,6 @@ final class AppModel {
         afterSheet = nil
     }
 
-    func togglePin(_ tab: SidebarItem) {
-        guard let space = tab.spaceID.flatMap({ id in sidebar.spaces.first { $0.id == id } }),
-              let target = sidebar.container(isPinned(tab) ? .unpinned : .pinned, in: space.id) else { return }
-        var item = tab
-        // Unpinning keeps the tab where its page is now, not where it was pinned.
-        if isPinned(tab), let page = pages[tab.id], let url = page.url {
-            item.url = url
-            if !page.title.isEmpty { item.title = page.title }
-        }
-        item.parentID = target.id
-        item.position = sidebar.nextPosition(in: target.id)
-        // Pinned tabs are every device's; an unpinned one joins this iPhone's Today.
-        item.deviceID = isPinned(tab) ? deviceID : nil
-        commit(item)
-        showToast(isPinned(item) ? "Pinned" : "Unpinned")
-    }
-
-    func isFavorite(_ tab: SidebarItem) -> Bool {
-        guard let parent = tab.parentID, !isPrivate(tab) else { return false }
-        return ancestorContainer(of: parent)?.containerKind == .favorites
-    }
-
-    /// Moves a tab into this profile's Favorites, as the page settings menu's "Add to Favorites" does.
-    func addToFavorites(_ tab: SidebarItem) {
-        guard let box = sidebar.favoritesContainer(profileID: tab.profileID) else { return }
-        var item = tab
-        item.parentID = box.id
-        item.position = sidebar.nextPosition(in: box.id)
-        commit(item)
-        showToast("Added to Favorites")
-    }
-
-    /// Whether a pinned tab's page has browsed away from where it was pinned.
-    func hasWandered(_ tab: SidebarItem) -> Bool {
-        guard isPinned(tab), let page = pages[tab.id] else { return false }
-        return PinnedAnchor.hasWandered(page, from: tab.url)
-    }
-
-    func returnToPinnedPage(_ tab: SidebarItem) {
-        guard let url = tab.url else { return }
-        page(for: tab).load(URLRequest(url: url))
-    }
-
-    func toggleExpanded(_ folder: SidebarItem) {
-        var item = folder
-        item.isExpanded.toggle()
-        commit(item)
-    }
-
     func setIncognito(_ on: Bool) {
         guard on != isIncognito else { return }
         if !on {
@@ -734,6 +752,7 @@ final class AppModel {
             incognitoTabs = []
             PageSettings.forgetPrivateChoices()
             PageZoom.forgetPrivateLevels()
+            if let id = otherPaneTabID, sidebar.items.first(where: { $0.id == id }) == nil { otherPaneTabID = nil }
             if let id = activeTabID, sidebar.items.first(where: { $0.id == id }) == nil {
                 activeTabID = nil
                 reopenLastTab()
@@ -806,13 +825,6 @@ final class AppModel {
         isPrivate(tab) ? incognitoTabs : sidebar.children(of: tab.parentID ?? "").filter {
             $0.kind == .tab && ($0.deviceID == nil || $0.deviceID == deviceID)
         }
-    }
-
-    private func neighbor(of tab: SidebarItem) -> SidebarItem? {
-        let siblings = siblings(of: tab)
-        guard let index = siblings.firstIndex(where: { $0.id == tab.id }) else { return nil }
-        return siblings.indices.contains(index + 1) ? siblings[index + 1]
-            : siblings.indices.contains(index - 1) ? siblings[index - 1] : nil
     }
 
     private func ancestorContainer(of id: String) -> SidebarItem? {

@@ -1,29 +1,45 @@
 import BoazKit
 import SwiftUI
 
-/// Layout comes from size class and hinge *status*; the raw angle only drives effects (Apple's iPhone Duo guidance).
+/// One view tree for every posture, so folding never rebuilds the browser: `PostureLayout` places an optional tab
+/// strip, the first pane (the same view in every posture) and, half-open, a second pane along the fold. Layout comes
+/// from the window's shape and the hinge *status*, never its angle (Apple's iPhone Duo guidance).
 struct RootView: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.scenePhase) private var scenePhase
-    /// Whether the screen has a fold (iPhone Duo), even while it lies flat.
-    @State private var hasFold = false
+    /// The fold, while the window is on a screen that has one (the inner screen), even lying flat.
+    @State private var fold: CGRect?
+    /// The whole window, keyboard or not: what a posture is made of.
+    @State private var window = CGSize.zero
 
-    /// The unfolded layout is for a foldable's inner screen; a large iPhone turned landscape is also regular width
-    /// but keeps the folded layout.
-    private var isUnfolded: Bool { sizeClass == .regular && (model.hinge != nil || hasFold) }
+    private var arrangement: PostureLayout.Arrangement {
+        guard let fold else { return .single }
+        if model.isSplit { return .split(fold: fold) }
+        // The window's shape, not the layout's: the keyboard doesn't turn a tall screen wide.
+        return window.width > window.height ? .strip(width: min(max(window.width * 0.18, 150), 260)) : .single
+    }
 
     var body: some View {
         @Bindable var model = model
-        Group {
-            if !isUnfolded {
-                CompactShell()
-            } else {
-                UnfoldedShell()
-                    .environment(\.homeControlsElsewhere, true)
-                    .overlay { FoldGlow() }
-            }
+        let arrangement = arrangement
+        PostureLayout(arrangement: arrangement) {
+            if case .strip = arrangement { TabStrip().layoutValue(key: PaneSlot.self, value: -1) }
+            Pane(index: 0)
+            if case .split = arrangement { Pane(index: 1).layoutValue(key: PaneSlot.self, value: 1) }
         }
+        // The keyboard doesn't move the fold: the panes keep to their halves and it comes up over them.
+        .ignoresSafeArea(.keyboard, edges: arrangement == .single || arrangement.hasStrip ? [] : .all)
+        .environment(\.listsTabsElsewhere, arrangement.hasStrip)
+        // Unfolded and taller than wide: the bar gets out of the way while reading.
+        .environment(\.collapsesBar, fold != nil && arrangement == .single)
+        .environment(\.posture, Posture(arrangement: arrangement, window: window))
+        // A posture change resizes the panes; their pages are never animated to the new size.
+        .transaction(value: Posture(arrangement: arrangement, window: window)) { $0.animation = nil }
+        .background { if case .split(let fold) = arrangement { FoldFill(fold: fold) } }
+        .onGeometryChange(for: CGRect?.self, of: {
+            $0.reservedRegions(kind: .division, options: .includeInactive).first?.frame
+        }) { fold = $0 }
+        .background { Color.clear.onGeometryChange(for: CGSize.self, of: { $0.size }) { window = $0 }.ignoresSafeArea() }
         .overlay(alignment: .top) {
             if let toast = model.toast { ToastView(toast: toast).padding(.top, model.showsCoverFlow ? 64 : 8) }
         }
@@ -31,15 +47,11 @@ struct RootView: View {
             if model.searchTarget != nil { SearchPanel() }
         }
         .environment(\.isPrivateBrowsing, model.isIncognito)
-        .confetti(trigger: Celebration.shared.bursts)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.toast)
         .animation(BottomPanelStyle.motion, value: model.searchTarget)
         .sensoryFeedback(.impact(weight: .medium), trigger: model.toast) { _, new in new?.canUndo == true }
         // While a sheet is up, the alert has to come from there instead.
         .modifier(ShakeToUndo(isEnabled: model.sheet == nil && !model.showOnboarding))
-        .onGeometryChange(for: Bool.self, of: { !$0.reservedRegions(kind: .division, options: .includeInactive).isEmpty }) {
-            hasFold = $0
-        }
         .sheet(item: $model.sheet, onDismiss: model.sheetDidDismiss) { sheet in
             switch sheet {
             case .library: LibrarySheet()
@@ -56,198 +68,154 @@ struct RootView: View {
                 Task { await model.sync?.syncNow() }
             }
         }
-        .onHingeChange { _, new in
-            withAnimation(.smooth) { model.hinge = new.hinge }
-        }
-        // The tab carousel belongs to the folded layout; unfolding mustn't leave it waiting for the next fold.
-        .onChange(of: isUnfolded) { _, unfolded in
-            if unfolded { model.showsCoverFlow = false }
-        }
-    }
-
-}
-
-/// The inner screen. One structure for every flat and book pose, so the page is never rebuilt as the hinge moves:
-/// - flat and wide (landscape): Arc's sidebar beside the page; it can be hidden.
-/// - flat and narrow (portrait): the page gets the whole width; the sidebar floats over it as a card when called.
-/// - book (half-open, fold running top to bottom): the sidebar fills the left half up to the fold, the page the right.
-/// - laptop (half-open, fold running across): the page on the upper half, controls on the lower one.
-private struct UnfoldedShell: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage("sidebarCollapsed") private var sidebarCollapsed = false
-    @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
-    /// The narrow layout's floating sidebar.
-    @State private var cardOpen = false
-    @State private var size = CGSize.zero
-    @State private var fold: CGRect?
-
-    private enum Pose: Equatable { case wide, narrow, book, laptop }
-
-    private var pose: Pose {
-        if model.isDeskPosture {
-            let vertical = fold.map { $0.height > $0.width } ?? (size.height > size.width)
-            return vertical ? .book : .laptop
-        }
-        return size.width >= 820 ? .wide : .narrow
-    }
-
-    var body: some View {
-        ZStack(alignment: .leading) {
-            HStack(spacing: 0) {
-                if let width = inlineSidebarWidth {
-                    sidebar
-                        .frame(width: width)
-                        .transition(reduceMotion ? .opacity : .move(edge: .leading))
-                    // A hairline; in book pose, the crease itself, so the page starts past the hinge, in the page's
-                    // colors while one is showing.
-                    Group {
-                        if pose == .book, let edges = pageEdges {
-                            LinearGradient(colors: [edges.top.color, edges.bottom.color], startPoint: .top,
-                                           endPoint: .bottom)
-                        } else {
-                            Color(uiColor: .separator)
-                        }
-                    }
-                    .frame(width: creaseWidth)
-                    .ignoresSafeArea()
-                }
-                VStack(spacing: 0) {
-                    browserPane.frame(height: deskSplit?.page)
-                    if let deskSplit {
-                        DeskControls()
-                            .padding(.top, deskSplit.gap)
-                            // The fold under the page takes the page's bottom color.
-                            .background(alignment: .top) {
-                                if let edges = pageEdges {
-                                    Rectangle().fill(edges.bottom.color).frame(height: deskSplit.gap)
-                                }
-                            }
-                            .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
-                    }
-                }
+        .onHingeChange { _, new in model.hinge = new.hinge }
+        // A hand-speed unfold passes through half-open on its way flat: only a posture held for a moment splits the
+        // screen. Leaving the split is immediate.
+        .task(id: model.hinge?.status == .partiallyOpen && fold != nil) {
+            let halfOpen = model.hinge?.status == .partiallyOpen && fold != nil
+            if halfOpen {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !Task.isCancelled else { return }
             }
-            if pose == .narrow, cardOpen { floatingSidebar }
+            model.setSplit(halfOpen)
         }
-        .environment(\.sidebar, sidebarControl)
-        .onGeometryChange(for: CGSize.self, of: { $0.size }) { size = $0 }
-        .onGeometryChange(for: CGRect?.self, of: { $0.reservedRegions(kind: .division).first?.frame }) { fold = $0 }
-        .onChange(of: model.activeTabID) { _, id in
-            // Picking a tab puts the floating card away; closing the last one brings it back to choose another.
-            withAnimation(motion) { cardOpen = id == nil }
-        }
-        // A card opened earlier shouldn't reappear on returning to the narrow layout.
-        .onChange(of: pose) { cardOpen = model.activeTabID == nil }
-        .onAppear { cardOpen = model.activeTabID == nil }
-        .animation(motion, value: pose)
-        .animation(SiteEdges.fade(reduceMotion: reduceMotion), value: pageEdges)
-    }
-
-    /// The showing page's edge colors, which the fold beside or below it takes on.
-    private var pageEdges: SiteEdges? {
-        guard tintWithSiteColors, let id = model.activeTabID else { return nil }
-        return model.siteEdges[id]
-    }
-
-    /// Nil when the sidebar isn't laid out beside the page.
-    private var inlineSidebarWidth: CGFloat? {
-        switch pose {
-        // With no page to make room for, the sidebar shows even when hidden.
-        case .wide: sidebarCollapsed && model.activeTabID != nil ? nil : 300
-        case .book: max(fold?.minX ?? size.width / 2, 260)
-        case .narrow, .laptop: nil
-        }
-    }
-
-    private var creaseWidth: CGFloat { pose == .book ? max(fold?.width ?? 0, 0.5) : 0.5 }
-
-    /// Laptop pose: the page's height down to the fold, and the fold's own height before the controls.
-    private var deskSplit: (page: CGFloat, gap: CGFloat)? {
-        guard pose == .laptop else { return nil }
-        guard let fold else { return (size.height / 2, 0) }
-        return (fold.minY, fold.height)
-    }
-
-    private var sidebar: some View { SpaceHome().environment(\.isSidebar, true) }
-
-    private var floatingSidebar: some View {
-        ZStack(alignment: .leading) {
-            Color.black.opacity(0.2)
-                .ignoresSafeArea()
-                .onTapGesture { withAnimation(motion) { cardOpen = false } }
-                .accessibilityLabel("Close sidebar")
-                .accessibilityAddTraits(.isButton)
-            sidebar
-                .frame(width: min(340, size.width - 72))
-                // The space gradient is translucent; the card must hide the page under it.
-                .background(Color(uiColor: .systemBackground).ignoresSafeArea())
-                .clipShape(.rect(cornerRadius: 30, style: .continuous))
-                .shadow(color: .black.opacity(0.22), radius: 24, x: 6)
-                .padding(8)
-                .transition(reduceMotion ? .opacity : .move(edge: .leading).combined(with: .opacity))
-        }
-        // VoiceOver stays on the card (and its scrim's close action) instead of reaching the page beneath.
-        .accessibilityElement(children: .contain)
-        .accessibilityAddTraits(.isModal)
-        .transition(.opacity)
-    }
-
-    /// The sidebar button in the rail and the sidebar's header. Book pose has no control: the sidebar is the left half.
-    private var sidebarControl: SidebarControl? {
-        switch pose {
-        case .wide where model.activeTabID == nil:
-            nil
-        case .wide:
-            SidebarControl(isCollapsed: sidebarCollapsed) { withAnimation(motion) { sidebarCollapsed.toggle() } }
-        case .narrow:
-            SidebarControl(isCollapsed: !cardOpen,
-                           toggle: { withAnimation(motion) { cardOpen.toggle() } },
-                           didPick: { withAnimation(motion) { cardOpen = false } })
-        case .book, .laptop:
-            nil
-        }
-    }
-
-    private var motion: Animation { reduceMotion ? .easeInOut(duration: 0.2) : .snappy(duration: 0.34) }
-
-    @ViewBuilder private var browserPane: some View {
-        if let tab = model.activeTab {
-            TabBrowser(tab: tab)
-        } else {
-            EmptyBrowser()
-                .toolRail { axis in HomeBar(axis: axis) }
+        // The strip lists the tabs; the carousel mustn't stay up over the pane beside it.
+        .onChange(of: arrangement.hasStrip) { _, strip in
+            if strip { model.showsCoverFlow = false }
         }
     }
 }
 
-/// Folded (cover screen): always a page, never a home screen (spaces are a desktop idea). With no tab open, an
-/// empty page and its search. The tab carousel opens over the page.
-private struct CompactShell: View {
+/// What a pane's size is made of. A change means the posture changed, which resizes the panes.
+struct Posture: Hashable {
+    var arrangement: PostureLayout.Arrangement = .single
+    var window = CGSize.zero
+}
+
+nonisolated private enum PaneSlot: LayoutValueKey {
+    /// -1 is the tab strip; panes are 0 and 1.
+    static let defaultValue = 0
+}
+
+/// Places the strip and the panes. The strip takes the leading edge; half-open, the panes meet the fold on either side.
+struct PostureLayout: Layout {
+    enum Arrangement: Hashable {
+        case single
+        case strip(width: CGFloat)
+        case split(fold: CGRect)
+
+        var hasStrip: Bool { if case .strip = self { true } else { false } }
+    }
+
+    let arrangement: Arrangement
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        proposal.replacingUnspecifiedDimensions()
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for subview in subviews {
+            let frame = frame(of: subview[PaneSlot.self], in: bounds)
+            subview.place(at: frame.origin, proposal: ProposedViewSize(frame.size))
+        }
+    }
+
+    private func frame(of slot: Int, in bounds: CGRect) -> CGRect {
+        switch arrangement {
+        case .single:
+            return bounds
+        case .strip(let width):
+            let (strip, pane) = bounds.divided(atDistance: width, from: .minXEdge)
+            return slot < 0 ? strip : pane
+        case .split(let fold):
+            // The fold is in the layout's own coordinates; each pane stops at its edge.
+            let fold = fold.offsetBy(dx: bounds.minX, dy: bounds.minY)
+            if fold.width > fold.height {
+                return slot == 0 ? CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width, height: fold.minY - bounds.minY)
+                    : CGRect(x: bounds.minX, y: fold.maxY, width: bounds.width, height: bounds.maxY - fold.maxY)
+            }
+            return slot == 0 ? CGRect(x: bounds.minX, y: bounds.minY, width: fold.minX - bounds.minX, height: bounds.height)
+                : CGRect(x: fold.maxX, y: bounds.minY, width: bounds.maxX - fold.maxX, height: bounds.height)
+        }
+    }
+}
+
+/// One browser: a tab's page and its bar, or the empty page, with the tab carousel over it. Half-open there are two;
+/// the one the user last touched is the focused one.
+private struct Pane: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let index: Int
+    /// The side the next tab slides in from; set while the finger is still down, so the outgoing page
+    /// has already rendered with it by the time the tab changes.
+    @State private var pageDirection: Edge = .trailing
+    @State private var bump = 0
 
     var body: some View {
         ZStack {
-            if let tab = model.activeTab {
-                TabBrowser(tab: tab).environment(\.isPrivateBrowsing, model.isPrivate(tab))
+            if let tab = model.tab(inPane: index) {
+                TabBrowser(tab: tab, pageDirection: $pageDirection, bump: $bump)
+                    .environment(\.isPrivateBrowsing, model.isPrivate(tab))
+                    .id(tab.id)
+                    .transition(pageTransition)
             } else {
                 EmptyBrowser().toolRail { axis in HomeBar(axis: axis) }
             }
         }
+        .sensoryFeedback(.selection, trigger: bump)
         // The animation stays on the carousel: a tab opened from it changes the page underneath without sliding.
         .overlay {
             ZStack {
                 // It animates itself in and out; this fade covers being closed from outside (unfolding).
-                if model.showsCoverFlow {
+                if model.showsCoverFlow, model.focusedPane == index {
                     TabCarousel().transition(.asymmetric(insertion: .identity, removal: .opacity))
                 }
             }
             .animation(carouselMotion, value: model.showsCoverFlow)
         }
+        .environment(\.paneIndex, index)
+        .simultaneousGesture(TapGesture().onEnded { model.focusPane(index) }, including: model.isSplit ? .all : .subviews)
+    }
+
+    private var pageTransition: AnyTransition {
+        if reduceMotion { return .opacity }
+        return .asymmetric(insertion: .move(edge: pageDirection),
+                           removal: .move(edge: pageDirection == .trailing ? .leading : .trailing))
     }
 
     private var carouselMotion: Animation {
         reduceMotion ? .easeInOut(duration: 0.2) : .interpolatingSpring(duration: 0.42, bounce: 0.08)
+    }
+}
+
+/// The fold between the two panes, in each page's own edge colors up to the middle of the fold.
+private struct FoldFill: View {
+    @Environment(AppModel.self) private var model
+    @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
+    let fold: CGRect
+
+    var body: some View {
+        let across = fold.width > fold.height
+        let halves = across ? fold.divided(atDistance: fold.height / 2, from: .minYEdge)
+            : fold.divided(atDistance: fold.width / 2, from: .minXEdge)
+        ZStack(alignment: .topLeading) {
+            ForEach(0..<2, id: \.self) { pane in
+                let rect = pane == 0 ? halves.slice : halves.remainder
+                fill(pane, across: across).frame(width: rect.width, height: rect.height).offset(x: rect.minX, y: rect.minY)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .allowsHitTesting(false)
+    }
+
+    @ViewBuilder private func fill(_ pane: Int, across: Bool) -> some View {
+        if tintWithSiteColors, let edges = model.tabID(inPane: pane).flatMap({ model.siteEdges[$0] }) {
+            if across {
+                Rectangle().fill(pane == 0 ? edges.bottom.color : edges.top.color)
+            } else {
+                LinearGradient(colors: [edges.top.color, edges.bottom.color], startPoint: .top, endPoint: .bottom)
+            }
+        }
     }
 }
 
@@ -271,92 +239,11 @@ private struct ShakeToUndo: ViewModifier {
     }
 }
 
-/// Half-open "laptop" posture: page on top; today's tabs and the address bar on the bottom half.
-private struct DeskControls: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.colorScheme) private var scheme
-    @Environment(\.colorSchemeContrast) private var contrast
-
-    var body: some View {
-        VStack(spacing: 16) {
-            if let space = model.currentSpace {
-                ScrollView(.horizontal) {
-                    HStack(spacing: 10) {
-                        ForEach(model.todayTabs(in: space)) { tab in
-                            let selected = tab.id == model.activeTabID
-                            Button { model.activate(tab) } label: {
-                                Text(tab.title ?? tab.url?.host() ?? "New Tab").lineLimit(1)
-                                    // A long title truncates instead of making one chip screens wide.
-                                    .frame(maxWidth: 220)
-                                    .padding(.horizontal, 14).padding(.vertical, 12)
-                                    .frame(minHeight: 44)
-                                    .glassEffect(selected ? .regular.tint(Theme.brand) : .regular, in: .capsule)
-                                    .overlay {
-                                        if selected, contrast == .increased {
-                                            Capsule().strokeBorder(.primary.opacity(0.4), lineWidth: 1)
-                                        }
-                                    }
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityAddTraits(selected ? .isSelected : [])
-                        }
-                    }
-                }
-                .scrollIndicators(.hidden)
-            }
-            Button { model.beginSearch(.newTab) } label: {
-                Label("Search or enter address", systemImage: "magnifyingglass")
-                    .frame(maxWidth: .infinity).padding(.vertical, 14)
-                    .glassEffect(.regular.interactive(), in: .capsule)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(SpaceStyle(model.currentSpace, scheme: scheme).gradient.ignoresSafeArea())
-    }
-}
-
-/// Soft glow along the fold. Uses the division reserved region for placement and hinge angle for intensity.
-/// It flares once as the device settles half-open, then stays faint. Only with no page showing: beside a page, the
-/// fold takes the page's colors instead.
-private struct FoldGlow: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var flare = false
-
-    var body: some View {
-        GeometryReader { proxy in
-            ForEach(proxy.reservedRegions(kind: .division)) { region in
-                Rectangle()
-                    .fill(Theme.glow)
-                    .frame(width: max(region.frame.width, 2), height: max(region.frame.height, 2))
-                    .position(x: region.frame.midX, y: region.frame.midY)
-                    .blur(radius: 6)
-                    .opacity(intensity)
-            }
-        }
-        .allowsHitTesting(false)
-        .ignoresSafeArea()
-        .onChange(of: model.isDeskPosture) { _, halfOpen in
-            guard halfOpen, !reduceMotion else { return }
-            withAnimation(.easeIn(duration: 0.3)) { flare = true } completion: {
-                withAnimation(.easeOut(duration: 1.2)) { flare = false }
-            }
-        }
-    }
-
-    /// Brightest when half-open, fading out as the device lies flat. An effect only, so none with Reduce Motion.
-    private var intensity: Double {
-        guard !reduceMotion, model.activeTabID == nil, let degrees = model.hinge?.angle.degrees else { return 0 }
-        return max(0, 1 - abs(degrees - 110) / 70) * (flare ? 0.35 : 0.15)
-    }
-}
-
 /// The browser with no tab open: a quiet wash of color and a way to open one.
 private struct EmptyBrowser: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.paneIndex) private var pane
 
     var body: some View {
         let style = SpaceStyle(model.currentSpace, scheme: scheme)
@@ -367,9 +254,12 @@ private struct EmptyBrowser: View {
             Text("No tab open").font(.system(.title2, design: .rounded, weight: .bold))
             Text("Search or enter an address to open one.")
                 .font(.callout).foregroundStyle(Theme.textSecondary)
-            Button("New Tab", systemImage: "plus") { model.beginSearch(.newTab) }
-                .buttonStyle(.glass)
-                .padding(.top, 4)
+            Button("New Tab", systemImage: "plus") {
+                model.focusPane(pane)
+                model.beginSearch(.newTab)
+            }
+            .buttonStyle(.glass)
+            .padding(.top, 4)
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)

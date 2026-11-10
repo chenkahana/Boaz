@@ -28,7 +28,8 @@ struct PageAIMenuItems: View {
     }
 }
 
-/// Tidy Tabs and Tidy Tab Titles for the current space, for the menu.
+/// Tidy Tab Titles for the current space's tabs, for the menu. Tidy Tabs stays on the Mac: the phone has no
+/// folders to file tabs into.
 struct SpaceAIMenuItems: View {
     @Environment(AppModel.self) private var model
     @AppStorage(AIFeatures.preferenceKey) private var showAIFeatures = true
@@ -36,8 +37,6 @@ struct SpaceAIMenuItems: View {
     var body: some View {
         if AIFeatures.showsEntryPoints(preference: showAIFeatures), !model.isIncognito, let space = model.currentSpace {
             Section {
-                Button("Tidy Tabs", systemImage: "sparkles") { AIPresenter.shared.request = .tidyTabs(spaceID: space.id) }
-                    .disabled(model.todayTabs(in: space).count < TabTidier.minimumTabs)
                 Button("Tidy Tab Titles", systemImage: "character.cursor.ibeam") {
                     AIPresenter.shared.request = .tidyTitles(spaceID: space.id)
                 }
@@ -70,13 +69,9 @@ private struct TidySheets: ViewModifier {
             get: { AIPresenter.shared.request.map { if case .page = $0 { false } else { true } } ?? false },
             set: { if !$0 { AIPresenter.shared.request = nil } })) {
             switch AIPresenter.shared.request {
-            case .tidyTabs(let spaceID):
-                if let space = model.spaces.first(where: { $0.id == spaceID }) {
-                    TidyTabsView(tabs: model.todayTabs(in: space)) { model.applyTidy($0, in: space) }
-                }
             case .tidyTitles(let spaceID):
                 if let space = model.spaces.first(where: { $0.id == spaceID }) {
-                    TidyTitlesView(tabs: model.allPinnedTabs(in: space)) { model.applyTitles($0) }
+                    TidyTitlesView(tabs: model.todayTabs(in: space)) { model.applyTitles($0) }
                 }
             default:
                 EmptyView()
@@ -86,21 +81,6 @@ private struct TidySheets: ViewModifier {
 }
 
 extension AppModel {
-    /// Every tab under a space's pinned section, including those in folders.
-    func allPinnedTabs(in space: Space) -> [SidebarItem] {
-        func flatten(_ parent: String) -> [SidebarItem] {
-            sidebar.children(of: parent).flatMap { $0.kind == .folder ? flatten($0.id) : $0.kind == .tab ? [$0] : [] }
-        }
-        return sidebar.container(.pinned, in: space.id).map { flatten($0.id) } ?? []
-    }
-
-    /// Creates the plan's folders at the end of Today and moves its tabs in.
-    func applyTidy(_ plan: TabTidier.Plan, in space: Space) {
-        guard let box = sidebar.container(.unpinned, in: space.id) else { return }
-        let records = TabTidier.records(for: plan, today: box, in: sidebar)
-        saveAI(records, done: "Tidied into \(plan.groups.count) folder\(plan.groups.count == 1 ? "" : "s")")
-    }
-
     func applyTitles(_ changes: [TabTidier.TitleChange]) {
         let records = changes.compactMap { change -> SidebarItem? in
             guard var tab = sidebar.items.first(where: { $0.id == change.tab.id }) else { return nil }
@@ -109,25 +89,6 @@ extension AppModel {
             return tab
         }
         saveAI(records, done: "Renamed \(records.count) tab\(records.count == 1 ? "" : "s")")
-    }
-
-    /// Moves a Today folder's tabs back into Today and removes the folder.
-    func ungroup(_ folder: SidebarItem) {
-        guard folder.kind == .folder, let parent = folder.parentID else { return }
-        var position = sidebar.nextPosition(in: parent)
-        var records: [SidebarItem] = sidebar.children(of: folder.id).map { child in
-            var child = child
-            child.parentID = parent
-            child.position = position
-            child.modifiedAt = .now
-            position += 1
-            return child
-        }
-        var removed = folder
-        removed.deletedAt = .now
-        removed.modifiedAt = .now
-        records.append(removed)
-        saveAI(records, done: nil)
     }
 
     private func saveAI(_ records: [SidebarItem], done: String?) {

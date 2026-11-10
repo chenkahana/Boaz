@@ -4,18 +4,21 @@ import TipKit
 import Translation
 import WebKit
 
-/// A tab's web page with its chrome: a bottom bar you swipe to change tabs, which shrinks while reading.
+/// A tab's web page with its chrome: a bottom bar you swipe to change tabs, which collapses while reading on the
+/// tall inner screen.
 struct TabBrowser: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.collapsesBar) private var collapsesBar
+    @Environment(\.paneIndex) private var pane
     @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
     let tab: SidebarItem
+    /// The side the next tab slides in from, and a count of tab turns for the haptic; both outlive this tab's
+    /// browser (each tab gets its own), so the pane keeps them.
+    @Binding var pageDirection: Edge
+    @Binding var bump: Int
     @State private var dragX: CGFloat = 0
-    /// The side the next tab slides in from; set while the finger is still down, so the outgoing page
-    /// has already rendered with it by the time the tab changes.
-    @State private var pageDirection: Edge = .trailing
-    @State private var bump = 0
     @State private var loadFailure: LoadFailure?
     @State private var findVisible = false
 
@@ -32,7 +35,8 @@ struct TabBrowser: View {
     @State private var readableLength = 0
     @State private var readerArticle: ReaderArticle?
     @State private var showingDownloads = false
-    /// Identifies this browser when claiming the page (see `AppModel.claimPage`).
+    /// Identifies this browser when claiming the page (see `AppModel.claimPage`). The pane gives every tab a
+    /// browser of its own, so the outgoing tab's, still sliding away, never releases the incoming one's page.
     @State private var hostID = UUID()
     /// Whether a status cluster lies across the top of the page (the inner screen held upright).
     @State private var statusAcrossTop = false
@@ -42,6 +46,8 @@ struct TabBrowser: View {
     @State private var translationText: String?
     /// The screen's safe-area insets around the page (without the bottom bar's), which take the page's edge colors.
     @State private var outerInsets = EdgeInsets()
+    @State private var scroll = PageScroll()
+    @State private var barCollapsed = false
 
     var body: some View {
         let page = model.page(for: tab)
@@ -76,10 +82,6 @@ struct TabBrowser: View {
                 model.restoreSiteEdges(for: tab)
             }
             .onDisappear { model.releasePage(tab.id, host: hostID) }
-            .onChange(of: tab.id) { old, new in
-                model.releasePage(old, host: hostID)
-                model.claimPage(new, host: hostID)
-            }
             .offset(x: dragX)
             .overlay(alignment: .top) { LoadingGlow(page: page) }
             .overlay(alignment: .top) {
@@ -89,9 +91,10 @@ struct TabBrowser: View {
                     .allowsHitTesting(false)
             }
             .overlay {
-                // In the page area: beside the rail, above the bottom bar.
-                if model.showsPageSettings {
-                    BottomPanel(site: edges?.bottom, maxHeight: 0.56, onDismiss: closePageSettings) {
+                // In the page area: beside the rail, above the bottom bar. Half-open, in the focused pane only.
+                if model.showsPageSettings, model.activeTabID == tab.id {
+                    // A half-open pane is short: there the menu may take all of it, and scrolls.
+                    BottomPanel(site: edges?.bottom, maxHeight: model.isSplit ? 1 : 0.56, onDismiss: closePageSettings) {
                         PageSettingsPanel(tab: tab, page: page, failedURL: loadFailure?.url,
                                           readableLength: readableLength,
                                           onReader: { Task { readerArticle = await Reader.extract(from: page) } },
@@ -102,8 +105,9 @@ struct TabBrowser: View {
                 }
             }
             .onGeometryChange(for: Bool.self, of: { $0.safeAreaInsets.trailing >= 44 }) { hasRail = $0 }
-            .toolRail(edgeEffect: false) { axis in
-                BrowserBar(tab: tab, page: page, axis: axis)
+            .toolRail(edgeEffect: false, overlaysContent: collapsesBar) { axis in
+                BrowserBar(tab: tab, page: page, axis: axis, collapsed: collapsesBar && barCollapsed,
+                           expand: { setBarCollapsed(false) })
                     .highPriorityGesture(paging(axis))
                     .accessibilityAction(named: "Next Tab") { pageTab(by: 1) }
                     .accessibilityAction(named: "Previous Tab") { pageTab(by: -1) }
@@ -113,27 +117,19 @@ struct TabBrowser: View {
             .environment(\.chromeTint, edges?.top.color)
             .environment(\.siteEdges, edges)
             .animation(SiteEdges.fade(reduceMotion: reduceMotion), value: edges)
-            .sensoryFeedback(.selection, trigger: bump)
             .sensoryFeedback(.selection, trigger: model.backForwardHaptic)
             .sensoryFeedback(.impact(weight: .light), trigger: pullArmed) { old, new in new && !old }
             .onChange(of: page.url) { model.didChangeURL(tab) }
             .onChange(of: page.title) { model.didChangeTitle(tab) }
             .onChange(of: page.url) { model.restoreSiteEdges(for: tab) }
-            .task(id: tab.id) { await trackNavigations(of: page) }
+            .onChange(of: collapsesBar) { barCollapsed = false }
+            .task { await trackNavigations(of: page) }
             .sheet(item: $readerArticle) { article in ReaderView(article: article, tint: Theme.brand) }
             .pageAISheet(tab: tab, page: page)
             .sheet(isPresented: $showingDownloads) { DownloadsView() }
             .translationPresentation(isPresented: Binding(get: { translationText != nil },
                                                             set: { if !$0 { translationText = nil } }),
                                       text: translationText ?? "")
-            .id(tab.id)
-            .transition(pageTransition)
-    }
-
-    private var pageTransition: AnyTransition {
-        if reduceMotion { return .opacity }
-        return .asymmetric(insertion: .move(edge: pageDirection),
-                           removal: .move(edge: pageDirection == .trailing ? .leading : .trailing))
     }
 
     /// The cluster lies across the top (wider than tall) on the upright inner screen; in landscape it stands in the
@@ -160,11 +156,20 @@ struct TabBrowser: View {
     private func webView(_ page: WebPage) -> some View {
         WebView(page)
             .webViewBackForwardNavigationGestures(.enabled)
-            .webViewOnScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.y + $0.contentInsets.top }) {
-                handlePullGeometry(old: $0, new: $1, page: page)
+            // A page that fits the width doesn't rubber-band sideways.
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            .webViewOnScrollGeometryChange(for: PageScroll.Sample.self, of: PageScroll.Sample.init) { old, new in
+                handlePullGeometry(old: old.offset, new: new.offset, page: page)
                 model.pageDidScroll(tab)
+                scroll.note(new)
+                // Followed in every posture (this action can outlive an environment change); shown only where
+                // the bar collapses.
+                setBarCollapsed(scroll.barCollapses(new, collapsed: barCollapsed))
             }
             .findNavigator(isPresented: $findVisible)
+            .ignoresSafeArea(.container, edges: collapsesBar ? .bottom : [])
+            .modifier(RelayoutCover(page: page, scroll: scroll, snapshot: { [tab] in model.snapshots[tab.id] },
+                                    background: edges?.page.color ?? Color(.systemBackground)))
             .onDisappear { [tab, hostID] in model.releasePage(tab.id, host: hostID) }
             .overlay {
                 // WebKit draws no error page of its own, so a failed load would otherwise stay blank.
@@ -183,6 +188,11 @@ struct TabBrowser: View {
             }
     }
 
+    private func setBarCollapsed(_ collapsed: Bool) {
+        guard collapsed != barCollapsed else { return }
+        withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : .smooth(duration: 0.3)) { barCollapsed = collapsed }
+    }
+
     private func retry(_ failure: LoadFailure, on page: WebPage) {
         loadFailure = nil
         // A failed link never became the current item, so reloading would reload the page before it.
@@ -191,6 +201,7 @@ struct TabBrowser: View {
 
     /// Steps to a neighbouring tab, for VoiceOver's Next Tab and Previous Tab actions.
     private func pageTab(by offset: Int) {
+        model.focusPane(pane)
         pageDirection = offset > 0 ? .trailing : .leading
         withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
             if model.pageTab(by: offset) { bump += 1 }
@@ -209,6 +220,7 @@ struct TabBrowser: View {
                 pageDirection = along < 0 ? .trailing : .leading
             }
             .onEnded { value in
+                model.focusPane(pane)
                 let along = axis == .vertical ? -value.translation.height : value.translation.width
                 let offset = along < -70 ? 1 : along > 70 ? -1 : 0
                 withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
@@ -367,12 +379,15 @@ private struct LoadFailure {
 private struct BrowserBar: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.homeControlsElsewhere) private var homeControlsElsewhere
+    @Environment(\.listsTabsElsewhere) private var listsTabsElsewhere
     @Environment(\.siteEdges) private var edges
-    @Environment(\.sidebar) private var sidebar
+    @Environment(\.paneIndex) private var pane
     let tab: SidebarItem
     let page: WebPage
     let axis: Axis
+    /// Collapsed to a slim strip with the page's title while reading; tapping it brings the bar back.
+    let collapsed: Bool
+    let expand: () -> Void
 
     var body: some View {
         bar.onChange(of: tabCount, initial: true) { SwipeTabsTip.openTabs = tabCount }
@@ -383,9 +398,9 @@ private struct BrowserBar: View {
         if axis == .vertical {
             RailColumn {
                 tabsButton
-                RailButton(symbol: "plus", label: "New Tab", isSelected: model.searchTarget != nil, action: toggleSearch)
+                RailButton(symbol: "plus", label: "New Tab", isSelected: searching, action: toggleSearch)
             } bottom: {
-                RailButton(symbol: "ellipsis", label: "Page Settings", isSelected: model.showsPageSettings,
+                RailButton(symbol: "ellipsis", label: "Page Settings", isSelected: showsPageSettings,
                            action: togglePageSettings)
             }
             .animation(reduceMotion ? .easeOut(duration: 0.2) : .bouncy(duration: 0.35), value: tabCount)
@@ -395,12 +410,9 @@ private struct BrowserBar: View {
         }
     }
 
-    /// The stack of Today tabs (opens the carousel); unfolded, the sidebar toggle takes its place, since the
-    /// sidebar lists the tabs. Book and laptop poses list the tabs beside or below the page, so there's none.
+    /// The stack of the phone's tabs (opens the carousel); none beside the tab strip, which lists them.
     @ViewBuilder private var tabsButton: some View {
-        if let sidebar {
-            SidebarRailButton(sidebar: sidebar)
-        } else if !homeControlsElsewhere {
+        if !listsTabsElsewhere {
             if axis == .vertical {
                 TabStack(space: model.currentSpace, cardSize: CGSize(width: 26, height: 36)).padding(.vertical, 4)
             } else {
@@ -409,24 +421,24 @@ private struct BrowserBar: View {
         }
     }
 
-    /// The phone's own toolbar: the tab fan at the leading end (unfolded, the sidebar toggle), New Tab as a glass pill
-    /// in the middle, the page menu in a glass circle at the trailing end. Fixed across the bottom on a frosted strip
-    /// in the page's bottom color, with the page ending above it.
+    /// The phone's own toolbar: the tab fan at the leading end, New Tab as a glass pill in the middle, the page menu
+    /// in a glass circle at the trailing end, across the bottom on a frosted strip in the page's bottom color.
+    /// Collapsed, the strip shrinks to the page's title; it keeps its room, so the page under it never moves.
     private var bottomBar: some View {
         HStack(spacing: 0) {
-            leadingControl.frame(maxWidth: .infinity, alignment: .leading)
+            tabsButton.frame(maxWidth: .infinity, alignment: .leading)
             Button(action: toggleSearch) {
                 Image(systemName: "plus")
                     .font(.title3.weight(.semibold))
                     .frame(width: 116, height: 50)
-                    .railSelection(model.searchTarget != nil)
+                    .railSelection(searching)
                     .contentShape(.capsule)
             }
             .buttonStyle(PressableStyle())
             .glassEffect(.regular.interactive(), in: .capsule)
             .accessibilityLabel("New Tab")
-            .accessibilityAddTraits(model.searchTarget != nil ? .isSelected : [])
-            RailButton(symbol: "ellipsis", label: "Page Settings", isSelected: model.showsPageSettings,
+            .accessibilityAddTraits(searching ? .isSelected : [])
+            RailButton(symbol: "ellipsis", label: "Page Settings", isSelected: showsPageSettings,
                        action: togglePageSettings)
                 .glassEffect(.regular.interactive(), in: .circle)
                 .frame(maxWidth: .infinity, alignment: .trailing)
@@ -434,24 +446,44 @@ private struct BrowserBar: View {
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 4)
+        .opacity(collapsed ? 0 : 1)
+        .scaleEffect(collapsed && !reduceMotion ? 0.8 : 1, anchor: .bottom)
+        .allowsHitTesting(!collapsed)
         .popoverTip(SwipeTabsTip(), arrowEdge: .bottom)
         .frame(maxWidth: .infinity)
-        .background(.bar, ignoresSafeAreaEdges: .bottom)
-        .overlay(alignment: .top) { Divider() }
+        .background(alignment: .bottom) {
+            Rectangle().fill(.bar)
+                .ignoresSafeArea(.container, edges: .bottom)
+                .frame(height: collapsed ? 14 : nil)
+                .overlay(alignment: .top) { Divider() }
+        }
+        .overlay(alignment: .bottom) {
+            Button(action: expand) {
+                Text(collapsedTitle).font(.system(size: 10, weight: .medium)).lineLimit(1)
+                    .padding(.horizontal, 24)
+                    .frame(maxWidth: .infinity, minHeight: 14, maxHeight: 14)
+                    .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .opacity(collapsed ? 1 : 0)
+            .allowsHitTesting(collapsed)
+            .accessibilityHidden(!collapsed)
+            .accessibilityHint("Shows the toolbar")
+        }
         .chromeScheme(edges?.bottom)
     }
 
-    /// The tab fan stands on its own; the sidebar toggle that replaces it unfolded gets a glass circle.
-    @ViewBuilder private var leadingControl: some View {
-        if let sidebar {
-            SidebarRailButton(sidebar: sidebar).glassEffect(.regular.interactive(), in: .circle)
-        } else {
-            tabsButton
-        }
+    private var collapsedTitle: String {
+        page.title.isEmpty ? page.url?.host() ?? tab.title ?? "" : page.title
     }
+
+    /// Half-open, only the focused pane's controls show its panels as open.
+    private var searching: Bool { model.searchTarget != nil && model.activeTabID == tab.id }
+    private var showsPageSettings: Bool { model.showsPageSettings && model.activeTabID == tab.id }
 
     /// New Tab opens the search panel; pressed again, it puts it away. One panel at a time.
     private func toggleSearch() {
+        model.focusPane(pane)
         withAnimation(BottomPanelStyle.motion) {
             model.showsPageSettings = false
             if model.searchTarget != nil { model.searchTarget = nil } else { model.beginSearch(.newTab) }
@@ -459,6 +491,7 @@ private struct BrowserBar: View {
     }
 
     private func togglePageSettings() {
+        model.focusPane(pane)
         withAnimation(BottomPanelStyle.motion) {
             model.searchTarget = nil
             model.showsPageSettings.toggle()

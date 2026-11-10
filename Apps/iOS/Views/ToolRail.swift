@@ -7,9 +7,12 @@ import WebKit
 private struct ToolRailModifier<Rail: View>: ViewModifier {
     /// Whether content scrolling under the bottom bar gets the system's scroll-edge effect.
     let edgeEffect: Bool
+    /// Whether the bottom bar floats over the content instead of ending it (a bar that collapses while reading).
+    let overlaysContent: Bool
     let rail: (Axis) -> Rail
     /// The content's safe-area insets. Measured here because a reader that ignores the safe area sees none.
     @State private var insets = EdgeInsets()
+    @State private var barHeight: CGFloat = 0
     @Environment(\.siteEdges) private var edges
 
     func body(content: Content) -> some View {
@@ -35,9 +38,13 @@ private struct ToolRailModifier<Rail: View>: ViewModifier {
         if edgeEffect {
             content.safeAreaBar(edge: .bottom, spacing: 0) { bar }
         } else {
+            // Floating, the bar takes no room: the content keeps its frame and gets the bar's height as safe area,
+            // so its last line can scroll clear of the bar. One structure either way, so `content` keeps its place.
+            let floats = shown && overlaysContent
             VStack(spacing: 0) {
-                content
-                bar
+                content.safeAreaPadding(.bottom, floats ? barHeight : 0)
+                bar.onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { barHeight = $0 }
+                    .frame(height: floats ? 0 : nil, alignment: .bottom)
             }
         }
     }
@@ -68,8 +75,9 @@ private struct ToolRailModifier<Rail: View>: ViewModifier {
 }
 
 extension View {
-    func toolRail<Rail: View>(edgeEffect: Bool = true, @ViewBuilder _ rail: @escaping (Axis) -> Rail) -> some View {
-        modifier(ToolRailModifier(edgeEffect: edgeEffect, rail: rail))
+    func toolRail<Rail: View>(edgeEffect: Bool = true, overlaysContent: Bool = false,
+                              @ViewBuilder _ rail: @escaping (Axis) -> Rail) -> some View {
+        modifier(ToolRailModifier(edgeEffect: edgeEffect, overlaysContent: overlaysContent, rail: rail))
     }
 }
 
@@ -180,12 +188,14 @@ struct RailIcon: View {
 }
 
 extension EnvironmentValues {
-    /// Set when another pane's rail carries the home controls (unfolded: the browser pane's rail).
-    @Entry var homeControlsElsewhere = false
-    /// Set when the home page is the unfolded layout's sidebar: narrower, with Today as rows.
-    @Entry var isSidebar = false
-    /// The unfolded sidebar's show/hide control (`nil` where there is no sidebar).
-    @Entry var sidebar: SidebarControl?
+    /// Set beside the tab strip, which lists the tabs: the bar has no tab fan.
+    @Entry var listsTabsElsewhere = false
+    /// Set where the bottom bar collapses while reading (unfolded, taller than wide).
+    @Entry var collapsesBar = false
+    /// Which pane a view is in: 0, or 1 for the second pane half-open.
+    @Entry var paneIndex = 0
+    /// The posture the pane is laid out for (see `RootView`).
+    @Entry var posture = Posture()
     /// The current site's color, which toolbar glass picks up (`nil`: plain glass).
     @Entry var chromeTint: Color?
     /// The current page's edge colors, which the rail's column takes on (`nil`: no page, or tinting is off).
@@ -215,21 +225,4 @@ private struct ChromeScheme: ViewModifier {
 extension Glass {
     /// Toolbar glass, lightly tinted with the site's color when there is one.
     static func chrome(_ tint: Color?) -> Glass { .regular.tint(tint?.opacity(0.45)).interactive() }
-}
-
-struct SidebarControl {
-    var isCollapsed: Bool
-    var toggle: () -> Void
-    /// A row in the sidebar was picked, even the tab already showing: a floating sidebar gets out of the way.
-    var didPick: () -> Void = {}
-}
-
-/// Shows or hides the unfolded sidebar; takes the Tabs button's place in the rail, since the sidebar lists the tabs.
-struct SidebarRailButton: View {
-    let sidebar: SidebarControl
-
-    var body: some View {
-        RailButton(symbol: "sidebar.left", label: sidebar.isCollapsed ? "Show Sidebar" : "Hide Sidebar",
-                   action: sidebar.toggle)
-    }
 }
