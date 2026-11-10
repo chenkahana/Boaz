@@ -4,10 +4,10 @@
 
 # Boaz
 
-**A calm, spaces-first web browser for iPhone and Mac.**
+**A calm web browser for iPhone and Mac.**
 
-Spaces, pinned tabs and favorites that stay in step through your private iCloud,
-a Today list that tidies itself, and a layout that follows every posture of iPhone Duo.
+On iPhone, the page fills the screen and opens where you left it, with a slim rail for your tabs and a layout
+that follows every posture of iPhone Duo. On the Mac, Arc-style spaces. Both stay in step through your private iCloud.
 
 [![CI](https://github.com/chenkahana/Boaz/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/chenkahana/Boaz/actions/workflows/ci.yml)
 ![iOS 27.1+](https://img.shields.io/badge/iOS-27.1%2B-000000?logo=apple)
@@ -27,10 +27,14 @@ a Today list that tidies itself, and a layout that follows every posture of iPho
 
 | | |
 |---|---|
-| **Spaces** | Keep work, home and projects apart. Each space has its own color theme, pinned tabs, folders and favorites; swipe or click to move between them. |
-| **Today and the Archive** | New tabs land in Today. Tabs you haven't opened in a while move to the Archive on their own; pinned tabs stay put. |
+| **Page first on iPhone** | Boaz opens on the last page you had open. A rail beside the page holds a stack of your previous tabs (most recent on top), **+** for search and **…** for the page menu. Tap the stack for a carousel of your tabs: tap one to open it, swipe one up to archive it. |
+| **Spaces on the Mac** | Keep work, home and projects apart. Each space has its own color theme, pinned tabs, folders and favorites. Spaces are a Mac idea; the iPhone shows your tabs without them. |
+| **Today and the Archive** | New tabs land in Today. Each device keeps its own Today list, and the iPhone can open the tabs on your Mac. Tabs you haven't opened in a while move to the Archive on their own; pinned tabs stay put. |
+| **Search** | Suggestions from your search engine (DuckDuckGo, Google, Bing, Brave, Kagi or Ecosia) mixed with your open tabs, history and address completion. Nothing is sent in Incognito, for addresses, or with suggestions turned off. |
+| **Page menu** | Back, Forward, Reload and Share, then Reader, Find on Page, Translate, Listen to Page, text size, desktop or mobile site, and per-site camera, microphone, pop-up and content-blocking settings. |
+| **On-device AI** | Summarize Page, Ask This Page and Tidy Tabs, using only Apple's on-device model. Nothing goes to a server. |
 | **iCloud sync** | Spaces, pins, folders, favorites and Today sync between iPhone and Mac through your **private** CloudKit database (`CKSyncEngine`). When iCloud is unavailable, a folder you choose works as a fallback. History and Incognito tabs never leave the device. |
-| **Built for iPhone Duo** | Folded: a single-column home with full-screen tabs. Open: sidebar and page side by side. Book: sidebar on the left half, page on the right. Laptop: page on top, controls on the lower half. The page is never reloaded as the hinge moves. Standard iPhones get the folded layout. |
+| **Built for iPhone Duo** | Folded: the page with the rail beside it, its edges tinted to match the site. Open: a sidebar with search and Today next to the page. Book: sidebar on the left half, page on the right. Laptop: page on top, controls on the lower half. The page is never reloaded as the hinge moves. Standard iPhones get the folded layout. |
 | **A full Mac browser** | Arc-style sidebar, command bar (⌘T / ⌘L), split view, rebindable shortcuts, downloads, and a small "Little Boaz" window for links opened from other apps. |
 | **Bring Arc with you** | On Mac, import Arc's spaces, pinned folders, favorites, themes, keyboard shortcuts and, if you opt in, cookies as they are. Chrome, Brave, Edge and Safari bookmarks import too. |
 | **Private by design** | Built-in ad and tracker blocking (EasyList), cookie-banner declining on iPhone, Incognito tabs and a reader view. No accounts, analytics or third-party SDKs. |
@@ -38,15 +42,18 @@ a Today list that tidies itself, and a layout that follows every posture of iPho
 
 ## Screenshots
 
+iPhone Duo, folded:
+
 <table>
   <tr>
-    <td><img src="docs/screenshots/iphone-69-1-home.png" alt="Space home" width="180"></td>
-    <td><img src="docs/screenshots/iphone-69-2-page.png" alt="A page open" width="180"></td>
-    <td><img src="docs/screenshots/iphone-69-3-work.png" alt="Work space" width="180"></td>
-    <td><img src="docs/screenshots/iphone-69-4-search.png" alt="Search" width="180"></td>
-    <td><img src="docs/screenshots/iphone-69-5-travel-dark.png" alt="Dark mode" width="180"></td>
+    <td align="center"><img src="docs/screenshots/duo-1-page.png" alt="A page with the rail beside it" width="210"><br><sub>The page and the rail</sub></td>
+    <td align="center"><img src="docs/screenshots/duo-2-tabs.png" alt="The tab carousel" width="210"><br><sub>Your tabs</sub></td>
+    <td align="center"><img src="docs/screenshots/duo-3-search.png" alt="Search with suggestions" width="210"><br><sub>Search</sub></td>
+    <td align="center"><img src="docs/screenshots/duo-4-menu.png" alt="The page menu" width="210"><br><sub>Page menu</sub></td>
   </tr>
 </table>
+
+Mac:
 
 <table>
   <tr>
@@ -81,11 +88,11 @@ flowchart LR
 
 | Layer | Path | What it holds |
 |---|---|---|
-| iPhone app | [`Apps/iOS`](Apps/iOS) | App model, posture-aware shell, tab browser, reader, onboarding, App Intents |
+| iPhone app | [`Apps/iOS`](Apps/iOS) | App model, posture-aware shell, tab browser, rail and tab carousel, bottom panels, reader, onboarding, App Intents |
 | Mac app | [`Apps/macOS`](Apps/macOS) | Window and sidebar, command bar, key bindings, Arc import UI, onboarding |
 | Extensions | [`Apps/Extensions`](Apps/Extensions) | Share extension and WidgetKit widgets |
 | Shared UI | [`Apps/Shared`](Apps/Shared) | Theme, assets, onboarding content, privacy manifest |
-| Web engine glue | [`Apps/Browser`](Apps/Browser) | WebKit content blocking, downloads, favicons, site colors |
+| Web engine glue | [`Apps/Browser`](Apps/Browser) | WebKit content blocking, downloads, favicons, site colors, search suggestions, on-device AI |
 | Core | [`Packages/BoazKit`](Packages/BoazKit) | Records, store and migrations, CloudKit and folder sync, Arc and bookmark importers |
 
 More detail: [docs/architecture.md](docs/architecture.md).
@@ -138,7 +145,7 @@ Boaz/
 │   ├── Browser/          WebKit glue shared by both apps
 │   └── Shared/           Theme, assets, privacy manifest
 ├── Packages/BoazKit/    Core library: model, store, sync, importers
-├── Tools/                Asset generators
+├── Tools/                Icon generator
 ├── docs/                 Architecture, privacy policy, release guide, screenshots
 ├── .github/              CI, issue and pull-request templates
 ├── project.yml           XcodeGen project definition
