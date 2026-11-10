@@ -111,25 +111,6 @@ extension AppModel {
         saveAI(records, done: "Renamed \(records.count) tab\(records.count == 1 ? "" : "s")")
     }
 
-    /// Moves a Today folder's tabs back into Today and removes the folder.
-    func ungroup(_ folder: SidebarItem) {
-        guard folder.kind == .folder, let parent = folder.parentID else { return }
-        var position = sidebar.nextPosition(in: parent)
-        var records: [SidebarItem] = sidebar.children(of: folder.id).map { child in
-            var child = child
-            child.parentID = parent
-            child.position = position
-            child.modifiedAt = .now
-            position += 1
-            return child
-        }
-        var removed = folder
-        removed.deletedAt = .now
-        removed.modifiedAt = .now
-        records.append(removed)
-        saveAI(records, done: nil)
-    }
-
     private func saveAI(_ records: [SidebarItem], done: String?) {
         guard !records.isEmpty else { return }
         withAnimation(.snappy) { for record in records { sidebar.upsert(record) } }

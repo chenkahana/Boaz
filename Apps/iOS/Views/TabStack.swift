@@ -8,13 +8,17 @@ struct TabStack: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.paneIndex) private var pane
     let space: Space?
     let cardSize: CGSize
 
     var body: some View {
         let tabs = todayTabs
-        let recent = tabs.filter { $0.id != model.activeTabID }.sorted { $0.lastUsed > $1.lastUsed }.prefix(2)
-        Button { model.openCoverFlow() } label: {
+        let recent = tabs.filter { $0.id != model.tabID(inPane: pane) }.sorted { $0.lastUsed > $1.lastUsed }.prefix(2)
+        Button {
+            model.focusPane(pane)
+            model.openCoverFlow()
+        } label: {
             ZStack {
                 if recent.isEmpty {
                     RoundedRectangle(cornerRadius: radius)

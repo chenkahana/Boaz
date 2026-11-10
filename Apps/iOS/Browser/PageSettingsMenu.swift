@@ -3,7 +3,7 @@ import SwiftUI
 import WebKit
 
 /// The rail's "…" panel: the page's address, Back / Forward / Reload / Share, then everything the page offers
-/// (pin, find, reader, text size, desktop site…) and its website settings inline. Shown in a `BottomPanel`.
+/// (find, reader, text size, desktop site…) and its website settings inline. Shown in a `BottomPanel`.
 struct PageSettingsPanel: View {
     @Environment(AppModel.self) private var model
     @Environment(\.chromeTint) private var tint
@@ -133,12 +133,6 @@ struct PageSettingsPanel: View {
     // MARK: Rows
 
     @ViewBuilder private var pageActions: some View {
-        Button(model.isPinned(tab) ? "Unpin" : "Pin", systemImage: model.isPinned(tab) ? "pin.slash" : "pin") {
-            model.togglePin(tab)
-        }
-        if !model.isPrivate(tab), !model.isFavorite(tab) {
-            Button("Add to Favorites", systemImage: "star") { model.addToFavorites(tab) }
-        }
         Button("Find on Page", systemImage: "text.magnifyingglass") { closeThen(onFind) }
         Button("Reader", systemImage: "doc.text.magnifyingglass") { closeThen(onReader) }
             .disabled(readableLength < Reader.minimumCharacters)
