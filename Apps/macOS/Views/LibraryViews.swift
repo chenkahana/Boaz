@@ -49,7 +49,7 @@ struct ArchiveWindow: View {
             }
         }
         .contextMenu(forSelectionType: ArchiveItem.ID.self) { _ in } primaryAction: { ids in
-            for id in ids { if let item = items.first(where: { $0.id == id }) { restore(item) } }
+            for id in ids { if let item = filtered.first(where: { $0.id == id }) { restore(item) } }
         }
         .overlay {
             if items.isEmpty {
