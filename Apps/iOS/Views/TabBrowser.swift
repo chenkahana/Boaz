@@ -368,7 +368,7 @@ private struct BrowserBar: View {
         bar.onChange(of: tabCount, initial: true) { SwipeTabsTip.openTabs = tabCount }
     }
 
-    /// Top to bottom (left to right on the bottom bar): the tabs, New Tab, then the page settings at the far end.
+    /// On the rail, top to bottom: the tabs, New Tab, then the page settings. The bottom bar has a layout of its own.
     @ViewBuilder private var bar: some View {
         if axis == .vertical {
             RailColumn {
@@ -394,29 +394,50 @@ private struct BrowserBar: View {
             if axis == .vertical {
                 TabStack(space: model.currentSpace, cardSize: CGSize(width: 26, height: 36)).padding(.vertical, 4)
             } else {
-                TabStack(space: model.currentSpace, cardSize: CGSize(width: 22, height: 30))
-                    .frame(width: 46, height: 46)
+                TabStack(space: model.currentSpace, cardSize: CGSize(width: 34, height: 46))
             }
         }
     }
 
-    /// Fixed across the bottom, the page ending above it. Frosted over the page's bottom color, with glyphs picked
-    /// for that color, so the buttons read on any page.
+    /// The phone's own toolbar: the tab fan at the leading end (unfolded, the sidebar toggle), New Tab as a glass pill
+    /// in the middle, the page menu in a glass circle at the trailing end. Fixed across the bottom on a frosted strip
+    /// in the page's bottom color, with the page ending above it.
     private var bottomBar: some View {
-        HStack(spacing: 4) {
-            tabsButton
-            RailButton(symbol: "plus", label: "New Tab", isSelected: model.searchTarget != nil, action: toggleSearch)
-            Spacer(minLength: 0)
+        HStack(spacing: 0) {
+            leadingControl.frame(maxWidth: .infinity, alignment: .leading)
+            Button(action: toggleSearch) {
+                Image(systemName: "plus")
+                    .font(.title3.weight(.semibold))
+                    .frame(width: 116, height: 50)
+                    .railSelection(model.searchTarget != nil)
+                    .contentShape(.capsule)
+            }
+            .buttonStyle(PressableStyle())
+            .glassEffect(.regular.interactive(), in: .capsule)
+            .accessibilityLabel("New Tab")
+            .accessibilityAddTraits(model.searchTarget != nil ? .isSelected : [])
             RailButton(symbol: "ellipsis", label: "Page Settings", isSelected: model.showsPageSettings,
                        action: togglePageSettings)
+                .glassEffect(.regular.interactive(), in: .circle)
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 2)
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
         .popoverTip(SwipeTabsTip(), arrowEdge: .bottom)
         .frame(maxWidth: .infinity)
         .background(.bar, ignoresSafeAreaEdges: .bottom)
         .overlay(alignment: .top) { Divider() }
         .chromeScheme(edges?.bottom)
+    }
+
+    /// The tab fan stands on its own; the sidebar toggle that replaces it unfolded gets a glass circle.
+    @ViewBuilder private var leadingControl: some View {
+        if let sidebar {
+            SidebarRailButton(sidebar: sidebar).glassEffect(.regular.interactive(), in: .circle)
+        } else {
+            tabsButton
+        }
     }
 
     /// New Tab opens the search panel; pressed again, it puts it away. One panel at a time.
