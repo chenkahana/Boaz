@@ -121,6 +121,9 @@ iPad screenshots aren't needed for an iPhone-only app.
 
 1. **CloudKit Console** (icloud.developer.apple.com) › container `iCloud.com.chenkahana.boaz` › *Deploy Schema
    Changes* to Production. Without this, App Store builds can't sync (they use the production environment).
+   Development only knows the fields a Debug build has saved with a value, and Production rejects records with
+   fields it doesn't know, so first check that each record type has every field its `write(to:)` in
+   `Packages/BoazKit/Sources/BoazKit/Sync/SyncMapping.swift` sets (add missing ones in Development).
 2. **App Store Connect** › Apps › New App: iOS and macOS, name Boaz Browser, bundle ID `com.chenkahana.boaz`, SKU `boaz`.
 3. **Upload builds**: double-click `build/archives/Boaz-iOS.xcarchive` and `Boaz-macOS.xcarchive` (opens them in
    Xcode's Organizer) › Distribute App › App Store Connect › Upload. To rebuild them first, run `make archive`.

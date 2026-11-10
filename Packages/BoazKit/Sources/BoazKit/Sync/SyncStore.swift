@@ -65,13 +65,13 @@ extension BoazStore {
     }
 
     /// Forgets everything CloudKit told us (engine state, change tags, merge bases) but keeps local data and which
-    /// iCloud account this library belongs to. With `reuploadAll`, every local record (tombstones included) is
-    /// queued for upload.
+    /// iCloud account and CloudKit environment this library belongs to. With `reuploadAll`, every local record
+    /// (tombstones included) is queued for upload.
     public func resetSyncState(reuploadAll: Bool) throws {
         try writer.write { db in
             try db.execute(sql: """
-                DELETE FROM syncState WHERE key NOT IN (?, ?); DELETE FROM syncRecordMeta; DELETE FROM syncPending
-                """, arguments: [Self.cloudUserKey, Self.cloudPurgedKey])
+                DELETE FROM syncState WHERE key NOT IN (?, ?, ?); DELETE FROM syncRecordMeta; DELETE FROM syncPending
+                """, arguments: [Self.cloudUserKey, Self.cloudEnvironmentKey, Self.cloudPurgedKey])
             if reuploadAll { try Self.queueAll(in: db) }
         }
     }
@@ -111,6 +111,8 @@ extension BoazStore {
 
     /// The iCloud user record name this library last synced with.
     static let cloudUserKey = "cloudUser"
+    /// The CloudKit environment ("Development" or "Production") that account's library last synced with.
+    static let cloudEnvironmentKey = "cloudEnvironment"
     /// Set when the user deleted Boaz's iCloud data; sync stays off until they ask for it again.
     static let cloudPurgedKey = "cloudPurged"
 

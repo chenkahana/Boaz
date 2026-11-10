@@ -20,8 +20,9 @@ Debug builds are slower and include `#if DEBUG` code.
 
 **Use a separate iCloud account for sync.** A team-signed build syncs spaces, pins and tabs into whichever iCloud
 account the device is signed in to. Use a test Apple Account on the test devices so QA data never mixes with your
-real library. Dev builds talk to the CloudKit **development** environment. App Store and TestFlight builds use
-**production**, so check sync on TestFlight too.
+real library. Debug builds talk to the CloudKit **development** environment. Release builds (including
+`make device DEVICE=<udid>`), the DMG, TestFlight and the App Store use **production**. The two are separate
+databases, so a Debug build never syncs with the DMG; check sync with Release builds too.
 
 **Start from a clean state.** First runs and upgrades are where most bugs live, so test both:
 

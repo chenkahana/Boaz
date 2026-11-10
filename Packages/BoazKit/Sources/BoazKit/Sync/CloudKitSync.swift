@@ -85,15 +85,29 @@ public final class CloudKitSync {
             // sign-out and account switch). The same account signing back in just re-fetches; a different one
             // starts this device clean and takes that account's library.
             let previous = store.syncSetting(BoazStore.cloudUserKey)
+            // Development and Production are separate databases (a Debug build and the DMG never see each other's
+            // records), and the user record name may differ between them, so comparing it across them says nothing
+            // about the account. A library that last synced with the other environment keeps its data and uploads
+            // all of it here. Libraries from before the environment was recorded count as Development; for one that
+            // came from a release build, that costs one extra full upload.
+            let environment = CloudKitEntitlements.environment
+            let switchedEnvironment = previous != nil
+                && (store.syncSetting(BoazStore.cloudEnvironmentKey) ?? "Development") != environment
             do {
-                if let previous, previous != user { try startClean() }
+                if switchedEnvironment {
+                    Self.log.notice("Now syncing with CloudKit \(environment, privacy: .public): uploading everything")
+                    try store.resetSyncState(reuploadAll: true)
+                } else if let previous, previous != user {
+                    try startClean()
+                }
                 try store.setSyncSetting(user, for: BoazStore.cloudUserKey)
+                try store.setSyncSetting(environment, for: BoazStore.cloudEnvironmentKey)
             } catch { return report(error) }
             guard store.syncSetting(BoazStore.cloudPurgedKey) == nil else {
                 status = .error(Self.purgedMessage)
                 return
             }
-            startEngine(database: container.privateCloudDatabase, uploadAll: previous == nil)
+            startEngine(database: container.privateCloudDatabase, uploadAll: previous == nil || switchedEnvironment)
         case .noAccount:
             status = .noAccount
         case .restricted:

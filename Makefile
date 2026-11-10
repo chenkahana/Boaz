@@ -8,7 +8,7 @@ UNSIGNED := CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
 XCB      := xcodebuild -project $(PROJECT) -derivedDataPath $(DERIVED) -quiet
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap project kit ios mac build archive dmg clean
+.PHONY: help bootstrap project kit ios mac build device archive dmg clean
 
 help: ## List the available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "  %-10s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -31,6 +31,11 @@ mac: project ## Build the Mac app (unsigned)
 	$(XCB) -scheme Boaz-macOS -configuration Debug -destination 'generic/platform=macOS' $(UNSIGNED) build
 
 build: kit ios mac ## Build BoazKit and both apps (what CI runs)
+
+device: project ## Install a signed Release build on a connected iPhone, syncing with the Mac DMG: make device DEVICE=<udid>
+	@test -n "$(DEVICE)" || { echo "Usage: make device DEVICE=<udid> (xcrun devicectl list devices)"; exit 1; }
+	$(XCB) -scheme Boaz-iOS -configuration Release -destination 'generic/platform=iOS' -allowProvisioningUpdates build
+	xcrun devicectl device install app --device $(DEVICE) $(DERIVED)/Build/Products/Release-iphoneos/Boaz.app
 
 archive: project ## Signed Release archives for App Store Connect, in build/archives
 	xcodebuild archive -project $(PROJECT) -scheme Boaz-iOS -configuration Release \
