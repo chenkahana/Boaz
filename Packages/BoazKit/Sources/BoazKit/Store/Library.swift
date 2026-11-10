@@ -17,6 +17,13 @@ public struct HistoryVisit: Codable, Identifiable, Hashable, Sendable, Fetchable
     }
 }
 
+extension ArchiveItem {
+    /// Whether the title or address contains `query`, as the archive search matches it.
+    public func matches(_ query: String) -> Bool {
+        url.absoluteString.localizedCaseInsensitiveContains(query) || title?.localizedCaseInsensitiveContains(query) == true
+    }
+}
+
 /// What archiving a tab did.
 public enum ArchiveOutcome: Sendable {
     /// The tab went to the archive. `item` is its entry, which a tab without an address doesn't get.
@@ -101,6 +108,17 @@ extension BoazStore {
     }
 
     // MARK: Archive
+
+    /// Archived tabs whose title or address contains `query`, newest first. Covers the whole archive, not only the
+    /// newest entries `archivedItems` lists, so it runs on the database's queue.
+    public func archivedItems(matching query: String, limit: Int = 500) async throws -> [ArchiveItem] {
+        let pattern = Self.containsPattern(query)
+        return try await writer.read { db in
+            try ArchiveItem.filter(Column("deletedAt") == nil)
+                .filter(Column("url").like(pattern, escape: "\\") || Column("title").like(pattern, escape: "\\"))
+                .order(Column("archivedAt").desc).limit(limit).fetchAll(db)
+        }
+    }
 
     public func archivedItems(limit: Int = 500) throws -> [ArchiveItem] {
         try writer.read { db in

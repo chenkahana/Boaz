@@ -9,6 +9,8 @@ struct LibrarySheet: View {
     @State private var tab = 0
     @State private var query = ""
     @State private var archive: [ArchiveItem] = []
+    /// The archive search's results, from the whole archive: `archive` holds only the newest entries.
+    @State private var archiveMatches: (query: String, items: [ArchiveItem])?
     @State private var history: [HistoryVisit] = []
     @State private var confirmClear = false
 
@@ -24,6 +26,7 @@ struct LibrarySheet: View {
                                     .swipeActions {
                                         Button("Delete", systemImage: "trash", role: .destructive) {
                                             try? model.store?.removeFromArchive(item.id)
+                                            archiveMatches?.items.removeAll { $0.id == item.id }
                                             reloadArchive()
                                         }
                                     }
@@ -79,6 +82,7 @@ struct LibrarySheet: View {
                             Button(tab == 0 ? "Clear Archive" : "Clear History", role: .destructive) {
                                 if tab == 0 {
                                     try? model.store?.clearArchive()
+                                    archiveMatches = nil
                                     reloadArchive()
                                 } else {
                                     try? model.store?.clearHistory()
@@ -92,26 +96,30 @@ struct LibrarySheet: View {
             }
         }
         .onAppear(perform: reloadArchive)
-        .task(id: query) { await searchHistory() }
+        .task(id: query) { await search() }
     }
 
+    /// Until the search for the current text lands, the newest entries that match it.
     private var filteredArchive: [ArchiveItem] {
-        guard !query.isEmpty else { return archive }
-        return archive.filter { ($0.title ?? "").localizedCaseInsensitiveContains(query)
-            || $0.url.absoluteString.localizedCaseInsensitiveContains(query) }
+        if query.isEmpty { return archive }
+        if let archiveMatches, archiveMatches.query == query { return archiveMatches.items }
+        return archive.filter { $0.matches(query) }
     }
 
-    /// The archive is searched in memory (`filteredArchive`), so typing never reloads it.
     private func reloadArchive() {
         archive = (try? model.store?.archivedItems()) ?? []
     }
 
-    /// History is searched in the database, once typing pauses.
-    private func searchHistory() async {
+    /// History and the archive are searched in the database, once typing pauses.
+    private func search() async {
         if !query.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
         guard !Task.isCancelled, let store = model.store,
               let found = try? await store.history(matching: query), !Task.isCancelled else { return }
         history = found
+        let searched = query
+        guard !searched.isEmpty, let matches = try? await store.archivedItems(matching: searched), !Task.isCancelled
+        else { return }
+        archiveMatches = (searched, matches)
     }
 
     private func dayLabel(_ day: Date) -> String {

@@ -7,14 +7,16 @@ import UniformTypeIdentifiers
 struct ArchiveWindow: View {
     @Environment(MacModel.self) private var model
     @State private var items: [ArchiveItem] = []
+    /// The search's results, from the whole archive: `items` holds only the newest entries.
+    @State private var matches: (query: String, items: [ArchiveItem])?
     @State private var query = ""
     @State private var selection: ArchiveItem.ID?
     @State private var confirmClear = false
 
     var body: some View {
-        let filtered = query.isEmpty ? items : items.filter {
-            ($0.title ?? "").localizedCaseInsensitiveContains(query) || $0.url.absoluteString.localizedCaseInsensitiveContains(query)
-        }
+        // Until the search for the current text lands, the newest entries that match it.
+        let filtered = query.isEmpty ? items
+            : matches.flatMap { $0.query == query ? $0.items : nil } ?? items.filter { $0.matches(query) }
         let days = Dictionary(grouping: filtered) { Calendar.current.startOfDay(for: $0.archivedAt) }
             .sorted { $0.key > $1.key }
         List(selection: $selection) {
@@ -36,7 +38,11 @@ struct ArchiveWindow: View {
                         .tag(item.id)
                         .contextMenu {
                             Button("Restore") { restore(item) }
-                            Button("Delete", role: .destructive) { try? model.store?.removeFromArchive(item.id); reload() }
+                            Button("Delete", role: .destructive) {
+                                try? model.store?.removeFromArchive(item.id)
+                                matches?.items.removeAll { $0.id == item.id }
+                                reload()
+                            }
                         }
                     }
                 }
@@ -56,16 +62,37 @@ struct ArchiveWindow: View {
             Button("Clear Archive", systemImage: "trash") { confirmClear = true }
                 .disabled(items.isEmpty)
                 .confirmationDialog("Clear the Archive?", isPresented: $confirmClear, titleVisibility: .visible) {
-                    Button("Clear Archive", role: .destructive) { try? model.store?.clearArchive(); reload() }
+                    Button("Clear Archive", role: .destructive) {
+                        try? model.store?.clearArchive()
+                        matches = nil
+                        reload()
+                    }
                 } message: {
                     Text("This can't be undone.")
                 }
         }
         .navigationTitle("Archive")
-        .task(id: model.sidebar) { reload() }
+        .task(id: model.sidebar) {
+            reload()
+            await search()
+        }
+        .task(id: query) {
+            if !query.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
+            await search()
+        }
     }
 
     private func reload() { items = (try? model.store?.archivedItems()) ?? [] }
+
+    /// Searches the whole archive in the database, off the main thread.
+    private func search() async {
+        let searched = query
+        guard !searched.isEmpty else { matches = nil; return }
+        guard !Task.isCancelled, let store = model.store,
+              let found = try? await store.archivedItems(matching: searched), !Task.isCancelled, searched == query
+        else { return }
+        matches = (searched, found)
+    }
 
     private func restore(_ item: ArchiveItem) {
         guard let tab = model.restore(item) else { return }
