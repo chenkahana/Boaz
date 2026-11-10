@@ -67,7 +67,8 @@ private struct SpacePage: View {
     var body: some View {
         let style = SpaceStyle(space, scheme: scheme)
         ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
+            // Lazy, so a long Today list only builds (and fetches icons for) the rows on screen.
+            LazyVStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 8) {
                     searchField(style)
                     if let sidebar {
@@ -102,7 +103,7 @@ private struct SpacePage: View {
 
                 let today = model.todayTabs(in: space)
                 // Today like Arc: a new-tab row, then one row per tab.
-                VStack(spacing: 0) {
+                LazyVStack(spacing: 0) {
                     Capsule().fill(style.foreground.opacity(0.12)).frame(height: 1)
                         .padding(.horizontal, 10).padding(.bottom, 6)
                     TodayRow.newTab(tint: style.tint)
