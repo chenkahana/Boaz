@@ -74,10 +74,11 @@ struct CommandBar: View {
         }
         // While the web view is first responder, SwiftUI can report the field focused and the keys still go to the
         // page. So the web view gives the keyboard up, and the field is asked until AppKit's first responder is its
-        // editor.
+        // editor. Another field that had the keyboard (the find bar) doesn't count.
         .task {
+            let otherField = fieldEditorOwner
             for _ in 0..<10 {
-                if fieldHasKeyboard { return }
+                if fieldHasKeyboard(besides: otherField) { return }
                 if focused {
                     // Asking again only takes effect once SwiftUI has seen the field unfocused.
                     focused = false
@@ -87,7 +88,7 @@ struct CommandBar: View {
                 }
                 do { try await Task.sleep(for: .milliseconds(50)) } catch { return }
             }
-            if !fieldHasKeyboard { focused = true }
+            if !fieldHasKeyboard(besides: otherField) { focused = true }
         }
         .onChange(of: text) { selection = 0 }
         // History is looked up once typing pauses, off the main thread.
@@ -103,9 +104,17 @@ struct CommandBar: View {
         }
     }
 
-    /// Whether typing reaches the field: AppKit's first responder is a text field's editor, not the web view.
-    private var fieldHasKeyboard: Bool {
-        focused && (browser.window?.firstResponder as? NSTextView)?.isFieldEditor == true
+    /// Whether typing reaches the field: AppKit's first responder is a text field's editor, not the web view, and
+    /// not `otherField`'s.
+    private func fieldHasKeyboard(besides otherField: NSTextField?) -> Bool {
+        guard focused, let owner = fieldEditorOwner else { return false }
+        return owner !== otherField
+    }
+
+    /// The text field whose editor is AppKit's first responder.
+    private var fieldEditorOwner: NSTextField? {
+        guard let editor = browser.window?.firstResponder as? NSTextView, editor.isFieldEditor else { return nil }
+        return editor.delegate as? NSTextField
     }
 
     private var icon: String {
