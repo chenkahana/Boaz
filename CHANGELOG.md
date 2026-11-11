@@ -6,6 +6,12 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- iPhone: coming back to Boaz after a while no longer leaves a page on "Can't Open This Page". A page whose
+  connection dropped while Boaz was in the background, or that iOS closed to free memory, loads again on its own:
+  on returning to the app, once more a moment after a first failed try, and again when the network comes back.
+
 ## [0.2.1] - 2026-11-11
 
 ### Added

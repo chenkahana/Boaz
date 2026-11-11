@@ -1,4 +1,5 @@
 import BoazKit
+import Network
 import SwiftUI
 import TipKit
 import Translation
@@ -12,6 +13,7 @@ struct TabBrowser: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.collapsesBar) private var collapsesBar
     @Environment(\.paneIndex) private var pane
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
     let tab: SidebarItem
     /// The side the next tab slides in from, and a count of tab turns for the haptic; both outlive this tab's
@@ -20,6 +22,9 @@ struct TabBrowser: View {
     @Binding var bump: Int
     @State private var dragX: CGFloat = 0
     @State private var loadFailure: LoadFailure?
+    /// Set once a failed load has been tried again on its own, until a load finishes: a page that keeps failing
+    /// shows the error rather than reloading forever.
+    @State private var retriedOnItsOwn = false
     @State private var findVisible = false
 
     // Pull-to-refresh: derived straight from the page's own rubber-band at the top, so no extra
@@ -124,6 +129,11 @@ struct TabBrowser: View {
             .onChange(of: page.url) { model.restoreSiteEdges(for: tab) }
             .onChange(of: collapsesBar) { barCollapsed = false }
             .task { await trackNavigations(of: page) }
+            // Back from the background, or back online: a load that failed for a passing reason loads again.
+            .onChange(of: scenePhase) { _, phase in if phase == .active { retryIfPassing(on: page) } }
+            .task {
+                for await path in NWPathMonitor() where path.status == .satisfied { retryIfPassing(on: page) }
+            }
             .sheet(item: $readerArticle) { article in ReaderView(article: article, tint: Theme.brand) }
             .pageAISheet(tab: tab, page: page)
             .sheet(isPresented: $showingDownloads) { DownloadsView() }
@@ -193,6 +203,11 @@ struct TabBrowser: View {
     private func setBarCollapsed(_ collapsed: Bool) {
         guard collapsed != barCollapsed else { return }
         withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : .smooth(duration: 0.3)) { barCollapsed = collapsed }
+    }
+
+    private func retryIfPassing(on page: WebPage) {
+        guard let loadFailure, loadFailure.passes else { return }
+        retry(loadFailure, on: page)
     }
 
     private func retry(_ failure: LoadFailure, on page: WebPage) {
@@ -317,6 +332,7 @@ struct TabBrowser: View {
                         model.didCommitLoad(tab)
                         applyTextSize(to: page)
                     case .finished:
+                        retriedOnItsOwn = false
                         applyTextSize(to: page)
                         model.pageDidFinishLoading(tab)
                         readableLength = await Reader.estimatedReadableLength(of: page)
@@ -333,6 +349,16 @@ struct TabBrowser: View {
                 if case WebPage.NavigationError.webContentProcessTerminated = error {
                     PictureInPicture.controller(of: page)?.pageDidReset()
                 }
+                // iOS ends a background page's process to free memory, and a connection dropped while suspended
+                // can fail the first load back: try once more after a moment rather than leave the error up. In the
+                // background, the return to the app tries instead.
+                if scenePhase == .active, !retriedOnItsOwn, loadFailure?.passes == true {
+                    retriedOnItsOwn = true
+                    Task {
+                        try? await Task.sleep(for: .seconds(1))
+                        retryIfPassing(on: page)
+                    }
+                }
                 // Never spin if resubscribing fails straight away.
                 try? await Task.sleep(for: .milliseconds(50))
             }
@@ -344,6 +370,8 @@ struct TabBrowser: View {
 private struct LoadFailure {
     let message: String
     let url: URL?
+    /// Whether it may well load on its own later: the connection was down or dropped, or the page's process ended.
+    var passes = false
 
     /// Nil for navigations that were cut short rather than failed: superseded by another load, or turned into a download.
     init?(_ error: any Error) {
@@ -353,6 +381,7 @@ private struct LoadFailure {
         case .webContentProcessTerminated:
             message = "The page stopped responding."
             url = nil
+            passes = true
             return
         case .invalidURL:
             message = "The address isn't valid."
@@ -367,6 +396,10 @@ private struct LoadFailure {
         if nsError.domain == "WebKitErrorDomain", nsError.code == 102 { return nil }
         message = nsError.localizedDescription
         url = nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL
+        passes = nsError.domain == NSURLErrorDomain && [
+            NSURLErrorNotConnectedToInternet, NSURLErrorNetworkConnectionLost, NSURLErrorTimedOut,
+            NSURLErrorDataNotAllowed, NSURLErrorCannotFindHost, NSURLErrorCannotConnectToHost,
+        ].contains(nsError.code)
     }
 
     /// WebKit refuses some ports (1, 9, 25 and so on) without any navigation error: it commits about:blank instead.
