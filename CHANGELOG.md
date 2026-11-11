@@ -22,6 +22,12 @@ All notable changes to Boaz are recorded here. The format follows
 - iPhone and Mac: a background tab that's playing audio or video, using the camera or microphone, or in full screen
   keeps running when more tabs open; before, the oldest page was closed past 8 (iPhone) or 10 (Mac) open pages,
   whatever it was doing.
+- iPhone and Mac: site icons are drawn at their real size, with no gray box behind them. Square artwork gets an app
+  icon's rounded corners, and a black or white logo that would vanish against the background sits on a contrasting
+  tile. Icons are sharper: the largest image in a site's `.ico` is kept, a page's small favicon no longer replaces a
+  sharper icon already saved, and icons saved small by earlier versions are fetched again once.
+- Mac: favorites fill rows as evenly as they can (six are two rows of three), and the space's name lines up with
+  the tab titles below it.
 
 ## [0.2.0] - 2026-11-11
 

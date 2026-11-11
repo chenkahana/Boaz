@@ -1,20 +1,63 @@
 import Foundation
+import ImageIO
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-public typealias PlatformImage = UIImage
-#else
-import AppKit
-public typealias PlatformImage = NSImage
-#endif
+import UniformTypeIdentifiers
 
-extension Image {
-    init(platformImage image: PlatformImage) {
-        #if canImport(UIKit)
-        self.init(uiImage: image)
-        #else
-        self.init(nsImage: image)
-        #endif
+/// A site's icon, decoded once, with what it takes to draw it well.
+struct Favicon: Sendable {
+    let image: CGImage
+    /// Opaque out to its edges, as most touch icons are: square artwork, drawn filling a rounded tile.
+    let isFullBleed: Bool
+    /// A mark that is nearly all near-black, so it disappears on a dark background.
+    let isDark: Bool
+    /// A mark that is nearly all near-white, so it disappears on a light background.
+    let isLight: Bool
+
+    /// Decodes the largest image in `data` (an .ico holds several sizes), at most `maxPixelSize` on a side. Nil for
+    /// corrupt data, icons too small to bother with and blank placeholders.
+    nonisolated init?(data: Data, maxPixelSize: Int = 128) {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let widths = (0..<CGImageSourceGetCount(source)).map { index in
+            (CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any])?[kCGImagePropertyPixelWidth] as? Int ?? 0
+        }
+        guard let largest = widths.indices.max(by: { widths[$0] < widths[$1] }),
+              let image = CGImageSourceCreateThumbnailAtIndex(source, largest, [
+                  kCGImageSourceCreateThumbnailFromImageAlways: true,
+                  kCGImageSourceCreateThumbnailWithTransform: true,
+                  kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+              ] as CFDictionary),
+              image.width >= 8, image.height >= 8
+        else { return nil }
+
+        // Judged on a 16 × 16 copy: whether the edges are opaque, and how dark or light the opaque pixels are.
+        let side = 16
+        var pixels = [UInt8](repeating: 0, count: side * side * 4)
+        let drawn = pixels.withUnsafeMutableBytes { buffer -> Bool in
+            guard let context = CGContext(data: buffer.baseAddress, width: side, height: side, bitsPerComponent: 8,
+                                          bytesPerRow: side * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+            else { return false }
+            context.interpolationQuality = .medium
+            context.draw(image, in: CGRect(x: 0, y: 0, width: side, height: side))
+            return true
+        }
+        guard drawn else { return nil }
+        func alpha(_ x: Int, _ y: Int) -> Int { Int(pixels[(y * side + x) * 4 + 3]) }
+        // The edges short of the corners, so artwork with rounded corners still counts as square.
+        let edges = (2..<(side - 2)).flatMap { k in [alpha(k, 0), alpha(k, side - 1), alpha(0, k), alpha(side - 1, k)] }
+        var opaque = 0, dark = 0, light = 0
+        for index in stride(from: 0, to: pixels.count, by: 4) where pixels[index + 3] > 128 {
+            let a = Int(pixels[index + 3])
+            let channels = (0..<3).map { Int(pixels[index + $0]) * 255 / a }
+            opaque += 1
+            if channels.max()! < 80 { dark += 1 }
+            if channels.min()! > 225 { light += 1 }
+        }
+        guard opaque > 0 else { return nil }
+        self.image = image
+        isFullBleed = edges.reduce(0, +) >= edges.count * 225
+        isDark = !isFullBleed && dark * 10 >= opaque * 8
+        isLight = !isFullBleed && light * 10 >= opaque * 8
     }
 }
 
@@ -44,7 +87,7 @@ final class Favicons {
     """
 
     /// Observed per host, so an icon arriving redraws only the tiles showing that site.
-    @ObservationIgnored private let resolved = ObservedDictionary<String, PlatformImage>()
+    @ObservationIgnored private let resolved = ObservedDictionary<String, Favicon>()
 
     @ObservationIgnored private var inFlight: Set<String> = []
     @ObservationIgnored private var negativeCache: [String: Date] = [:]
@@ -70,7 +113,7 @@ final class Favicons {
     /// redraws once `request`/`learn` resolves (or a disk load completes).
     @ObservationIgnored private var learned: [String: URL] = [:]
 
-    func resolved(for url: URL?) -> PlatformImage? {
+    func resolved(for url: URL?) -> Favicon? {
         Self.hostKey(url).flatMap { resolved[$0] }
     }
 
@@ -88,16 +131,16 @@ final class Favicons {
         Task { [weak self] in
             guard let self else { return }
             defer { self.inFlight.remove(host) }
-            if let onDisk = await self.loadFromDisk(host: host) {
-                self.resolved[host] = onDisk
-                return
-            }
+            let onDisk = await self.loadFromDisk(host: host)
+            if let onDisk { self.resolved[host] = onDisk }
             guard !isPrivate else { return }
-            guard let image = await self.fetchWellKnownIcon(host: host) else {
-                self.negativeCache[host] = .now
+            // Earlier builds kept the smallest image in an .ico, so a small one gets one look for a sharper icon.
+            if let onDisk, onDisk.image.width >= 32 { return }
+            guard let icon = await self.fetchWellKnownIcon(host: host) else {
+                if onDisk == nil { self.negativeCache[host] = .now }
                 return
             }
-            self.keep(image, for: host)
+            if icon.image.width > onDisk?.image.width ?? 0 { self.keep(icon, for: host) }
         }
     }
 
@@ -109,52 +152,50 @@ final class Favicons {
               learned[host] != iconURL else { return }
         learned[host] = iconURL
         Task { [weak self] in
-            guard let self, let image = await self.download(iconURL) else { return }
-            self.keep(image, for: host)
+            guard let self, let icon = await self.download(iconURL) else { return }
+            // A page's 16 px favicon never replaces the sharper touch icon already kept for its site.
+            var current = self.resolved[host]
+            if current == nil { current = await self.loadFromDisk(host: host) }
+            if let current, current.image.width > icon.image.width { return }
+            self.keep(icon, for: host)
         }
     }
 
-    /// Holds a downloaded icon at the size it's saved at, not the full download (touch icons run to 512 px).
-    private func keep(_ image: PlatformImage, for host: String) {
-        let small = Self.downscaled(image, maxDimension: 128)
-        resolved[host] = small
+    private func keep(_ icon: Favicon, for host: String) {
+        resolved[host] = icon
         negativeCache[host] = nil
-        saveToDisk(small, host: host)
+        guard let url = diskURL(host: host), let data = Self.pngData(icon.image) else { return }
+        try? data.write(to: url, options: .atomic)
     }
 
     /// Seeds the cache with an icon another browser already had for `pageURL` (Arc import), so imported tabs
     /// show their real icons before they ever load. Never replaces an icon Boaz already has for the host.
     func seed(_ data: Data, for pageURL: URL) {
         guard let host = Self.hostKey(pageURL), resolved[host] == nil, let file = diskURL(host: host),
-              !FileManager.default.fileExists(atPath: file.path),
-              let image = PlatformImage(data: data), Self.isUsable(image) else { return }
-        try? data.write(to: file, options: .atomic)
-        resolved[host] = Self.downscaled(image, maxDimension: 128)
-        negativeCache[host] = nil
+              !FileManager.default.fileExists(atPath: file.path), let icon = Favicon(data: data) else { return }
+        keep(icon, for: host)
     }
 
-    private func fetchWellKnownIcon(host: String) async -> PlatformImage? {
+    private func fetchWellKnownIcon(host: String) async -> Favicon? {
         for path in ["apple-touch-icon.png", "favicon.ico"] {
-            guard let url = URL(string: "https://\(host)/\(path)"), let image = await download(url) else { continue }
-            return image
+            guard let url = URL(string: "https://\(host)/\(path)"), let icon = await download(url) else { continue }
+            return icon
         }
         return nil
     }
 
-    private func download(_ url: URL) async -> PlatformImage? {
-        await Self.usableIcon(at: url, gate: gate).flatMap(PlatformImage.init(data:))
+    /// Fetching and decoding stay off the main thread.
+    private func download(_ url: URL) async -> Favicon? {
+        await Self.usableIcon(at: url, gate: gate)
     }
 
-    /// The icon's data if it decodes to something worth showing. Fetching and checking it (which copies the whole
-    /// bitmap) stay off the main thread.
-    nonisolated private static func usableIcon(at url: URL, gate: FetchGate) async -> Data? {
+    nonisolated private static func usableIcon(at url: URL, gate: FetchGate) async -> Favicon? {
         await gate.wait()
         defer { gate.signal() }
         guard let (data, response) = try? await session.data(from: url),
-              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
-              data.count > 128, let image = PlatformImage(data: data), isUsable(image)
+              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode), data.count > 128
         else { return nil }
-        return data
+        return Favicon(data: data)
     }
 
     nonisolated private static let session: URLSession = {
@@ -164,42 +205,23 @@ final class Favicons {
         return URLSession(configuration: config)
     }()
 
-    // MARK: Validity
-
-    /// Rejects corrupt decodes, icons too small to bother with, and placeholder images that are
-    /// effectively blank (sampled alpha channel comes back fully transparent).
-    nonisolated private static func isUsable(_ image: PlatformImage) -> Bool {
-        guard let cg = image.validationCGImage, cg.width >= 8, cg.height >= 8 else { return false }
-        guard cg.bitsPerPixel == 32, let data = cg.dataProvider?.data, let bytes = CFDataGetBytePtr(data) else { return true }
-        let length = CFDataGetLength(data)
-        guard length >= 4 else { return true }
-        let stride = max(4, (length / 4 / 64) * 4)
-        var index = 0
-        while index + 3 < length {
-            if bytes[index + 3] > 20 { return true }
-            index += stride
-        }
-        return false
-    }
-
     // MARK: Disk cache
 
     private func diskURL(host: String) -> URL? {
         diskDirectory?.appendingPathComponent(host.replacingOccurrences(of: "/", with: "_")).appendingPathExtension("png")
     }
 
-    /// Reads the file off the main thread; the image decodes when it's first drawn.
-    private func loadFromDisk(host: String) async -> PlatformImage? {
-        guard let url = diskURL(host: host),
-              let data = await Task.detached(priority: .utility, operation: { try? Data(contentsOf: url) }).value
-        else { return nil }
-        return PlatformImage(data: data)
+    private func loadFromDisk(host: String) async -> Favicon? {
+        guard let url = diskURL(host: host) else { return nil }
+        return await Task.detached(priority: .utility) { (try? Data(contentsOf: url)).flatMap { Favicon(data: $0) } }.value
     }
 
-    private func saveToDisk(_ image: PlatformImage, host: String) {
-        guard let url = diskURL(host: host), let data = Self.pngData(Self.downscaled(image, maxDimension: 128))
-        else { return }
-        try? data.write(to: url, options: .atomic)
+    private static func pngData(_ image: CGImage) -> Data? {
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(data, UTType.png.identifier as CFString, 1, nil)
+        else { return nil }
+        CGImageDestinationAddImage(destination, image, nil)
+        return CGImageDestinationFinalize(destination) ? data as Data : nil
     }
 }
 
@@ -239,97 +261,48 @@ private nonisolated final class FetchGate: @unchecked Sendable {
     }
 }
 
-#if canImport(UIKit)
-private extension PlatformImage {
-    nonisolated var validationCGImage: CGImage? { cgImage }
-}
-
-private extension Favicons {
-    static func downscaled(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
-        let size = image.size
-        let scale = min(1, maxDimension / max(size.width, size.height, 1))
-        guard scale < 1 else { return image }
-        let newSize = CGSize(width: size.width * scale, height: size.height * scale)
-        return UIGraphicsImageRenderer(size: newSize).image { _ in image.draw(in: CGRect(origin: .zero, size: newSize)) }
-    }
-
-    static func pngData(_ image: UIImage) -> Data? { image.pngData() }
-}
-#else
-private extension PlatformImage {
-    nonisolated var validationCGImage: CGImage? {
-        var rect = CGRect(origin: .zero, size: size)
-        return cgImage(forProposedRect: &rect, context: nil, hints: nil)
-    }
-}
-
-private extension Favicons {
-    static func downscaled(_ image: NSImage, maxDimension: CGFloat) -> NSImage {
-        let size = image.size
-        let scale = min(1, maxDimension / max(size.width, size.height, 1))
-        guard scale < 1 else { return image }
-        let newSize = NSSize(width: size.width * scale, height: size.height * scale)
-        let scaled = NSImage(size: newSize)
-        scaled.lockFocus()
-        image.draw(in: NSRect(origin: .zero, size: newSize), from: NSRect(origin: .zero, size: size),
-                   operation: .copy, fraction: 1)
-        scaled.unlockFocus()
-        return scaled
-    }
-
-    static func pngData(_ image: NSImage) -> Data? {
-        guard let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff) else { return nil }
-        return rep.representation(using: .png, properties: [:])
-    }
-}
-#endif
-
-/// Shared favicon rendering behind `Monogram` (iOS) and `SiteMonogram` (macOS): swaps in the site's real
-/// icon once `Favicons` resolves one, fading in over the tinted letter-tile fallback. Small tiles keep
-/// the icon centered on a subtle backing; large ones (touch-icon scale) let it fill the tile.
 extension EnvironmentValues {
     /// Set on private (Incognito) browsing UI so favicons there never fetch or cache.
     @Entry var isPrivateBrowsing = false
 }
 
+/// Shared favicon rendering behind `Monogram` (iOS) and `SiteMonogram` (macOS), fading the site's real icon in over
+/// a tinted letter tile once `Favicons` resolves one. Square artwork fills the tile with an app icon's corners; a
+/// mark draws on its own, on a contrasting tile only when it would vanish against the background.
 struct FaviconTile: View {
     @Environment(\.isPrivateBrowsing) private var isPrivate
+    @Environment(\.colorScheme) private var scheme
     let url: URL?
     let tint: Color
     let size: CGFloat
     var letterScale: CGFloat = 0.5
 
-    private var isLarge: Bool { size >= 26 }
-    private var cornerRadius: CGFloat { size * 0.28 }
+    private var shape: RoundedRectangle { RoundedRectangle(cornerRadius: size * 0.225, style: .continuous) }
     private var host: String { url?.host()?.replacingOccurrences(of: "www.", with: "") ?? "?" }
 
     var body: some View {
         let icon = Favicons.shared.resolved(for: url)
         ZStack {
             if let icon {
-                // Only icons with enough pixels fill a large tile; a 32px favicon stretched that far goes soft.
-                if isLarge, icon.size.width >= 64 {
-                    Image(platformImage: icon)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: size, height: size)
+                let image = Image(decorative: icon.image, scale: 1).resizable().interpolation(.high)
+                if icon.isFullBleed {
+                    image.aspectRatio(contentMode: .fill).frame(width: size, height: size).clipShape(shape)
+                } else if scheme == .dark ? icon.isDark : icon.isLight {
+                    shape.fill(scheme == .dark ? Color.white : Color.black)
+                    image.aspectRatio(contentMode: .fit).padding(size * 0.18)
                 } else {
-                    if !isLarge { RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(.quaternary) }
-                    Image(platformImage: icon)
-                        .resizable()
-                        .interpolation(.high)
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: size * (isLarge ? 0.7 : 0.62), height: size * (isLarge ? 0.7 : 0.62))
+                    // Never drawn at more points than it has pixels, where it would go soft.
+                    let side = min(size, max(16, CGFloat(icon.image.width)))
+                    image.aspectRatio(contentMode: .fit).frame(width: side, height: side)
                 }
             } else {
-                Rectangle().fill(tint.gradient)
+                shape.fill(tint.gradient)
                 Text(host.prefix(1).uppercased())
-                    .font(.system(size: size * letterScale, weight: .bold, design: .rounded))
+                    .font(.system(size: size * letterScale, weight: .semibold))
                     .foregroundStyle(.white)
             }
         }
         .frame(width: size, height: size)
-        .clipShape(.rect(cornerRadius: cornerRadius, style: .continuous))
         .animation(.easeOut(duration: 0.18), value: icon != nil)
         .task(id: url) { Favicons.shared.request(url, isPrivate: isPrivate) }
     }
