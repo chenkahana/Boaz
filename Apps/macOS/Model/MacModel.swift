@@ -511,7 +511,14 @@ final class MacModel {
 
     /// Restores the last close (all of a Clear's tabs) and returns the first restored tab.
     func reopenClosedTab() -> SidebarItem? {
-        guard let batch = closedTabs.popLast() else { return nil }
+        var batch: [(tab: SidebarItem, archiveID: String?)] = []
+        // A tab whose space, profile or folder was deleted since stays in the Archive: there's nowhere to put it back.
+        while batch.isEmpty, let last = closedTabs.popLast() {
+            // A Clear's tabs can sit in its folders, which come back with them.
+            let kept = Set(last.filter { item($0.tab.parentID) != nil }.map(\.tab.id))
+            batch = last.filter { item($0.tab.parentID) != nil || $0.tab.parentID.map(kept.contains) == true }
+        }
+        guard !batch.isEmpty else { return nil }
         let restored = batch.map { tab, _ in
             var restored = tab
             restored.deletedAt = nil
