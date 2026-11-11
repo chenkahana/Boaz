@@ -108,12 +108,24 @@ public struct SpaceThemeOptions: Equatable, Sendable {
         if light != current.light || dark != current.dark || secondColor != current.secondColor {
             // Arc's backdrop per appearance. A gradient's stops after the first are drawn at the blend of that
             // appearance's background, so in Dark mode the second color darkens as the first does.
+            // The old backdrop's texture (`modifiers`) and vibrancy stay. Only a `single` backdrop pins an
+            // appearance, so a pinned one moves to `windowAppearance`.
             let colors = [light] + (secondColor.map { [$0] } ?? [])
-            let style: [String: Any] = secondColor == nil
-                ? ["blendedSingleColor": ["_0": ["color": light.json]]]
-                : ["blendedGradient": ["_0": ["baseColors": colors.map(\.json)]]]
-            let spec: [String: Any] = ["style": ["color": ["_0": style]]]
-            root["background"] = ["appearanceBased": ["light": spec, "dark": spec]]
+            let old = root["background"] as? [String: Any]
+            func spec(_ appearance: String) -> [String: Any] {
+                let previous = ((old?["single"] as? [String: Any])?["_0"]
+                    ?? (old?["appearanceBased"] as? [String: Any])?[appearance]) as? [String: Any]
+                let previousStyle = ((previous?["style"] as? [String: Any])?["color"] as? [String: Any])?["_0"] as? [String: Any]
+                var color: [String: Any] = secondColor == nil ? ["color": light.json] : ["baseColors": colors.map(\.json)]
+                color["modifiers"] = previousStyle?.values.lazy
+                    .compactMap { (($0 as? [String: Any])?["_0"] as? [String: Any])?["modifiers"] }.first
+                var spec: [String: Any] = ["style": ["color": ["_0": [secondColor == nil ? "blendedSingleColor" : "blendedGradient":
+                                                                          ["_0": color]]]]]
+                spec["isVibrant"] = previous?["isVibrant"]
+                return spec
+            }
+            root["background"] = ["appearanceBased": ["light": spec("light"), "dark": spec("dark")]]
+            if appearance != .system { root["windowAppearance"] = appearance.rawValue }
         }
         if appearance != current.appearance { root["windowAppearance"] = appearance.rawValue }
         if grain != current.grain { root["boazGrain"] = grain }
