@@ -51,7 +51,8 @@ and error states look intentional. Check RTL text too (for example ynet.co.il).
 - [ ] **Onboarding**: every page, with iCloud on and off. Buttons are readable, Back and Continue work, and it never
       shows again after you finish.
 - [ ] **Bottom bar** (standard iPhone, unfolded Duo held upright): the tab fan, **+** (New Tab) and **…** (page
-      menu). The page ends above the bar and is never covered by it.
+      menu). The page ends above the bar and is never covered by it. Open a new tab: it's the fan's top card at once,
+      with the previous tab behind it.
 - [ ] **Side rail** (folded Duo): the same controls stacked below the status icons, and the page's edge colors in the
       safe areas.
 - [ ] **Search panel** (New Tab): suggestions from the search engine, open tabs and history; typing an address versus
