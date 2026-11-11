@@ -42,6 +42,8 @@ final class AppModel {
     /// The search engine's suggestions for `searchText`.
     let remoteSuggestions = SearchSuggestions()
     var sheet: Sheet?
+    /// A window a page opened as a pop-up, such as a sign-in (`PagePopups`).
+    var popup: PagePopup?
     var showOnboarding = false
     var toast: Toast?
     var hinge: DeviceHinge?
@@ -356,6 +358,7 @@ final class AppModel {
             isPrivate: tabIsPrivate,
             page: { [weak self] in self?.pages[tab.id] },
             onBackForward: { [weak self] in self?.backForwardHaptic += 1 },
+            hostPopups: { [weak self] in self?.hostPopups(for: tab.id, isPrivate: tabIsPrivate) },
             onDownload: { [weak self] response in
                 self?.discardIfDownloadOnly(tab.id)
                 self?.handleDownload(response, dataStore: dataStore)
@@ -401,6 +404,17 @@ final class AppModel {
     }
 
     private var pagesInView: Set<String> { Set([tabID(inPane: 0), tabID(inPane: 1)].compactMap(\.self)) }
+
+    /// Pop-ups open in a sheet; any other window loads in the tab that opened it. A site whose pop-ups are blocked
+    /// gets neither for the windows its scripts open.
+    private func hostPopups(for tabID: String, isPrivate: Bool) {
+        guard let page = pages[tabID] else { return }
+        _ = PagePopups.install(on: page, allowsScriptWindows: { [weak page] in
+            PageSettings.settings(for: page?.url, isPrivate: isPrivate).popups != .block
+        }, present: { [weak self] in self?.popup = $0 }, dismiss: { [weak self] closed in
+            self?.popup = PagePopups.remaining(after: closed, shown: self?.popup)
+        }, fallback: { [weak page] action in page?.load(action.request) })
+    }
 
     // MARK: Picture in Picture
 

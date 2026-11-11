@@ -31,6 +31,11 @@ All notable changes to Boaz are recorded here. The format follows
 
 ### Fixed
 
+- iPhone and Mac: sign-in pop-ups ("Sign in with Google", Apple, Microsoft and the like) work. A `window.open` that
+  asks for a pop-up window opens in a sheet that keeps `window.opener`, so the page that opened it gets the result,
+  and it closes itself when done. Before, `window.open` returned nothing.
+- iPhone: a link that opens a new window (`target="_blank"`, or `window.open` without pop-up features) loads in its
+  tab; before, nothing happened.
 - iPhone and Mac: a background tab that's playing audio or video, using the camera or microphone, or in full screen
   keeps running when more tabs open; before, the oldest page was closed past 8 (iPhone) or 10 (Mac) open pages,
   whatever it was doing.

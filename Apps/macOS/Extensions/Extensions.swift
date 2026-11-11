@@ -420,4 +420,3 @@ extension Extensions: WKWebExtensionControllerDelegate {
         pattern.matchesAllHosts ? "Read and change all websites" : "Read and change \(pattern.string)"
     }
 }
-
