@@ -30,6 +30,8 @@ All notable changes to Boaz are recorded here. The format follows
 - Mac: switching spaces always shows a tab from the new space: the one last used there, else its most recent tab,
   else an empty New Tab page. A favorite the two spaces share stays open (#37).
 - Mac: ⌘S (or its rebound shortcut) folds and unfolds the sidebar wherever the keyboard focus is, a web page included.
+- Mac: text in Settings reads at 4.5:1 or better in Light and Dark. Values use the label color, and footnotes a
+  secondary color stronger than the system's (about 4:1 in Light).
 
 ## [0.1.0] - 2026-11-10
 

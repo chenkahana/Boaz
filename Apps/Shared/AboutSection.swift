@@ -16,6 +16,7 @@ struct AboutSection: View {
                 Boaz \(version). Ad and tracker blocking uses EasyList by the EasyList authors (easylist.to), \
                 licensed under CC BY-SA 3.0. The library is stored with GRDB by Gwendal Roué (MIT License).
                 """)
+            .foregroundStyle(.secondary)
         }
     }
 

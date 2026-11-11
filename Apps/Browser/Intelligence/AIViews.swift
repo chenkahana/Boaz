@@ -490,6 +490,7 @@ struct AISettingsSection: View {
                 Text("Summarize and ask about pages, and tidy your tabs. Runs on your iPhone with Apple Intelligence; nothing is sent to a server.")
                 #else
                 Text("Summarize and ask about pages, and tidy your tabs. Runs on your Mac with Apple Intelligence; nothing is sent to a server.")
+                    .foregroundStyle(.secondary)
                 #endif
             }
         }

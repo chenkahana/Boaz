@@ -198,8 +198,15 @@ struct MacSettingsView: View {
             SyncSettings().tabItem { Label("Sync", systemImage: "icloud") }
             ShortcutsSettings().tabItem { Label("Shortcuts", systemImage: "keyboard") }
         }
+        // System label colors on the system background. Footnotes and values take the second level, which reads at
+        // 4.5:1 or better (the system's secondary label is about 4:1 in Light).
+        .foregroundStyle(.primary, Self.footnote)
         .frame(width: 520)
     }
+
+    static let footnote = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? NSColor(white: 1, alpha: 0.62) : NSColor(white: 0, alpha: 0.64)
+    })
 }
 
 private struct GeneralSettings: View {
@@ -243,10 +250,10 @@ private struct DefaultBrowserRow: View {
     var body: some View {
         LabeledContent("Default browser") {
             if current.isBoaz {
-                Text("Boaz").foregroundStyle(.secondary)
+                Text("Boaz")
             } else {
                 HStack {
-                    Text(current.name).foregroundStyle(.secondary)
+                    Text(current.name)
                     Button("Make Default") {
                         Task {
                             failed = (try? await DefaultBrowser.makeBoazDefault()) == nil
@@ -310,7 +317,7 @@ private struct SyncSettings: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             } else {
-                Text("Sync starts once your library has loaded.").foregroundStyle(.secondary)
+                Text("Sync starts once your library has loaded.")
             }
         }
         .formStyle(.grouped)
