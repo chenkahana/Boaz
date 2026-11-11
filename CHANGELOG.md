@@ -16,8 +16,8 @@ All notable changes to Boaz are recorded here. The format follows
   General turns the automatic part off on the Mac. The App Store build for Mac doesn't have it: WebKit offers it there
   only through a setting the App Store doesn't allow.
 - iPhone: a video keeps playing after you leave Boaz.
-- iPhone: ready to be the default browser once Apple grants the entitlement it needs (off until then;
-  `web-browser.yml`). The app declares `http` and `https`, and links from other apps open in a new tab.
+- iPhone: Boaz can be the default browser, from Settings › Apps › Boaz › Default Browser App. Links from other apps
+  open in a new tab.
 
 ### Changed
 

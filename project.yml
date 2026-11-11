@@ -3,9 +3,9 @@ include:
   # Passkeys in web pages: a managed entitlement, off until Apple grants it (passkeys.yml).
   - path: passkeys.yml
     enable: false
-  # Default browser on iPhone: a managed entitlement, off until Apple grants it (web-browser.yml).
+  # Default browser on iPhone: a managed entitlement Apple grants per App ID (web-browser.yml).
   - path: web-browser.yml
-    enable: false
+    enable: true
 options:
   bundleIdPrefix: com.chenkahana
   deploymentTarget:
@@ -21,7 +21,7 @@ settings:
     DEVELOPMENT_TEAM: DPF8459C2J
     CODE_SIGN_STYLE: Automatic
     MARKETING_VERSION: "1.0"
-    CURRENT_PROJECT_VERSION: "2"
+    CURRENT_PROJECT_VERSION: "4"
     PRODUCT_NAME: Boaz
     GENERATE_INFOPLIST_FILE: YES
     INFOPLIST_KEY_CFBundleDisplayName: Boaz
@@ -76,7 +76,7 @@ targets:
           - CFBundleTypeRole: Editor
             CFBundleURLName: com.chenkahana.boaz
             CFBundleURLSchemes: [boaz]
-          # Required for the default browser entitlement (web-browser.yml); iOS ignores it until that's granted.
+          # Required for the default browser entitlement (web-browser.yml).
           - CFBundleTypeRole: Viewer
             CFBundleURLName: com.chenkahana.boaz.web
             CFBundleURLSchemes: [http, https]
