@@ -59,6 +59,7 @@ struct BrowserWindow: View {
         .sheet(item: $browser.rename) { request in RenameSheet(request: request).environment(browser) }
         .sheet(item: $browser.ai) { MacAISheet(request: $0).environment(model).environment(browser) }
         .sheet(item: $browser.popup) { PopupSheet(popup: $0) }
+        .devToolsSheets(browser)
         .sheet(item: $browser.extensionSheet) { sheet in
             Group {
                 switch sheet {

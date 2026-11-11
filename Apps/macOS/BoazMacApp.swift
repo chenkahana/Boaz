@@ -22,6 +22,7 @@ struct BoazMacApp: App {
         .restorationBehavior(.disabled)
         .commands {
             BoazCommands(model: model)
+            DevelopCommands(model: model)
             #if SPARKLE
             UpdateCommands()
             #endif

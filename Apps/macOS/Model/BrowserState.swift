@@ -69,6 +69,8 @@ final class BrowserState {
     private(set) var incognitoTabs: [SidebarItem] = []
     /// The load each tab's page shows as failed. Kept here so ⌘R retries a refused address as Try Again does.
     var loadFailures: [String: LoadFailure] = [:]
+    /// The Develop menu's per-tab settings.
+    let devTools = DevTools()
 
     // Touched while views render (page(for:)) or only by actions: not observed.
     @ObservationIgnored let model = MacModel.shared
@@ -81,6 +83,8 @@ final class BrowserState {
     /// Each tab's address as last saved, which a load in flight hasn't replaced yet.
     @ObservationIgnored private var savedURLs: [String: URL] = [:]
     @ObservationIgnored private var lastTabPerSpace: [String: String] = [:]
+    /// The peek's router, which becomes its tab's when the peek is promoted.
+    @ObservationIgnored private var peekRouter: (page: ObjectIdentifier, target: NavigationRouter.Target)?
     @ObservationIgnored private let privateStore: WKWebsiteDataStore?
     @ObservationIgnored private var keyObserver: NSObjectProtocol?
     @ObservationIgnored private var closeObserver: NSObjectProtocol?
@@ -247,6 +251,7 @@ final class BrowserState {
             for id in close where !pagesInView.contains(id) {
                 recency.removeAll { $0 == id }
                 pages[id] = nil
+                devTools.drop(id)
             }
             isClosingIdlePages = false
         }
@@ -317,15 +322,15 @@ final class BrowserState {
             PageState.install(in: &configuration) { [weak self] state in self?.pageDidSettle(state, tabID: id) }
         }
         let pictureInPicture = PictureInPicture.install(in: &configuration)
-        let page = WebPage(configuration: configuration, navigationDecider: NavigationRouter(browser: self, context: context),
-                           dialogPresenter: MacDialogs())
+        let router = NavigationRouter(browser: self, context: context)
+        let page = WebPage(configuration: configuration, navigationDecider: router, dialogPresenter: MacDialogs())
+        if case .peek = context { peekRouter = (ObjectIdentifier(page), router.target) }
         pictureInPicture.attach(page)
         if case .tab(let id) = context {
             pictureInPicture.onRestore = { [weak self] in self?.showTabReturningFromPictureInPicture(id) }
         }
-        #if DEBUG
+        // Inspect Element in the page's context menu, and Safari's Develop menu for the page.
         page.isInspectable = true
-        #endif
         if let url {
             // A tab's first load starts before its pane watches the page, so its failure is caught here.
             model.load(url, in: page, configuration: configuration) { [weak self, weak page] failure in
@@ -352,6 +357,7 @@ final class BrowserState {
         pictureInPicture(tabID)?.detach()
         pages[tabID] = nil
         loadFailures[tabID] = nil
+        devTools.drop(tabID)
         savedURLs[tabID] = nil
         recency.removeAll { $0 == tabID }
     }
@@ -864,6 +870,7 @@ final class BrowserState {
             }) {
                 pages[tab.id] = peek.page
                 recency.append(tab.id)
+                if let peekRouter, peekRouter.page == ObjectIdentifier(peek.page) { peekRouter.target.context = .tab(tab.id) }
                 PictureInPicture.controller(of: peek.page)?.onRestore = { [weak browser = self] in
                     browser?.showTabReturningFromPictureInPicture(tab.id)
                 }
@@ -889,13 +896,22 @@ final class BrowserState {
 /// Bridges WebPage's navigation decisions back to the window that owns the page.
 struct NavigationRouter: WebPage.NavigationDeciding {
     enum Context { case tab(String), peek }
+    /// A reference, so a promoted peek's page routes as its tab from then on.
+    final class Target { var context: Context; init(_ context: Context) { self.context = context } }
 
     weak var browser: BrowserState?
-    let context: Context
+    let target: Target
+    private var context: Context { target.context }
+
+    init(browser: BrowserState, context: Context) {
+        self.browser = browser
+        target = Target(context)
+    }
 
     func decidePolicy(for action: WebPage.NavigationAction,
                       preferences: inout WebPage.NavigationPreferences) async -> WKNavigationActionPolicy {
-        browser?.decide(action, context: context) ?? .allow
+        if browser?.javaScriptDisabled(context) == true { preferences.allowsContentJavaScript = false }
+        return browser?.decide(action, context: context) ?? .allow
     }
 
     func decidePolicy(for response: WebPage.NavigationResponse) async -> WKNavigationResponsePolicy {

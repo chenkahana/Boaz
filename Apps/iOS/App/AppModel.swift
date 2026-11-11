@@ -371,6 +371,8 @@ final class AppModel {
             })
         let pictureInPicture = PictureInPicture.install(in: &configuration)
         let page = WebPage(configuration: configuration, navigationDecider: decider)
+        // Safari's Develop menu on a Mac can inspect it.
+        page.isInspectable = true
         pictureInPicture.attach(page)
         pictureInPicture.onRestore = { [weak self] in
             guard let self, let tab = self.item(withID: tab.id), !self.pagesInView.contains(tab.id) else { return }

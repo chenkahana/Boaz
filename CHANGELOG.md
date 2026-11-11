@@ -6,6 +6,19 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Mac: a Develop menu for building and testing sites. Responsive Design Mode (⌥⌘R) shows the page at a phone,
+  tablet or laptop size with Safari's matching user agent; the User Agent menu switches to Safari, Chrome, Firefox,
+  Edge or any string; Emulate Media switches to print styles or a light or dark appearance; the Vision Simulator
+  shows the page as people with color blindness, blurred vision or low contrast see it; and Disable JavaScript turns
+  off the page's scripts. The JavaScript Console (⌥⌘C) runs code in the page and shows what it logs, View Page Source
+  (⌥⌘U) and Show Storage… show its markup, cookies and local storage, Capture Visible Area and Capture Full Page
+  save a screenshot to Downloads, Export as PDF… saves the page, and Empty Caches (⌥⌘E) reloads it fresh without
+  signing you out. Each setting stays with its tab until the tab closes (`docs/devtools.md`).
+- Mac and iPhone: Web Inspector works in every build. Right-click a page on the Mac and choose Inspect Element;
+  Safari's Develop menu on a Mac can inspect pages on the iPhone.
+
 ### Changed
 
 - iPhone: the phone's tabs are one stack, newest first, and no longer belong to a space. There is no space on the
