@@ -63,8 +63,6 @@ final class BrowserState {
     private(set) var incognitoTabs: [SidebarItem] = []
     /// The load each tab's page shows as failed. Kept here so ⌘R retries a refused address as Try Again does.
     var loadFailures: [String: LoadFailure] = [:]
-    /// Each tab's site color, which the window takes on. Never sampled in incognito.
-    private(set) var siteColors: [String: SiteColor] = [:]
 
     // Touched while views render (page(for:)) or only by actions: not observed.
     @ObservationIgnored let model = MacModel.shared
@@ -428,26 +426,7 @@ final class BrowserState {
         }
     }
 
-    /// Samples the tab's site color once its page has loaded; while it loads, uses the color last seen for the host.
-    func updateSiteColor(_ tabID: String, page: WebPage) {
-        guard !isIncognito else { return }
-        if page.isLoading {
-            if let cached = SiteColor.cached(for: page.url), siteColors[tabID] != cached { siteColors[tabID] = cached }
-            return
-        }
-        Task { [weak self] in
-            let color = await SiteColor.sample(page)
-            if let self, self.siteColors[tabID] != color { self.siteColors[tabID] = color }
-        }
-    }
-
-    /// The active tab's site color, when tinting is on.
-    func activeSiteColor(enabled: Bool) -> SiteColor? {
-        guard enabled, !isIncognito, let id = activeTab?.id else { return nil }
-        return siteColors[id]
-    }
-
-    /// Learns the page's favicon once it finishes loading (skipped for incognito, matching `updateSiteColor`).
+    /// Learns the page's favicon once it finishes loading (skipped for incognito).
     func pageDidFinishLoading(page: WebPage) {
         guard !page.isLoading, !isIncognito, let pageURL = page.url else { return }
         Task {
@@ -472,7 +451,6 @@ final class BrowserState {
             activeTabID = next?.id
         }
         unload(tab.id)
-        siteColors[tab.id] = nil
         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
             if isPrivate(tab) {
                 incognitoTabs.removeAll { $0.id == tab.id }

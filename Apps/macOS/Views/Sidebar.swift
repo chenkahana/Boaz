@@ -22,7 +22,7 @@ enum SidebarStyle {
     }
     static func sectionFont(size: CGFloat = defaultTextSize) -> Font { .system(size: size - 3, weight: .semibold) }
     static func titleFont(size: CGFloat = defaultTextSize) -> Font { .system(size: size + 1, weight: .semibold) }
-    /// The label color at 12%: one flat fill for the selection, on every theme and site color.
+    /// The label color at 12%: one flat fill for the selection, on every theme.
     static func selection(increasedContrast: Bool = false) -> Color { .primary.opacity(increasedContrast ? 0.24 : 0.12) }
     /// Half the selection.
     static let hover = Color.primary.opacity(0.06)
@@ -39,16 +39,12 @@ struct SidebarView: View {
     @Environment(BrowserState.self) private var browser
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
     @AppStorage(Preferences.sidebarTextSizeKey) private var textSize = SidebarStyle.defaultTextSize
     @State private var swipe: CGFloat = 0
 
     var body: some View {
-        let site = browser.activeSiteColor(enabled: tintWithSiteColors)
-        // An Arc theme pinned to light or dark keeps the sidebar in that appearance, as Arc does. A site's color
-        // overrides both while the sidebar wears it, so row fills and tints match the text drawn on that color.
-        let appearance = browser.isIncognito ? scheme
-            : site?.colorScheme ?? SpaceStyle.colorScheme(of: browser.currentSpace) ?? scheme
+        // An Arc theme pinned to light or dark keeps the sidebar in that appearance, as Arc does.
+        let appearance = browser.isIncognito ? scheme : SpaceStyle.colorScheme(of: browser.currentSpace) ?? scheme
         let style = SpaceStyle(browser.currentSpace, scheme: browser.isIncognito ? .dark : appearance)
         VStack(alignment: .leading, spacing: 8) {
             SidebarTopBar()
@@ -73,11 +69,9 @@ struct SidebarView: View {
         .padding(.bottom, 8)
         .environment(\.colorScheme, appearance)
         .environment(\.sidebarTextSize, textSize)
-        .animation(SiteColor.fade(reduceMotion: reduceMotion)) {
-            // `.secondary` below is the second style: dimmer text and icons that still read at 4.5:1.
-            $0.foregroundStyle(browser.isIncognito ? .white : site?.foreground ?? style.foreground,
-                               browser.isIncognito ? Color(white: 0.78) : site?.secondary ?? style.secondaryOnFills)
-        }
+        // `.secondary` below is the second style: dimmer text and icons that still read at 4.5:1.
+        .foregroundStyle(browser.isIncognito ? .white : style.foreground,
+                         browser.isIncognito ? Color(white: 0.78) : style.secondaryOnFills)
         .background {
             HorizontalSwipeReader { dx in
                 swipe = max(-90, min(90, dx * 0.4))

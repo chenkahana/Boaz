@@ -82,7 +82,8 @@ sequenceDiagram
 Both apps render pages with WebKit. Shared glue in `Apps/Browser` handles:
 
 - **Content blocking:** EasyList compiled into `WKContentRuleList`s, on by default for every page.
-- **Downloads**, **favicons** (fetched from each site directly) and **site colors** for tab tinting.
+- **Downloads**, **favicons** (fetched from each site directly) and **site colors** for the iPhone's tinted
+  edges.
 
 Platform specifics live in each app: on iPhone, cookie-banner declining, the reader view, pull to refresh and the
 navigation policy; on Mac, the sidebar window, split view, command bar, rebindable shortcuts and Chrome extensions

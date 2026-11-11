@@ -8,6 +8,10 @@ All notable changes to Boaz are recorded here. The format follows
 
 ### Changed
 
+- Mac: the window keeps the space's theme on every site. The sidebar no longer takes on the color of the page, and
+  Settings › General › Tint chrome with site colors is gone; Customize Space sets the window's colors. iPhone still
+  tints its edges to match the page.
+
 - Mac: a link a page opens in a new window (`target="_blank"`, `window.open`) opens in a tab right below the page,
   rather than at the top of Today.
 - Mac (DMG): an update's signature is checked before its DMG is opened.
