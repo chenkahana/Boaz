@@ -31,7 +31,7 @@ targets:
         SUFeedURL: https://github.com/chenkahana/Boaz/releases/latest/download/appcast.xml
         # From Sparkle's `generate_keys` on the maintainer's Mac (docs/release.md). Its private half stays in that
         # Mac's login keychain.
-        SUPublicEDKey: SPARKLE_PUBLIC_ED_KEY_PLACEHOLDER
+        SUPublicEDKey: nugsTugZI71XGe2tvA+/MiVU1PcIgJeMRJPUpue+ee0=
         SUEnableInstallerLauncherService: true
         SUEnableAutomaticChecks: true
         SUScheduledCheckInterval: 86400
