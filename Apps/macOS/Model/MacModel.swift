@@ -118,7 +118,11 @@ final class MacModel {
             do {
                 for try await snapshot in store.sidebarUpdates() {
                     failures = 0
+                    let removed = sidebar.profiles.filter { old in
+                        !snapshot.profiles.contains { $0.id == old.id || $0.dataStoreID == old.dataStoreID }
+                    }
                     sidebar = snapshot
+                    removed.forEach(removeSiteData)
                     guard !loaded else { continue }
                     loaded = true
                     // A launch without a main window (a link to a Quick Window) has nothing to restore.
@@ -597,6 +601,41 @@ final class MacModel {
 
     // MARK: Spaces
 
+    func isLastSpaceOfProfile(_ space: Space) -> Bool {
+        !sidebar.spaces.contains { $0.id != space.id && $0.profileID == space.profileID }
+    }
+
+    /// What deleting a space takes with it, for its confirmation.
+    func deletionMessage(for space: Space) -> String {
+        let tabs = "Its tabs move to the Archive, on all your devices."
+        guard isLastSpaceOfProfile(space), let profile = sidebar.profiles.first(where: { $0.id == space.profileID })
+        else { return tabs }
+        return tabs + " It's the last space of the \(profile.name) profile, so the profile is removed too: its "
+            + "favorites move to the Archive, and its site data, like logins and cookies, is deleted."
+    }
+
+    /// Deletes a space; windows showing it move to another first. The library keeps at least one space.
+    func deleteSpace(_ space: Space) {
+        guard let other = sidebar.spaces.first(where: { $0.id != space.id }) else { return }
+        let windows = browsers.compactMap(\.browser)
+        for browser in windows where browser.spaceID == space.id { browser.switchSpace(to: other.id) }
+        if isLastSpaceOfProfile(space) {
+            // The profile's site data can only be deleted once no page uses it.
+            let tabs = sidebar.items.filter { $0.profileID == space.profileID && $0.kind == .tab }
+            for browser in windows { tabs.forEach { browser.unload($0.id) } }
+        }
+        do { try store?.deleteSpace(space.id) } catch { showToast("Couldn't delete space: \(error.localizedDescription)") }
+    }
+
+    /// A deleted profile's WebKit data on this Mac (logins, cookies, caches), here or on another device.
+    private func removeSiteData(of profile: Profile) {
+        dataStores[profile.dataStoreID] = nil
+        Task {
+            // Pages that used it close with the views that showed them.
+            try? await Task.sleep(for: .seconds(1))
+            try? await WKWebsiteDataStore.remove(forIdentifier: profile.dataStoreID)
+        }
+    }
 
     func update(_ space: Space, save: Bool = true) {
         var space = space

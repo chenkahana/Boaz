@@ -9,6 +9,8 @@ struct SpaceEditor: View {
     /// Saves the space; a nil palette keeps its current theme (one imported from Arc, say).
     let onSave: (_ title: String, _ icon: String?, _ palette: SpacePalette?) -> Void
     var onDelete: (() -> Void)?
+    /// What deleting takes with it, for the confirmation.
+    var deleteMessage = "Its tabs move to the Archive, on all your devices."
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
@@ -23,10 +25,12 @@ struct SpaceEditor: View {
                                  "📰", "💡", "🌱", "⚽️", "🎬", "🧘", "💰", "🗂️", "🚀", "🎓", "🧳", "🐾",
                                  "☕️", "❤️", "⭐️", "✦"]
 
-    init(mode: Mode, onSave: @escaping (String, String?, SpacePalette?) -> Void, onDelete: (() -> Void)? = nil) {
+    init(mode: Mode, deleteMessage: String? = nil, onSave: @escaping (String, String?, SpacePalette?) -> Void,
+         onDelete: (() -> Void)? = nil) {
         self.mode = mode
         self.onSave = onSave
         self.onDelete = onDelete
+        if let deleteMessage { self.deleteMessage = deleteMessage }
         switch mode {
         case .create:
             _title = State(initialValue: "")
@@ -149,7 +153,7 @@ struct SpaceEditor: View {
                     deleted = true
                 }
             } message: {
-                Text("Its tabs move to the Archive, on all your devices.")
+                Text(deleteMessage)
             }
             // Dismissing from the dialog's own action would close only the dialog, so the editor closes after it.
             .onChange(of: confirmDelete) { _, showing in if !showing, deleted { dismiss() } }

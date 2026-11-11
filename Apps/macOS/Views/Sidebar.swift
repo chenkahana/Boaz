@@ -329,6 +329,10 @@ struct SpaceMenu: View {
         Divider()
         Button("Archive Today's Tabs") { withAnimation { model.clearToday(in: space) } }
         Button("New Space…") { browser.newSpace() }
+        if model.sidebar.spaces.count > 1 {
+            Divider()
+            Button("Delete Space…", role: .destructive) { browser.spaceToDelete = space }
+        }
     }
 }
 

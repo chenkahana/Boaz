@@ -111,14 +111,20 @@ extension BoazStore {
     }
 
     /// Deletes a space. Its tabs (pinned, in folders and in Today) go to the Archive, so nothing is lost.
-    /// Returns how many tabs were archived. The last space of a profile can't be deleted.
+    /// The last space of a profile takes the profile with it, and its favorites go to the Archive too. Returns how
+    /// many tabs were archived. The library's last space can't be deleted.
     @discardableResult
     public func deleteSpace(_ id: String, at date: Date = .now) throws -> Int {
         try writer.write { db in
             guard var space = try Space.fetchOne(db, key: id), space.deletedAt == nil else { return 0 }
             let live = Column("deletedAt") == nil
-            guard try Space.filter(Column("profileID") == space.profileID && live).fetchCount(db) > 1 else { return 0 }
-            let items = try SidebarItem.filter(Column("spaceID") == id && live).fetchAll(db)
+            guard try Space.filter(live).fetchCount(db) > 1 else { return 0 }
+            let lastOfProfile = try Space.filter(Column("profileID") == space.profileID && live).fetchCount(db) == 1
+            var items = try SidebarItem.filter(Column("spaceID") == id && live).fetchAll(db)
+            if lastOfProfile {
+                items += try SidebarItem.filter(Column("profileID") == space.profileID && Column("spaceID") == nil && live)
+                    .fetchAll(db)
+            }
             var archived = 0
             for tab in items where tab.kind == .tab {
                 if try Self.archive(tab, reason: "spaceDeleted", at: date, in: db).item != nil { archived += 1 }
@@ -131,6 +137,11 @@ extension BoazStore {
             space.deletedAt = date
             space.modifiedAt = date
             try space.update(db)
+            if lastOfProfile, var profile = try Profile.fetchOne(db, key: space.profileID), profile.deletedAt == nil {
+                profile.deletedAt = date
+                profile.modifiedAt = date
+                try profile.update(db)
+            }
             return archived
         }
     }

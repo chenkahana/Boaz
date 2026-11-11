@@ -59,6 +59,13 @@ struct BrowserWindow: View {
         .sheet(item: $browser.onboarding) { OnboardingView(start: $0).environment(model).environment(browser) }
         .sheet(item: $browser.rename) { request in RenameSheet(request: request).environment(browser) }
         .sheet(item: $browser.ai) { MacAISheet(request: $0).environment(model).environment(browser) }
+        .confirmationDialog("Delete \"\(browser.spaceToDelete?.title ?? "")\"?",
+                            isPresented: Binding { browser.spaceToDelete != nil } set: { if !$0 { browser.spaceToDelete = nil } },
+                            titleVisibility: .visible, presenting: browser.spaceToDelete) { space in
+            Button("Delete Space", role: .destructive) { model.deleteSpace(space) }
+        } message: { space in
+            Text(model.deletionMessage(for: space))
+        }
         .onAppear { model.registerOpenWindow(openWindow) }
         .onChange(of: browser.currentSpaceID) { if !browser.isIncognito { model.saveOpenWindows() } }
         .onChange(of: browser.activeTabID) { if !browser.isIncognito { model.saveOpenWindows() } }
@@ -551,14 +558,11 @@ private struct MacSpaceEditor: View {
 
     var body: some View {
         if let id = request.spaceID, let space = model.space(id) {
-            SpaceEditor(mode: .edit(space, canDelete: model.sidebar.spaces.filter { $0.profileID == space.profileID }.count > 1)) {
-                title, icon, palette in
+            SpaceEditor(mode: .edit(space, canDelete: model.sidebar.spaces.count > 1),
+                        deleteMessage: model.deletionMessage(for: space)) { title, icon, palette in
                 try? model.store?.updateSpace(space.id, title: title, icon: icon, palette: palette)
             } onDelete: {
-                if browser.spaceID == space.id, let other = model.sidebar.spaces.first(where: { $0.id != space.id }) {
-                    browser.switchSpace(to: other.id)
-                }
-                try? model.store?.deleteSpace(space.id)
+                model.deleteSpace(space)
             }
         } else if let profileID = browser.currentSpace?.profileID ?? model.sidebar.profiles.first(where: \.isDefault)?.id
                     ?? model.sidebar.profiles.first?.id {

@@ -6,6 +6,12 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Mac: any space can be deleted while another remains, including a profile's last one; that removes the profile too,
+  with its favorites moving to the Archive and its site data deleted, and the confirmation says so. Delete Space… is
+  in the space's right-click menu, on its header and its dot.
+
 ### Fixed
 
 - Mac: switching spaces always shows a tab from the new space: the one last used there, else its most recent tab,
