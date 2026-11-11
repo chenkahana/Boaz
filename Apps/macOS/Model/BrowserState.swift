@@ -300,10 +300,11 @@ final class BrowserState {
             return .cancel
         }
         let flags = NSEvent.modifierFlags
-        // A link, a form's button or anything else the user clicked to navigate, in any frame. NSEvent numbering:
-        // button 2 is the middle one.
+        // A link, a form's button or anything else the user clicked to navigate, in any frame; button 2 is the middle
+        // one. A form that posts can't be reopened from its address alone, so it stays in this tab.
         let clicked = [.linkActivated, .formSubmitted].contains(action.navigationType)
-        let middleClick = action.buttonNumber == 2
+            && action.request.httpMethod?.uppercased() ?? "GET" == "GET"
+        let middleClick = action.buttonNumber == 2 && action.request.httpMethod?.uppercased() ?? "GET" == "GET"
         let newTabClick = middleClick || (clicked && flags.contains(.command))
         switch context {
         case .peek:

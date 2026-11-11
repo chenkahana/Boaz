@@ -492,7 +492,7 @@ struct ItemRow: View {
                       : hovering ? SidebarStyle.hover : .clear)
         }
         // Closes as the row's own button does: a Today tab goes to the Archive, a pinned one unloads.
-        .background { if item.kind == .tab { MiddleClickReader { browser.close(item) } } }
+        .background { if item.kind == .tab { MiddleClickReader(action: browser.commandMode == nil ? { browser.close(item) } : nil) } }
         .overlay(alignment: item.kind == .folder ? .center : .top) {
             if targeted {
                 if item.kind == .folder {
@@ -723,7 +723,8 @@ func dropItems(_ payloads: [String], into parentID: String, before beforeID: Str
 /// handles the click, so it works the first time on a window in the background without bringing it forward; other
 /// clicks, and middle clicks anywhere else (a link in the page), pass through.
 struct MiddleClickReader: NSViewRepresentable {
-    var action: () -> Void
+    /// Nil while something covers the sidebar (the command bar), so the click goes to that.
+    var action: (() -> Void)?
 
     func makeNSView(context: Context) -> ClickView {
         let view = ClickView()
@@ -744,10 +745,11 @@ struct MiddleClickReader: NSViewRepresentable {
             if let monitor { NSEvent.removeMonitor(monitor); self.monitor = nil }
             guard window != nil else { return }
             monitor = NSEvent.addLocalMonitorForEvents(matching: .otherMouseDown) { [weak self] event in
-                guard let self, event.buttonNumber == 2, event.window === self.window,
+                guard let self, let action = self.action, event.buttonNumber == 2, event.window === self.window,
+                      self.window?.attachedSheet == nil,
                       // Rows scrolled out of the sidebar are clipped out of `visibleRect`.
                       self.visibleRect.contains(self.convert(event.locationInWindow, from: nil)) else { return event }
-                self.action?()
+                action()
                 return nil
             }
         }
