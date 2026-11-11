@@ -280,8 +280,9 @@ final class BrowserState {
         if unpinning, let page = pages[tab.id] { model.didNavigate(tab.id, url: page.url, title: page.title) }
     }
 
-    /// Link routing: ⌘-click peeks, ⌘⇧-click opens a tab; pages that open new windows get a peek
-    /// when they're pinned (keeps the pinned app in place) and a new Today tab otherwise.
+    /// Link routing: a middle-click or ⌘-click opens the link in a background tab right below this one, ⌘⇧-click in
+    /// the foreground; pages that open new windows get a peek when they're pinned (keeps the pinned app in place)
+    /// and a new Today tab otherwise.
     func decide(_ action: WebPage.NavigationAction, context: NavigationRouter.Context) -> WKNavigationActionPolicy {
         let opensWindow = action.target == nil
         let downloadRequested = opensWindow && LinkDownloadMenu.takeRequest()
@@ -294,14 +295,18 @@ final class BrowserState {
             return .cancel
         }
         let flags = NSEvent.modifierFlags
-        let mainFrameLink = action.navigationType == .linkActivated && (action.target?.isMainFrame ?? true)
+        // A link, a form's button or anything else the user clicked to navigate, in any frame. NSEvent numbering:
+        // button 2 is the middle one.
+        let clicked = [.linkActivated, .formSubmitted].contains(action.navigationType)
+        let middleClick = action.buttonNumber == 2
+        let newTabClick = middleClick || (clicked && flags.contains(.command))
         switch context {
         case .peek:
-            if opensWindow || (mainFrameLink && flags.contains(.command)) { openTab(url); return .cancel }
+            if opensWindow || newTabClick { openTab(url); return .cancel }
             return .allow
         case .tab(let id):
-            if mainFrameLink && flags.contains(.command) {
-                if flags.contains(.shift) { openTab(url) } else { openPeek(url, profileID: tab(id)?.profileID) }
+            if newTabClick {
+                openTab(url, below: tab(id), inBackground: !flags.contains(.shift))
                 return .cancel
             }
             if opensWindow {
@@ -326,19 +331,29 @@ final class BrowserState {
         if previous != tab.id { Extensions.shared.didActivate(tab, previous: previous, in: self) }
     }
 
-    func openTab(_ url: URL, title: String? = nil) {
+    /// A new Today tab, at the top or right below `source`. One opened in the background starts loading without
+    /// taking the window.
+    func openTab(_ url: URL, title: String? = nil, below source: SidebarItem? = nil, inBackground: Bool = false) {
+        let tab: SidebarItem
         if isIncognito {
-            let tab = SidebarItem(id: UUID().uuidString, spaceID: nil, profileID: "incognito", parentID: nil,
-                                  kind: .tab, title: title ?? url.host(), url: url,
-                                  position: (incognitoTabs.map(\.position).min() ?? 1) - 1, lastActiveAt: .now)
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { incognitoTabs.insert(tab, at: 0) }
-            activate(tab)
-            return
+            let index = source.flatMap { source in incognitoTabs.firstIndex { $0.id == source.id } }.map { $0 + 1 } ?? 0
+            let above = index > 0 ? incognitoTabs[index - 1].position : nil
+            let below = index < incognitoTabs.count ? incognitoTabs[index].position : nil
+            let position = switch (above, below) {
+            case let (above?, below?): (above + below) / 2
+            case let (above?, nil): above + 1
+            default: (below ?? 1) - 1
+            }
+            tab = SidebarItem(id: UUID().uuidString, spaceID: nil, profileID: "incognito", parentID: nil,
+                              kind: .tab, title: title ?? url.host(), url: url, position: position, lastActiveAt: .now)
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { incognitoTabs.insert(tab, at: index) }
+        } else {
+            guard let new = withAnimation(.spring(response: 0.35, dampingFraction: 0.8), {
+                model.newTab(url, title: title, in: spaceID, below: source)
+            }) else { return }
+            tab = new
         }
-        guard let tab = withAnimation(.spring(response: 0.35, dampingFraction: 0.8), {
-            model.newTab(url, title: title, in: spaceID)
-        }) else { return }
-        activate(tab)
+        if inBackground { _ = page(for: tab) } else { activate(tab) }
     }
 
     func load(_ url: URL) {

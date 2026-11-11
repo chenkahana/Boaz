@@ -379,7 +379,7 @@ private struct SplitDivider: View {
     }
 }
 
-/// Floating preview for ⌘-clicked links and links that would leave a pinned tab.
+/// Floating preview for links that would leave a pinned tab.
 private struct PeekOverlay: View {
     @Environment(BrowserState.self) private var browser
     let peek: BrowserState.Peek

@@ -82,8 +82,10 @@ and error states look intentional. Check RTL text too (for example ynet.co.il).
 - [ ] **Context menus**: a Today row, a favorite tile, a space dot, the sidebar **+**.
 - [ ] **Spaces**: new space, theme editor, switching with ⌃1… and ⌘⌥→, deleting a space.
 - [ ] **Folders**: create, rename, ungroup, drag tabs in and out, drag to reorder.
-- [ ] **Split view**, **Find in page**, **Peek** (⌘-click a link), **Summarize Page**, **Ask This Page**, **Tidy
-      Tabs**.
+- [ ] **Split view**, **Find in page**, **Peek** (a link that opens a new window from a pinned tab), **Summarize
+      Page**, **Ask This Page**, **Tidy Tabs**.
+- [ ] **Links in new tabs**: a middle-click or ⌘-click on a link opens it in a background tab right below the current
+      one; ⌘⇧-click opens it in front.
 - [ ] **History** and **Archive** windows: today's visits sit under "Today", and ⌘W closes the window.
 - [ ] **Settings**: General (the About links are visible without scrolling), Privacy, Sync (Sync Now is disabled when
       sync can't run), Shortcuts (rebind one key, then reset it). ⌘W closes the window.

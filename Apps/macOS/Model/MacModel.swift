@@ -392,14 +392,20 @@ final class MacModel {
 
     // MARK: Tabs
 
-    /// New Today tab at the top of the list, as in Arc.
+    /// New Today tab at the top of the list, as in Arc, or right below `source` when that's a Today tab.
     @discardableResult
-    func newTab(_ url: URL, title: String? = nil, in spaceID: String?) -> SidebarItem? {
+    func newTab(_ url: URL, title: String? = nil, in spaceID: String?, below source: SidebarItem? = nil) -> SidebarItem? {
         guard let space = space(spaceID) ?? sidebar.spaces.first,
               let box = sidebar.container(.unpinned, in: space.id) else { return nil }
-        let top = sidebar.children(of: box.id).map(\.position).min() ?? 1
+        let positions = sidebar.children(of: box.id).map(\.position)
+        let position: Double
+        if let source, source.parentID == box.id {
+            position = positions.filter { $0 > source.position }.min().map { (source.position + $0) / 2 } ?? source.position + 1
+        } else {
+            position = (positions.min() ?? 1) - 1
+        }
         let tab = SidebarItem(id: UUID().uuidString, spaceID: space.id, profileID: space.profileID, parentID: box.id,
-                              kind: .tab, title: title ?? url.host(), url: url, position: top - 1, lastActiveAt: .now,
+                              kind: .tab, title: title ?? url.host(), url: url, position: position, lastActiveAt: .now,
                               deviceID: deviceID)
         commit(tab)
         return tab
