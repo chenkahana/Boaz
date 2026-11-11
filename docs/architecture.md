@@ -32,7 +32,9 @@ All records are GRDB value types in `Model/Records.swift`:
 - **Profile**: a browsing profile, with its own `WKWebsiteDataStore` (cookies and site data).
 - **Space**: belongs to a profile; has a name, icon, color theme (`WindowTheme`) and order.
 - **SidebarItem**: a tree per space. Containers (`pinned`, `unpinned` = Today, `favorites`) hold folders and tabs.
-  Order is explicit, so every device shows the same sequence.
+  Order is explicit, so every device shows the same sequence. An iPhone's tabs are its **mobile stack**: tabs with
+  its `deviceID`, in no space and under no container (`isMobileTab`), listed newest first. They sync like any item,
+  but the Mac, which lists tabs by their containers, never shows them, and space edits on the Mac never touch them.
 - **ArchiveItem**: a closed or auto-archived tab.
 - **HistoryVisit**: local only. History is never synced.
 
@@ -74,8 +76,8 @@ sequenceDiagram
   queued like any change, so the CloudKit record goes too. Arc-imported rows keep their tombstones, so re-importing
   from Arc doesn't bring back what was removed in Boaz.
 - **What syncs:** profiles, spaces, sidebar items, the archive and the device list (`SyncRecordType`). Each Today
-  tab records the device it was opened on; each device lists and archives only its own. History, Incognito tabs,
-  page snapshots and cookies never leave the device.
+  tab records the device it was opened on; each device lists and archives only its own, the iPhone its mobile stack.
+  History, Incognito tabs, page snapshots and cookies never leave the device.
 
 ## Browsing
 
@@ -151,7 +153,7 @@ as the fold glow.
 
 | Posture | Layout |
 |---|---|
-| Folded (cover screen) | `CompactShell`: space home, with the active tab zooming out of its card |
+| Folded (cover screen) | `CompactShell`: the page, with the tab stack opening into the tab carousel |
 | Open, wide | Sidebar beside the page; the sidebar can be hidden |
 | Open, narrow | Page full width; the sidebar floats over it as a card |
 | Book (fold vertical) | Sidebar fills the left half up to the fold, page on the right |

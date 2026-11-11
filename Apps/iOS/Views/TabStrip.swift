@@ -8,7 +8,7 @@ struct TabStrip: View {
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        let style = SpaceStyle(model.currentSpace, scheme: scheme)
+        let style = SpaceStyle(nil, scheme: scheme)
         ScrollViewReader { proxy in
             List {
                 Button { model.beginSearch(.newTab) } label: {

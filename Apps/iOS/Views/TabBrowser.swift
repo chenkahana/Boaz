@@ -10,7 +10,6 @@ import WebKit
 struct TabBrowser: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var scheme
     @Environment(\.collapsesBar) private var collapsesBar
     @Environment(\.paneIndex) private var pane
     @Environment(\.scenePhase) private var scenePhase
@@ -201,7 +200,7 @@ struct TabBrowser: View {
                         Button("Try Again") { retry(loadFailure, on: page) }
                             .buttonStyle(.glassProminent)
                     }
-                    .tint(SpaceStyle(model.currentSpace, scheme: scheme).tint)
+                    .tint(Theme.brand)
                     .background(Color(.systemBackground).ignoresSafeArea())
                 }
             }
@@ -459,9 +458,9 @@ private struct BrowserBar: View {
     @ViewBuilder private var tabsButton: some View {
         if !listsTabsElsewhere {
             if axis == .vertical {
-                TabStack(space: model.currentSpace, cardSize: CGSize(width: 26, height: 36)).padding(.vertical, 4)
+                TabStack(cardSize: CGSize(width: 26, height: 36)).padding(.vertical, 4)
             } else {
-                TabStack(space: model.currentSpace, cardSize: CGSize(width: 34, height: 46))
+                TabStack(cardSize: CGSize(width: 34, height: 46))
             }
         }
     }
@@ -546,11 +545,7 @@ private struct BrowserBar: View {
         }
     }
 
-    private var tabCount: Int {
-        if model.isIncognito { return model.incognitoTabs.count }
-        guard let space = model.currentSpace else { return 0 }
-        return model.todayTabs(in: space).count
-    }
+    private var tabCount: Int { model.phoneTabs.count }
 }
 
 /// The page's top color in the screen's top safe area, so the page seems to run under the status bar, which picks

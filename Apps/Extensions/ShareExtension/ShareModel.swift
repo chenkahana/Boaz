@@ -26,12 +26,7 @@ final class ShareModel {
     private func loadSpaces() async {
         guard let store, let sidebar = try? await store.loadSidebar() else { return }
         spaces = sidebar.spaces
-        let defaults = UserDefaults(suiteName: BoazStore.appGroup)
-        if let saved = defaults?.string(forKey: "currentSpaceID"), spaces.contains(where: { $0.id == saved }) {
-            selectedSpaceID = saved
-        } else {
-            selectedSpaceID = spaces.first?.id
-        }
+        selectedSpaceID = spaces.first?.id
     }
 
     private func loadSharedItem() {
@@ -45,6 +40,8 @@ final class ShareModel {
         }
     }
 
+    /// Pins the page in the chosen space, or opens it as a tab on this iPhone (on top of its stack, with the chosen
+    /// space's website data).
     @MainActor
     func save(pinned: Bool) {
         guard let store, let url = pageURL, let spaceID = selectedSpaceID,
@@ -54,17 +51,22 @@ final class ShareModel {
             return
         }
         do {
-            let sidebar = try store.sidebar()
-            guard let box = sidebar.container(pinned ? .pinned : .unpinned, in: space.id) else {
-                errorMessage = "Couldn't find \(space.title)'s tabs."
-                return
-            }
             let title = pageTitle.isEmpty ? (url.host() ?? url.absoluteString) : pageTitle
-            // A Today tab is this iPhone's; the App Group's defaults hold the same device id the app uses.
-            let deviceID = pinned ? nil : Device.localID(in: UserDefaults(suiteName: BoazStore.appGroup) ?? .standard)
-            let tab = SidebarItem(id: UUID().uuidString, spaceID: space.id, profileID: space.profileID,
+            let tab: SidebarItem
+            if pinned {
+                let sidebar = try store.sidebar()
+                guard let box = sidebar.container(.pinned, in: space.id) else {
+                    errorMessage = "Couldn't find \(space.title)'s tabs."
+                    return
+                }
+                tab = SidebarItem(id: UUID().uuidString, spaceID: space.id, profileID: space.profileID,
                                   parentID: box.id, kind: .tab, title: title, url: url,
-                                  position: sidebar.nextPosition(in: box.id), deviceID: deviceID)
+                                  position: sidebar.nextPosition(in: box.id))
+            } else {
+                // The App Group's defaults hold the same device id the app uses.
+                tab = .mobileTab(url: url, title: title, profileID: space.profileID,
+                                 deviceID: Device.localID(in: UserDefaults(suiteName: BoazStore.appGroup) ?? .standard))
+            }
             try store.save([tab])
             didSave = true
         } catch {

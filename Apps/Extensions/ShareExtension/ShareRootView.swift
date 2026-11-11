@@ -33,7 +33,7 @@ struct ShareRootView: View {
                     .buttonStyle(.glass)
 
                     Button { model.save(pinned: false) } label: {
-                        Label("Add to Today", systemImage: "plus").frame(maxWidth: .infinity)
+                        Label("Open on iPhone", systemImage: "plus").frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.glassProminent)
                 }

@@ -1,18 +1,16 @@
 import BoazKit
 import SwiftUI
 
-/// This iPhone's Today tabs (private tabs in Incognito): the one showing on top, as in the carousel it opens, and the
-/// one used before it peeking out beneath. A tab just opened is on top at once. Tapping opens the tab carousel.
+/// The phone's tabs (private tabs in Incognito): the one showing on top, as in the carousel it opens, and the one
+/// used before it peeking out beneath. A tab just opened is on top at once. Tapping opens the tab carousel.
 struct TabStack: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.paneIndex) private var pane
-    let space: Space?
     let cardSize: CGSize
 
     var body: some View {
-        let tabs = todayTabs
+        let tabs = model.phoneTabs
         let showing = model.tabID(inPane: pane)
         let recent = tabs.sorted { ($0.id == showing ? 1 : 0, $0.lastUsed) > ($1.id == showing ? 1 : 0, $1.lastUsed) }
             .prefix(2)
@@ -43,10 +41,6 @@ struct TabStack: View {
         .accessibilityHint("Shows your tabs side by side")
     }
 
-    private var todayTabs: [SidebarItem] {
-        model.isIncognito ? model.incognitoTabs : space.map(model.todayTabs(in:)) ?? []
-    }
-
     private var radius: CGFloat { max(cardSize.width * 0.16, 5) }
 
     private func card(_ tab: SidebarItem) -> some View {
@@ -54,8 +48,7 @@ struct TabStack: View {
             if let snapshot = model.snapshots[tab.id] {
                 Color.clear.overlay(alignment: .top) { Image(uiImage: snapshot).resizable().scaledToFill() }
             } else {
-                Monogram(url: tab.url, tint: SpaceStyle(space, scheme: scheme).tint,
-                         size: min(cardSize.width * 0.55, 44))
+                Monogram(url: tab.url, tint: Theme.brand, size: min(cardSize.width * 0.55, 44))
             }
         }
         .frame(width: cardSize.width, height: cardSize.height)
@@ -66,8 +59,8 @@ struct TabStack: View {
     }
 }
 
-/// Today's tabs as a deck in the page area, beside the rail: the current tab large and in front at the right, the
-/// ones used before it peeking out to its left, most recent first. Swipe sideways to move through them, tap one to open it, swipe one up to
+/// The phone's tabs as a deck in the page area, beside the rail: the current tab large and in front at the right,
+/// the ones used before it peeking out to its left, most recent first. Swipe sideways to move through them, tap one to open it, swipe one up to
 /// archive it. The rail switches to Tabs on Your Mac, New Tab and Settings. Folded layout only, over the page. It
 /// grows out of the page as it opens and back into it as it closes, then clears `showsCoverFlow` itself.
 struct TabCarousel: View {
@@ -95,8 +88,8 @@ struct TabCarousel: View {
     private enum DragMode: Equatable { case paging(from: Double), lifting, ignored }
 
     var body: some View {
-        let tabs = todayTabs
-        let style = SpaceStyle(model.currentSpace, scheme: scheme)
+        let tabs = phoneTabs
+        let style = SpaceStyle(nil, scheme: scheme)
         GeometryReader { proxy in
             let metrics = DeckMetrics(size: proxy.size)
             ZStack(alignment: .top) {
@@ -131,7 +124,7 @@ struct TabCarousel: View {
         }
         .foregroundStyle(style.foreground, style.secondary)
         .background {
-            // The space gradient is translucent; the page mustn't show through it.
+            // The gradient is translucent; the page mustn't show through it.
             style.gradient.background(Color(.systemBackground)).ignoresSafeArea().opacity(presentation)
         }
         .allowsHitTesting(presented)
@@ -168,8 +161,8 @@ struct TabCarousel: View {
     private var presentation: Double { presented ? 1 : 0 }
 
     /// By last use, the current tab last (in front). Tabs opened while the deck is up go in front of the rest.
-    private var todayTabs: [SidebarItem] {
-        let tabs = model.isIncognito ? model.incognitoTabs : model.currentSpace.map(model.todayTabs(in:)) ?? []
+    private var phoneTabs: [SidebarItem] {
+        let tabs = model.phoneTabs
         let rank = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0) })
         return tabs.sorted { (rank[$0.id] ?? .max, $0.lastUsed) < (rank[$1.id] ?? .max, $1.lastUsed) }
     }
@@ -305,7 +298,7 @@ struct TabCarousel: View {
     private func step(by offset: Int, count: Int) {
         guard count > 0 else { return }
         let target = min(max(Int(position.rounded()) + offset, 0), count - 1)
-        focusedID = todayTabs[target].id
+        focusedID = phoneTabs[target].id
         withAnimation(motion) { position = Double(target) }
     }
 
@@ -330,7 +323,7 @@ struct TabCarousel: View {
     }
 
     private func open(_ id: String) {
-        guard presented, let tab = todayTabs.first(where: { $0.id == id }) else { return }
+        guard presented, let tab = phoneTabs.first(where: { $0.id == id }) else { return }
         openingID = id
         // No animation: the page changes underneath the deck, which then grows back into it.
         if tab.id != model.activeTabID { model.activate(tab) }
@@ -338,7 +331,7 @@ struct TabCarousel: View {
     }
 
     private func archive(_ id: String) {
-        guard let tab = todayTabs.first(where: { $0.id == id }) else { return }
+        guard let tab = phoneTabs.first(where: { $0.id == id }) else { return }
         withAnimation(.snappy) { model.close(tab) }
     }
 
@@ -361,11 +354,12 @@ struct TabCarousel: View {
         withAnimation(BottomPanelStyle.motion) { model.beginSearch(.newTab) }
     }
 
+    /// The Mac's tab opens as a copy on top of the stack (`AppModel.activate`).
     private func openMacTab() {
-        guard let tab = macTab, let url = tab.url else { return }
+        guard let tab = macTab else { return }
         macTab = nil
         model.showsCoverFlow = false
-        model.openNewTab(url, title: tab.title)
+        model.activate(tab)
     }
 }
 
@@ -484,7 +478,6 @@ private struct DeckCards: View, Animatable {
 /// One card: the page as last seen, or its icon until there's a snapshot.
 private struct DeckCard: View {
     @Environment(AppModel.self) private var model
-    @Environment(\.colorScheme) private var scheme
     let tab: SidebarItem
     let radius: CGFloat
     let dim: Double
@@ -496,7 +489,7 @@ private struct DeckCard: View {
             if let snapshot = model.snapshots[tab.id] {
                 Color.clear.overlay(alignment: .top) { Image(uiImage: snapshot).resizable().scaledToFill() }
             } else {
-                Monogram(url: tab.url, tint: SpaceStyle(model.currentSpace, scheme: scheme).tint, size: 64)
+                Monogram(url: tab.url, tint: Theme.brand, size: 64)
             }
             Color.black.opacity(dim)
         }
@@ -546,7 +539,8 @@ private struct CarouselRail: View {
 }
 
 /// The Mac's sidebar, one space at a time: favorites, pinned tabs and folders, then the Today tabs open on the user's
-/// Macs. Swipe or use the space bar to change spaces. Read-only: picking a page opens it in a new tab here.
+/// Macs. Swipe or use the space bar to change spaces. Read-only: picking a page opens it in a new tab here. Opens on
+/// the space it last showed.
 private struct MacTabsSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -554,6 +548,7 @@ private struct MacTabsSheet: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let pick: (SidebarItem) -> Void
     @State private var spaceID: String?
+    @AppStorage("macTabsSpaceID") private var lastSpaceID = ""
 
     var body: some View {
         let spaces = model.spaces
@@ -573,7 +568,8 @@ private struct MacTabsSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button(role: .close) { dismiss() } } }
         }
-        .onAppear { if spaceID == nil { spaceID = model.currentSpaceID ?? spaces.first?.id } }
+        .onAppear { if spaceID == nil { spaceID = spaces.first { $0.id == lastSpaceID }?.id ?? spaces.first?.id } }
+        .onChange(of: spaceID) { if let spaceID { lastSpaceID = spaceID } }
     }
 
     /// The Mac's space buttons: each space's icon, or a dot.
@@ -643,7 +639,8 @@ private struct MacSpaceColumn: View {
         .scrollIndicators(.never)
     }
 
-    /// Today tabs opened on a Mac, with the Mac's folders under Today flattened, as the phone's own Today does.
+    /// The space's Today tabs opened on a Mac, or from before devices were recorded, with the Mac's folders under
+    /// Today flattened.
     private var macTodayTabs: [SidebarItem] {
         let macs = Set(model.sidebar.devices.filter { $0.platform == .macOS }.map(\.id))
         func tabs(under parent: String) -> [SidebarItem] {
@@ -651,7 +648,7 @@ private struct MacSpaceColumn: View {
                 .flatMap { $0.kind == .folder ? tabs(under: $0.id) : $0.kind == .tab ? [$0] : [] }
         }
         return model.sidebar.container(.unpinned, in: space.id).map { tabs(under: $0.id) }?
-            .filter { $0.url != nil && $0.deviceID.map(macs.contains) == true } ?? []
+            .filter { $0.url != nil && $0.deviceID.map(macs.contains) ?? true } ?? []
     }
 
     /// Up to four a row, the rows as even as they can be, as on the Mac.

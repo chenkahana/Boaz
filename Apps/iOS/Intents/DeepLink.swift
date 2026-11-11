@@ -51,14 +51,14 @@ enum DeepLink {
         return components.url
     }
 
-    /// Applies `url` to `model`. A new tab needs a space, which only exists once the library's first snapshot
+    /// Applies `url` to `model`. A new tab needs its profile, which only exists once the library's first snapshot
     /// has landed: that can take several seconds after a cold launch, longer on a device still joining its iCloud
     /// library. A link that arrives first is queued and replayed then.
     @MainActor
     static func handle(_ url: URL, model: AppModel) {
         guard let intent = parse(url) else { return }
         // Search waits too: submitting it opens a new tab.
-        guard model.currentSpace != nil else {
+        guard model.hasLibrary else {
             pending = intent
             Task { await waitForLibraryThenReplay(model: model) }
             return
@@ -71,7 +71,7 @@ enum DeepLink {
     @MainActor
     private static func waitForLibraryThenReplay(model: AppModel) async {
         var attempts = 0
-        while model.currentSpace == nil, attempts < 600 {
+        while !model.hasLibrary, attempts < 600 {
             try? await Task.sleep(for: .milliseconds(50))
             attempts += 1
         }
