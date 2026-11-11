@@ -261,6 +261,11 @@ final class BrowserState {
         recency.removeAll { $0 == tabID }
     }
 
+    /// Unloads every page whose tab is gone from the library.
+    func unloadPagesWithoutTabs() {
+        pages.keys.filter { tab($0) == nil }.forEach(unload)
+    }
+
     /// Whether a pinned tab's page has browsed away from where it was pinned.
     func hasWandered(_ tab: SidebarItem) -> Bool {
         guard model.isPinned(tab), let page = pages[tab.id] else { return false }

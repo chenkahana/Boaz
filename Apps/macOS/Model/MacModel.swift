@@ -93,7 +93,6 @@ final class MacModel {
             if !askedEarly { needsOnboarding = Onboarding.shouldShow(store) }
             Task { await sync.start() }
             registerDevice()
-            removeSiteData(UserDefaults.standard.stringArray(forKey: Self.pendingSiteDataKey)?.compactMap(UUID.init) ?? [])
             Task { await archiveLoop() }
             Task { await fetchLoop(sync) }
             NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil,
@@ -133,6 +132,10 @@ final class MacModel {
                     removeSiteData(removed.map(\.dataStoreID))
                     guard !loaded else { continue }
                     loaded = true
+                    // What an earlier run couldn't remove, unless sync has since brought its profile back.
+                    let live = Set(snapshot.profiles.map(\.dataStoreID))
+                    removeSiteData((UserDefaults.standard.stringArray(forKey: Self.pendingSiteDataKey) ?? [])
+                        .compactMap(UUID.init).filter { !live.contains($0) })
                     Extensions.shared.loadInstalled()
                     // A launch without a main window (a link to a Quick Window) has nothing to restore.
                     Task {
@@ -652,6 +655,9 @@ final class MacModel {
     private func closePages(of profileIDs: Set<String>, tabIDs: [String]) {
         for browser in browsers.compactMap(\.browser) {
             tabIDs.forEach(browser.unload)
+            // Tabs another Mac archived in an earlier sync batch already left the sidebar; their pages still hold
+            // the profile's data store.
+            browser.unloadPagesWithoutTabs()
             if let peek = browser.peek, peek.profileID.map(profileIDs.contains) ?? false { browser.peek = nil }
         }
         Extensions.shared.forget(profileIDs: profileIDs)
