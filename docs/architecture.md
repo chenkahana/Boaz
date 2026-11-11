@@ -84,6 +84,10 @@ Both apps render pages with WebKit. Shared glue in `Apps/Browser` handles:
 - **Content blocking:** EasyList compiled into `WKContentRuleList`s, on by default for every page.
 - **Downloads**, **favicons** (fetched from each site directly) and **site colors** for the iPhone's tinted
   edges.
+- **Tab resume** (`PageState`): a script in its own `WKContentWorld` notes the elements the user scrolls and reports
+  where the window and those scrollers settle. A tab's page loaded again (unloaded past the live-page limit, its
+  process ended, or after a relaunch) is put back there, retrying while the site renders. Kept per tab for a week in
+  `Page States.json` in Application Support; private tabs' only in memory.
 
 Platform specifics live in each app: on iPhone, cookie-banner declining, the reader view, pull to refresh and the
 navigation policy; on Mac, the sidebar window, split view, command bar, rebindable shortcuts and Chrome extensions

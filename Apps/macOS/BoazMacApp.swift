@@ -82,6 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         MacModel.shared.saveOpenWindows()
         MacModel.shared.store?.waitForQueuedWritesNow()
+        PageState.Store.flush()
     }
 
     /// iCloud change pushes: fetch right away.

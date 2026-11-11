@@ -77,16 +77,7 @@ struct RelayoutCover: ViewModifier {
     func body(content: Content) -> some View {
         content
             .overlay {
-                if let cover {
-                    background
-                        .overlay(alignment: .top) {
-                            Image(uiImage: cover).resizable().scaledToFit().fixedSize(horizontal: false, vertical: true)
-                        }
-                        .clipped()
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-                        .transition(.opacity)
-                }
+                if let cover { PreviewCover(image: cover, background: background) }
             }
             .onChange(of: posture) { hold() }
             // Mid-fold the width can change more than once, and not always with the posture.
@@ -117,5 +108,22 @@ struct RelayoutCover: ViewModifier {
             scroll.isHeld = false
             withAnimation(.easeOut(duration: 0.2)) { cover = nil }
         }
+    }
+}
+
+/// A page's preview over the page, scaled to its width, while the page itself isn't showing what the reader saw.
+struct PreviewCover: View {
+    let image: UIImage
+    let background: Color
+
+    var body: some View {
+        background
+            .overlay(alignment: .top) {
+                Image(uiImage: image).resizable().scaledToFit().fixedSize(horizontal: false, vertical: true)
+            }
+            .clipped()
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .transition(.opacity)
     }
 }

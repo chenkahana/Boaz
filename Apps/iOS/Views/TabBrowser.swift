@@ -182,6 +182,13 @@ struct TabBrowser: View {
             .ignoresSafeArea(.container, edges: collapsesBar ? .bottom : [])
             .modifier(RelayoutCover(page: page, scroll: scroll, snapshot: { [tab] in model.snapshots[tab.id] },
                                     background: edges?.page.color ?? Color(.systemBackground)))
+            // A page loaded again shows its top until it is back at the reader's place: its preview covers it.
+            .overlay {
+                if model.restoringTabs.contains(tab.id), let preview = model.snapshots[tab.id] {
+                    PreviewCover(image: preview, background: edges?.page.color ?? Color(.systemBackground))
+                }
+            }
+            .animation(.easeOut(duration: 0.2), value: model.restoringTabs.contains(tab.id))
             .onDisappear { [tab, hostID] in model.releasePage(tab.id, host: hostID) }
             .overlay {
                 // WebKit draws no error page of its own, so a failed load would otherwise stay blank.
@@ -348,6 +355,7 @@ struct TabBrowser: View {
                 if let failure = LoadFailure(error) { loadFailure = failure }
                 if case WebPage.NavigationError.webContentProcessTerminated = error {
                     PictureInPicture.controller(of: page)?.pageDidReset()
+                    model.pageDidTerminate(tab)
                 }
                 // iOS ends a background page's process to free memory, and a connection dropped while suspended
                 // can fail the first load back: try once more after a moment rather than leave the error up. In the

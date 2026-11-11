@@ -89,6 +89,7 @@ struct TabPane: View {
                 failure = LoadFailure(error)
                 if case WebPage.NavigationError.webContentProcessTerminated = error {
                     PictureInPicture.controller(of: page)?.pageDidReset()
+                    browser.pageDidTerminate(tab.id)
                 }
                 // The network often comes back a moment after a wake or a Wi-Fi change: one quiet retry first.
                 if failure?.passes == true, !retriedOnItsOwn {

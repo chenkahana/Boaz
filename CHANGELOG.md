@@ -14,8 +14,16 @@ All notable changes to Boaz are recorded here. The format follows
   tabs, and leaves the Mac's tab where it is.
 - iPhone: the page's "…" menu has Copy URL (it was Copy Link, and missing when the page had no address; now it's
   dimmed). It shows "Copied URL", in Incognito too.
+- Mac and iPhone: tabs you haven't opened move to the Archive after 7 days, not after a day. An interval you picked in
+  Settings stays as it was.
 
 ### Fixed
+
+- Mac and iPhone: a tab comes back where you left it, for a week. A page Boaz unloaded to save memory, one the system
+  stopped, and every page after a relaunch scroll back to where you were, inside the page's own scrolling areas
+  too (a chat, a mail list), and a chat you left at its newest message comes back at its newest message. Before, the
+  iPhone kept only the page's own scroll, and the Mac nothing, so a chat came back at its top. On iPhone the tab's
+  preview shows until the page is back in place. Private tabs' places are never written to disk.
 
 - iPhone: tab previews last past a quit. They were saved in Caches/Snapshots, a folder iOS keeps for its own app
   switcher images and that refuses the app's writes on a device, so a card showed the site's icon after a relaunch.
