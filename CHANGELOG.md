@@ -6,6 +6,11 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Mac: switching spaces always shows a tab from the new space: the one last used there, else its most recent tab,
+  else an empty New Tab page. A favorite the two spaces share stays open (#37).
+
 ## [0.1.0] - 2026-11-10
 
 First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone app is built from source.

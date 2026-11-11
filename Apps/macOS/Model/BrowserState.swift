@@ -506,10 +506,21 @@ final class BrowserState {
             currentSpaceID = id
             guard restoringTab else { return }
             split = nil
-            let remembered = lastTabPerSpace[id].flatMap(tab)
-            if let active = activeTab, model.isFavorite(active) { return }
-            activeTabID = remembered?.id
+            activeTabID = tabToShow(in: id)?.id
         }
+    }
+
+    /// The tab a switch to space `id` shows: a favorite already open that the space shares (same profile) stays;
+    /// otherwise the tab last used there, else its most recently used one. Nil shows the empty New Tab page.
+    private func tabToShow(in id: String) -> SidebarItem? {
+        guard let space = model.space(id) else { return nil }
+        let belongs = { (tab: SidebarItem) in
+            tab.spaceID == id || (self.model.isFavorite(tab) && tab.profileID == space.profileID)
+        }
+        if let active = activeTab, model.isFavorite(active), belongs(active) { return active }
+        if let remembered = lastTabPerSpace[id].flatMap(tab), belongs(remembered) { return remembered }
+        return model.visibleTabs(in: space).filter { $0.spaceID == id }
+            .max { ($0.lastActiveAt ?? .distantPast) < ($1.lastActiveAt ?? .distantPast) }
     }
 
     func shiftSpace(by offset: Int) {
