@@ -1,0 +1,42 @@
+# The Mac app as released on GitHub (the DMG): project.yml plus Sparkle, which updates it in place. The App Store
+# build is generated from project.yml alone, so it never links or contains Sparkle; the App Store updates it.
+# Tools/release-mac.sh generates from this file: `xcodegen generate --spec project-dmg.yml`. See docs/release.md.
+include:
+  - project.yml
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.10.1
+targets:
+  Boaz-macOS:
+    # project.yml's sources, less the App Store Info.plist, which would otherwise be copied in as a resource.
+    sources:REPLACE:
+      - path: Apps/macOS
+        excludes: [Info.plist]
+      - Apps/Shared
+      - Apps/Browser
+    dependencies:
+      - package: Sparkle
+    # Generated under build/, so the checked-in App Store Info.plist and entitlements stay as they are.
+    entitlements:
+      path: build/dmg/Boaz.entitlements
+      properties:
+        # Sparkle's installer runs outside the sandbox through its XPC launcher, reached by these names.
+        com.apple.security.temporary-exception.mach-lookup.global-name:
+          - $(PRODUCT_BUNDLE_IDENTIFIER)-spks
+          - $(PRODUCT_BUNDLE_IDENTIFIER)-spki
+    info:
+      path: build/dmg/Info.plist
+      properties:
+        SUFeedURL: https://github.com/chenkahana/Boaz/releases/latest/download/appcast.xml
+        # From Sparkle's `generate_keys` on the maintainer's Mac (docs/release.md). Its private half stays in that
+        # Mac's login keychain.
+        SUPublicEDKey: nugsTugZI71XGe2tvA+/MiVU1PcIgJeMRJPUpue+ee0=
+        SUEnableInstallerLauncherService: true
+        SUEnableAutomaticChecks: true
+        SUScheduledCheckInterval: 86400
+    settings:
+      base:
+        # DIRECT_DISTRIBUTION: installing extensions from the Chrome Web Store, which downloads their code
+        # (docs/extensions.md), stays out of the App Store build.
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) SPARKLE DIRECT_DISTRIBUTION

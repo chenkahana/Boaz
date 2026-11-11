@@ -60,16 +60,105 @@ public struct SpacePalette: Identifiable, Hashable, Sendable {
     public func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
+/// What the Mac's Customize Space sheet edits in a space's theme, read from its Arc `windowTheme` JSON and written
+/// back into it. Only what changed is written, and keys Boaz doesn't edit are kept, so an imported Arc theme keeps
+/// the rest of its look and the theme still syncs as one field.
+public struct SpaceThemeOptions: Equatable, Sendable {
+    public typealias RGBA = WindowTheme.RGBA
+    public enum Appearance: String, CaseIterable, Identifiable, Sendable {
+        case system, light, dark
+        public var id: Self { self }
+    }
+
+    /// Background in Light and in Dark mode.
+    public var light: RGBA
+    public var dark: RGBA
+    public var accent: RGBA
+    /// A gradient's second color; nil paints the background in one color. A theme without a backdrop of its own
+    /// fades toward its accent, so it reads as a gradient to the accent.
+    public var secondColor: RGBA?
+    public var appearance: Appearance
+    public var grain: Bool
+    public var lightStreak: Bool
+
+    public init(themeJSON: Data?) {
+        let theme = themeJSON.flatMap { try? WindowTheme.decode($0) }
+        let fallback = SpacePalette.defaultPalette
+        light = theme?.color("background", dark: false) ?? RGBA(fallback.light)
+        dark = theme?.color("background", dark: true) ?? RGBA(fallback.dark)
+        accent = theme?.primaryColorPalette?["midTone"] ?? RGBA(fallback.accent)
+        if let backdrop = theme?.lightBackdrop {
+            secondColor = backdrop.colors.count > 1 ? backdrop.colors[1] : nil
+        } else {
+            secondColor = accent
+        }
+        appearance = Appearance(rawValue: theme?.fixedAppearance ?? "") ?? .system
+        grain = theme?.showsGrain ?? false
+        lightStreak = theme?.showsLightStreak ?? false
+    }
+
+    /// `themeJSON` with these options written over what it says.
+    public func applied(to themeJSON: Data?) -> Data {
+        let current = SpaceThemeOptions(themeJSON: themeJSON)
+        var root = themeJSON.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
+        let semantic = ["semanticColorPalette", "appearanceBased"]
+        if light != current.light { root = Self.set(light.json, at: semantic + ["light", "background"], in: root) }
+        if dark != current.dark { root = Self.set(dark.json, at: semantic + ["dark", "background"], in: root) }
+        if accent != current.accent { root = Self.set(accent.json, at: ["primaryColorPalette", "midTone"], in: root) }
+        if light != current.light || dark != current.dark || secondColor != current.secondColor {
+            // Arc's backdrop per appearance. A gradient's stops after the first are drawn at the blend of that
+            // appearance's background, so in Dark mode the second color darkens as the first does.
+            // The old backdrop's texture (`modifiers`) and vibrancy stay. Only a `single` backdrop pins an
+            // appearance, so a pinned one moves to `windowAppearance`.
+            let colors = [light] + (secondColor.map { [$0] } ?? [])
+            let old = root["background"] as? [String: Any]
+            func spec(_ appearance: String) -> [String: Any] {
+                let previous = ((old?["single"] as? [String: Any])?["_0"]
+                    ?? (old?["appearanceBased"] as? [String: Any])?[appearance]) as? [String: Any]
+                let previousStyle = ((previous?["style"] as? [String: Any])?["color"] as? [String: Any])?["_0"] as? [String: Any]
+                var color: [String: Any] = secondColor == nil ? ["color": light.json] : ["baseColors": colors.map(\.json)]
+                color["modifiers"] = previousStyle?.values.lazy
+                    .compactMap { (($0 as? [String: Any])?["_0"] as? [String: Any])?["modifiers"] }.first
+                var spec: [String: Any] = ["style": ["color": ["_0": [secondColor == nil ? "blendedSingleColor" : "blendedGradient":
+                                                                          ["_0": color]]]]]
+                spec["isVibrant"] = previous?["isVibrant"]
+                return spec
+            }
+            root["background"] = ["appearanceBased": ["light": spec("light"), "dark": spec("dark")]]
+            if appearance != .system { root["windowAppearance"] = appearance.rawValue }
+        }
+        if appearance != current.appearance { root["windowAppearance"] = appearance.rawValue }
+        if grain != current.grain { root["boazGrain"] = grain }
+        if lightStreak != current.lightStreak { root["boazLightStreak"] = lightStreak }
+        return (try? JSONSerialization.data(withJSONObject: root, options: [.sortedKeys])) ?? (themeJSON ?? Data())
+    }
+
+    private static func set(_ value: Any, at path: [String], in object: [String: Any]) -> [String: Any] {
+        guard let key = path.first else { return object }
+        var object = object
+        object[key] = path.count == 1 ? value : set(value, at: Array(path.dropFirst()), in: object[key] as? [String: Any] ?? [:])
+        return object
+    }
+}
+
+extension WindowTheme.RGBA {
+    init(_ components: [Double]) { self.init(red: components[0], green: components[1], blue: components[2]) }
+
+    var json: [String: Any] {
+        ["colorSpace": colorSpace ?? "extendedSRGB", "red": red, "green": green, "blue": blue, "alpha": alpha]
+    }
+}
+
 /// Space management shared by both apps: every write is an ordinary local edit, so sync carries it to other devices.
 extension BoazStore {
     /// Adds a space at the end of the profile's list, with its Pinned and Today sections.
     @discardableResult
-    public func createSpace(title: String, icon: String?, palette: SpacePalette, profileID: String,
-                            at date: Date = .now) throws -> Space {
+    public func createSpace(title: String, icon: String?, palette: SpacePalette, themeJSON: Data? = nil,
+                            profileID: String, at date: Date = .now) throws -> Space {
         try writer.write { db in
             let last = try Double.fetchOne(db, sql: "SELECT MAX(position) FROM space WHERE profileID = ? AND deletedAt IS NULL",
                                            arguments: [profileID])
-            let space = Space(id: UUID().uuidString, title: title, icon: icon, themeJSON: palette.themeJSON,
+            let space = Space(id: UUID().uuidString, title: title, icon: icon, themeJSON: themeJSON ?? palette.themeJSON,
                               profileID: profileID, position: (last ?? -1) + 1, modifiedAt: date)
             try space.insert(db)
             for (position, kind) in [SidebarItem.ContainerKind.pinned, .unpinned].enumerated() {
@@ -81,13 +170,13 @@ extension BoazStore {
         }
     }
 
-    /// Renames a space and changes its icon and color. A nil palette keeps the current theme (e.g. one imported from Arc).
-    public func updateSpace(_ id: String, title: String, icon: String?, palette: SpacePalette?, at date: Date = .now) throws {
+    /// Renames a space and changes its icon and theme. A nil theme keeps the current one (e.g. one imported from Arc).
+    public func updateSpace(_ id: String, title: String, icon: String?, themeJSON: Data?, at date: Date = .now) throws {
         try writer.write { db in
             guard var space = try Space.fetchOne(db, key: id), space.deletedAt == nil else { return }
             space.title = title
             space.icon = icon
-            if let palette { space.themeJSON = palette.themeJSON }
+            if let themeJSON { space.themeJSON = themeJSON }
             space.modifiedAt = date
             try space.update(db)
         }
@@ -111,14 +200,20 @@ extension BoazStore {
     }
 
     /// Deletes a space. Its tabs (pinned, in folders and in Today) go to the Archive, so nothing is lost.
-    /// Returns how many tabs were archived. The last space of a profile can't be deleted.
+    /// The last space of a profile takes the profile with it, and its favorites go to the Archive too. Returns how
+    /// many tabs were archived. The library's last space can't be deleted.
     @discardableResult
     public func deleteSpace(_ id: String, at date: Date = .now) throws -> Int {
         try writer.write { db in
             guard var space = try Space.fetchOne(db, key: id), space.deletedAt == nil else { return 0 }
             let live = Column("deletedAt") == nil
-            guard try Space.filter(Column("profileID") == space.profileID && live).fetchCount(db) > 1 else { return 0 }
-            let items = try SidebarItem.filter(Column("spaceID") == id && live).fetchAll(db)
+            guard try Space.filter(live).fetchCount(db) > 1 else { return 0 }
+            let lastOfProfile = try Space.filter(Column("profileID") == space.profileID && live).fetchCount(db) == 1
+            var items = try SidebarItem.filter(Column("spaceID") == id && live).fetchAll(db)
+            if lastOfProfile {
+                items += try SidebarItem.filter(Column("profileID") == space.profileID && Column("spaceID") == nil && live)
+                    .fetchAll(db)
+            }
             var archived = 0
             for tab in items where tab.kind == .tab {
                 if try Self.archive(tab, reason: "spaceDeleted", at: date, in: db).item != nil { archived += 1 }
@@ -131,6 +226,11 @@ extension BoazStore {
             space.deletedAt = date
             space.modifiedAt = date
             try space.update(db)
+            if lastOfProfile, var profile = try Profile.fetchOne(db, key: space.profileID), profile.deletedAt == nil {
+                profile.deletedAt = date
+                profile.modifiedAt = date
+                try profile.update(db)
+            }
             return archived
         }
     }

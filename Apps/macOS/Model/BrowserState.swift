@@ -19,9 +19,9 @@ final class BrowserState {
     struct Peek: Identifiable {
         let id = UUID()
         let page: WebPage
+        let profileID: String?
     }
 
-    struct SpaceRef: Identifiable { let id: String }
     struct SpaceEditorRequest: Identifiable {
         let id = UUID()
         var spaceID: String?
@@ -50,10 +50,12 @@ final class BrowserState {
     var sidebarVisible = true { didSet { updateTrafficLights() } }
     var sidebarPeeking = false { didSet { updateTrafficLights() } }
     var findVisible = false
-    var themeEditor: SpaceRef?
     /// The space editor sheet: a new space (nil id) or the space with this id.
     var spaceEditor: SpaceEditorRequest?
     var rename: RenameRequest?
+    /// The space whose deletion is waiting for confirmation.
+    var spaceToDelete: Space?
+    var extensionSheet: ExtensionSheet?
     /// Summarize/Ask or a tidy preview (`MacAISheet`).
     var ai: AIRequest?
     var showImport = false
@@ -78,6 +80,7 @@ final class BrowserState {
     @ObservationIgnored private var keyObserver: NSObjectProtocol?
     @ObservationIgnored private var closeObserver: NSObjectProtocol?
     @ObservationIgnored private var typeAheadMonitor: Any?
+    @ObservationIgnored private var sidebarKeyMonitor: Any?
     /// What was typed after the command bar opened but before its field had the keyboard.
     @ObservationIgnored private var typeAhead = ""
     @ObservationIgnored private var typeAheadSubmits = false
@@ -93,6 +96,7 @@ final class BrowserState {
         if let keyObserver { NotificationCenter.default.removeObserver(keyObserver) }
         if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
         if let typeAheadMonitor { NSEvent.removeMonitor(typeAheadMonitor) }
+        if let sidebarKeyMonitor { NSEvent.removeMonitor(sidebarKeyMonitor) }
     }
 
     // MARK: Window
@@ -107,12 +111,14 @@ final class BrowserState {
         window.tabbingMode = .disallowed
         updateTrafficLights()
         if !isIncognito { model.lastActiveBrowser = self }
+        Extensions.shared.didOpenWindow(self)
         if let keyObserver { NotificationCenter.default.removeObserver(keyObserver) }
         keyObserver = NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: window,
                                                              queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, !self.isIncognito else { return }
                 self.model.lastActiveBrowser = self
+                Extensions.shared.didFocusWindow(self)
             }
         }
         if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
@@ -121,9 +127,29 @@ final class BrowserState {
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.model.windowWillClose(self)
+                Extensions.shared.didCloseWindow(self)
             }
         }
         model.register(self)
+        watchSidebarShortcut()
+    }
+
+    /// The sidebar's shortcut, taken before the key reaches the focused view or the menu bar, so it folds the
+    /// sidebar wherever the keyboard focus is, a web page included.
+    private func watchSidebarShortcut() {
+        guard sidebarKeyMonitor == nil else { return }
+        sidebarKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            // Local monitors run on the main thread.
+            nonisolated(unsafe) let event = event
+            let handled = MainActor.assumeIsolated {
+                guard let self, let window = self.window, event.window === window, window.attachedSheet == nil,
+                      self.model.keyBindings.shortcut(.toggleSidebar)?.matches(event) == true else { return false }
+                // Held down, it folds once; the repeats are swallowed so the menu doesn't fold it again.
+                if !event.isARepeat { self.toggleSidebar() }
+                return true
+            }
+            return handled ? nil : event
+        }
     }
 
     /// Arc hides the traffic lights with the sidebar; they come back while the sidebar peeks.
@@ -193,9 +219,12 @@ final class BrowserState {
         return page
     }
 
+    func existingPage(for tabID: String) -> WebPage? { pages[tabID] }
+
     func makePage(profileID: String?, context: NavigationRouter.Context, loading url: URL? = nil) -> WebPage {
         var configuration = WebPage.Configuration()
         configuration.websiteDataStore = dataStore(profileID: profileID)
+        if !isIncognito { configuration.webExtensionController = Extensions.shared.controller(profileID: profileID) }
         configuration.applicationNameForUserAgent = "Version/26.0 Safari/605.1.15"
         model.applyContentBlocking(to: &configuration)
         let page = WebPage(configuration: configuration, navigationDecider: NavigationRouter(browser: self, context: context),
@@ -232,6 +261,11 @@ final class BrowserState {
         recency.removeAll { $0 == tabID }
     }
 
+    /// Unloads every page whose tab is gone from the library.
+    func unloadPagesWithoutTabs() {
+        pages.keys.filter { tab($0) == nil }.forEach(unload)
+    }
+
     /// Whether a pinned tab's page has browsed away from where it was pinned.
     func hasWandered(_ tab: SidebarItem) -> Bool {
         guard model.isPinned(tab), let page = pages[tab.id] else { return false }
@@ -251,8 +285,9 @@ final class BrowserState {
         if unpinning, let page = pages[tab.id] { model.didNavigate(tab.id, url: page.url, title: page.title) }
     }
 
-    /// Link routing: ⌘-click peeks, ⌘⇧-click opens a tab; pages that open new windows get a peek
-    /// when they're pinned (keeps the pinned app in place) and a new Today tab otherwise.
+    /// Link routing: a middle-click or ⌘-click opens the link in a background tab right below this one, ⌘⇧-click in
+    /// the foreground; pages that open new windows get a peek when they're pinned (keeps the pinned app in place)
+    /// and a new Today tab otherwise.
     func decide(_ action: WebPage.NavigationAction, context: NavigationRouter.Context) -> WKNavigationActionPolicy {
         let opensWindow = action.target == nil
         let downloadRequested = opensWindow && LinkDownloadMenu.takeRequest()
@@ -265,14 +300,19 @@ final class BrowserState {
             return .cancel
         }
         let flags = NSEvent.modifierFlags
-        let mainFrameLink = action.navigationType == .linkActivated && (action.target?.isMainFrame ?? true)
+        // A link, a form's button or anything else the user clicked to navigate, in any frame; button 2 is the middle
+        // one. A form that posts can't be reopened from its address alone, so it stays in this tab.
+        let clicked = [.linkActivated, .formSubmitted].contains(action.navigationType)
+            && action.request.httpMethod?.uppercased() ?? "GET" == "GET"
+        let middleClick = action.buttonNumber == 2 && action.request.httpMethod?.uppercased() ?? "GET" == "GET"
+        let newTabClick = middleClick || (clicked && flags.contains(.command))
         switch context {
         case .peek:
-            if opensWindow || (mainFrameLink && flags.contains(.command)) { openTab(url); return .cancel }
+            if opensWindow || newTabClick { openTab(url); return .cancel }
             return .allow
         case .tab(let id):
-            if mainFrameLink && flags.contains(.command) {
-                if flags.contains(.shift) { openTab(url) } else { openPeek(url, profileID: tab(id)?.profileID) }
+            if newTabClick {
+                openTab(url, below: tab(id), inBackground: !flags.contains(.shift))
                 return .cancel
             }
             if opensWindow {
@@ -291,23 +331,35 @@ final class BrowserState {
         if let split, !split.contains(tab.id) { self.split = nil }
         if let space = tab.spaceID, space != spaceID { switchSpace(to: space, restoringTab: false) }
         if !isPrivate(tab) { model.markActive(tab) }
+        let previous = activeTabID
         activeTabID = tab.id
         if let spaceID { lastTabPerSpace[spaceID] = tab.id }
+        if previous != tab.id { Extensions.shared.didActivate(tab, previous: previous, in: self) }
     }
 
-    func openTab(_ url: URL, title: String? = nil) {
+    /// A new Today tab, at the top or right below `source`. One opened in the background starts loading without
+    /// taking the window.
+    func openTab(_ url: URL, title: String? = nil, below source: SidebarItem? = nil, inBackground: Bool = false) {
+        let tab: SidebarItem
         if isIncognito {
-            let tab = SidebarItem(id: UUID().uuidString, spaceID: nil, profileID: "incognito", parentID: nil,
-                                  kind: .tab, title: title ?? url.host(), url: url,
-                                  position: (incognitoTabs.map(\.position).min() ?? 1) - 1, lastActiveAt: .now)
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { incognitoTabs.insert(tab, at: 0) }
-            activate(tab)
-            return
+            let index = source.flatMap { source in incognitoTabs.firstIndex { $0.id == source.id } }.map { $0 + 1 } ?? 0
+            let above = index > 0 ? incognitoTabs[index - 1].position : nil
+            let below = index < incognitoTabs.count ? incognitoTabs[index].position : nil
+            let position = switch (above, below) {
+            case let (above?, below?): (above + below) / 2
+            case let (above?, nil): above + 1
+            default: (below ?? 1) - 1
+            }
+            tab = SidebarItem(id: UUID().uuidString, spaceID: nil, profileID: "incognito", parentID: nil,
+                              kind: .tab, title: title ?? url.host(), url: url, position: position, lastActiveAt: .now)
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { incognitoTabs.insert(tab, at: index) }
+        } else {
+            guard let new = withAnimation(.spring(response: 0.35, dampingFraction: 0.8), {
+                model.newTab(url, title: title, in: spaceID, below: source)
+            }) else { return }
+            tab = new
         }
-        guard let tab = withAnimation(.spring(response: 0.35, dampingFraction: 0.8), {
-            model.newTab(url, title: title, in: spaceID)
-        }) else { return }
-        activate(tab)
+        if inBackground { _ = page(for: tab) } else { activate(tab) }
     }
 
     func load(_ url: URL) {
@@ -434,6 +486,26 @@ final class BrowserState {
         activePage?.reload(tabURL: activeTabID.flatMap { loadFailures[$0]?.url } ?? activeTab?.url)
     }
 
+    /// ⌘⇧R: forgets the site's cookies and stored data in the tab's profile, then reloads from the server. Only that
+    /// site goes: WebKit keeps website data by registrable domain, so `www.example.com` clears `example.com`'s.
+    func hardReload() {
+        guard let tab = activeTab, let page = activePage else { return }
+        let tabURL = loadFailures[tab.id]?.url ?? tab.url
+        let host = activeURL?.host()?.lowercased()
+        let store = dataStore(profileID: tab.profileID)
+        Task {
+            if let host {
+                let types = WKWebsiteDataStore.allWebsiteDataTypes()
+                let site = await store.dataRecords(ofTypes: types).filter {
+                    let domain = $0.displayName.lowercased()
+                    return host == domain || host.hasSuffix("." + domain)
+                }
+                if !site.isEmpty { await store.removeData(ofTypes: types, for: site) }
+            }
+            page.reload(tabURL: tabURL, fromOrigin: true)
+        }
+    }
+
     func goBack() {
         guard let page = activePage, let item = page.backForwardList.backList.last else { return }
         page.load(item)
@@ -506,10 +578,21 @@ final class BrowserState {
             currentSpaceID = id
             guard restoringTab else { return }
             split = nil
-            let remembered = lastTabPerSpace[id].flatMap(tab)
-            if let active = activeTab, model.isFavorite(active) { return }
-            activeTabID = remembered?.id
+            activeTabID = tabToShow(in: id)?.id
         }
+    }
+
+    /// The tab a switch to space `id` shows: a favorite already open that the space shares (same profile) stays;
+    /// otherwise the tab last used there, else its most recently used one. Nil shows the empty New Tab page.
+    private func tabToShow(in id: String) -> SidebarItem? {
+        guard let space = model.space(id) else { return nil }
+        let belongs = { (tab: SidebarItem) in
+            tab.spaceID == id || (self.model.isFavorite(tab) && tab.profileID == space.profileID)
+        }
+        if let active = activeTab, model.isFavorite(active), belongs(active) { return active }
+        if let remembered = lastTabPerSpace[id].flatMap(tab), belongs(remembered) { return remembered }
+        return model.visibleTabs(in: space).filter { $0.spaceID == id }
+            .max { ($0.lastActiveAt ?? .distantPast) < ($1.lastActiveAt ?? .distantPast) }
     }
 
     func shiftSpace(by offset: Int) {
@@ -617,8 +700,9 @@ final class BrowserState {
     }
 
     func openPeek(_ url: URL, profileID: String?) {
-        let page = makePage(profileID: profileID ?? currentSpace?.profileID, context: .peek, loading: url)
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) { peek = Peek(page: page) }
+        let profileID = profileID ?? currentSpace?.profileID
+        let page = makePage(profileID: profileID, context: .peek, loading: url)
+        withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) { peek = Peek(page: page, profileID: profileID) }
     }
 
     func closePeek() {

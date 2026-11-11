@@ -1,4 +1,8 @@
 name: Boaz
+include:
+  # Passkeys in web pages: a managed entitlement, off until Apple grants it (passkeys.yml).
+  - path: passkeys.yml
+    enable: false
 options:
   bundleIdPrefix: com.chenkahana
   deploymentTarget:

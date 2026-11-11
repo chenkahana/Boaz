@@ -5,7 +5,7 @@ import SwiftUI
 /// action (`arcKeyBindingID` in Arc's main menu), so overrides from `StorableKeyBindings.json` map across.
 enum BrowserCommand: String, CaseIterable {
     case newTab, openLocation, closeTab, reopenClosedTab, pinTab, toggleSidebar, copyURL
-    case reload, goBack, goForward, find, nextTab, previousTab, nextSpace, previousSpace
+    case reload, hardReload, goBack, goForward, find, nextTab, previousTab, nextSpace, previousSpace
     case addSplitView, newWindow, newIncognitoWindow, newLittleWindow, showArchive, newSpace
 
     var arcIDs: [String] {
@@ -18,6 +18,7 @@ enum BrowserCommand: String, CaseIterable {
         case .toggleSidebar: ["showSidebar", "toggleSidebar"]
         case .copyURL: ["copyCurrentURL"]
         case .reload: ["reloadPage"]
+        case .hardReload: ["hardReload", "hardReloadPage", "reloadPageIgnoringCache"]
         case .goBack: ["goBack"]
         case .goForward: ["goForward"]
         case .find: ["find"]
@@ -44,6 +45,7 @@ enum BrowserCommand: String, CaseIterable {
         case .toggleSidebar: KeyboardShortcut("s")
         case .copyURL: KeyboardShortcut("c", modifiers: [.command, .shift])
         case .reload: KeyboardShortcut("r")
+        case .hardReload: KeyboardShortcut("r", modifiers: [.command, .shift])
         case .goBack: KeyboardShortcut("[")
         case .goForward: KeyboardShortcut("]")
         case .find: KeyboardShortcut("f")
@@ -121,6 +123,23 @@ extension KeyboardShortcut {
         default: text += String(key.character).uppercased()
         }
         return text
+    }
+
+    /// Whether a key-down event is this shortcut.
+    func matches(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        var mods: EventModifiers = []
+        if flags.contains(.command) { mods.insert(.command) }
+        if flags.contains(.shift) { mods.insert(.shift) }
+        if flags.contains(.option) { mods.insert(.option) }
+        if flags.contains(.control) { mods.insert(.control) }
+        guard mods == modifiers else { return false }
+        let key = String(key.character).lowercased()
+        guard let typed = event.charactersIgnoringModifiers?.lowercased() else { return false }
+        // A non-Latin layout (Hebrew, Russian…) types another letter; there the key's ANSI position decides. A Latin
+        // layout such as Dvorak goes by the letter, as the menu bar does.
+        if typed.unicodeScalars.allSatisfy(\.isASCII) { return typed == key }
+        return KeyBindings.keyName(forKeyCode: Int(event.keyCode)) == key
     }
 }
 
@@ -247,7 +266,7 @@ final class KeyBindings {
     }
 
     /// ANSI virtual key codes for the keys a browser shortcut plausibly uses.
-    private static func keyName(forKeyCode code: Int) -> String? {
+    static func keyName(forKeyCode code: Int) -> String? {
         let table: [Int: String] = [
             0: "a", 1: "s", 2: "d", 3: "f", 4: "h", 5: "g", 6: "z", 7: "x", 8: "c", 9: "v", 11: "b", 12: "q",
             13: "w", 14: "e", 15: "r", 16: "y", 17: "t", 18: "1", 19: "2", 20: "3", 21: "4", 22: "6", 23: "5",

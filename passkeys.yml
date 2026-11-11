@@ -1,0 +1,14 @@
+# Passkeys in web pages (WebAuthn). With this entitlement, WebKit answers a page's navigator.credentials calls with
+# the system's passkey sheet (iCloud Keychain, password managers, security keys) for any site, not only the app's
+# associated domains. It is a managed entitlement that Apple grants per App ID: requested for com.chenkahana.boaz
+# (team DPF8459C2J, request Z6525VUX9T). Signing with it fails until it's granted, so project.yml includes this file
+# with `enable: false`. Once granted, set `enable: true` there and regenerate (`make project`).
+targets:
+  Boaz-macOS:
+    entitlements:
+      properties:
+        com.apple.developer.web-browser.public-key-credential: true
+  Boaz-iOS:
+    entitlements:
+      properties:
+        com.apple.developer.web-browser.public-key-credential: true

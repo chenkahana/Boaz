@@ -25,6 +25,17 @@ struct SiteColor: Hashable {
     /// Text and icons drawn on the color.
     var foreground: Color { isLight ? .black.opacity(0.82) : .white }
 
+    /// Secondary text and icons on the color: a step from `foreground` toward it, kept at 4.5:1 (WCAG AA) on the
+    /// color and under a hover or selection fill (the label color at up to 12%).
+    var secondary: Color {
+        let environment = EnvironmentValues()
+        let background = color.resolve(in: environment)
+        let text = Contrast.over(foreground.resolve(in: environment), background)
+        let label: Color.Resolved = isLight ? .init(red: 0, green: 0, blue: 0, opacity: 0.12)
+            : .init(red: 1, green: 1, blue: 1, opacity: 0.12)
+        return Color(Contrast.legible(Contrast.mix(text, background, 0.4), on: [background, Contrast.over(label, background)]))
+    }
+
     /// Plain white pages are most of the web; tinting with them would only wash out the space.
     private var isPlainWhite: Bool { luminance > 0.88 && max(red, green, blue) - min(red, green, blue) < 0.06 }
 

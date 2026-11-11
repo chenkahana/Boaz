@@ -198,8 +198,15 @@ struct MacSettingsView: View {
             SyncSettings().tabItem { Label("Sync", systemImage: "icloud") }
             ShortcutsSettings().tabItem { Label("Shortcuts", systemImage: "keyboard") }
         }
+        // System label colors on the system background. Footnotes and values take the second level, which reads at
+        // 4.5:1 or better (the system's secondary label is about 4:1 in Light).
+        .foregroundStyle(.primary, Self.footnote)
         .frame(width: 520)
     }
+
+    static let footnote = Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? NSColor(white: 1, alpha: 0.62) : NSColor(white: 0, alpha: 0.64)
+    })
 }
 
 private struct GeneralSettings: View {
@@ -207,6 +214,7 @@ private struct GeneralSettings: View {
     @AppStorage(Preferences.archiveAfterKey) private var archiveAfter = ArchiveInterval.day.rawValue
     @AppStorage(Preferences.searchEngineKey) private var searchEngine = SearchEngine.duckDuckGo.rawValue
     @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
+    @AppStorage(Preferences.sidebarTextSizeKey) private var sidebarTextSize = SidebarStyle.defaultTextSize
 
     var body: some View {
         Form {
@@ -219,6 +227,11 @@ private struct GeneralSettings: View {
                     ForEach(SearchEngine.allCases) { Text($0.name).tag($0.rawValue) }
                 }
                 Toggle("Tint chrome with site colors", isOn: $tintWithSiteColors)
+                Picker("Sidebar text size", selection: $sidebarTextSize) {
+                    Text("Small").tag(13.0)
+                    Text("Medium").tag(14.0)
+                    Text("Large").tag(16.0)
+                }
             }
             AISettingsSection()
             AboutSection()
@@ -237,10 +250,10 @@ private struct DefaultBrowserRow: View {
     var body: some View {
         LabeledContent("Default browser") {
             if current.isBoaz {
-                Text("Boaz").foregroundStyle(.secondary)
+                Text("Boaz")
             } else {
                 HStack {
-                    Text(current.name).foregroundStyle(.secondary)
+                    Text(current.name)
                     Button("Make Default") {
                         Task {
                             failed = (try? await DefaultBrowser.makeBoazDefault()) == nil
@@ -304,7 +317,7 @@ private struct SyncSettings: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             } else {
-                Text("Sync starts once your library has loaded.").foregroundStyle(.secondary)
+                Text("Sync starts once your library has loaded.")
             }
         }
         .formStyle(.grouped)
@@ -349,90 +362,5 @@ private struct ShortcutsSettings: View {
         } catch {
             message = "Couldn't read shortcuts: \(error.localizedDescription)"
         }
-    }
-}
-
-/// Per-space theme editor. Writes Arc `windowTheme` JSON, live.
-struct ThemeEditor: View {
-    @Environment(MacModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.colorScheme) private var scheme
-    let spaceID: String
-
-    private let presets: [(String, Color)] = [
-        ("Sky", Color(red: 0.80, green: 0.88, blue: 0.98)), ("Peach", Color(red: 0.98, green: 0.86, blue: 0.78)),
-        ("Mint", Color(red: 0.84, green: 0.95, blue: 0.86)), ("Lilac", Color(red: 0.92, green: 0.85, blue: 0.98)),
-        ("Butter", Color(red: 0.98, green: 0.95, blue: 0.78)), ("Rose", Color(red: 0.98, green: 0.82, blue: 0.86)),
-        ("Slate", Color(red: 0.78, green: 0.82, blue: 0.88)),
-    ]
-
-    var body: some View {
-        let space = model.space(spaceID)
-        let style = SpaceStyle(space, scheme: scheme)
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 10) {
-                if let space { SpaceIcon(space: space, size: 22) }
-                Text(space?.title ?? "Space").font(.system(.title2, design: .rounded, weight: .bold))
-            }
-            RoundedRectangle(cornerRadius: MacRadius.card, style: .continuous)
-                .fill(style.gradient)
-                .overlay(alignment: .bottomLeading) {
-                    Circle().fill(style.tint).frame(width: 18, height: 18).shadow(color: style.tint, radius: 8).padding(12)
-                }
-                .frame(height: 90)
-                .animation(.easeInOut(duration: 0.2), value: space)
-            HStack(spacing: 8) {
-                ForEach(presets, id: \.0) { name, color in
-                    Button { applyPreset(color) } label: {
-                        Circle().fill(color).frame(width: 26, height: 26)
-                            .overlay(Circle().strokeBorder(.black.opacity(0.1)))
-                    }
-                    .buttonStyle(PresetStyle())
-                    .help(name)
-                    .accessibilityLabel(name)
-                }
-            }
-            ForEach(ThemeJSON.Role.allCases) { role in
-                ColorPicker(role.label, selection: binding(role, space: space), supportsOpacity: false)
-            }
-            HStack {
-                Spacer()
-                Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding(22)
-        .frame(width: 360)
-    }
-
-    private func binding(_ role: ThemeJSON.Role, space: Space?) -> Binding<Color> {
-        Binding {
-            let theme = space?.theme
-            let rgba: WindowTheme.RGBA? = switch role {
-            case .backgroundLight: theme?.color("background", dark: false)
-            case .backgroundDark: theme?.color("background", dark: true)
-            case .accent: theme?.primaryColorPalette?["midTone"]
-            }
-            return rgba?.color ?? .gray
-        } set: { color in
-            model.setThemeColor(NSColor(color), role: role, of: spaceID)
-        }
-    }
-
-    private func applyPreset(_ color: Color) {
-        let base = NSColor(color).usingColorSpace(.sRGB) ?? .white
-        let r = base.redComponent, g = base.greenComponent, b = base.blueComponent
-        withAnimation(.easeInOut(duration: 0.35)) {
-            model.setThemeColor(base, role: .backgroundLight, of: spaceID)
-            model.setThemeColor(NSColor(srgbRed: r * 0.25, green: g * 0.25, blue: b * 0.3, alpha: 1), role: .backgroundDark, of: spaceID)
-            model.setThemeColor(NSColor(srgbRed: r * 0.7, green: g * 0.7, blue: b * 0.9, alpha: 1), role: .accent, of: spaceID)
-        }
-    }
-}
-
-private struct PresetStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.85 : 1)
-            .animation(.spring(response: 0.25, dampingFraction: 0.5), value: configuration.isPressed)
     }
 }

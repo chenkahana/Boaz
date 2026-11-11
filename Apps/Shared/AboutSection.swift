@@ -14,10 +14,17 @@ struct AboutSection: View {
         } footer: {
             Text("""
                 Boaz \(version). Ad and tracker blocking uses EasyList by the EasyList authors (easylist.to), \
-                licensed under CC BY-SA 3.0. The library is stored with GRDB by Gwendal Roué (MIT License).
+                licensed under CC BY-SA 3.0. The library is stored with GRDB by Gwendal Roué (MIT License).\(Self.updatesNotice)
                 """)
+            .foregroundStyle(.secondary)
         }
     }
+
+    #if SPARKLE
+    private static let updatesNotice = " Updates come through Sparkle by the Sparkle Project (MIT License)."
+    #else
+    private static let updatesNotice = ""
+    #endif
 
     private var version: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "" }
 }

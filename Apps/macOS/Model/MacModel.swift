@@ -1,6 +1,7 @@
 import Accessibility
 import AppKit
 import BoazKit
+import OSLog
 import SwiftUI
 import SystemConfiguration
 import WebKit
@@ -10,6 +11,9 @@ import WebKit
 @Observable
 final class MacModel {
     static let shared = MacModel()
+    private static let log = Logger(subsystem: "com.chenkahana.boaz", category: "app")
+    /// Data store identifiers of deleted profiles whose site data WebKit hasn't removed yet.
+    private static let pendingSiteDataKey = "pendingSiteDataRemovals"
 
     struct Toast: Equatable {
         var id = UUID()
@@ -43,7 +47,6 @@ final class MacModel {
     /// have the lists, so no page loads with its ads.
     @ObservationIgnored private var contentBlockLists: [WKContentRuleList]?
     @ObservationIgnored private var awaitingBlockLists: [(controller: WKUserContentController, load: () -> Void)] = []
-    @ObservationIgnored private var themeSaves: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var started = false
     /// First launch: the first main window to appear shows the setup flow.
     @ObservationIgnored var needsOnboarding = false
@@ -118,9 +121,22 @@ final class MacModel {
             do {
                 for try await snapshot in store.sidebarUpdates() {
                     failures = 0
+                    let removed = sidebar.profiles.filter { old in
+                        !snapshot.profiles.contains { $0.id == old.id || $0.dataStoreID == old.dataStoreID }
+                    }
+                    let removedIDs = Set(removed.map(\.id))
+                    // Read before the snapshot: a profile deleted on another device arrives without its tabs.
+                    let removedTabs = sidebar.items.filter { removedIDs.contains($0.profileID) }.map(\.id)
                     sidebar = snapshot
+                    if !removed.isEmpty { closePages(of: removedIDs, tabIDs: removedTabs) }
+                    removeSiteData(removed.map(\.dataStoreID))
                     guard !loaded else { continue }
                     loaded = true
+                    // What an earlier run couldn't remove, unless sync has since brought its profile back.
+                    let live = Set(snapshot.profiles.map(\.dataStoreID))
+                    removeSiteData((UserDefaults.standard.stringArray(forKey: Self.pendingSiteDataKey) ?? [])
+                        .compactMap(UUID.init).filter { !live.contains($0) })
+                    Extensions.shared.loadInstalled()
                     // A launch without a main window (a link to a Quick Window) has nothing to restore.
                     Task {
                         try? await Task.sleep(for: .seconds(10))
@@ -244,6 +260,9 @@ final class MacModel {
     }
 
     private struct WeakBrowser { weak var browser: BrowserState? }
+
+    /// The main windows open now (not Incognito).
+    var openBrowsers: [BrowserState] { browsers.compactMap(\.browser) }
 
     func register(_ browser: BrowserState) {
         guard !browser.isIncognito else { return }
@@ -376,14 +395,20 @@ final class MacModel {
 
     // MARK: Tabs
 
-    /// New Today tab at the top of the list, as in Arc.
+    /// New Today tab at the top of the list, as in Arc, or right below `source` when that's a Today tab.
     @discardableResult
-    func newTab(_ url: URL, title: String? = nil, in spaceID: String?) -> SidebarItem? {
+    func newTab(_ url: URL, title: String? = nil, in spaceID: String?, below source: SidebarItem? = nil) -> SidebarItem? {
         guard let space = space(spaceID) ?? sidebar.spaces.first,
               let box = sidebar.container(.unpinned, in: space.id) else { return nil }
-        let top = sidebar.children(of: box.id).map(\.position).min() ?? 1
+        let positions = sidebar.children(of: box.id).map(\.position)
+        let position: Double
+        if let source, source.parentID == box.id {
+            position = positions.filter { $0 > source.position }.min().map { (source.position + $0) / 2 } ?? source.position + 1
+        } else {
+            position = (positions.min() ?? 1) - 1
+        }
         let tab = SidebarItem(id: UUID().uuidString, spaceID: space.id, profileID: space.profileID, parentID: box.id,
-                              kind: .tab, title: title ?? url.host(), url: url, position: top - 1, lastActiveAt: .now,
+                              kind: .tab, title: title ?? url.host(), url: url, position: position, lastActiveAt: .now,
                               deviceID: deviceID)
         commit(tab)
         return tab
@@ -495,7 +520,14 @@ final class MacModel {
 
     /// Restores the last close (all of a Clear's tabs) and returns the first restored tab.
     func reopenClosedTab() -> SidebarItem? {
-        guard let batch = closedTabs.popLast() else { return nil }
+        var batch: [(tab: SidebarItem, archiveID: String?)] = []
+        // A tab whose space, profile or folder was deleted since stays in the Archive: there's nowhere to put it back.
+        while batch.isEmpty, let last = closedTabs.popLast() {
+            // A Clear's tabs can sit in its folders, which come back with them.
+            let kept = Set(last.filter { item($0.tab.parentID) != nil }.map(\.tab.id))
+            batch = last.filter { item($0.tab.parentID) != nil || $0.tab.parentID.map(kept.contains) == true }
+        }
+        guard !batch.isEmpty else { return nil }
         let restored = batch.map { tab, _ in
             var restored = tab
             restored.deletedAt = nil
@@ -597,6 +629,67 @@ final class MacModel {
 
     // MARK: Spaces
 
+    func isLastSpaceOfProfile(_ space: Space) -> Bool {
+        !sidebar.spaces.contains { $0.id != space.id && $0.profileID == space.profileID }
+    }
+
+    /// What deleting a space takes with it, for its confirmation.
+    func deletionMessage(for space: Space) -> String {
+        let tabs = "Its tabs move to the Archive, on all your devices."
+        guard isLastSpaceOfProfile(space), let profile = sidebar.profiles.first(where: { $0.id == space.profileID })
+        else { return tabs }
+        return tabs + " It's the last space of the \(profile.name) profile, so the profile is removed too: its "
+            + "favorites move to the Archive, and its site data, like logins and cookies, is deleted."
+    }
+
+    /// Deletes a space; windows showing it move to another first. The library keeps at least one space.
+    func deleteSpace(_ space: Space) {
+        guard let other = sidebar.spaces.first(where: { $0.id != space.id }) else { return }
+        let windows = browsers.compactMap(\.browser)
+        for browser in windows where browser.spaceID == space.id { browser.switchSpace(to: other.id) }
+        do { try store?.deleteSpace(space.id) } catch { showToast("Couldn't delete space: \(error.localizedDescription)") }
+    }
+
+    /// WebKit won't delete a data store while a page uses it, so a deleted profile's pages close first: its tabs and
+    /// peeks in every window, its extensions, and Quick Windows (which close themselves, `QuickWindow`).
+    private func closePages(of profileIDs: Set<String>, tabIDs: [String]) {
+        for browser in browsers.compactMap(\.browser) {
+            tabIDs.forEach(browser.unload)
+            // Tabs another Mac archived in an earlier sync batch already left the sidebar; their pages still hold
+            // the profile's data store.
+            browser.unloadPagesWithoutTabs()
+            if let peek = browser.peek, peek.profileID.map(profileIDs.contains) ?? false { browser.peek = nil }
+        }
+        Extensions.shared.forget(profileIDs: profileIDs)
+    }
+
+    /// A deleted profile's WebKit data on this Mac (logins, cookies, caches), deleted here or on another device.
+    /// Recorded first, so what doesn't go now (a download still using it, a quit) goes at next launch.
+    private func removeSiteData(_ identifiers: [UUID]) {
+        guard !identifiers.isEmpty else { return }
+        identifiers.forEach { dataStores[$0] = nil }
+        func setPending(_ change: (inout Set<String>) -> Void) {
+            var pending = Set(UserDefaults.standard.stringArray(forKey: Self.pendingSiteDataKey) ?? [])
+            change(&pending)
+            UserDefaults.standard.set(pending.sorted(), forKey: Self.pendingSiteDataKey)
+        }
+        setPending { $0.formUnion(identifiers.map(\.uuidString)) }
+        Task {
+            for id in identifiers {
+                // Closed pages let go of the store once their views are gone.
+                for attempt in 1...5 {
+                    do {
+                        try await WKWebsiteDataStore.remove(forIdentifier: id)
+                        setPending { $0.remove(id.uuidString) }
+                        break
+                    } catch {
+                        guard attempt == 5 else { try? await Task.sleep(for: .seconds(attempt)); continue }
+                        Self.log.error("Removing site data \(id) failed; next launch retries: \(String(describing: error))")
+                    }
+                }
+            }
+        }
+    }
 
     func update(_ space: Space, save: Bool = true) {
         var space = space
@@ -604,19 +697,6 @@ final class MacModel {
         if let index = sidebar.spaces.firstIndex(where: { $0.id == space.id }) { sidebar.spaces[index] = space }
         guard save else { return }
         do { try store?.save([space]) } catch { showToast("Couldn't save: \(error.localizedDescription)") }
-    }
-
-    /// Live theme edit: updates the in-memory space at once, writes to the store after a short pause.
-    func setThemeColor(_ color: NSColor, role: ThemeJSON.Role, of spaceID: String) {
-        guard var space = space(spaceID) else { return }
-        space.themeJSON = ThemeJSON.setting(color, role: role, in: space.themeJSON)
-        update(space, save: false)
-        themeSaves[spaceID]?.cancel()
-        themeSaves[spaceID] = Task {
-            try? await Task.sleep(for: .milliseconds(250))
-            guard !Task.isCancelled, let latest = self.space(spaceID) else { return }
-            try? self.store?.save([latest])
-        }
     }
 
     // MARK: Helpers
@@ -640,43 +720,5 @@ final class MacModel {
             try? await Task.sleep(for: .seconds(canUndo ? (voiceOver ? 10 : 5) : 2.5))
             if self.toast == toast { withAnimation(.easeOut(duration: 0.25)) { self.toast = nil } }
         }
-    }
-}
-
-/// Edits Arc `windowTheme` JSON in place, keeping every key Boaz doesn't understand.
-enum ThemeJSON {
-    enum Role: CaseIterable, Identifiable {
-        case backgroundLight, backgroundDark, accent
-        var id: Self { self }
-        var label: String {
-            switch self {
-            case .backgroundLight: "Background (Light)"
-            case .backgroundDark: "Background (Dark)"
-            case .accent: "Accent"
-            }
-        }
-        var path: [String] {
-            switch self {
-            case .backgroundLight: ["semanticColorPalette", "appearanceBased", "light", "background"]
-            case .backgroundDark: ["semanticColorPalette", "appearanceBased", "dark", "background"]
-            case .accent: ["primaryColorPalette", "midTone"]
-            }
-        }
-    }
-
-    static func setting(_ color: NSColor, role: Role, in json: Data?) -> Data {
-        let root = json.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
-        let rgb = color.usingColorSpace(.extendedSRGB) ?? color
-        let value: [String: Any] = ["colorSpace": "extendedSRGB", "red": rgb.redComponent, "green": rgb.greenComponent,
-                                    "blue": rgb.blueComponent, "alpha": rgb.alphaComponent]
-        let updated = set(value, at: role.path[...], in: root)
-        return (try? JSONSerialization.data(withJSONObject: updated, options: [.sortedKeys])) ?? (json ?? Data())
-    }
-
-    private static func set(_ value: Any, at path: ArraySlice<String>, in object: [String: Any]) -> [String: Any] {
-        guard let key = path.first else { return object }
-        var object = object
-        object[key] = path.count == 1 ? value : set(value, at: path.dropFirst(), in: object[key] as? [String: Any] ?? [:])
-        return object
     }
 }

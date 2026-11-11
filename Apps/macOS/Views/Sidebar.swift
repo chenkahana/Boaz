@@ -12,12 +12,35 @@ enum SidebarDrag {
     }
 }
 
+/// The sidebar's type, spacing, fills and motion (docs/design.md).
+enum SidebarStyle {
+    static let rowHeight: CGFloat = 32
+    /// Rows' text size; Settings › General › Sidebar Text Size picks 13, 14 or 16 (`sidebarTextSize`).
+    static let defaultTextSize: CGFloat = 14
+    static func rowFont(size: CGFloat = defaultTextSize, selected: Bool = false) -> Font {
+        .system(size: size, weight: selected ? .medium : .regular)
+    }
+    static func sectionFont(size: CGFloat = defaultTextSize) -> Font { .system(size: size - 3, weight: .semibold) }
+    static func titleFont(size: CGFloat = defaultTextSize) -> Font { .system(size: size + 1, weight: .semibold) }
+    /// The label color at 12%: one flat fill for the selection, on every theme and site color.
+    static func selection(increasedContrast: Bool = false) -> Color { .primary.opacity(increasedContrast ? 0.24 : 0.12) }
+    /// Half the selection.
+    static let hover = Color.primary.opacity(0.06)
+    /// The one curve for hover, selection and list changes.
+    static let motion = Animation.smooth(duration: 0.2)
+}
+
+extension EnvironmentValues {
+    @Entry var sidebarTextSize = SidebarStyle.defaultTextSize
+}
+
 struct SidebarView: View {
     @Environment(MacModel.self) private var model
     @Environment(BrowserState.self) private var browser
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
+    @AppStorage(Preferences.sidebarTextSizeKey) private var textSize = SidebarStyle.defaultTextSize
     @State private var swipe: CGFloat = 0
 
     var body: some View {
@@ -30,6 +53,7 @@ struct SidebarView: View {
         VStack(alignment: .leading, spacing: 8) {
             SidebarTopBar()
             AddressPill()
+            ExtensionActionsBar()
             if !browser.isIncognito { FavoritesGrid(tint: style.tint) }
             ZStack(alignment: .top) {
                 if browser.isIncognito {
@@ -48,14 +72,17 @@ struct SidebarView: View {
         .padding(.horizontal, 8)
         .padding(.bottom, 8)
         .environment(\.colorScheme, appearance)
+        .environment(\.sidebarTextSize, textSize)
         .animation(SiteColor.fade(reduceMotion: reduceMotion)) {
-            $0.foregroundStyle(browser.isIncognito ? .white : site?.foreground ?? style.foreground)
+            // `.secondary` below is the second style: dimmer text and icons that still read at 4.5:1.
+            $0.foregroundStyle(browser.isIncognito ? .white : site?.foreground ?? style.foreground,
+                               browser.isIncognito ? Color(white: 0.78) : site?.secondary ?? style.secondaryOnFills)
         }
         .background {
             HorizontalSwipeReader { dx in
                 swipe = max(-90, min(90, dx * 0.4))
             } onEnded: { dx in
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { swipe = 0 }
+                withAnimation(SidebarStyle.motion) { swipe = 0 }
                 if dx < -70 { browser.shiftSpace(by: 1) } else if dx > 70 { browser.shiftSpace(by: -1) }
             }
         }
@@ -133,6 +160,7 @@ private struct HistoryButton: View {
 /// Arc's URL field in the sidebar: shows the host, opens the command bar on the current tab (⌘L).
 private struct AddressPill: View {
     @Environment(BrowserState.self) private var browser
+    @Environment(\.sidebarTextSize) private var textSize
     @State private var hovering = false
 
     var body: some View {
@@ -140,26 +168,27 @@ private struct AddressPill: View {
         Button { browser.commandMode = browser.activeTab == nil ? .newTab : .currentTab } label: {
             HStack(spacing: 6) {
                 if browser.activeIsSecure {
-                    Image(systemName: "lock.fill").font(.caption2).opacity(0.6)
+                    Image(systemName: "lock.fill").font(.system(size: 10)).foregroundStyle(.secondary)
                 }
                 Text(url?.host()?.replacingOccurrences(of: "www.", with: "") ?? "Search or enter address")
-                    .font(.callout)
-                    .opacity(url == nil ? 0.6 : 1)
+                    .font(SidebarStyle.rowFont(size: textSize))
+                    .foregroundStyle(url == nil ? .secondary : .primary)
                     .lineLimit(1)
                 Spacer(minLength: 0)
                 if hovering, url != nil {
-                    Image(systemName: "link").font(.caption).opacity(0.6)
+                    Image(systemName: "link").font(.system(size: 11)).foregroundStyle(.secondary)
                         .onTapGesture { browser.copyActiveURL() }
                         .help(browser.model.keyBindings.hint("Copy URL", .copyURL))
                 }
             }
-            .padding(.horizontal, 10).frame(height: 32)
-            .background(.white.opacity(hovering ? 0.32 : 0.2), in: .rect(cornerRadius: MacRadius.row, style: .continuous))
+            .padding(.horizontal, 8).frame(height: SidebarStyle.rowHeight)
+            .background(hovering ? SidebarStyle.selection() : SidebarStyle.hover,
+                        in: .rect(cornerRadius: MacRadius.row, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.12), value: hovering)
+        .animation(SidebarStyle.motion, value: hovering)
     }
 }
 
@@ -181,13 +210,13 @@ private struct FavoritesGrid: View {
                     .opacity(targeted ? 0.6 : 0)
                     .frame(height: targeted ? 44 : 6)
             } else {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: min(4, max(favorites.count, 3))),
-                          spacing: 6) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: min(4, max(favorites.count, 3))),
+                          spacing: 8) {
                     ForEach(favorites) { FavoriteTile(tab: $0, tint: tint) }
                 }
             }
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: favorites.map(\.id))
+        .animation(SidebarStyle.motion, value: favorites.map(\.id))
         .dropDestination(for: String.self) { payloads, _ in
             guard let container else { return false }
             return dropItems(payloads, into: container.id, before: nil, model: model, browser: browser)
@@ -207,17 +236,18 @@ private struct FavoriteTile: View {
     var body: some View {
         let active = browser.activeTabID == tab.id
         Button { browser.activate(tab) } label: {
+            // Flat at rest; only hovering lifts a tile.
             SiteMonogram(url: tab.url, tint: tint, size: 24)
                 .frame(maxWidth: .infinity).frame(height: 44)
-                .background(.white.opacity(active ? 0.75 : hovering ? 0.4 : 0.3),
+                .background(active ? SidebarStyle.selection() : SidebarStyle.hover,
                             in: .rect(cornerRadius: MacRadius.tile, style: .continuous))
                 .overlay {
-                    RoundedRectangle(cornerRadius: MacRadius.tile, style: .continuous)
-                        .strokeBorder(targeted ? tint : .white.opacity(active ? 0.9 : 0), lineWidth: targeted ? 2 : 1)
+                    if targeted { RoundedRectangle(cornerRadius: MacRadius.tile, style: .continuous).strokeBorder(tint, lineWidth: 2) }
                 }
-                .shadow(color: active ? tint.opacity(0.45) : .clear, radius: 8)
-                .scaleEffect(hovering && !reduceMotion ? 1.04 : 1)
-                .animation(.spring(response: 0.25, dampingFraction: 0.6), value: hovering)
+                .shadow(color: .black.opacity(hovering ? 0.12 : 0), radius: 4, y: 2)
+                .offset(y: hovering && !reduceMotion ? -1 : 0)
+                .animation(SidebarStyle.motion, value: hovering)
+                .animation(SidebarStyle.motion, value: active)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -250,7 +280,7 @@ private struct SpaceColumn: View {
         // Tabs and any folders (from Tidy Tabs or an Arc import).
         let today = todayBox.map { model.sidebar.children(of: $0.id) } ?? []
         ScrollView {
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 0) {
                 SpaceHeader(space: space)
                     .dropDestination(for: String.self) { payloads, _ in
                         guard let pinnedBox else { return false }
@@ -275,7 +305,7 @@ private struct SpaceColumn: View {
                         return dropItems(payloads, into: todayBox.id, before: nil, model: model, browser: browser)
                     }
             }
-            .animation(.spring(response: 0.35, dampingFraction: 0.82), value: pinned.map(\.id) + today.map(\.id))
+            .animation(SidebarStyle.motion, value: pinned.map(\.id) + today.map(\.id))
         }
         .scrollIndicators(.never)
     }
@@ -283,18 +313,21 @@ private struct SpaceColumn: View {
 
 private struct SpaceHeader: View {
     @Environment(BrowserState.self) private var browser
+    @Environment(\.sidebarTextSize) private var textSize
     let space: Space
     @State private var hovering = false
 
     var body: some View {
         HStack(spacing: 8) {
             SpaceIcon(space: space, size: 15)
-            Text(space.title).font(.system(.headline, design: .rounded)).lineLimit(1)
+            Text(space.title).font(SidebarStyle.titleFont(size: textSize)).lineLimit(1)
+                .onTapGesture(count: 2) { browser.spaceEditor = .init(spaceID: space.id) }
+                .help("Double-click to customize")
             Spacer()
             Menu {
                 SpaceMenu(space: space)
             } label: {
-                Image(systemName: "ellipsis").font(.system(size: 12, weight: .semibold)).frame(width: 22, height: 22)
+                Image(systemName: "ellipsis").font(.system(size: 12, weight: .semibold)).frame(width: 24, height: 24)
             }
             .menuStyle(.button)
             .buttonStyle(.plain)
@@ -302,9 +335,10 @@ private struct SpaceHeader: View {
             .fixedSize()
             .opacity(hovering ? 1 : 0)
         }
-        .padding(.horizontal, 8).frame(height: 32)
+        .padding(.horizontal, 8).frame(height: SidebarStyle.rowHeight)
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
+        .animation(SidebarStyle.motion, value: hovering)
         .contextMenu { SpaceMenu(space: space) }
     }
 }
@@ -315,9 +349,8 @@ struct SpaceMenu: View {
     let space: Space
 
     var body: some View {
-        Button("Edit Space…") { browser.spaceEditor = .init(spaceID: space.id) }
+        Button("Customize Space…") { browser.spaceEditor = .init(spaceID: space.id) }
         Button("Rename Space…") { browser.rename = .init(target: .space(space), text: space.title) }
-        Button("Custom Colors…") { browser.themeEditor = .init(id: space.id) }
         Button("New Folder") { withAnimation { model.newFolder(in: space) } }
         SpaceAIMenuItems(space: space)
         if model.sidebar.spaces.count > 1, let index = model.sidebar.spaces.firstIndex(where: { $0.id == space.id }) {
@@ -329,11 +362,16 @@ struct SpaceMenu: View {
         Divider()
         Button("Archive Today's Tabs") { withAnimation { model.clearToday(in: space) } }
         Button("New Space…") { browser.newSpace() }
+        if model.sidebar.spaces.count > 1 {
+            Divider()
+            Button("Delete Space…", role: .destructive) { browser.spaceToDelete = space }
+        }
     }
 }
 
 private struct TodayDivider: View {
     @Environment(MacModel.self) private var model
+    @Environment(\.sidebarTextSize) private var textSize
     let space: Space
     let hasTabs: Bool
     @State private var hovering = false
@@ -343,48 +381,51 @@ private struct TodayDivider: View {
             Rectangle().fill(.primary.opacity(0.15)).frame(height: 1)
             if hasTabs && hovering {
                 Button {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { model.clearToday(in: space) }
+                    withAnimation(SidebarStyle.motion) { model.clearToday(in: space) }
                 } label: {
-                    Label("Clear", systemImage: "arrow.down").font(.caption.weight(.medium))
+                    Label("Clear", systemImage: "arrow.down").font(SidebarStyle.sectionFont(size: textSize))
                 }
                 .buttonStyle(.plain)
-                .opacity(0.7)
+                .foregroundStyle(.secondary)
                 .transition(.opacity)
             }
         }
         .padding(.horizontal, 8)
-        .frame(height: 22)
+        .frame(height: 24)
+        .padding(.vertical, 4)
         .contentShape(Rectangle())
-        .onHover { inside in withAnimation(.easeOut(duration: 0.15)) { hovering = inside } }
+        .onHover { inside in withAnimation(SidebarStyle.motion) { hovering = inside } }
     }
 }
 
 private struct NewTabRow: View {
     @Environment(BrowserState.self) private var browser
+    @Environment(\.sidebarTextSize) private var textSize
     @State private var hovering = false
 
     var body: some View {
         Button { browser.commandMode = .newTab } label: {
             HStack(spacing: 8) {
                 Image(systemName: "plus").font(.system(size: 12, weight: .semibold)).frame(width: 18)
-                Text("New Tab").font(.body)
+                Text("New Tab").font(SidebarStyle.rowFont(size: textSize))
                 Spacer()
             }
-            .opacity(0.75)
-            .padding(.horizontal, 8).frame(height: 32)
-            .background(.white.opacity(hovering ? 0.25 : 0), in: .rect(cornerRadius: MacRadius.row, style: .continuous))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 8).frame(height: SidebarStyle.rowHeight)
+            .background(hovering ? SidebarStyle.hover : .clear, in: .rect(cornerRadius: MacRadius.row, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .help(browser.model.keyBindings.hint("New Tab", .newTab))
         .onHover { hovering = $0 }
+        .animation(SidebarStyle.motion, value: hovering)
     }
 }
 
 private struct InsertionLine: View {
     let tint: Color
     var body: some View {
-        Capsule().fill(tint).frame(height: 2).shadow(color: tint, radius: 3).padding(.horizontal, 6)
+        Capsule().fill(tint).frame(height: 2).padding(.horizontal, 8)
     }
 }
 
@@ -394,8 +435,8 @@ private struct InsertionLine: View {
 struct ItemRow: View {
     @Environment(MacModel.self) private var model
     @Environment(BrowserState.self) private var browser
-    @Environment(\.colorScheme) private var scheme
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.sidebarTextSize) private var textSize
     let item: SidebarItem
     let depth: Int
     let tint: Color
@@ -403,7 +444,7 @@ struct ItemRow: View {
     @State private var targeted = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 1) {
+        VStack(alignment: .leading, spacing: 0) {
             row
             if item.kind == .folder && item.isExpanded {
                 ForEach(model.sidebar.children(of: item.id)) { ItemRow(item: $0, depth: depth + 1, tint: tint) }
@@ -413,14 +454,11 @@ struct ItemRow: View {
 
     private var row: some View {
         let active = item.kind == .tab && (browser.activeTabID == item.id || browser.split?.contains(item.id) == true)
-        let dark = scheme == .dark || browser.isIncognito
-        let highContrast = contrast == .increased
-        let activeFill = highContrast ? (dark ? 0.35 : 0.9) : (dark ? 0.18 : 0.78)
         return HStack(spacing: 8) {
             Button(action: open) {
                 HStack(spacing: 8) {
                     leadingIcon
-                    Text(title).font(.body.weight(active ? .medium : .regular)).lineLimit(1)
+                    Text(title).font(SidebarStyle.rowFont(size: textSize, selected: active)).lineLimit(1)
                     Spacer(minLength: 0)
                 }
                 .padding(.leading, 8 + CGFloat(depth) * 14)
@@ -435,8 +473,8 @@ struct ItemRow: View {
                 HoverIconButton(symbol: "arrow.uturn.backward", help: "Back to Pinned Page", size: 20) {
                     browser.returnToPinnedPage(item)
                 }
-                .opacity(hovering || active ? 0.9 : 0.45)
-                .transition(.scale.combined(with: .opacity))
+                .foregroundStyle(hovering || active ? .primary : .secondary)
+                .transition(.opacity)
             }
             if hovering, item.kind == .tab {
                 let pinned = model.isPinned(item)
@@ -447,18 +485,14 @@ struct ItemRow: View {
             }
         }
         .padding(.trailing, 4)
-        .frame(height: 32)
+        .frame(height: SidebarStyle.rowHeight)
         .background {
             RoundedRectangle(cornerRadius: MacRadius.row, style: .continuous)
-                .fill(.white.opacity(active ? activeFill : hovering ? (dark ? 0.08 : 0.3) : 0))
-                .shadow(color: .black.opacity(active && !dark ? 0.08 : 0), radius: 2, y: 1)
-                .overlay {
-                    if active && highContrast {
-                        RoundedRectangle(cornerRadius: MacRadius.row, style: .continuous)
-                            .strokeBorder(.primary.opacity(0.4), lineWidth: 1)
-                    }
-                }
+                .fill(active ? SidebarStyle.selection(increasedContrast: contrast == .increased)
+                      : hovering ? SidebarStyle.hover : .clear)
         }
+        // Closes as the row's own button does: a Today tab goes to the Archive, a pinned one unloads.
+        .background { if item.kind == .tab { MiddleClickReader(action: browser.commandMode == nil ? { browser.close(item) } : nil) } }
         .overlay(alignment: item.kind == .folder ? .center : .top) {
             if targeted {
                 if item.kind == .folder {
@@ -469,7 +503,8 @@ struct ItemRow: View {
             }
         }
         .contentShape(Rectangle())
-        .onHover { inside in withAnimation(.easeOut(duration: 0.1)) { hovering = inside } }
+        .onHover { inside in withAnimation(SidebarStyle.motion) { hovering = inside } }
+        .animation(SidebarStyle.motion, value: active)
         .draggable(SidebarDrag.payload(item)) {
             Label(title, systemImage: item.kind == .folder ? "folder" : "globe")
                 .padding(6).background(.regularMaterial, in: .rect(cornerRadius: MacRadius.icon))
@@ -494,7 +529,7 @@ struct ItemRow: View {
 
     private func open() {
         if item.kind == .folder {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { model.toggleExpanded(item) }
+            withAnimation(SidebarStyle.motion) { model.toggleExpanded(item) }
         } else if NSEvent.modifierFlags.contains(.shift) {
             browser.openInSplit(item)
         } else {
@@ -511,9 +546,10 @@ struct ItemRow: View {
                 .overlay(alignment: .leading) {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.secondary)
                         .rotationEffect(.degrees(item.isExpanded ? 90 : 0))
                         .offset(x: -12)
-                        .opacity(hovering ? 0.6 : 0)
+                        .opacity(hovering ? 1 : 0)
                 }
         } else {
             SiteMonogram(url: item.url, tint: tint, size: 18)
@@ -570,15 +606,16 @@ struct TabMenu: View {
 
 private struct IncognitoColumn: View {
     @Environment(BrowserState.self) private var browser
+    @Environment(\.sidebarTextSize) private var textSize
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 8) {
                     Image(systemName: "eyeglasses")
-                    Text("Incognito").font(.system(.headline, design: .rounded))
+                    Text("Incognito").font(SidebarStyle.titleFont(size: textSize))
                 }
-                .padding(.horizontal, 8).frame(height: 32)
+                .padding(.horizontal, 8).frame(height: SidebarStyle.rowHeight)
                 NewTabRow()
                 ForEach(browser.incognitoTabs) { ItemRow(item: $0, depth: 0, tint: Theme.violet) }
             }
@@ -601,7 +638,7 @@ private struct SidebarBottomBar: View {
             }
             Spacer(minLength: 4)
             if !browser.isIncognito {
-                HStack(spacing: 2) {
+                HStack(spacing: 4) {
                     ForEach(model.sidebar.spaces) { space in SpaceDot(space: space) }
                 }
             }
@@ -621,13 +658,12 @@ private struct SidebarBottomBar: View {
             .menuIndicator(.hidden)
             .fixedSize()
         }
-        .frame(height: 30)
+        .frame(height: SidebarStyle.rowHeight)
     }
 }
 
 private struct SpaceDot: View {
     @Environment(BrowserState.self) private var browser
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let space: Space
     @State private var hovering = false
 
@@ -636,16 +672,16 @@ private struct SpaceDot: View {
         Button { browser.switchSpace(to: space.id) } label: {
             Group {
                 if space.icon != nil {
-                    SpaceIcon(space: space, size: 13).opacity(selected ? 1 : 0.55)
+                    SpaceIcon(space: space, size: 13)
                 } else {
-                    Circle().frame(width: 6, height: 6).opacity(selected ? 0.9 : 0.35)
+                    Circle().frame(width: 6, height: 6)
                 }
             }
+            .foregroundStyle(selected ? .primary : .secondary)
             .frame(width: 24, height: 24)
-            .background(.white.opacity(selected ? 0.45 : hovering ? 0.2 : 0), in: .circle)
-            .scaleEffect(hovering && !reduceMotion ? 1.12 : 1)
-            .animation(.spring(response: 0.25, dampingFraction: 0.55), value: hovering)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selected)
+            .background(selected ? SidebarStyle.selection() : hovering ? SidebarStyle.hover : .clear, in: .circle)
+            .animation(SidebarStyle.motion, value: hovering)
+            .animation(SidebarStyle.motion, value: selected)
             .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -665,7 +701,7 @@ func dropItems(_ payloads: [String], into parentID: String, before beforeID: Str
                model: MacModel, browser: BrowserState) -> Bool {
     guard !parentID.isEmpty, !browser.isIncognito else { return false }
     var handled = false
-    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+    withAnimation(SidebarStyle.motion) {
         for payload in payloads {
             if let id = SidebarDrag.itemID(payload) {
                 model.move(id, into: parentID, before: beforeID)
@@ -679,6 +715,45 @@ func dropItems(_ payloads: [String], into parentID: String, before beforeID: Str
         }
     }
     return handled
+}
+
+// MARK: Middle click
+
+/// A middle click (the wheel button) on this view, as Safari and Chrome close a tab with it. Taken before the window
+/// handles the click, so it works the first time on a window in the background without bringing it forward; other
+/// clicks, and middle clicks anywhere else (a link in the page), pass through.
+struct MiddleClickReader: NSViewRepresentable {
+    /// Nil while something covers the sidebar (the command bar), so the click goes to that.
+    var action: (() -> Void)?
+
+    func makeNSView(context: Context) -> ClickView {
+        let view = ClickView()
+        view.action = action
+        return view
+    }
+
+    func updateNSView(_ view: ClickView, context: Context) { view.action = action }
+
+    final class ClickView: NSView {
+        var action: (() -> Void)?
+        private var monitor: Any?
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let monitor { NSEvent.removeMonitor(monitor); self.monitor = nil }
+            guard window != nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .otherMouseDown) { [weak self] event in
+                guard let self, let action = self.action, event.buttonNumber == 2, event.window === self.window,
+                      self.window?.attachedSheet == nil,
+                      // Rows scrolled out of the sidebar are clipped out of `visibleRect`.
+                      self.visibleRect.contains(self.convert(event.locationInWindow, from: nil)) else { return event }
+                action()
+                return nil
+            }
+        }
+    }
 }
 
 // MARK: Two-finger swipe

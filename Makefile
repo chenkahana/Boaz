@@ -8,7 +8,7 @@ UNSIGNED := CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
 XCB      := xcodebuild -project $(PROJECT) -derivedDataPath $(DERIVED) -quiet
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap project kit ios mac build device archive dmg clean
+.PHONY: help bootstrap project kit ios mac mac-dmg build device archive dmg clean
 
 help: ## List the available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "  %-10s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -28,6 +28,14 @@ ios: project ## Build the iPhone app and extensions (unsigned)
 	$(XCB) -scheme Boaz-iOS -configuration Debug -destination 'generic/platform=iOS' $(UNSIGNED) build
 
 mac: project ## Build the Mac app (unsigned)
+	$(XCB) -scheme Boaz-macOS -configuration Debug -destination 'generic/platform=macOS' $(UNSIGNED) build
+
+mac-dmg: ## Build the DMG variant of the Mac app, with Sparkle (unsigned; project-dmg.yml)
+	@# One shell, so the App Store project comes back however the build ends. Seeded with BoazKit's pins, so Xcode
+	@# records Sparkle's here and not in BoazKit's Package.resolved.
+	xcodegen generate --quiet --spec project-dmg.yml && trap 'xcodegen generate --quiet' EXIT && \
+	mkdir -p $(PROJECT)/project.xcworkspace/xcshareddata/swiftpm && \
+	cp Packages/BoazKit/Package.resolved $(PROJECT)/project.xcworkspace/xcshareddata/swiftpm/ && \
 	$(XCB) -scheme Boaz-macOS -configuration Debug -destination 'generic/platform=macOS' $(UNSIGNED) build
 
 build: kit ios mac ## Build BoazKit and both apps (what CI runs)

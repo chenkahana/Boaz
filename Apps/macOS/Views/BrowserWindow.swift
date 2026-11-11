@@ -50,7 +50,6 @@ struct BrowserWindow: View {
         .navigationTitle(windowTitle)
         .preferredColorScheme(browser.isIncognito ? .dark : nil)
         .environment(\.isPrivateBrowsing, browser.isIncognito)
-        .sheet(item: $browser.themeEditor) { ThemeEditor(spaceID: $0.id).environment(model) }
         .sheet(item: $browser.spaceEditor) { request in MacSpaceEditor(request: request).environment(model).environment(browser) }
         .sheet(isPresented: $browser.showImport) {
             ArcImportView(store: model.store,
@@ -59,6 +58,28 @@ struct BrowserWindow: View {
         .sheet(item: $browser.onboarding) { OnboardingView(start: $0).environment(model).environment(browser) }
         .sheet(item: $browser.rename) { request in RenameSheet(request: request).environment(browser) }
         .sheet(item: $browser.ai) { MacAISheet(request: $0).environment(model).environment(browser) }
+        .sheet(item: $browser.extensionSheet) { sheet in
+            Group {
+                switch sheet {
+                case .manage: ExtensionsManagerView()
+                case .confirm(let pending): ConfirmExtensionView(pending: pending)
+                case .webStore(let text):
+                    #if DIRECT_DISTRIBUTION
+                    WebStoreInstallView(text: text)
+                    #else
+                    let _ = text
+                    #endif
+                }
+            }
+            .environment(browser)
+        }
+        .confirmationDialog("Delete \"\(browser.spaceToDelete?.title ?? "")\"?",
+                            isPresented: Binding { browser.spaceToDelete != nil } set: { if !$0 { browser.spaceToDelete = nil } },
+                            titleVisibility: .visible, presenting: browser.spaceToDelete) { space in
+            Button("Delete Space", role: .destructive) { model.deleteSpace(space) }
+        } message: { space in
+            Text(model.deletionMessage(for: space))
+        }
         .onAppear { model.registerOpenWindow(openWindow) }
         .onChange(of: browser.currentSpaceID) { if !browser.isIncognito { model.saveOpenWindows() } }
         .onChange(of: browser.activeTabID) { if !browser.isIncognito { model.saveOpenWindows() } }
@@ -138,9 +159,7 @@ struct WindowBackdrop: View {
                             .mask(LinearGradient(colors: [.black, .black.opacity(0.78)], startPoint: .top, endPoint: .bottom))
                             .transition(.opacity)
                     }
-                    // Soft light from the top-left corner, like Arc's vibrant themes.
-                    RadialGradient(colors: [.white.opacity(scheme == .dark ? 0.06 : 0.35), .clear],
-                                   center: .topLeading, startRadius: 0, endRadius: 520)
+                    if style.lightStreak { LightStreak() }
                 }
             }
         }
@@ -150,6 +169,18 @@ struct WindowBackdrop: View {
     }
 
     private var site: SiteColor? { browser.activeSiteColor(enabled: tintWithSiteColors) }
+}
+
+/// Soft light from the top-left corner, like Arc's vibrant themes; a theme option, off by default.
+struct LightStreak: View {
+    @Environment(\.colorScheme) private var scheme
+    var radius: CGFloat = 520
+
+    var body: some View {
+        RadialGradient(colors: [.white.opacity(scheme == .dark ? 0.06 : 0.35), .clear],
+                       center: .topLeading, startRadius: 0, endRadius: radius)
+            .allowsHitTesting(false)
+    }
 }
 
 /// Hover the left edge with the sidebar hidden to slide it out over the content.
@@ -241,6 +272,9 @@ private struct ContentArea: View {
                     }
                 }
             }
+            #if DIRECT_DISTRIBUTION
+            WebStoreBanner().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            #endif
             if let peek = browser.peek {
                 PeekOverlay(peek: peek)
                     .transition(reduceMotion ? .opacity : .scale(scale: 0.9).combined(with: .opacity))
@@ -345,7 +379,7 @@ private struct SplitDivider: View {
     }
 }
 
-/// Floating preview for ⌘-clicked links and links that would leave a pinned tab.
+/// Floating preview for links that would leave a pinned tab.
 private struct PeekOverlay: View {
     @Environment(BrowserState.self) private var browser
     let peek: BrowserState.Peek
@@ -543,28 +577,30 @@ private struct BlurredBackdrop: NSViewRepresentable {
     }
 }
 
-/// The shared space editor, saving through the store; a new space opens as soon as it's created.
+/// Customize Space (the shared space editor), saving through the store; a new space opens as soon as it's created.
 private struct MacSpaceEditor: View {
     @Environment(MacModel.self) private var model
     @Environment(BrowserState.self) private var browser
     let request: BrowserState.SpaceEditorRequest
 
     var body: some View {
-        if let id = request.spaceID, let space = model.space(id) {
-            SpaceEditor(mode: .edit(space, canDelete: model.sidebar.spaces.filter { $0.profileID == space.profileID }.count > 1)) {
-                title, icon, palette in
-                try? model.store?.updateSpace(space.id, title: title, icon: icon, palette: palette)
-            } onDelete: {
-                if browser.spaceID == space.id, let other = model.sidebar.spaces.first(where: { $0.id != space.id }) {
-                    browser.switchSpace(to: other.id)
+        if let id = request.spaceID {
+            if let space = model.space(id) {
+                SpaceEditor(mode: .edit(space, canDelete: model.sidebar.spaces.count > 1),
+                            deleteMessage: model.deletionMessage(for: space)) { title, icon, themeJSON in
+                    try? model.store?.updateSpace(space.id, title: title, icon: icon, themeJSON: themeJSON)
+                } onDelete: {
+                    model.deleteSpace(space)
                 }
-                try? model.store?.deleteSpace(space.id)
+            } else {
+                // The space was deleted while its editor was open, here or on another Mac: there's nothing to edit.
+                Color.clear.frame(width: 1, height: 1).onAppear { browser.spaceEditor = nil }
             }
         } else if let profileID = browser.currentSpace?.profileID ?? model.sidebar.profiles.first(where: \.isDefault)?.id
                     ?? model.sidebar.profiles.first?.id {
-            SpaceEditor(mode: .create) { title, icon, palette in
-                guard let space = try? model.store?.createSpace(title: title, icon: icon, palette: palette ?? .defaultPalette,
-                                                                profileID: profileID) else { return }
+            SpaceEditor(mode: .create) { title, icon, themeJSON in
+                guard let space = try? model.store?.createSpace(title: title, icon: icon, palette: .defaultPalette,
+                                                                themeJSON: themeJSON, profileID: profileID) else { return }
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(150))
                     browser.switchSpace(to: space.id)

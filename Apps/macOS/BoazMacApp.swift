@@ -20,7 +20,12 @@ struct BoazMacApp: App {
         .handlesExternalEvents(matching: [])
         // The app reopens its main windows itself (`MacModel.SavedWindow`), whatever the system setting.
         .restorationBehavior(.disabled)
-        .commands { BoazCommands(model: model) }
+        .commands {
+            BoazCommands(model: model)
+            #if SPARKLE
+            UpdateCommands()
+            #endif
+        }
 
         WindowGroup("Incognito", id: "incognito") {
             BrowserWindow(incognito: true)
@@ -156,13 +161,15 @@ struct BoazCommands: Commands {
         }
         CommandGroup(before: .toolbar) {
             Button("Reload Page") { browser?.reload() }.keyboardShortcut(key(.reload)).disabled(browser?.activeTab == nil)
+            Button("Reload Ignoring Cache and Cookies") { browser?.hardReload() }
+                .keyboardShortcut(key(.hardReload)).disabled(browser?.activeTab == nil)
             Button("Back") { browser?.goBack() }.keyboardShortcut(key(.goBack)).disabled(browser?.activeTab == nil)
             Button("Forward") { browser?.goForward() }.keyboardShortcut(key(.goForward)).disabled(browser?.activeTab == nil)
             Divider()
             Button(browser?.split == nil ? "Add Split View" : "Close Split View") { browser?.toggleSplit() }
                 .keyboardShortcut(key(.addSplitView)).disabled(browser?.activeTab == nil)
-            Button("Edit Space Theme…") {
-                if let browser, let id = browser.spaceID { browser.themeEditor = .init(id: id) }
+            Button("Customize Space…") {
+                if let browser, let id = browser.spaceID { browser.spaceEditor = .init(spaceID: id) }
             }
             .disabled(browser == nil || browser?.isIncognito == true)
             Button("Archive") { openWindow(id: "archive") }.keyboardShortcut(key(.showArchive))
@@ -190,6 +197,18 @@ struct BoazCommands: Commands {
                     .keyboardShortcut(KeyEquivalent(Character("\(number)")), modifiers: .command)
                     .disabled(number > favoriteCount)
             }
+        }
+
+        CommandMenu("Extensions") {
+            Button("Manage Extensions…") { browser?.extensionSheet = .manage }.disabled(browser == nil || browser?.isIncognito == true)
+            Divider()
+            #if DIRECT_DISTRIBUTION
+            Button("Install from Chrome Web Store…") { browser?.extensionSheet = .webStore() }
+                .disabled(browser == nil || browser?.isIncognito == true)
+            #endif
+            Button("Load Unpacked…") { browser?.chooseExtension(folder: true) }.disabled(browser == nil || browser?.isIncognito == true)
+            Button("Install from File…") { browser?.chooseExtension(folder: false) }
+                .disabled(browser == nil || browser?.isIncognito == true)
         }
 
         CommandMenu("Spaces") {

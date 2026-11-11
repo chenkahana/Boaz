@@ -29,6 +29,8 @@ collect, see or sell any of it.
 - What you type in the address bar goes to the search engine you choose in Settings (DuckDuckGo by default) only
   when you search. Suggestions while typing come from your own history on the device.
 - Site icons are fetched directly from each site, not through a third-party icon service.
+- On Mac, installing an extension from the Chrome Web Store downloads it from Google, as Chrome does. Boaz contacts
+  Google only when you install one.
 - Boaz blocks known ad and tracking requests and, on iPhone, can decline non-essential cookies on cookie banners.
 
 ## Device permissions

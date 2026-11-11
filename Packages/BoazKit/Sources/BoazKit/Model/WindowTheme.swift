@@ -42,12 +42,20 @@ public struct WindowTheme: Codable, Hashable, Sendable {
     /// Set when the theme pins its space to one appearance: Arc's `single` backgrounds (and `windowAppearance`
     /// "light"/"dark") ignore the system setting. Nil follows the system.
     public var fixedAppearance: String?
+    /// Boaz's own options (`boazGrain`, `boazLightStreak`): the grain texture and the light from the top corner
+    /// show only when a theme turns them on.
+    public var showsGrain = false
+    public var showsLightStreak = false
 
     enum CodingKeys: String, CodingKey { case semanticColorPalette, primaryColorPalette }
 
     public static func decode(_ data: Data) throws -> WindowTheme {
         var theme = try JSONDecoder().decode(WindowTheme.self, from: data)
-        if let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] { theme.readBackground(root) }
+        if let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            theme.readBackground(root)
+            theme.showsGrain = root["boazGrain"] as? Bool ?? false
+            theme.showsLightStreak = root["boazLightStreak"] as? Bool ?? false
+        }
         return theme
     }
 
@@ -70,8 +78,9 @@ public struct WindowTheme: Codable, Hashable, Sendable {
             lightBackdrop = (both["light"] as? [String: Any]).flatMap(Self.backdrop)
             darkBackdrop = (both["dark"] as? [String: Any]).flatMap(Self.backdrop)
         }
-        if let appearance = root["windowAppearance"] as? String, ["light", "dark"].contains(appearance) {
-            fixedAppearance = appearance
+        // Boaz writes "system" to follow the system again, even over a single backdrop.
+        if let appearance = root["windowAppearance"] as? String, ["light", "dark", "system"].contains(appearance) {
+            fixedAppearance = appearance == "system" ? nil : appearance
         }
     }
 
