@@ -22,6 +22,9 @@ All notable changes to Boaz are recorded here. The format follows
 - iPhone: a pinned tab, or a tab open on another device, picked from search ("Switch to Tab") opens as one of the
   phone's tabs, or switches to the phone's tab already showing that address. Before, the pinned tab itself opened:
   it showed, but was missing from the tab fan, and it changed the Mac's pinned tab.
+- Mac: a page that failed to load because the connection was down or dropped (after the Mac wakes, or on a Wi-Fi
+  change) loads again on its own: once a second later, then whenever the network comes back, Boaz comes forward or
+  the Mac wakes. A failure isn't shown while that first retry is pending.
 
 ## [0.2.3] - 2026-11-11
 
