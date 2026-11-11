@@ -6,6 +6,12 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Mac: a page that failed to load because the connection was down or dropped (after the Mac wakes, or on a Wi-Fi
+  change) loads again on its own: once a second later, then whenever the network comes back, Boaz comes forward or
+  the Mac wakes. A failure isn't shown while that first retry is pending.
+
 ## [0.2.3] - 2026-11-11
 
 ### Changed
