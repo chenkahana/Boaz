@@ -82,11 +82,23 @@ sequenceDiagram
 Both apps render pages with WebKit. Shared glue in `Apps/Browser` handles:
 
 - **Content blocking:** EasyList compiled into `WKContentRuleList`s, on by default for every page.
-- **Downloads**, **favicons** (fetched from each site directly) and **site colors** for tab tinting.
+- **Downloads**, **favicons** (fetched from each site directly) and **site colors** for the iPhone's tinted
+  edges.
 
 Platform specifics live in each app: on iPhone, cookie-banner declining, the reader view, pull to refresh and the
 navigation policy; on Mac, the sidebar window, split view, command bar, rebindable shortcuts and Chrome extensions
 ([extensions.md](extensions.md)).
+
+**Picture in Picture** (`Apps/Browser/PictureInPicture.swift`). A script in every frame, in its own
+`WKContentWorld`, reports each frame's best video (playing, at least 120×68 pt, not a muted backdrop loop; the last
+played first, then sound, then size). Floating calls into that frame through the page's `WKWebView`
+(`backingWebView`, read through reflection), which WebKit counts as a user action, so embedded players in other
+sites' frames float too. Each app floats a playing video when its tab leaves view or the app or window does, and
+brings back what it floated when the user returns. On the Mac, WebKit floats video only with the preference
+`_allowsPictureInPictureMediaPlayback`, which has no public setter: only the DMG build (`DIRECT_DISTRIBUTION`) sets it,
+so the App Store build has no Picture in Picture and no menu item or setting for it. If a WebKit update renames that
+preference or the `WKWebView` property, Picture in Picture stops and nothing else does. The iPhone app declares the
+`audio` background mode, which iOS needs for a video to keep playing, or float, once the app is left.
 
 **Passkeys.** WebKit handles WebAuthn (`navigator.credentials.create` and `get`) itself and shows the system's
 passkey sheet, so neither app has passkey code of its own. For any site beyond the app's associated domains, the

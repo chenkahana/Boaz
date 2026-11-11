@@ -168,6 +168,10 @@ struct BoazCommands: Commands {
             Divider()
             Button(browser?.split == nil ? "Add Split View" : "Close Split View") { browser?.toggleSplit() }
                 .keyboardShortcut(key(.addSplitView)).disabled(browser?.activeTab == nil)
+            if PictureInPicture.isSupported {
+                Button("Picture in Picture") { browser?.togglePictureInPicture() }
+                    .keyboardShortcut(key(.pictureInPicture)).disabled(browser?.activeTab == nil)
+            }
             Button("Customize Space…") {
                 if let browser, let id = browser.spaceID { browser.spaceEditor = .init(spaceID: id) }
             }

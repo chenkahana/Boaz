@@ -94,8 +94,8 @@ and error states look intentional. Check RTL text too (for example ynet.co.il).
       opens it, and "Open in Boaz" moves the page into the main window.
 - [ ] **Import**: from Arc (use a copy of an Arc data folder, not your own), and from Chrome, Brave, Edge and Safari
       bookmarks.
-- [ ] **Window**: the sidebar is never see-through to other apps' windows. When a dark site tints the sidebar, the
-      selected row stays readable.
+- [ ] **Window**: the sidebar is never see-through to other apps' windows, and keeps the space's theme on every
+      site, dark or light; the selected row stays readable on every theme.
 
 ## 3. Behavior that must hold
 

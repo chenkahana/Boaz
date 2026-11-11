@@ -108,14 +108,6 @@ enum PagePopups {
     }
 }
 
-/// WebPage keeps its WKWebView to itself; Boaz needs it to host pop-ups and to tell WebKit's extension APIs which tab
-/// a script runs in. It's read through reflection (a stored property, no private selector): if WebKit renames or
-/// drops the property, this returns nil, new windows keep their old placement and extensions lose per-tab scripting.
-/// docs/architecture.md lists what to check when the SDK changes.
-func backingWebView(of page: WebPage) -> WKWebView? {
-    Mirror(reflecting: page).children.lazy.compactMap { $0.value as? WKWebView }.first
-}
-
 /// The opener's UI delegate: makes pop-up views and forwards everything else to WebPage's delegate, which it keeps.
 private final class PopupOpener: NSObject, WKUIDelegate {
     nonisolated(unsafe) private let original: NSObject

@@ -8,10 +8,22 @@ All notable changes to Boaz are recorded here. The format follows
 
 ### Added
 
+- Mac (DMG) and iPhone: Picture in Picture. A playing video floats when you leave it (another tab or space; on Mac
+  a minimized or hidden window, another desktop or a full-screen app; on iPhone, leaving Boaz) and comes back when
+  you return; bringing it back from its window shows its tab. It works for players embedded from other sites, never
+  takes over another app's Picture in Picture, and floats a site's video on its own only where the site allows it.
+  View › Picture in Picture (⌥⌘P) on the Mac and the page menu on iPhone float the video on request. Settings ›
+  General turns the automatic part off on the Mac. The App Store build for Mac doesn't have it: WebKit offers it there
+  only through a setting the App Store doesn't allow.
+- iPhone: a video keeps playing after you leave Boaz.
 - iPhone: ready to be the default browser once Apple grants the entitlement it needs (off until then;
   `web-browser.yml`). The app declares `http` and `https`, and links from other apps open in a new tab.
 
 ### Changed
+
+- Mac: the window keeps the space's theme on every site. The sidebar no longer takes on the color of the page, and
+  Settings › General › Tint chrome with site colors is gone; Customize Space sets the window's colors. iPhone still
+  tints its edges to match the page.
 
 - Mac: a link a page opens in a new window (`target="_blank"`, `window.open`) opens in a tab right below the page,
   rather than at the top of Today.

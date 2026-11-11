@@ -3,10 +3,11 @@ import WebKit
 /// Which live pages a browser closes to stay within its page limit: the least recently used first, never one that's
 /// doing something the user would notice stopping.
 enum PageResidency {
-    /// Playing media, using the camera or microphone, or in full screen.
+    /// Playing media, floating a video in Picture in Picture, using the camera or microphone, or in full screen.
     static func isBusy(_ page: WebPage) async -> Bool {
         if page.cameraCaptureState != .none || page.microphoneCaptureState != .none
-            || page.fullscreenState != .notInFullscreen { return true }
+            || page.fullscreenState != .notInFullscreen
+            || PictureInPicture.controller(of: page)?.isFloating == true { return true }
         return await page.mediaPlaybackState() == .playing
     }
 

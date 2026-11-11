@@ -31,9 +31,6 @@ struct TabPane: View {
         .task(id: ObjectIdentifier(page)) { await track(page) }
         .onChange(of: page.url) { browser.didChangeURL(tab.id) }
         .onChange(of: page.title) { browser.didChangeTitle(tab.id) }
-        .onAppear { browser.updateSiteColor(tab.id, page: page) }
-        .onChange(of: page.url) { browser.updateSiteColor(tab.id, page: page) }
-        .onChange(of: page.isLoading) { browser.updateSiteColor(tab.id, page: page) }
         .onChange(of: page.isLoading) { browser.pageDidFinishLoading(page: page) }
         // A first load can settle before `track` subscribes.
         .onChange(of: page.isLoading) { browser.didChangeURL(tab.id) }
@@ -74,6 +71,9 @@ struct TabPane: View {
                 return
             } catch {
                 failure = LoadFailure(error)
+                if case WebPage.NavigationError.webContentProcessTerminated = error {
+                    PictureInPicture.controller(of: page)?.pageDidReset()
+                }
                 // Never spin if resubscribing fails straight away.
                 try? await Task.sleep(for: .milliseconds(50))
             }

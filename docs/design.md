@@ -22,13 +22,14 @@ The Mac sidebar and its tab list follow these rules. The tokens live in `Sidebar
 
 ## Contrast
 
-- Text and icons read at 4.5:1 (WCAG AA) or better, in Light and Dark, on every space theme and site color, including
-  over the hover and selection fills. Primary text is `SpaceStyle.foreground`; dimmer text and icons use the
-  secondary foreground style (`SpaceStyle.secondaryOnFills`, `SiteColor.secondary`), never a lowered opacity.
+- Text and icons read at 4.5:1 (WCAG AA) or better, in Light and Dark, on every space theme, including over the hover
+  and selection fills. Primary text is `SpaceStyle.foreground`; dimmer text and icons use the secondary foreground
+  style (`SpaceStyle.secondaryOnFills`), never a lowered opacity.
 - Disabled controls are the only exception.
 
 ## Backdrop
 
+- The window wears the space's theme (Customize Space) and nothing else: pages never tint the sidebar.
 - Grain and the light streak from the top corner are theme options (Customize Space), off by default.
 
 ## Motion

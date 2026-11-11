@@ -1,7 +1,7 @@
 import SwiftUI
 import WebKit
 
-/// A site's own color, which the browser chrome takes on. Comes from the page's `theme-color` for the
+/// A site's own color, which the iPhone's chrome takes on. Comes from the page's `theme-color` for the
 /// current appearance, else the background of whatever spans the top of the viewport: a header bar, or the page.
 struct SiteColor: Hashable {
     let red: Double
@@ -24,51 +24,6 @@ struct SiteColor: Hashable {
 
     /// Text and icons drawn on the color.
     var foreground: Color { isLight ? .black.opacity(0.82) : .white }
-
-    /// Secondary text and icons on the color: a step from `foreground` toward it, kept at 4.5:1 (WCAG AA) on the
-    /// color and under a hover or selection fill (the label color at up to 12%).
-    var secondary: Color {
-        let environment = EnvironmentValues()
-        let background = color.resolve(in: environment)
-        let text = Contrast.over(foreground.resolve(in: environment), background)
-        let label: Color.Resolved = isLight ? .init(red: 0, green: 0, blue: 0, opacity: 0.12)
-            : .init(red: 1, green: 1, blue: 1, opacity: 0.12)
-        return Color(Contrast.legible(Contrast.mix(text, background, 0.4), on: [background, Contrast.over(label, background)]))
-    }
-
-    /// Plain white pages are most of the web; tinting with them would only wash out the space.
-    private var isPlainWhite: Bool { luminance > 0.88 && max(red, green, blue) - min(red, green, blue) < 0.06 }
-
-    /// The fade between colors on tab switches and navigations.
-    static func fade(reduceMotion: Bool) -> Animation { .easeInOut(duration: reduceMotion ? 0.15 : 0.45) }
-
-    // MARK: Sampling
-
-    /// Last color seen per host, so a tab arriving at a known site is tinted before its page finishes loading.
-    /// The 300 most recently sampled hosts.
-    private static var cache: [String: SiteColor] = [:]
-    private static var cacheRecency: [String] = []
-
-    static func cached(for url: URL?) -> SiteColor? { url?.host().flatMap { cache[$0] } }
-
-    /// Reads the color from a loaded page; `nil` when it has none worth tinting with.
-    static func sample(_ page: WebPage) async -> SiteColor? {
-        guard let host = page.url?.host(),
-              let values = try? await page.callJavaScript(SiteEdges.sampler + "return sampleEdges();",
-                                                         contentWorld: .defaultClient) as? [NSNumber],
-              let edges = SiteEdges(values.map(\.doubleValue))
-        else { return nil }
-        let usable = edges.top.isPlainWhite ? nil : edges.top
-        cacheRecency.removeAll { $0 == host }
-        if let usable {
-            cache[host] = usable
-            cacheRecency.append(host)
-            if cacheRecency.count > 300 { cache[cacheRecency.removeFirst()] = nil }
-        } else {
-            cache[host] = nil
-        }
-        return usable
-    }
 }
 
 /// The page's own background color along each edge of the viewport, which the screen's edges around the page

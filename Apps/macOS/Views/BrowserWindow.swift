@@ -139,8 +139,6 @@ private struct AlternateShortcuts: View {
 struct WindowBackdrop: View {
     @Environment(BrowserState.self) private var browser
     @Environment(\.colorScheme) private var scheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
     /// What the translucent gradient blurs: other windows, or for the peeking sidebar the page beneath it.
     var blending: NSVisualEffectView.BlendingMode = .behindWindow
 
@@ -154,22 +152,13 @@ struct WindowBackdrop: View {
                 ZStack {
                     style.gradient
                     if style.grain > 0 { GrainOverlay(amount: style.grain) }
-                    if let site {
-                        // The site's color takes over, thinning toward the bottom so a little of the space shows through.
-                        site.color
-                            .mask(LinearGradient(colors: [.black, .black.opacity(0.78)], startPoint: .top, endPoint: .bottom))
-                            .transition(.opacity)
-                    }
                     if style.lightStreak { LightStreak() }
                 }
             }
         }
         .background(BlurredBackdrop(blending: blending))
         .animation(.easeInOut(duration: 0.45), value: browser.currentSpace)
-        .animation(SiteColor.fade(reduceMotion: reduceMotion), value: site)
     }
-
-    private var site: SiteColor? { browser.activeSiteColor(enabled: tintWithSiteColors) }
 }
 
 /// Soft light from the top-left corner, like Arc's vibrant themes; a theme option, off by default.
