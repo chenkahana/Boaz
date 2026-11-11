@@ -144,7 +144,8 @@ final class BrowserState {
             let handled = MainActor.assumeIsolated {
                 guard let self, let window = self.window, event.window === window, window.attachedSheet == nil,
                       self.model.keyBindings.shortcut(.toggleSidebar)?.matches(event) == true else { return false }
-                self.toggleSidebar()
+                // Held down, it folds once; the repeats are swallowed so the menu doesn't fold it again.
+                if !event.isARepeat { self.toggleSidebar() }
                 return true
             }
             return handled ? nil : event

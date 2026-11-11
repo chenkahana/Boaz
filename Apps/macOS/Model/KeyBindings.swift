@@ -133,8 +133,13 @@ extension KeyboardShortcut {
         if flags.contains(.shift) { mods.insert(.shift) }
         if flags.contains(.option) { mods.insert(.option) }
         if flags.contains(.control) { mods.insert(.control) }
-        guard mods == modifiers, let typed = event.charactersIgnoringModifiers?.lowercased() else { return false }
-        return typed == String(key.character).lowercased()
+        guard mods == modifiers else { return false }
+        let key = String(key.character).lowercased()
+        guard let typed = event.charactersIgnoringModifiers?.lowercased() else { return false }
+        // A non-Latin layout (Hebrew, Russian…) types another letter; there the key's ANSI position decides. A Latin
+        // layout such as Dvorak goes by the letter, as the menu bar does.
+        if typed.unicodeScalars.allSatisfy(\.isASCII) { return typed == key }
+        return KeyBindings.keyName(forKeyCode: Int(event.keyCode)) == key
     }
 }
 
@@ -261,7 +266,7 @@ final class KeyBindings {
     }
 
     /// ANSI virtual key codes for the keys a browser shortcut plausibly uses.
-    private static func keyName(forKeyCode code: Int) -> String? {
+    static func keyName(forKeyCode code: Int) -> String? {
         let table: [Int: String] = [
             0: "a", 1: "s", 2: "d", 3: "f", 4: "h", 5: "g", 6: "z", 7: "x", 8: "c", 9: "v", 11: "b", 12: "q",
             13: "w", 14: "e", 15: "r", 16: "y", 17: "t", 18: "1", 19: "2", 20: "3", 21: "4", 22: "6", 23: "5",
