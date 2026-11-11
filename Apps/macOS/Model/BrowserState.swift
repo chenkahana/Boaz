@@ -37,8 +37,12 @@ final class BrowserState {
     var currentSpaceID: String?
     /// Direction the space column slides in from on the next switch.
     var spaceEdge: Edge = .trailing
-    var activeTabID: String?
-    var split: Split?
+    var activeTabID: String? {
+        didSet { if oldValue != activeTabID { pagesInViewChanged(from: Self.pagesInView(oldValue, split)) } }
+    }
+    var split: Split? {
+        didSet { if oldValue != split { pagesInViewChanged(from: Self.pagesInView(activeTabID, oldValue)) } }
+    }
     var peek: Peek?
     var commandMode: CommandMode? {
         didSet {
@@ -78,6 +82,8 @@ final class BrowserState {
     @ObservationIgnored private let privateStore: WKWebsiteDataStore?
     @ObservationIgnored private var keyObserver: NSObjectProtocol?
     @ObservationIgnored private var closeObserver: NSObjectProtocol?
+    @ObservationIgnored private var occlusionObserver: NSObjectProtocol?
+    @ObservationIgnored private var windowIsVisible = true
     @ObservationIgnored private var typeAheadMonitor: Any?
     @ObservationIgnored private var sidebarKeyMonitor: Any?
     /// What was typed after the command bar opened but before its field had the keyboard.
@@ -94,6 +100,7 @@ final class BrowserState {
     isolated deinit {
         if let keyObserver { NotificationCenter.default.removeObserver(keyObserver) }
         if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
+        if let occlusionObserver { NotificationCenter.default.removeObserver(occlusionObserver) }
         if let typeAheadMonitor { NSEvent.removeMonitor(typeAheadMonitor) }
         if let sidebarKeyMonitor { NSEvent.removeMonitor(sidebarKeyMonitor) }
     }
@@ -125,9 +132,15 @@ final class BrowserState {
                                                                queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
+                self.windowWillCloseForPictureInPicture()
                 self.model.windowWillClose(self)
                 Extensions.shared.didCloseWindow(self)
             }
+        }
+        if let occlusionObserver { NotificationCenter.default.removeObserver(occlusionObserver) }
+        occlusionObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didChangeOcclusionStateNotification, object: window, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.windowVisibilityChanged() }
         }
         model.register(self)
         watchSidebarShortcut()
@@ -230,7 +243,58 @@ final class BrowserState {
         }
     }
 
-    private var pagesInView: Set<String> { Set([split?.leading, split?.trailing, activeTabID].compactMap(\.self)) }
+    private var pagesInView: Set<String> { Self.pagesInView(activeTabID, split) }
+    private static func pagesInView(_ active: String?, _ split: Split?) -> Set<String> {
+        Set([split?.leading, split?.trailing, active].compactMap(\.self))
+    }
+
+    // MARK: Picture in Picture
+
+    /// A video still playing in a tab the window stops showing floats in Picture in Picture; one Boaz floated returns
+    /// to its tab when the tab shows again. Moving between the tabs of a split keeps both in view, so nothing floats.
+    private func pagesInViewChanged(from previous: Set<String>) {
+        guard windowIsVisible else { return }
+        let now = pagesInView
+        for id in previous.subtracting(now) { pictureInPicture(id)?.floatOnLeaving() }
+        for id in now.subtracting(previous) { pictureInPicture(id)?.returnFromLeaving() }
+    }
+
+    /// The window was hidden, minimized or left behind on another desktop, or came back: its videos float or return.
+    private func windowVisibilityChanged() {
+        guard let window else { return }
+        let visible = window.occlusionState.contains(.visible) && !window.isMiniaturized
+        guard visible != windowIsVisible else { return }
+        windowIsVisible = visible
+        for id in pagesInView {
+            if visible { pictureInPicture(id)?.returnFromLeaving() } else { pictureInPicture(id)?.floatOnLeaving() }
+        }
+    }
+
+    /// A closing window's videos go with it: none floats as it orders out.
+    private func windowWillCloseForPictureInPicture() {
+        windowIsVisible = false
+        if let occlusionObserver { NotificationCenter.default.removeObserver(occlusionObserver) }
+        occlusionObserver = nil
+        for id in pages.keys { pictureInPicture(id)?.detach() }
+    }
+
+    private func pictureInPicture(_ tabID: String) -> PictureInPicture? {
+        pages[tabID].flatMap(PictureInPicture.controller(of:))
+    }
+
+    /// Floats the active tab's video, or brings it back.
+    func togglePictureInPicture() {
+        activePage.flatMap(PictureInPicture.controller(of:))?.toggle()
+    }
+
+    /// The user brought a floating video back from its window: its window and tab come forward.
+    private func showTabReturningFromPictureInPicture(_ id: String) {
+        guard let tab = tab(id), let window else { return }
+        if window.isMiniaturized { window.deminiaturize(nil) }
+        NSApp.activate()
+        window.makeKeyAndOrderFront(nil)
+        if !pagesInView.contains(id) { activate(tab) }
+    }
 
     func existingPage(for tabID: String) -> WebPage? { pages[tabID] }
 
@@ -240,8 +304,13 @@ final class BrowserState {
         if !isIncognito { configuration.webExtensionController = Extensions.shared.controller(profileID: profileID) }
         configuration.applicationNameForUserAgent = "Version/26.0 Safari/605.1.15"
         model.applyContentBlocking(to: &configuration)
+        let pictureInPicture = PictureInPicture.install(in: &configuration)
         let page = WebPage(configuration: configuration, navigationDecider: NavigationRouter(browser: self, context: context),
                            dialogPresenter: MacDialogs())
+        pictureInPicture.attach(page)
+        if case .tab(let id) = context {
+            pictureInPicture.onRestore = { [weak self] in self?.showTabReturningFromPictureInPicture(id) }
+        }
         #if DEBUG
         page.isInspectable = true
         #endif
@@ -268,6 +337,7 @@ final class BrowserState {
     }
 
     func unload(_ tabID: String) {
+        pictureInPicture(tabID)?.detach()
         pages[tabID] = nil
         loadFailures[tabID] = nil
         savedURLs[tabID] = nil
@@ -722,6 +792,9 @@ final class BrowserState {
             }) {
                 pages[tab.id] = peek.page
                 recency.append(tab.id)
+                PictureInPicture.controller(of: peek.page)?.onRestore = { [weak browser = self] in
+                    browser?.showTabReturningFromPictureInPicture(tab.id)
+                }
                 activate(tab)
             }
         }

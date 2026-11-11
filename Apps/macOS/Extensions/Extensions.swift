@@ -421,8 +421,3 @@ extension Extensions: WKWebExtensionControllerDelegate {
     }
 }
 
-/// WebPage keeps its WKWebView to itself, and WebKit's extension APIs need it to tell which tab a script runs in.
-/// It's read through reflection: if WebKit renames the property, tabs still work, without per-tab scripting.
-func backingWebView(of page: WebPage) -> WKWebView? {
-    Mirror(reflecting: page).children.lazy.compactMap { $0.value as? WKWebView }.first
-}

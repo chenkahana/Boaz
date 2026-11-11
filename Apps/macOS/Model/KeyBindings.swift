@@ -6,7 +6,7 @@ import SwiftUI
 enum BrowserCommand: String, CaseIterable {
     case newTab, openLocation, closeTab, reopenClosedTab, pinTab, toggleSidebar, copyURL
     case reload, hardReload, goBack, goForward, find, nextTab, previousTab, nextSpace, previousSpace
-    case addSplitView, newWindow, newIncognitoWindow, newLittleWindow, showArchive, newSpace
+    case addSplitView, newWindow, newIncognitoWindow, newLittleWindow, showArchive, newSpace, pictureInPicture
 
     var arcIDs: [String] {
         switch self {
@@ -32,6 +32,7 @@ enum BrowserCommand: String, CaseIterable {
         case .newLittleWindow: ["newLittleBrowserWindow", "littleBrowser", "showLittleArc"]
         case .showArchive: ["showArchive", "archive", "openLibrary"]
         case .newSpace: ["newSpace"]
+        case .pictureInPicture: ["pictureInPicture", "togglePictureInPicture"]
         }
     }
 
@@ -59,6 +60,7 @@ enum BrowserCommand: String, CaseIterable {
         case .newLittleWindow: KeyboardShortcut("n", modifiers: [.command, .option])
         case .showArchive: KeyboardShortcut("a", modifiers: [.command, .option])
         case .newSpace: nil
+        case .pictureInPicture: KeyboardShortcut("p", modifiers: [.command, .option])
         }
     }
 

@@ -139,6 +139,12 @@ struct PageSettingsPanel: View {
         Button(PageSpeech.shared.isSpeaking ? "Stop Listening" : "Listen to Page",
                systemImage: PageSpeech.shared.isSpeaking ? "stop.circle" : "speaker.wave.2", action: toggleListening)
             .disabled(!PageSpeech.shared.isSpeaking && readableLength < Reader.minimumCharacters)
+        if let pictureInPicture = PictureInPicture.controller(of: page), pictureInPicture.hasVideo {
+            Button(pictureInPicture.isFloating ? "Exit Picture in Picture" : "Picture in Picture",
+                   systemImage: pictureInPicture.isFloating ? "pip.exit" : "pip.enter") {
+                closeThen(pictureInPicture.toggle)
+            }
+        }
         Button("Translate", systemImage: "translate") { closeThen(onTranslate) }
         Button("Print", systemImage: "printer") { closeThen { Task { await PagePrint.present(page) } } }
         if let url = page.url {

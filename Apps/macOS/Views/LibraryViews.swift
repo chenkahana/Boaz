@@ -214,6 +214,7 @@ private struct GeneralSettings: View {
     @AppStorage(Preferences.archiveAfterKey) private var archiveAfter = ArchiveInterval.day.rawValue
     @AppStorage(Preferences.searchEngineKey) private var searchEngine = SearchEngine.duckDuckGo.rawValue
     @AppStorage(Preferences.sidebarTextSizeKey) private var sidebarTextSize = SidebarStyle.defaultTextSize
+    @AppStorage(PictureInPicture.whenLeavingKey) private var pictureInPictureWhenLeaving = true
 
     var body: some View {
         Form {
@@ -229,6 +230,12 @@ private struct GeneralSettings: View {
                     Text("Small").tag(13.0)
                     Text("Medium").tag(14.0)
                     Text("Large").tag(16.0)
+                }
+                if PictureInPicture.isSupported {
+                    Toggle(isOn: $pictureInPictureWhenLeaving) {
+                        Text("Picture in Picture when you leave a video")
+                        Text("A playing video floats when you switch tabs or spaces, or its window is hidden, and comes back when you return.")
+                    }
                 }
             }
             AISettingsSection()

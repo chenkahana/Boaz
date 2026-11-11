@@ -646,6 +646,9 @@ final class MacModel {
     func deleteSpace(_ space: Space) {
         guard let other = sidebar.spaces.first(where: { $0.id != space.id }) else { return }
         let windows = browsers.compactMap(\.browser)
+        // Its pages close before any window leaves it, so a video playing there doesn't float as the window moves on.
+        let tabIDs = sidebar.items.filter { $0.spaceID == space.id && $0.kind == .tab }.map(\.id)
+        for browser in windows { tabIDs.forEach(browser.unload) }
         for browser in windows where browser.spaceID == space.id { browser.switchSpace(to: other.id) }
         do { try store?.deleteSpace(space.id) } catch { showToast("Couldn't delete space: \(error.localizedDescription)") }
     }
