@@ -27,8 +27,13 @@ All notable changes to Boaz are recorded here. The format follows
   to Boaz button on an extension's store page. Boaz shows what an extension asks for before adding it. Toolbar
   buttons sit under the address field, and Manage Extensions… turns them on or off, opens their options or removes
   them. Some Chrome APIs aren't available; see `docs/extensions.md`.
+- Mac: a middle click on a link, or a ⌘-click on a link or a form's button, opens it in a new tab right below the
+  current one and stays on the page; ⌘⇧-click opens it in front.
 
 ### Changed
+
+- Mac: ⌘-click on a link opens it in a background tab rather than a peek. A link that would leave a pinned tab
+  still opens in a peek.
 
 - Mac: a calmer sidebar. The system font at 14 pt (15 pt semibold space title), 32 pt rows on a 4 pt grid, one flat
   selection fill and half of it on hover, with no glow, shadow or border. Favorites are flat tiles that lift only on
@@ -43,7 +48,13 @@ All notable changes to Boaz are recorded here. The format follows
 
 - Mac: switching spaces always shows a tab from the new space: the one last used there, else its most recent tab,
   else an empty New Tab page. A favorite the two spaces share stays open (#37).
-- Mac: ⌘S (or its rebound shortcut) folds and unfolds the sidebar wherever the keyboard focus is, a web page included.
+- Mac: ⌘S (or its rebound shortcut) folds and unfolds the sidebar wherever the keyboard focus is, a web page included,
+  and on a Hebrew or other non-Latin keyboard layout too. Held down, it folds once.
+- Mac: deleting a profile closes its pages on every Mac before removing its site data; a removal that fails is retried
+  at the next launch.
+- Mac: ⇧⌘T no longer loses a closed tab whose space was deleted; it stays in the Archive.
+- Mac: changing a space's color keeps an imported Arc theme's texture, vibrancy and fixed appearance.
+- Mac: deleting the space whose Customize Space sheet is open, here or on another Mac, closes the sheet.
 - Mac: text in Settings reads at 4.5:1 or better in Light and Dark. Values use the label color, and footnotes a
   secondary color stronger than the system's (about 4:1 in Light).
 
