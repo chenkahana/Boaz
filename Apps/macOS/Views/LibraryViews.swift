@@ -227,9 +227,9 @@ private struct GeneralSettings: View {
                     ForEach(SearchEngine.allCases) { Text($0.name).tag($0.rawValue) }
                 }
                 Picker("Sidebar text size", selection: $sidebarTextSize) {
-                    Text("Small").tag(13.0)
-                    Text("Medium").tag(14.0)
-                    Text("Large").tag(16.0)
+                    Text("Small").tag(14.0)
+                    Text("Medium").tag(15.0)
+                    Text("Large").tag(17.0)
                 }
                 if PictureInPicture.isSupported {
                     Toggle(isOn: $pictureInPictureWhenLeaving) {

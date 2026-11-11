@@ -6,6 +6,14 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Mac: favorite tiles take on their icon's main color, and change with it when you add a favorite or a site changes
+  its icon. Black, white and gray icons keep the neutral tile.
+- Mac: the sidebar is roomier. Tab titles are a point larger (Settings › General › Sidebar text size is now 14, 15
+  or 17 pt), rows are a little taller with a small gap between them, and the line above Today and the space buttons
+  at the bottom have more room.
+
 ### Fixed
 
 - Mac: tabs opened on the iPhone no longer show up in the sidebar's Today. Each device keeps its own Today; the

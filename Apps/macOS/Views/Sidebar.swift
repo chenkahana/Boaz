@@ -14,9 +14,11 @@ enum SidebarDrag {
 
 /// The sidebar's type, spacing, fills and motion (docs/design.md).
 enum SidebarStyle {
-    static let rowHeight: CGFloat = 32
-    /// Rows' text size; Settings › General › Sidebar Text Size picks 13, 14 or 16 (`sidebarTextSize`).
-    static let defaultTextSize: CGFloat = 14
+    static let rowHeight: CGFloat = 34
+    /// The gap between rows, so each row's hover and selection fill stands apart.
+    static let rowSpacing: CGFloat = 2
+    /// Rows' text size; Settings › General › Sidebar Text Size picks 14, 15 or 17 (`sidebarTextSize`).
+    static let defaultTextSize: CGFloat = 15
     static func rowFont(size: CGFloat = defaultTextSize, selected: Bool = false) -> Font {
         .system(size: size, weight: selected ? .medium : .regular)
     }
@@ -231,11 +233,14 @@ private struct FavoriteTile: View {
 
     var body: some View {
         let active = browser.activeTabID == tab.id
+        // The icon's own color, once its icon is known; a black, white or gray icon keeps the neutral fill.
+        let color = Favicons.shared.resolved(for: tab.url)?.color
         Button { browser.activate(tab) } label: {
             // Flat at rest; only hovering lifts a tile.
             SiteMonogram(url: tab.url, tint: tint, size: 24)
                 .frame(maxWidth: .infinity).frame(height: 44)
-                .background(active ? SidebarStyle.selection() : SidebarStyle.hover,
+                .background(color.map { $0.opacity(active ? 0.42 : 0.24) }
+                                ?? (active ? SidebarStyle.selection() : SidebarStyle.hover),
                             in: .rect(cornerRadius: MacRadius.tile, style: .continuous))
                 .overlay {
                     if targeted { RoundedRectangle(cornerRadius: MacRadius.tile, style: .continuous).strokeBorder(tint, lineWidth: 2) }
@@ -277,7 +282,7 @@ private struct SpaceColumn: View {
         let today = todayBox.map { model.sidebar.children(of: $0.id) }?
             .filter { $0.kind != .tab || $0.deviceID == nil || $0.deviceID == model.deviceID } ?? []
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: SidebarStyle.rowSpacing) {
                 SpaceHeader(space: space)
                     .dropDestination(for: String.self) { payloads, _ in
                         guard let pinnedBox else { return false }
@@ -390,7 +395,7 @@ private struct TodayDivider: View {
         }
         .padding(.horizontal, 8)
         .frame(height: 24)
-        .padding(.vertical, 4)
+        .padding(.vertical, 8)
         .contentShape(Rectangle())
         .onHover { inside in withAnimation(SidebarStyle.motion) { hovering = inside } }
     }
@@ -442,7 +447,7 @@ struct ItemRow: View {
     @State private var targeted = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: SidebarStyle.rowSpacing) {
             row
             if item.kind == .folder && item.isExpanded {
                 ForEach(model.sidebar.children(of: item.id)) { ItemRow(item: $0, depth: depth + 1, tint: tint) }
@@ -608,7 +613,7 @@ private struct IncognitoColumn: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: SidebarStyle.rowSpacing) {
                 HStack(spacing: 8) {
                     Image(systemName: "eyeglasses")
                     Text("Incognito").font(SidebarStyle.titleFont(size: textSize))
@@ -636,7 +641,7 @@ private struct SidebarBottomBar: View {
             }
             Spacer(minLength: 4)
             if !browser.isIncognito {
-                HStack(spacing: 4) {
+                HStack(spacing: 10) {
                     ForEach(model.sidebar.spaces) { space in SpaceDot(space: space) }
                 }
             }
