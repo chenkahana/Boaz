@@ -97,6 +97,30 @@ turn passkeys on, set `enable: true` and run `make project`, which writes it int
 (the DMG build includes `project.yml`, so it follows). `ASAuthorizationWebBrowserPublicKeyCredentialManager` isn't
 needed: it lists saved passkeys for browsers that draw their own sign-in suggestions.
 
+**Pop-ups.** A sign-in pop-up ("Sign in with Google", Apple or Microsoft) posts its result to `window.opener`, which
+only survives if the pop-up lives in the `WKWebView` WebKit creates for it. `WebPage` has no new-window hook (checked
+through the macOS 27.2 and iOS 27.2 SDKs), so `Apps/Browser/PagePopups.swift` reaches the `WKWebView` behind a tab's
+`WebPage` with `Mirror` (`backingWebView(of:)`, a stored property, no private selector) and puts a UI delegate in
+front of WebPage's own one, forwarding every method it doesn't implement. WebPage creates its WKWebView lazily and
+WebKit asks for a `window.open` view without a navigation decision first, so the delegate goes in on the page's
+first navigation decision, before any of its scripts run. A `window.open` that asks for a size, a position or no
+toolbars (Safari's rule for a window) opens in a sheet, with the opener's configuration as WebKit passes it, so the
+data store (incognito stays in memory), content blockers and extensions carry over. It closes on `window.close()`,
+its close button, or when the opener's view goes. Any other new window (a `target=_blank` link, `window.open`
+without features) opens in a tab below the opener on Mac (a peek for pinned tabs) and in place on iPhone, where a
+site whose pop-ups are blocked gets nothing for the windows its scripts open. WebPage's own delegate doesn't create
+windows, so before this a `window.open` got `null` on both apps and a `target=_blank` link did nothing on iPhone.
+Windows a pop-up opens load in the pop-up.
+
+When the SDK changes, check, on both apps:
+
+- `WebPage` or `WebView` gained a new-window API: switch to it and delete `PagePopups`' delegate.
+- `backingWebView(of:)` still finds the view, and the tab's `uiDelegate` is still a `WebKit.`-prefixed class. If
+  either fails, new windows keep their old placement and the app logs `No pop-up host` once (subsystem
+  `com.chenkahana.boaz`, category `popups`); Mac extensions lose per-tab scripting the same way.
+- JavaScript alert, confirm and prompt, file inputs, camera and microphone prompts and fullscreen still work on a
+  page that has opened a pop-up: those go through the forwarded delegate.
+
 ## iPhone Duo postures
 
 `RootView` picks a layout from the size class and the hinge **state**; the raw hinge angle only drives effects such

@@ -61,6 +61,7 @@ struct RootView: View {
             }
         }
         .tidyAISheets()
+        .sheet(item: $model.popup) { PopupSheet(popup: $0) }
         .fullScreenCover(isPresented: $model.showOnboarding) { OnboardingView() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {

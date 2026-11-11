@@ -40,6 +40,8 @@ final class BrowserState {
     var activeTabID: String?
     var split: Split?
     var peek: Peek?
+    /// A window a page opened as a pop-up, such as a sign-in (`PagePopups`).
+    var popup: PagePopup?
     var commandMode: CommandMode? {
         didSet {
             if commandMode == nil { endTypeAhead() } else if oldValue == nil { beginTypeAhead() }
@@ -302,10 +304,16 @@ final class BrowserState {
 
     /// Link routing: a middle-click or ⌘-click opens the link in a background tab right below this one, ⌘⇧-click in
     /// the foreground; pages that open new windows get a peek when they're pinned (keeps the pinned app in place)
-    /// and otherwise a tab in front, right below theirs, so a page and what it opened stay together.
+    /// and otherwise a tab in front, right below theirs, so a page and what it opened stay together. A `window.open`
+    /// asking for pop-up features opens in a sheet with its opener intact (`PagePopups`).
     func decide(_ action: WebPage.NavigationAction, context: NavigationRouter.Context) -> WKNavigationActionPolicy {
         let opensWindow = action.target == nil
         let downloadRequested = opensWindow && LinkDownloadMenu.takeRequest()
+        // On the page's first navigation, before any script runs (`window.open` asks for its view without a
+        // navigation decision; WebPage makes its WKWebView lazily). A link that opens a window, once allowed, goes to
+        // the pop-up host too, which hands it back to `openWindowAsTab` unless it asked for pop-up features.
+        var hostsPopups = false
+        if case .tab(let id) = context, let page = pages[id] { hostsPopups = hostPopups(on: page, tabID: id) }
         guard let url = action.request.url, url.scheme?.hasPrefix("http") == true else {
             if downloadRequested { model.showToast("Boaz can't download this link") }
             return downloadRequested ? .cancel : .allow
@@ -331,15 +339,28 @@ final class BrowserState {
                 return .cancel
             }
             if opensWindow {
-                if let tab = tab(id), model.isPinned(tab) {
-                    openPeek(url, profileID: tab.profileID)
-                } else {
-                    openTab(url, below: tab(id))
-                }
+                if hostsPopups { return .allow }
+                openWindowAsTab(url, from: id)
                 return .cancel
             }
             return .allow
         }
+    }
+
+    private func openWindowAsTab(_ url: URL, from tabID: String) {
+        if let tab = tab(tabID), model.isPinned(tab) {
+            openPeek(url, profileID: tab.profileID)
+        } else {
+            openTab(url, below: tab(tabID))
+        }
+    }
+
+    private func hostPopups(on page: WebPage, tabID: String) -> Bool {
+        PagePopups.install(on: page, present: { [weak self] in self?.popup = $0 }, dismiss: { [weak self] closed in
+            self?.popup = PagePopups.remaining(after: closed, shown: self?.popup)
+        }, fallback: { [weak self] action in
+            if let url = action.request.url { self?.openWindowAsTab(url, from: tabID) }
+        })
     }
 
     // MARK: Tabs
