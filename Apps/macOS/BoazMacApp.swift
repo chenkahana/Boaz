@@ -161,6 +161,8 @@ struct BoazCommands: Commands {
         }
         CommandGroup(before: .toolbar) {
             Button("Reload Page") { browser?.reload() }.keyboardShortcut(key(.reload)).disabled(browser?.activeTab == nil)
+            Button("Reload Ignoring Cache and Cookies") { browser?.hardReload() }
+                .keyboardShortcut(key(.hardReload)).disabled(browser?.activeTab == nil)
             Button("Back") { browser?.goBack() }.keyboardShortcut(key(.goBack)).disabled(browser?.activeTab == nil)
             Button("Forward") { browser?.goForward() }.keyboardShortcut(key(.goForward)).disabled(browser?.activeTab == nil)
             Divider()

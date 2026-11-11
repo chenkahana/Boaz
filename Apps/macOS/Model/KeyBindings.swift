@@ -5,7 +5,7 @@ import SwiftUI
 /// action (`arcKeyBindingID` in Arc's main menu), so overrides from `StorableKeyBindings.json` map across.
 enum BrowserCommand: String, CaseIterable {
     case newTab, openLocation, closeTab, reopenClosedTab, pinTab, toggleSidebar, copyURL
-    case reload, goBack, goForward, find, nextTab, previousTab, nextSpace, previousSpace
+    case reload, hardReload, goBack, goForward, find, nextTab, previousTab, nextSpace, previousSpace
     case addSplitView, newWindow, newIncognitoWindow, newLittleWindow, showArchive, newSpace
 
     var arcIDs: [String] {
@@ -18,6 +18,7 @@ enum BrowserCommand: String, CaseIterable {
         case .toggleSidebar: ["showSidebar", "toggleSidebar"]
         case .copyURL: ["copyCurrentURL"]
         case .reload: ["reloadPage"]
+        case .hardReload: ["hardReload", "hardReloadPage", "reloadPageIgnoringCache"]
         case .goBack: ["goBack"]
         case .goForward: ["goForward"]
         case .find: ["find"]
@@ -44,6 +45,7 @@ enum BrowserCommand: String, CaseIterable {
         case .toggleSidebar: KeyboardShortcut("s")
         case .copyURL: KeyboardShortcut("c", modifiers: [.command, .shift])
         case .reload: KeyboardShortcut("r")
+        case .hardReload: KeyboardShortcut("r", modifiers: [.command, .shift])
         case .goBack: KeyboardShortcut("[")
         case .goForward: KeyboardShortcut("]")
         case .find: KeyboardShortcut("f")

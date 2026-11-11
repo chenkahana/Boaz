@@ -16,6 +16,8 @@ All notable changes to Boaz are recorded here. The format follows
   color), the Light and Dark background colors, a one- or two-color gradient, the accent, the appearance (System,
   Light or Dark), grain and the light streak, with a live preview in Light and Dark. The theme syncs with the space.
 - Mac: Settings › General › Sidebar text size: Small (13 pt), Medium (14 pt, the default) or Large (16 pt).
+- Mac: View › Reload Ignoring Cache and Cookies (⇧⌘R) clears the current site's cookies and stored data in the tab's
+  profile, and only that site's, then reloads the page from the server.
 
 ### Changed
 

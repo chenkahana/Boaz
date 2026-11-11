@@ -454,6 +454,26 @@ final class BrowserState {
         activePage?.reload(tabURL: activeTabID.flatMap { loadFailures[$0]?.url } ?? activeTab?.url)
     }
 
+    /// ⌘⇧R: forgets the site's cookies and stored data in the tab's profile, then reloads from the server. Only that
+    /// site goes: WebKit keeps website data by registrable domain, so `www.example.com` clears `example.com`'s.
+    func hardReload() {
+        guard let tab = activeTab, let page = activePage else { return }
+        let tabURL = loadFailures[tab.id]?.url ?? tab.url
+        let host = activeURL?.host()?.lowercased()
+        let store = dataStore(profileID: tab.profileID)
+        Task {
+            if let host {
+                let types = WKWebsiteDataStore.allWebsiteDataTypes()
+                let site = await store.dataRecords(ofTypes: types).filter {
+                    let domain = $0.displayName.lowercased()
+                    return host == domain || host.hasSuffix("." + domain)
+                }
+                if !site.isEmpty { await store.removeData(ofTypes: types, for: site) }
+            }
+            page.reload(tabURL: tabURL, fromOrigin: true)
+        }
+    }
+
     func goBack() {
         guard let page = activePage, let item = page.backForwardList.backList.last else { return }
         page.load(item)
