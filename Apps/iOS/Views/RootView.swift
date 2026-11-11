@@ -63,6 +63,8 @@ struct RootView: View {
         .tidyAISheets()
         .fullScreenCover(isPresented: $model.showOnboarding) { OnboardingView() }
         .onChange(of: scenePhase) { _, phase in
+            // Inactive, not background: Picture in Picture can only start while the app is still on screen.
+            if phase != .background { model.sceneDidChange(isActive: phase == .active) }
             if phase == .active {
                 model.reloadSidebar()
                 model.archiveStaleTabs()

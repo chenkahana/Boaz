@@ -30,6 +30,7 @@ final class AppModel {
             guard activeTabID != oldValue else { return }
             // One page never shows in both panes: the other pane takes this pane's tab in trade.
             if activeTabID != nil, activeTabID == otherPaneTabID { otherPaneTabID = oldValue }
+            pagesInViewChanged()
             guard let activeTabID, !incognitoTabs.contains(where: { $0.id == activeTabID }) else { return }
             UserDefaults.standard.set(activeTabID, forKey: Self.lastTabKey)
         }
@@ -53,7 +54,7 @@ final class AppModel {
     private(set) var isSplit = false
     /// The pane the user last touched (0 is the leading or top one); always 0 outside the split.
     private(set) var focusedPane = 0
-    private(set) var otherPaneTabID: String?
+    private(set) var otherPaneTabID: String? { didSet { if otherPaneTabID != oldValue { pagesInViewChanged() } } }
     /// The focused pane's tab carousel, over its page.
     var showsCoverFlow = false
     /// Counts requests to open the carousel, so one made while it is still closing brings it back.
@@ -359,7 +360,13 @@ final class AppModel {
                 self?.discardIfDownloadOnly(tab.id)
                 self?.handleDownload(response, dataStore: dataStore)
             })
+        let pictureInPicture = PictureInPicture.install(in: &configuration)
         let page = WebPage(configuration: configuration, navigationDecider: decider)
+        pictureInPicture.attach(page)
+        pictureInPicture.onRestore = { [weak self] in
+            guard let self, let tab = self.item(withID: tab.id), !self.pagesInView.contains(tab.id) else { return }
+            self.activate(tab)
+        }
         page.customUserAgent = PageSettings.userAgent(forHost: tab.url?.host(), isPrivate: tabIsPrivate)
         if let url = tab.url {
             if blocksContent, contentBlockLists == nil {
@@ -394,6 +401,35 @@ final class AppModel {
     }
 
     private var pagesInView: Set<String> { Set([tabID(inPane: 0), tabID(inPane: 1)].compactMap(\.self)) }
+
+    // MARK: Picture in Picture
+
+    @ObservationIgnored private var shownPages: Set<String> = []
+    @ObservationIgnored private var isInForeground = true
+
+    /// A video still playing in a tab that leaves the screen floats in Picture in Picture; one Boaz floated returns to
+    /// its tab when the tab shows again.
+    private func pagesInViewChanged() {
+        let now = pagesInView
+        let previous = shownPages
+        shownPages = now
+        guard isInForeground else { return }
+        for id in previous.subtracting(now) { pictureInPicture(id)?.floatOnLeaving() }
+        for id in now.subtracting(previous) { pictureInPicture(id)?.returnFromLeaving() }
+    }
+
+    /// Leaving Boaz (Home, another app) floats the video on screen; coming back returns it.
+    func sceneDidChange(isActive: Bool) {
+        guard isActive != isInForeground else { return }
+        isInForeground = isActive
+        for id in pagesInView {
+            if isActive { pictureInPicture(id)?.returnFromLeaving() } else { pictureInPicture(id)?.floatOnLeaving() }
+        }
+    }
+
+    private func pictureInPicture(_ tabID: String) -> PictureInPicture? {
+        pages[tabID].flatMap(PictureInPicture.controller(of:))
+    }
 
     /// Called by `TabBrowser`'s single `page.navigations` subscriber on every finished load — the
     /// async sequence only supports one consumer, so AppModel never subscribes to it directly.
@@ -765,6 +801,7 @@ final class AppModel {
         // A pane whose tab goes shows the next most recent tab the other pane isn't showing.
         if activeTabID == tab.id { activeTabID = mostRecentTab(excluding: [tab.id, otherPaneTabID])?.id }
         if otherPaneTabID == tab.id { otherPaneTabID = mostRecentTab(excluding: [tab.id, activeTabID])?.id }
+        pictureInPicture(tab.id)?.detach()
         pages[tab.id] = nil
         settledCaptures.removeValue(forKey: tab.id)?.cancel()
         pageRecency.removeAll { $0 == tab.id }

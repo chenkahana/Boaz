@@ -67,7 +67,8 @@ targets:
         NSLocationWhenInUseUsageDescription: Websites you visit can ask for your location, for example to show nearby places on a map.
         # Background refresh for sync; remote notifications are CloudKit's change pushes.
         BGTaskSchedulerPermittedIdentifiers: [com.chenkahana.boaz.sync]
-        UIBackgroundModes: [fetch, remote-notification]
+        # audio: a video keeps playing, and floats in Picture in Picture, after leaving Boaz.
+        UIBackgroundModes: [audio, fetch, remote-notification]
         CFBundleURLTypes:
           - CFBundleTypeRole: Editor
             CFBundleURLName: com.chenkahana.boaz
