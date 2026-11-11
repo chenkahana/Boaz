@@ -6,6 +6,8 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-11
+
 ### Added
 
 - Mac: the DMG build updates itself with Sparkle. It checks GitHub Releases once a day, and from Boaz › Check for
@@ -78,5 +80,6 @@ First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone
 - Share extension, search widget, App Shortcuts, the `boaz://` URL scheme and alternate app icons.
 - Privacy manifest, privacy policy and an About section with third-party notices.
 
-[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/chenkahana/Boaz/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/chenkahana/Boaz/releases/tag/v0.1.0
