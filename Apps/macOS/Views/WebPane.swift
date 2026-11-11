@@ -179,6 +179,8 @@ struct QuickWindow: View {
     @Environment(\.dismiss) private var dismiss
     let url: URL?
     @State private var page: WebPage?
+    /// The profile whose data store the page uses; deleting that profile closes the window.
+    @State private var profileID: String?
     @State private var failure: LoadFailure?
     @State private var address = ""
     @FocusState private var addressFocused: Bool
@@ -236,6 +238,11 @@ struct QuickWindow: View {
             guard page == nil else { return }
             if let url { start(url) } else { addressFocused = true }
         }
+        .onChange(of: model.sidebar.profiles.map(\.id)) { _, ids in
+            guard let profileID, !ids.contains(profileID) else { return }
+            page = nil
+            dismiss()
+        }
         .task(id: page.map(ObjectIdentifier.init)) {
             guard let page else { return }
             // As a tab's pane does: a failed load ends the sequence, so it resubscribes.
@@ -265,6 +272,7 @@ struct QuickWindow: View {
         var configuration = WebPage.Configuration()
         if let profile = model.sidebar.profiles.first(where: \.isDefault) ?? model.sidebar.profiles.first {
             configuration.websiteDataStore = model.dataStore(for: profile.id)
+            profileID = profile.id
         }
         holder.store = configuration.websiteDataStore
         model.applyContentBlocking(to: &configuration)

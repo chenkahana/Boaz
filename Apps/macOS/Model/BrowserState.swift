@@ -19,6 +19,7 @@ final class BrowserState {
     struct Peek: Identifiable {
         let id = UUID()
         let page: WebPage
+        let profileID: String?
     }
 
     struct SpaceEditorRequest: Identifiable {
@@ -677,8 +678,9 @@ final class BrowserState {
     }
 
     func openPeek(_ url: URL, profileID: String?) {
-        let page = makePage(profileID: profileID ?? currentSpace?.profileID, context: .peek, loading: url)
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) { peek = Peek(page: page) }
+        let profileID = profileID ?? currentSpace?.profileID
+        let page = makePage(profileID: profileID, context: .peek, loading: url)
+        withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) { peek = Peek(page: page, profileID: profileID) }
     }
 
     func closePeek() {

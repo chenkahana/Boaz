@@ -1,6 +1,7 @@
 import Accessibility
 import AppKit
 import BoazKit
+import OSLog
 import SwiftUI
 import SystemConfiguration
 import WebKit
@@ -10,6 +11,9 @@ import WebKit
 @Observable
 final class MacModel {
     static let shared = MacModel()
+    private static let log = Logger(subsystem: "com.chenkahana.boaz", category: "app")
+    /// Data store identifiers of deleted profiles whose site data WebKit hasn't removed yet.
+    private static let pendingSiteDataKey = "pendingSiteDataRemovals"
 
     struct Toast: Equatable {
         var id = UUID()
@@ -89,6 +93,7 @@ final class MacModel {
             if !askedEarly { needsOnboarding = Onboarding.shouldShow(store) }
             Task { await sync.start() }
             registerDevice()
+            removeSiteData(UserDefaults.standard.stringArray(forKey: Self.pendingSiteDataKey)?.compactMap(UUID.init) ?? [])
             Task { await archiveLoop() }
             Task { await fetchLoop(sync) }
             NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil,
@@ -120,8 +125,12 @@ final class MacModel {
                     let removed = sidebar.profiles.filter { old in
                         !snapshot.profiles.contains { $0.id == old.id || $0.dataStoreID == old.dataStoreID }
                     }
+                    let removedIDs = Set(removed.map(\.id))
+                    // Read before the snapshot: a profile deleted on another device arrives without its tabs.
+                    let removedTabs = sidebar.items.filter { removedIDs.contains($0.profileID) }.map(\.id)
                     sidebar = snapshot
-                    removed.forEach(removeSiteData)
+                    if !removed.isEmpty { closePages(of: removedIDs, tabIDs: removedTabs) }
+                    removeSiteData(removed.map(\.dataStoreID))
                     guard !loaded else { continue }
                     loaded = true
                     Extensions.shared.loadInstalled()
@@ -622,21 +631,44 @@ final class MacModel {
         guard let other = sidebar.spaces.first(where: { $0.id != space.id }) else { return }
         let windows = browsers.compactMap(\.browser)
         for browser in windows where browser.spaceID == space.id { browser.switchSpace(to: other.id) }
-        if isLastSpaceOfProfile(space) {
-            // The profile's site data can only be deleted once no page uses it.
-            let tabs = sidebar.items.filter { $0.profileID == space.profileID && $0.kind == .tab }
-            for browser in windows { tabs.forEach { browser.unload($0.id) } }
-        }
         do { try store?.deleteSpace(space.id) } catch { showToast("Couldn't delete space: \(error.localizedDescription)") }
     }
 
-    /// A deleted profile's WebKit data on this Mac (logins, cookies, caches), here or on another device.
-    private func removeSiteData(of profile: Profile) {
-        dataStores[profile.dataStoreID] = nil
+    /// WebKit won't delete a data store while a page uses it, so a deleted profile's pages close first: its tabs and
+    /// peeks in every window, its extensions, and Quick Windows (which close themselves, `QuickWindow`).
+    private func closePages(of profileIDs: Set<String>, tabIDs: [String]) {
+        for browser in browsers.compactMap(\.browser) {
+            tabIDs.forEach(browser.unload)
+            if let peek = browser.peek, peek.profileID.map(profileIDs.contains) ?? false { browser.peek = nil }
+        }
+        Extensions.shared.forget(profileIDs: profileIDs)
+    }
+
+    /// A deleted profile's WebKit data on this Mac (logins, cookies, caches), deleted here or on another device.
+    /// Recorded first, so what doesn't go now (a download still using it, a quit) goes at next launch.
+    private func removeSiteData(_ identifiers: [UUID]) {
+        guard !identifiers.isEmpty else { return }
+        identifiers.forEach { dataStores[$0] = nil }
+        func setPending(_ change: (inout Set<String>) -> Void) {
+            var pending = Set(UserDefaults.standard.stringArray(forKey: Self.pendingSiteDataKey) ?? [])
+            change(&pending)
+            UserDefaults.standard.set(pending.sorted(), forKey: Self.pendingSiteDataKey)
+        }
+        setPending { $0.formUnion(identifiers.map(\.uuidString)) }
         Task {
-            // Pages that used it close with the views that showed them.
-            try? await Task.sleep(for: .seconds(1))
-            try? await WKWebsiteDataStore.remove(forIdentifier: profile.dataStoreID)
+            for id in identifiers {
+                // Closed pages let go of the store once their views are gone.
+                for attempt in 1...5 {
+                    do {
+                        try await WKWebsiteDataStore.remove(forIdentifier: id)
+                        setPending { $0.remove(id.uuidString) }
+                        break
+                    } catch {
+                        guard attempt == 5 else { try? await Task.sleep(for: .seconds(attempt)); continue }
+                        Self.log.error("Removing site data \(id) failed; next launch retries: \(String(describing: error))")
+                    }
+                }
+            }
         }
     }
 

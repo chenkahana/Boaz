@@ -244,6 +244,12 @@ final class Extensions: NSObject {
         try? FileManager.default.removeItem(at: Self.directory(item.extensionID, profileID: item.profileID))
     }
 
+    /// A deleted profile's extensions go with it, and its controller, which holds the profile's data store.
+    func forget(profileIDs: Set<String>) {
+        for item in installed where profileIDs.contains(item.profileID) { remove(item) }
+        profileIDs.forEach { controllers[$0] = nil }
+    }
+
     func openOptions(_ item: Installed) {
         guard let url = contexts[item.id]?.optionsPageURL else { return }
         model.lastActiveBrowser?.openTab(url)
