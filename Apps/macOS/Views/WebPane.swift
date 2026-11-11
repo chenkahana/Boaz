@@ -12,6 +12,8 @@ struct TabPane: View {
     @State private var retriedOnItsOwn = false
     /// While the quiet retry is pending, the failure isn't shown.
     @State private var retrying = false
+    /// The room the page has in Responsive Design Mode.
+    @State private var stage = CGSize.zero
 
     private var failure: LoadFailure? {
         get { browser.loadFailures[tab.id] }
@@ -20,8 +22,15 @@ struct TabPane: View {
 
     var body: some View {
         let page = browser.page(for: tab)
+        let devTools = browser.devTools[tab.id]
+        let scale = devTools.responsive?.size.map {
+            max(0.1, min(1, (stage.width - 24) / $0.width, (stage.height - 24) / $0.height))
+        } ?? 1
         VStack(spacing: 0) {
             if inSplit { PaneHeader(tab: tab, page: page) }
+            if let viewport = devTools.responsive {
+                ResponsiveBar(tabID: tab.id, viewport: viewport, stage: stage, scale: scale)
+            }
             WebView(page)
                 .webViewBackForwardNavigationGestures(.enabled)
                 .webViewMagnificationGestures(.enabled)
@@ -31,6 +40,8 @@ struct TabPane: View {
                 } set: { browser.findVisible = $0 })
                 .overlay { if let failure, !retrying { LoadFailureView(failure: failure, page: page) } }
                 .overlay(alignment: .top) { LoadingGlow(page: page) }
+                .deviceViewport(devTools.responsive, scale: scale, appearance: devTools.appearance, stage: $stage)
+            if browser.devTools.consoleVisible && browser.activeTabID == tab.id { ConsolePanel(tabID: tab.id, page: page) }
         }
         .task(id: ObjectIdentifier(page)) { await track(page) }
         // A load that failed for want of a connection loads again once there is one, when Boaz comes forward and
@@ -79,6 +90,7 @@ struct TabPane: View {
                         if PageZoom.level(for: page.url, isPrivate: browser.isIncognito) != 1 {
                             PageZoom.apply(to: page, isPrivate: browser.isIncognito)
                         }
+                        browser.devToolsDidLoad(tab.id)
                     default: break
                     }
                 }
@@ -319,6 +331,7 @@ struct QuickWindow: View {
         let page = WebPage(configuration: configuration, navigationDecider: LittleRouter(holder: holder),
                            dialogPresenter: MacDialogs())
         holder.page = page
+        page.isInspectable = true
         // A page that never loads has no address of its own, so the field keeps the one asked for.
         address = url.absoluteString
         failure = nil
