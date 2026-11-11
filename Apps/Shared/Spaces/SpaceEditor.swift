@@ -18,6 +18,8 @@ struct SpaceEditor: View {
     @State private var title: String
     @State private var icon: String
     @State private var palette: SpacePalette?
+    /// The theme the edits are written over (Mac): the space's own, or the palette picked last.
+    @State private var base: Data?
     /// The theme's customizable parts as they will be saved (Mac).
     @State private var options: SpaceThemeOptions
     @State private var confirmDelete = false
@@ -39,11 +41,13 @@ struct SpaceEditor: View {
             _title = State(initialValue: "")
             _icon = State(initialValue: "✦")
             _palette = State(initialValue: SpacePalette.defaultPalette)
+            _base = State(initialValue: SpacePalette.defaultPalette.themeJSON)
             _options = State(initialValue: SpaceThemeOptions(themeJSON: SpacePalette.defaultPalette.themeJSON))
         case .edit(let space, _):
             _title = State(initialValue: space.title)
             _icon = State(initialValue: space.icon ?? "✦")
             _palette = State(initialValue: SpacePalette.matching(space.themeJSON))
+            _base = State(initialValue: space.themeJSON)
             _options = State(initialValue: SpaceThemeOptions(themeJSON: space.themeJSON))
         }
     }
@@ -53,14 +57,11 @@ struct SpaceEditor: View {
     private var canDelete: Bool { if case .edit(_, let canDelete) = mode { canDelete && onDelete != nil } else { false } }
     private var trimmedTitle: String { title.trimmingCharacters(in: .whitespacesAndNewlines) }
 
-    /// The theme the space starts from: its own, or a new space's palette.
-    private var baseThemeJSON: Data? { editing?.themeJSON ?? SpacePalette.defaultPalette.themeJSON }
-
     /// The theme to save; nil keeps the space's.
     private var themeJSON: Data? {
         #if os(macOS)
-        if options != SpaceThemeOptions(themeJSON: baseThemeJSON) { return options.applied(to: baseThemeJSON) }
-        return isCreating ? baseThemeJSON : nil
+        let json = options == SpaceThemeOptions(themeJSON: base) ? base : options.applied(to: base)
+        return json == editing?.themeJSON ? nil : json
         #else
         palette?.themeJSON
         #endif
@@ -137,10 +138,7 @@ struct SpaceEditor: View {
             Section {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 10)], spacing: 10) {
                     ForEach(SpacePalette.all) { option in
-                        Button {
-                            palette = option
-                            options.apply(option)
-                        } label: { swatch(option) }
+                        Button { pick(option) } label: { swatch(option) }
                             .buttonStyle(.plain)
                             .accessibilityLabel(option.name)
                             .accessibilityAddTraits(palette == option ? .isSelected : [])
@@ -225,7 +223,7 @@ struct SpaceEditor: View {
     private func previewStyle(scheme: ColorScheme) -> SpaceStyle {
         var space = editing ?? Space(id: "preview", title: "", profileID: "", position: 0)
         #if os(macOS)
-        space.themeJSON = options.applied(to: baseThemeJSON)
+        space.themeJSON = options.applied(to: base)
         #else
         if let palette { space.themeJSON = palette.themeJSON }
         #endif
@@ -245,6 +243,20 @@ struct SpaceEditor: View {
         .overlay { if selected { Circle().strokeBorder(Color.accentColor, lineWidth: 2.5) } }
         .frame(width: 48, height: 48)
         .contentShape(.circle)
+    }
+
+    /// A palette is a new theme. On the Mac the gradient choice, appearance and textures carry over to it.
+    private func pick(_ option: SpacePalette) {
+        palette = option
+        #if os(macOS)
+        let kept = options
+        base = option.themeJSON
+        options = SpaceThemeOptions(themeJSON: option.themeJSON)
+        if kept.secondColor == nil { options.secondColor = nil }
+        options.appearance = kept.appearance
+        options.grain = kept.grain
+        options.lightStreak = kept.lightStreak
+        #endif
     }
 
     private func save() {

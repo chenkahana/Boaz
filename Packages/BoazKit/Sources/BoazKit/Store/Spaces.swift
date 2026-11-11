@@ -97,14 +97,6 @@ public struct SpaceThemeOptions: Equatable, Sendable {
         lightStreak = theme?.showsLightStreak ?? false
     }
 
-    /// Takes a palette's colors; a gradient that ran to the old accent runs to the new one.
-    public mutating func apply(_ palette: SpacePalette) {
-        if secondColor == accent { secondColor = RGBA(palette.accent) }
-        light = RGBA(palette.light)
-        dark = RGBA(palette.dark)
-        accent = RGBA(palette.accent)
-    }
-
     /// `themeJSON` with these options written over what it says.
     public func applied(to themeJSON: Data?) -> Data {
         let current = SpaceThemeOptions(themeJSON: themeJSON)
