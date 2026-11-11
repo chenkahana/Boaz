@@ -490,6 +490,8 @@ struct ItemRow: View {
                 .fill(active ? SidebarStyle.selection(increasedContrast: contrast == .increased)
                       : hovering ? SidebarStyle.hover : .clear)
         }
+        // Closes as the row's own button does: a Today tab goes to the Archive, a pinned one unloads.
+        .background { if item.kind == .tab { MiddleClickReader { browser.close(item) } } }
         .overlay(alignment: item.kind == .folder ? .center : .top) {
             if targeted {
                 if item.kind == .folder {
@@ -712,6 +714,43 @@ func dropItems(_ payloads: [String], into parentID: String, before beforeID: Str
         }
     }
     return handled
+}
+
+// MARK: Middle click
+
+/// A middle click (the wheel button) on this view, as Safari and Chrome close a tab with it. Taken before the window
+/// handles the click, so it works the first time on a window in the background without bringing it forward; other
+/// clicks, and middle clicks anywhere else (a link in the page), pass through.
+struct MiddleClickReader: NSViewRepresentable {
+    var action: () -> Void
+
+    func makeNSView(context: Context) -> ClickView {
+        let view = ClickView()
+        view.action = action
+        return view
+    }
+
+    func updateNSView(_ view: ClickView, context: Context) { view.action = action }
+
+    final class ClickView: NSView {
+        var action: (() -> Void)?
+        private var monitor: Any?
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let monitor { NSEvent.removeMonitor(monitor); self.monitor = nil }
+            guard window != nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .otherMouseDown) { [weak self] event in
+                guard let self, event.buttonNumber == 2, event.window === self.window,
+                      // Rows scrolled out of the sidebar are clipped out of `visibleRect`.
+                      self.visibleRect.contains(self.convert(event.locationInWindow, from: nil)) else { return event }
+                self.action?()
+                return nil
+            }
+        }
+    }
 }
 
 // MARK: Two-finger swipe

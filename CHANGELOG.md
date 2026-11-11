@@ -18,6 +18,8 @@ All notable changes to Boaz are recorded here. The format follows
 - Mac: Settings › General › Sidebar text size: Small (13 pt), Medium (14 pt, the default) or Large (16 pt).
 - Mac: View › Reload Ignoring Cache and Cookies (⇧⌘R) clears the current site's cookies and stored data in the tab's
   profile, and only that site's, then reloads the page from the server.
+- Mac: a middle click (the wheel button) on a tab in the sidebar closes it, as in Safari and Chrome, even on a window
+  in the background: a Today tab goes to the Archive and a pinned tab unloads.
 
 ### Changed
 
