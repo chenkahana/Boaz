@@ -1,9 +1,8 @@
 import BoazKit
 import SwiftUI
 
-/// The tabs to go to: this iPhone's Today tabs (private tabs in Incognito) other than the one showing, the most
-/// recently used on top and the next one peeking out beneath it. Tapping opens the tab carousel. Folded layout only,
-/// on the rail.
+/// This iPhone's Today tabs (private tabs in Incognito): the one showing on top, as in the carousel it opens, and the
+/// one used before it peeking out beneath. A tab just opened is on top at once. Tapping opens the tab carousel.
 struct TabStack: View {
     @Environment(AppModel.self) private var model
     @Environment(\.colorScheme) private var scheme
@@ -14,7 +13,9 @@ struct TabStack: View {
 
     var body: some View {
         let tabs = todayTabs
-        let recent = tabs.filter { $0.id != model.tabID(inPane: pane) }.sorted { $0.lastUsed > $1.lastUsed }.prefix(2)
+        let showing = model.tabID(inPane: pane)
+        let recent = tabs.sorted { ($0.id == showing ? 1 : 0, $0.lastUsed) > ($1.id == showing ? 1 : 0, $1.lastUsed) }
+            .prefix(2)
         Button {
             model.focusPane(pane)
             model.openCoverFlow()

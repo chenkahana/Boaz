@@ -31,6 +31,8 @@ All notable changes to Boaz are recorded here. The format follows
 
 ### Fixed
 
+- iPhone: the tab fan shows the tab you're on, on top, with the one before it behind; before, it left the current tab
+  out, so a tab just opened seemed missing from it.
 - iPhone and Mac: sign-in pop-ups ("Sign in with Google", Apple, Microsoft and the like) work. A `window.open` that
   asks for a pop-up window opens in a sheet that keeps `window.opener`, so the page that opened it gets the result,
   and it closes itself when done. Before, `window.open` returned nothing.
