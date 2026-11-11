@@ -6,8 +6,22 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- iPhone: Tabs on Your Mac looks like the Mac's sidebar. Swipe between spaces or pick one from the space buttons at
+  the bottom. Each space shows its favorites, its pinned tabs and folders (tap a folder to open it), and then the
+  Today tabs open on your Mac. Tapping any of them opens the page in a new tab on the phone, in front of your other
+  tabs, and leaves the Mac's tab where it is.
+- iPhone: the page's "…" menu has Copy URL (it was Copy Link, and missing when the page had no address; now it's
+  dimmed). It shows "Copied URL", in Incognito too.
+
 ### Fixed
 
+- iPhone: tab previews last past a quit. They were saved in Caches/Snapshots, a folder iOS keeps for its own app
+  switcher images and that refuses the app's writes on a device, so a card showed the site's icon after a relaunch.
+- iPhone: a pinned tab, or a tab open on another device, picked from search ("Switch to Tab") opens as one of the
+  phone's tabs, or switches to the phone's tab already showing that address. Before, the pinned tab itself opened:
+  it showed, but was missing from the tab fan, and it changed the Mac's pinned tab.
 - Mac: a page that failed to load because the connection was down or dropped (after the Mac wakes, or on a Wi-Fi
   change) loads again on its own: once a second later, then whenever the network comes back, Boaz comes forward or
   the Mac wakes. A failure isn't shown while that first retry is pending.

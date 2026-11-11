@@ -725,6 +725,12 @@ final class AppModel {
 
     func activate(_ tab: SidebarItem) {
         guard tab.kind == .tab else { return }
+        // The phone's tabs are its own: a pinned tab, or one open on another device, opens as one of them (the one
+        // already showing its address, else a new one), so it is in the tab fan and the shared item stays as it is.
+        if isPinned(tab) || tab.deviceID.map({ $0 != deviceID }) == true, let url = tab.url {
+            if let mine = phoneTabs.first(where: { $0.url == url }) { return activate(mine) }
+            return openNewTab(url, title: tab.title)
+        }
         guard tab.id == otherPaneTabID else { return show(tab) }
         // The panes trade tabs (see `activeTabID`) in place: neither page slides, even when the change animates. All
         // of it goes in the transaction, which first publishes the changes made before it.
@@ -785,7 +791,9 @@ final class AppModel {
     private func reopenLastTab() {
         guard activeTabID == nil else { return }
         let last = UserDefaults.standard.string(forKey: Self.lastTabKey)
-        guard var tab = sidebar.items.first(where: { $0.id == last && $0.kind == .tab })
+        // Only one of the phone's own tabs (see `activate`); before 0.2.4 a pinned tab could be the one left open.
+        guard var tab = sidebar.items.first(where: { $0.id == last && $0.kind == .tab && !isPinned($0)
+                    && ($0.deviceID == nil || $0.deviceID == deviceID) })
                 ?? currentSpace.flatMap({ space in
                     todayTabs(in: space).max { ($0.lastActiveAt ?? .distantPast) < ($1.lastActiveAt ?? .distantPast) }
                 })

@@ -1,11 +1,15 @@
+import OSLog
 import UIKit
 
 /// Tab previews kept in Caches, so cards still show each page after a relaunch. Local only: never synced, private
 /// tabs are never written, and the system may empty the folder whenever it needs the space.
 enum SnapshotCache {
     nonisolated private static var folder: URL {
-        URL.cachesDirectory.appending(path: "Snapshots", directoryHint: .isDirectory)
+        // Not Caches/Snapshots: on a device that folder is the system's, for the app switcher, and refuses writes.
+        URL.cachesDirectory.appending(path: "Tab Previews", directoryHint: .isDirectory)
     }
+
+    nonisolated private static let log = Logger(subsystem: "com.chenkahana.boaz", category: "snapshots")
 
     /// Saves and removals run in order, so a tab closed right after its preview was taken leaves no file behind.
     nonisolated private static let queue = DispatchQueue(label: "com.chenkahana.boaz.snapshots", qos: .utility)
@@ -29,8 +33,12 @@ enum SnapshotCache {
         guard let file = file(for: tabID) else { return }
         queue.async {
             guard let data = data() else { return }
-            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            try? data.write(to: file, options: .atomic)
+            do {
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                try data.write(to: file, options: .atomic)
+            } catch {
+                Self.log.error("Saving a tab preview failed: \(String(describing: error))")
+            }
         }
     }
 
