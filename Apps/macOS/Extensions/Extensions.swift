@@ -101,7 +101,9 @@ final class Extensions: NSObject {
 
     private func load(_ item: Installed) async {
         guard let controller = controller(profileID: item.profileID),
-              let url = Self.storedURL(item), let webExtension = try? await WKWebExtension(resourceBaseURL: url) else { return }
+              let url = Self.storedURL(item), let webExtension = try? await WKWebExtension(resourceBaseURL: url),
+              // Turned on twice, or while launch loads it: it's loaded once.
+              contexts[item.id] == nil else { return }
         let context = WKWebExtensionContext(for: webExtension)
         context.uniqueIdentifier = item.contextID.uuidString
         context.baseURL = URL(string: "webkit-extension://\(item.contextID.uuidString.lowercased())/")!
@@ -190,7 +192,8 @@ final class Extensions: NSObject {
     static func zip(fromCRX data: Data) throws -> Data {
         let bytes = [UInt8](data)
         func uint32(_ offset: Int) -> Int {
-            guard bytes.count >= offset + 4 else { return Int.max / 2 }
+            // Past the end reads as the file's length, so a cut-off header fails the check below.
+            guard bytes.count >= offset + 4 else { return bytes.count }
             return Int(bytes[offset]) | Int(bytes[offset + 1]) << 8 | Int(bytes[offset + 2]) << 16 | Int(bytes[offset + 3]) << 24
         }
         if bytes.starts(with: [0x50, 0x4B, 0x03, 0x04]) { return data }
@@ -234,7 +237,8 @@ final class Extensions: NSObject {
         guard let index = installed.firstIndex(of: item) else { return }
         installed[index].enabled = enabled
         save()
-        if enabled { Task { await load(installed[index]) } } else { unload(item) }
+        let item = installed[index]
+        if enabled { Task { await load(item) } } else { unload(item) }
     }
 
     func remove(_ item: Installed) {
