@@ -69,6 +69,7 @@ final class AppModel {
     // Caches touched while views render; observing them would re-render in a loop.
     @ObservationIgnored private var pages: [String: WebPage] = [:]
     @ObservationIgnored private var pageRecency: [String] = []
+    @ObservationIgnored private var isClosingIdlePages = false
     @ObservationIgnored private(set) var store: BoazStore?
     /// iCloud sync with the user's other devices (a picked folder only when iCloud isn't available).
     @ObservationIgnored private(set) var sync: LibrarySync?
@@ -372,11 +373,27 @@ final class AppModel {
         }
         pages[tab.id] = page
         if let position = scrollPositions[tab.id], position.url == tab.url { pendingScrolls[tab.id] = position }
-        while pageRecency.count > maxLivePages {
-            pages[pageRecency.removeFirst()] = nil
-        }
+        closeIdlePages()
         return page
     }
+
+    /// Over the limit, the least recently used pages close, except those in a pane and those playing, recording or
+    /// in full screen: music in a background tab keeps playing however many tabs open after it.
+    private func closeIdlePages() {
+        guard pages.count > maxLivePages, !isClosingIdlePages else { return }
+        isClosingIdlePages = true
+        Task {
+            let close = await PageResidency.pagesToClose(recency: pageRecency, pages: pages, limit: maxLivePages,
+                                                         keeping: pagesInView)
+            for id in close where !pagesInView.contains(id) {
+                pageRecency.removeAll { $0 == id }
+                pages[id] = nil
+            }
+            isClosingIdlePages = false
+        }
+    }
+
+    private var pagesInView: Set<String> { Set([tabID(inPane: 0), tabID(inPane: 1)].compactMap(\.self)) }
 
     /// Called by `TabBrowser`'s single `page.navigations` subscriber on every finished load — the
     /// async sequence only supports one consumer, so AppModel never subscribes to it directly.

@@ -71,6 +71,7 @@ final class BrowserState {
     @ObservationIgnored weak var window: NSWindow?
     @ObservationIgnored private var pages: [String: WebPage] = [:]
     @ObservationIgnored private var recency: [String] = []
+    @ObservationIgnored private var isClosingIdlePages = false
     /// Tabs whose title is cooling down after a save, and whether it changed again meanwhile (`didChangeTitle`).
     @ObservationIgnored private var titleCooldowns: [String: Bool] = [:]
     /// Each tab's address as last saved, which a load in flight hasn't replaced yet.
@@ -211,13 +212,27 @@ final class BrowserState {
         if loadFailures[tab.id] != nil { loadFailures[tab.id] = nil }
         let page = makePage(profileID: tab.profileID, context: .tab(tab.id), loading: tab.url)
         pages[tab.id] = page
-        let pinnedIDs = [split?.leading, split?.trailing, activeTabID]
-        while pages.count > maxLivePages, let victim = recency.first(where: { !pinnedIDs.contains($0) }) {
-            recency.removeAll { $0 == victim }
-            pages[victim] = nil
-        }
+        closeIdlePages()
         return page
     }
+
+    /// Over the limit, the least recently used pages close, except those in view and those playing, recording or in
+    /// full screen: music in a background tab keeps playing however many tabs open after it.
+    private func closeIdlePages() {
+        guard pages.count > maxLivePages, !isClosingIdlePages else { return }
+        isClosingIdlePages = true
+        Task {
+            let close = await PageResidency.pagesToClose(recency: recency, pages: pages, limit: maxLivePages,
+                                                         keeping: pagesInView)
+            for id in close where !pagesInView.contains(id) {
+                recency.removeAll { $0 == id }
+                pages[id] = nil
+            }
+            isClosingIdlePages = false
+        }
+    }
+
+    private var pagesInView: Set<String> { Set([split?.leading, split?.trailing, activeTabID].compactMap(\.self)) }
 
     func existingPage(for tabID: String) -> WebPage? { pages[tabID] }
 
@@ -287,7 +302,7 @@ final class BrowserState {
 
     /// Link routing: a middle-click or ⌘-click opens the link in a background tab right below this one, ⌘⇧-click in
     /// the foreground; pages that open new windows get a peek when they're pinned (keeps the pinned app in place)
-    /// and a new Today tab otherwise.
+    /// and otherwise a tab in front, right below theirs, so a page and what it opened stay together.
     func decide(_ action: WebPage.NavigationAction, context: NavigationRouter.Context) -> WKNavigationActionPolicy {
         let opensWindow = action.target == nil
         let downloadRequested = opensWindow && LinkDownloadMenu.takeRequest()
@@ -316,7 +331,11 @@ final class BrowserState {
                 return .cancel
             }
             if opensWindow {
-                if let tab = tab(id), model.isPinned(tab) { openPeek(url, profileID: tab.profileID) } else { openTab(url) }
+                if let tab = tab(id), model.isPinned(tab) {
+                    openPeek(url, profileID: tab.profileID)
+                } else {
+                    openTab(url, below: tab(id))
+                }
                 return .cancel
             }
             return .allow
