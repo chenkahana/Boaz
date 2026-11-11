@@ -87,6 +87,15 @@ Both apps render pages with WebKit. Shared glue in `Apps/Browser` handles:
 Platform specifics live in each app: on iPhone, cookie-banner declining, the reader view, pull to refresh and the
 navigation policy; on Mac, the sidebar window, split view, command bar and rebindable shortcuts.
 
+**Passkeys.** WebKit handles WebAuthn (`navigator.credentials.create` and `get`) itself and shows the system's
+passkey sheet, so neither app has passkey code of its own. For any site beyond the app's associated domains, the
+system requires the managed entitlement `com.apple.developer.web-browser.public-key-credential`, which Apple grants
+per App ID (requested for `com.chenkahana.boaz`, team DPF8459C2J, as request Z6525VUX9T). Both apps get it from [`passkeys.yml`](../passkeys.yml), which
+`project.yml` includes with `enable: false` until the grant: signing with an entitlement the App ID lacks fails. To
+turn passkeys on, set `enable: true` and run `make project`, which writes it into the iPhone and Mac entitlements
+(the DMG build includes `project.yml`, so it follows). `ASAuthorizationWebBrowserPublicKeyCredentialManager` isn't
+needed: it lists saved passkeys for browsers that draw their own sign-in suggestions.
+
 ## iPhone Duo postures
 
 `RootView` picks a layout from the size class and the hinge **state**; the raw hinge angle only drives effects such

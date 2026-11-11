@@ -20,6 +20,8 @@ All notable changes to Boaz are recorded here. The format follows
   profile, and only that site's, then reloads the page from the server.
 - Mac: a middle click (the wheel button) on a tab in the sidebar closes it, as in Safari and Chrome, even on a window
   in the background: a Today tab goes to the Archive and a pinned tab unloads.
+- Passkeys in web pages on iPhone and Mac, through the system's passkey sheet, ready to turn on once Apple grants the
+  entitlement they need (off until then; `passkeys.yml`).
 
 ### Changed
 
