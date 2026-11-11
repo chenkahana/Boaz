@@ -8,6 +8,9 @@ All notable changes to Boaz are recorded here. The format follows
 
 ### Added
 
+- Mac: the DMG build updates itself with Sparkle. It checks GitHub Releases once a day, and from Boaz › Check for
+  Updates…. People on 0.1.0 download 0.2.0 from the Releases page once; later versions arrive in the app. The App
+  Store build doesn't contain Sparkle.
 - Mac: Customize Space… brings the space editor and the color editor into one sheet, from the space's right-click
   menu, its dot, the View menu or a double-click on its name. It sets the name, icon and color (a palette or any
   color), the Light and Dark background colors, a one- or two-color gradient, the accent, the appearance (System,

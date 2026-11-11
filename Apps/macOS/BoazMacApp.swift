@@ -20,7 +20,12 @@ struct BoazMacApp: App {
         .handlesExternalEvents(matching: [])
         // The app reopens its main windows itself (`MacModel.SavedWindow`), whatever the system setting.
         .restorationBehavior(.disabled)
-        .commands { BoazCommands(model: model) }
+        .commands {
+            BoazCommands(model: model)
+            #if SPARKLE
+            UpdateCommands()
+            #endif
+        }
 
         WindowGroup("Incognito", id: "incognito") {
             BrowserWindow(incognito: true)

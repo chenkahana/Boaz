@@ -1,7 +1,8 @@
 #!/bin/bash
 # Releases the Mac app outside the App Store: signs it with Developer ID, has Apple notarize it, and publishes Boaz.dmg
-# on the GitHub release for tag vVERSION. Signing and notarization go through the Apple account signed in to Xcode
-# (Settings › Accounts), so no certificates or keys are kept anywhere else. See docs/release.md.
+# on the GitHub release for tag vVERSION, with the appcast.xml that Sparkle in installed copies reads to update them.
+# Signing and notarization go through the Apple account signed in to Xcode (Settings › Accounts), and Sparkle's EdDSA
+# key stays in this Mac's login keychain, so no certificates or keys are kept anywhere else. See docs/release.md.
 #
 #   Tools/release-mac.sh 0.2.0 [--no-publish]
 set -euo pipefail
@@ -12,6 +13,10 @@ TAG=v$VERSION
 TEAM_ID=DPF8459C2J
 OUT=build/release
 ARCHIVE=$OUT/Boaz-macOS.xcarchive
+BUILD=$(date +%Y%m%d%H%M)
+# Where the archive resolves Sparkle, whose package carries sign_update and generate_keys.
+PACKAGES=$OUT/SourcePackages
+SPARKLE_BIN=$PACKAGES/artifacts/sparkle/Sparkle/bin
 
 cd "$(dirname "$0")/.."
 if [ "$PUBLISH" != "--no-publish" ]; then
@@ -22,10 +27,19 @@ fi
 rm -rf "$OUT" && mkdir -p "$OUT"
 
 echo "==> Archiving Boaz $VERSION"
-xcodegen generate --quiet
+# The DMG build: project.yml plus Sparkle (project-dmg.yml). The App Store build never contains Sparkle.
+xcodegen generate --quiet --spec project-dmg.yml
+# Seeded with BoazKit's pins, so Xcode records Sparkle's here and not in BoazKit's Package.resolved.
+mkdir -p Boaz.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
+cp Packages/BoazKit/Package.resolved Boaz.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
 xcodebuild archive -project Boaz.xcodeproj -scheme Boaz-macOS -configuration Release \
     -destination 'generic/platform=macOS' -archivePath "$ARCHIVE" -allowProvisioningUpdates -quiet \
-    MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$(date +%Y%m%d%H%M)"
+    -clonedSourcePackagesDirPath "$PACKAGES" MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD"
+
+# An update installs only on copies that carry the public half of the key it was signed with.
+KEY=$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" "$ARCHIVE/Products/Applications/Boaz.app/Contents/Info.plist")
+[ "$KEY" = "$("$SPARKLE_BIN/generate_keys" -p)" ] || {
+    echo "SUPublicEDKey in project-dmg.yml isn't the public half of this Mac's Sparkle key (docs/release.md)."; exit 1; }
 
 echo "==> Signing with Developer ID and sending to Apple for notarization"
 cat > "$OUT/ExportOptions.plist" <<EOF
@@ -58,6 +72,29 @@ ln -s /Applications "$OUT/dmg/Applications"
 hdiutil create -volname Boaz -srcfolder "$OUT/dmg" -fs HFS+ -format UDZO -ov "$OUT/Boaz.dmg" -quiet
 (cd "$OUT" && shasum -a 256 Boaz.dmg > Boaz.dmg.sha256 && cat Boaz.dmg.sha256)
 
+echo "==> Signing the DMG for Sparkle and writing the appcast"
+# sign_update reads the EdDSA private key from the login keychain and prints only the signature.
+SIGNATURE=$("$SPARKLE_BIN/sign_update" -p "$OUT/Boaz.dmg")
+cat > "$OUT/appcast.xml" <<EOF
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+    <channel>
+        <title>Boaz</title>
+        <item>
+            <title>Boaz $VERSION</title>
+            <pubDate>$(LC_ALL=C date -R)</pubDate>
+            <sparkle:version>$BUILD</sparkle:version>
+            <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:releaseNotesLink>https://github.com/chenkahana/Boaz/releases/tag/$TAG</sparkle:releaseNotesLink>
+            <enclosure url="https://github.com/chenkahana/Boaz/releases/download/$TAG/Boaz.dmg"
+                       length="$(stat -f%z "$OUT/Boaz.dmg")" type="application/octet-stream"
+                       sparkle:edSignature="$SIGNATURE"/>
+        </item>
+    </channel>
+</rss>
+EOF
+
 [ "$PUBLISH" = "--no-publish" ] && exit 0
 
 echo "==> Publishing $TAG"
@@ -67,4 +104,6 @@ if [[ $VERSION == 0.* ]]; then title="$title (beta)"; fi
 awk -v v="$VERSION" '$0 ~ "^## \\[" v "\\]" {on=1; next} on && /^## \[/ {exit} on' CHANGELOG.md > "$OUT/notes.md"
 printf '\n---\nOpen the DMG and drag Boaz to Applications. Requires macOS 26. Signed with Developer ID and notarized by Apple.\n' \
     >> "$OUT/notes.md"
-gh release create "$TAG" "$OUT/Boaz.dmg" "$OUT/Boaz.dmg.sha256" --title "$title" --notes-file "$OUT/notes.md" --verify-tag
+# Installed copies read the newest release's appcast: releases/latest/download/appcast.xml (SUFeedURL).
+gh release create "$TAG" "$OUT/Boaz.dmg" "$OUT/Boaz.dmg.sha256" "$OUT/appcast.xml" --title "$title" \
+    --notes-file "$OUT/notes.md" --verify-tag
