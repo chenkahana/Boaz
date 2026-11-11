@@ -20,8 +20,6 @@ enum Preferences {
     static let archiveAfterKey = "archiveAfter"
     static let searchEngineKey = "searchEngine"
     static let blockTrackersKey = "blockTrackers"
-    /// Read through `@AppStorage` (default on) by the views that tint.
-    static let tintWithSiteColorsKey = "tintWithSiteColors"
     /// The sidebar rows' point size, read through `@AppStorage` (default `SidebarStyle.defaultTextSize`).
     static let sidebarTextSizeKey = "sidebarTextSize"
 

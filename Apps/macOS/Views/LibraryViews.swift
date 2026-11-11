@@ -213,7 +213,6 @@ private struct GeneralSettings: View {
     @Environment(MacModel.self) private var model
     @AppStorage(Preferences.archiveAfterKey) private var archiveAfter = ArchiveInterval.day.rawValue
     @AppStorage(Preferences.searchEngineKey) private var searchEngine = SearchEngine.duckDuckGo.rawValue
-    @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
     @AppStorage(Preferences.sidebarTextSizeKey) private var sidebarTextSize = SidebarStyle.defaultTextSize
 
     var body: some View {
@@ -226,7 +225,6 @@ private struct GeneralSettings: View {
                 Picker("Search engine", selection: $searchEngine) {
                     ForEach(SearchEngine.allCases) { Text($0.name).tag($0.rawValue) }
                 }
-                Toggle("Tint chrome with site colors", isOn: $tintWithSiteColors)
                 Picker("Sidebar text size", selection: $sidebarTextSize) {
                     Text("Small").tag(13.0)
                     Text("Medium").tag(14.0)
