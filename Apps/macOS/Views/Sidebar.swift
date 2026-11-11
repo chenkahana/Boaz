@@ -273,8 +273,9 @@ private struct SpaceColumn: View {
         let pinned = model.pinnedItems(in: space)
         let pinnedBox = model.sidebar.container(.pinned, in: space.id)
         let todayBox = model.sidebar.container(.unpinned, in: space.id)
-        // Tabs and any folders (from Tidy Tabs or an Arc import).
-        let today = todayBox.map { model.sidebar.children(of: $0.id) } ?? []
+        // This Mac's tabs and any folders (from Tidy Tabs or an Arc import). Tabs opened on the iPhone stay there.
+        let today = todayBox.map { model.sidebar.children(of: $0.id) }?
+            .filter { $0.kind != .tab || $0.deviceID == nil || $0.deviceID == model.deviceID } ?? []
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 SpaceHeader(space: space)
