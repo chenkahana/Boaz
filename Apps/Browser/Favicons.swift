@@ -12,6 +12,9 @@ struct Favicon: Sendable {
     let isDark: Bool
     /// A mark that is nearly all near-white, so it disappears on a light background.
     let isLight: Bool
+    /// The icon's main color: the average of its most common hue, weighted by how vivid each pixel is. Nil for
+    /// black, white and gray marks.
+    let color: Color?
 
     /// Decodes the largest image in `data` (an .ico holds several sizes), at most `maxPixelSize` on a side. Nil for
     /// corrupt data, icons too small to bother with and blank placeholders.
@@ -45,19 +48,34 @@ struct Favicon: Sendable {
         func alpha(_ x: Int, _ y: Int) -> Int { Int(pixels[(y * side + x) * 4 + 3]) }
         // The edges short of the corners, so artwork with rounded corners still counts as square.
         let edges = (2..<(side - 2)).flatMap { k in [alpha(k, 0), alpha(k, side - 1), alpha(0, k), alpha(side - 1, k)] }
-        var opaque = 0, dark = 0, light = 0
+        var opaque = 0, dark = 0, light = 0, vivid = 0
+        // Twelve 30° hue bins, each summing chroma and chroma-weighted red, green and blue.
+        var hues = [[Double]](repeating: [0, 0, 0, 0], count: 12)
         for index in stride(from: 0, to: pixels.count, by: 4) where pixels[index + 3] > 128 {
             let a = Int(pixels[index + 3])
             let channels = (0..<3).map { Int(pixels[index + $0]) * 255 / a }
             opaque += 1
             if channels.max()! < 80 { dark += 1 }
             if channels.min()! > 225 { light += 1 }
+            let (r, g, b) = (Double(channels[0]) / 255, Double(channels[1]) / 255, Double(channels[2]) / 255)
+            let high = max(r, g, b), chroma = high - min(r, g, b)
+            guard chroma > 0.25 else { continue }
+            vivid += 1
+            let sector = high == r ? (g - b) / chroma : high == g ? (b - r) / chroma + 2 : (r - g) / chroma + 4
+            let bin = (Int((sector + 6) * 2) % 12)
+            hues[bin][0] += chroma; hues[bin][1] += r * chroma; hues[bin][2] += g * chroma; hues[bin][3] += b * chroma
         }
         guard opaque > 0 else { return nil }
         self.image = image
         isFullBleed = edges.reduce(0, +) >= edges.count * 225
         isDark = !isFullBleed && dark * 10 >= opaque * 8
         isLight = !isFullBleed && light * 10 >= opaque * 8
+        // A tenth of the icon or more is in color; less is a monochrome mark with a speck of color.
+        if vivid * 10 >= opaque, let main = hues.max(by: { $0[0] < $1[0] }) {
+            color = Color(.sRGB, red: main[1] / main[0], green: main[2] / main[0], blue: main[3] / main[0])
+        } else {
+            color = nil
+        }
     }
 }
 
