@@ -6,6 +6,11 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Mac: tabs opened on the iPhone no longer show up in the sidebar's Today. Each device keeps its own Today; the
+  iPhone still lists the Mac's tabs under Tabs on Your Mac and opens the one you pick in a new tab on the phone.
+
 ## [0.2.1] - 2026-11-11
 
 ### Added
