@@ -134,6 +134,7 @@ final class BrowserState {
                                                                queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
+                self.windowWillCloseForPictureInPicture()
                 self.model.windowWillClose(self)
                 Extensions.shared.didCloseWindow(self)
             }
@@ -269,6 +270,14 @@ final class BrowserState {
         for id in pagesInView {
             if visible { pictureInPicture(id)?.returnFromLeaving() } else { pictureInPicture(id)?.floatOnLeaving() }
         }
+    }
+
+    /// A closing window's videos go with it: none floats as it orders out.
+    private func windowWillCloseForPictureInPicture() {
+        windowIsVisible = false
+        if let occlusionObserver { NotificationCenter.default.removeObserver(occlusionObserver) }
+        occlusionObserver = nil
+        for id in pages.keys { pictureInPicture(id)?.detach() }
     }
 
     private func pictureInPicture(_ tabID: String) -> PictureInPicture? {
@@ -805,6 +814,9 @@ final class BrowserState {
             }) {
                 pages[tab.id] = peek.page
                 recency.append(tab.id)
+                PictureInPicture.controller(of: peek.page)?.onRestore = { [weak browser = self] in
+                    browser?.showTabReturningFromPictureInPicture(tab.id)
+                }
                 activate(tab)
             }
         }

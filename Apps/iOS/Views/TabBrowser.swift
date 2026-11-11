@@ -330,6 +330,9 @@ struct TabBrowser: View {
             } catch {
                 // A failed navigation ends the sequence; go round again so later loads are still tracked.
                 if let failure = LoadFailure(error) { loadFailure = failure }
+                if case WebPage.NavigationError.webContentProcessTerminated = error {
+                    PictureInPicture.controller(of: page)?.pageDidReset()
+                }
                 // Never spin if resubscribing fails straight away.
                 try? await Task.sleep(for: .milliseconds(50))
             }

@@ -74,6 +74,9 @@ struct TabPane: View {
                 return
             } catch {
                 failure = LoadFailure(error)
+                if case WebPage.NavigationError.webContentProcessTerminated = error {
+                    PictureInPicture.controller(of: page)?.pageDidReset()
+                }
                 // Never spin if resubscribing fails straight away.
                 try? await Task.sleep(for: .milliseconds(50))
             }

@@ -39,8 +39,14 @@ final class PictureInPicture: NSObject, WKScriptMessageHandler {
 
     private weak var page: WebPage?
     private var frames: [String: Frame] = [:]
-    /// Boaz floated it when the user left, so it comes back when they return; one the user floated stays.
-    private var floatedOnLeaving = false
+    /// The frame whose video Boaz floated when the user left, so it comes back when they return; one the user floated
+    /// stays. Kept apart from `frames`, whose state catches up a moment later.
+    private var floatedOnLeaving: WKFrameInfo?
+    /// The user is away from the page: set on leaving, cleared on return, so a float that lands after they came back
+    /// (they left and returned within the half second floating takes) goes right back.
+    private var isAway = false
+    /// A float on its way, on any page: until it lands, another page's state can't show it yet.
+    private static var floatInFlight = false
     /// The user brought the video back to its page from its window.
     var onRestore: (() -> Void)?
 
@@ -95,21 +101,23 @@ final class PictureInPicture: NSObject, WKScriptMessageHandler {
     /// The user left the page (another tab or space, a hidden window) while it played a video: float it, unless
     /// something already floats, Boaz's or another app's.
     func floatOnLeaving() {
+        isAway = true
         guard Self.floatsWhenLeaving, hasPlayingVideo, !Self.anyFloating else { return }
         Task { _ = await float(onLeaving: true) }
     }
 
     /// The user is back on the page: what Boaz floated when they left returns to it.
     func returnFromLeaving() {
-        guard floatedOnLeaving else { return }
-        floatedOnLeaving = false
-        call("globalThis.__boazPiP?.returnFromLeaving()", in: frames.values.filter(\.floating).map(\.info))
+        isAway = false
+        guard let frame = floatedOnLeaving else { return }
+        floatedOnLeaving = nil
+        call("globalThis.__boazPiP?.returnFromLeaving()", in: [frame])
     }
 
     /// Floats the page's video, or brings it back if it's floating: the menu command.
     func toggle() {
         if isFloating {
-            floatedOnLeaving = false
+            floatedOnLeaving = nil
             call("globalThis.__boazPiP?.exit()", in: frames.values.filter(\.floating).map(\.info))
         } else {
             Task { _ = await float(onLeaving: false) }
@@ -117,21 +125,31 @@ final class PictureInPicture: NSObject, WKScriptMessageHandler {
     }
 
     private func float(onLeaving: Bool) async -> Bool {
-        guard let page, let webView = backingWebView(of: page) else { return false }
+        guard !Self.floatInFlight, let page, let webView = backingWebView(of: page) else { return false }
+        Self.floatInFlight = true
+        defer { Self.floatInFlight = false }
         Self.enable(in: webView)
         let ranked = frames.values
             .filter { onLeaving ? $0.playing != nil : $0.any != nil }
             .sorted { ($0.playing ?? -1, $0.any ?? -1) > ($1.playing ?? -1, $1.any ?? -1) }
         for frame in ranked.prefix(4) {
+            // Back already, or the tab closed: nothing to float.
+            guard self.page != nil, !onLeaving || isAway else { return false }
             let result = try? await webView.callAsyncJavaScript(
                 "return await globalThis.__boazPiP?.float(onLeaving) ?? false", arguments: ["onLeaving": onLeaving],
                 in: frame.info, contentWorld: Self.world)
-            if result as? Bool == true {
-                floatedOnLeaving = onLeaving
-                return true
-            }
+            guard result as? Bool == true else { continue }
+            floatedOnLeaving = onLeaving ? frame.info : nil
+            if onLeaving && (!isAway || self.page == nil) { returnFromLeaving() }
+            return true
         }
         return false
+    }
+
+    /// Clears what the page's frames said, once they're gone without saying so (its web content process ended).
+    func pageDidReset() {
+        frames.removeAll()
+        floatedOnLeaving = nil
     }
 
     private func call(_ script: String, in frames: [WKFrameInfo]) {
@@ -143,7 +161,7 @@ final class PictureInPicture: NSObject, WKScriptMessageHandler {
 
     /// Whether any page floats a video, or another app shows Picture in Picture.
     static var anyFloating: Bool {
-        controllers.allObjects.contains(where: \.isFloating) || systemShowsPictureInPicture
+        floatInFlight || controllers.allObjects.contains(where: \.isFloating) || systemShowsPictureInPicture
     }
 
     /// Another app's Picture in Picture window (FaceTime, a video player). Window metadata only: no screen contents and
@@ -176,13 +194,17 @@ final class PictureInPicture: NSObject, WKScriptMessageHandler {
             guard frames[id] != nil || frames.count < 64 else { return }
             frames[id] = Frame(info: message.frameInfo, playing: score("playing"), any: score("any"),
                                floating: body["floating"] as? Bool == true)
-            if !isFloating { floatedOnLeaving = false }
+        case "document":
+            // A new main document: whatever the previous one's frames said is gone with them, said or not.
+            guard message.frameInfo.isMainFrame else { return }
+            pageDidReset()
         case "gone":
             frames[id] = nil
-            if !isFloating { floatedOnLeaving = false }
         case "restored":
-            floatedOnLeaving = false
-            onRestore?()
+            floatedOnLeaving = nil
+            // Another video taking the window over brings this one back too: that isn't the user asking for it.
+            let replaced = Self.floatInFlight || Self.controllers.allObjects.contains { $0 !== self && $0.isFloating }
+            if !replaced { onRestore?() }
         default:
             break
         }
@@ -198,6 +220,7 @@ final class PictureInPicture: NSObject, WKScriptMessageHandler {
       if (!handler) return;
       const frame = (crypto.randomUUID?.() ?? String(Math.random())).slice(0, 64);
       const post = message => { try { handler.postMessage({ frame, ...message }); } catch {} };
+      if (window === top) post({ kind: 'document' });
       let floatedOnLeaving = null;
       let returning = false;
       let lastPlayed = null;
@@ -223,9 +246,9 @@ final class PictureInPicture: NSObject, WKScriptMessageHandler {
         if (bounds.width < 120 || bounds.height < 68) return 0;
         return bounds.width * bounds.height + (video.muted ? 0 : 1e8) + (video === lastPlayed ? 1e9 : 0);
       };
-      const best = (playingOnly, respectingOptOut) => {
+      const best = (all, playingOnly, respectingOptOut) => {
         let top = null, topScore = 0;
-        for (const video of videos()) {
+        for (const video of all) {
           if (respectingOptOut && optsOut(video)) continue;
           const value = score(video, playingOnly);
           if (value > topScore) { top = video; topScore = value; }
@@ -233,11 +256,14 @@ final class PictureInPicture: NSObject, WKScriptMessageHandler {
         return top && { video: top, score: topScore };
       };
 
-      let scheduled = false, reported = '';
+      // A frame without a video says nothing, so ad frames don't crowd out the player.
+      const silent = JSON.stringify({ playing: 0, any: 0, floating: false });
+      let scheduled = false, reported = silent;
       const report = () => {
         scheduled = false;
-        const state = { playing: best(true, true)?.score ?? 0, any: best(false, false)?.score ?? 0,
-                        floating: videos().some(isFloating) };
+        const all = videos();
+        const state = { playing: best(all, true, true)?.score ?? 0, any: best(all, false, false)?.score ?? 0,
+                        floating: all.some(isFloating) };
         const encoded = JSON.stringify(state);
         if (encoded === reported) return;
         reported = encoded;
@@ -258,7 +284,7 @@ final class PictureInPicture: NSObject, WKScriptMessageHandler {
         // The window's back button returns the video still playing; closing the window pauses it.
         setTimeout(() => { if (!video.paused) post({ kind: 'restored' }); }, 300);
       }, true);
-      addEventListener('pagehide', () => { reported = ''; post({ kind: 'gone' }); });
+      addEventListener('pagehide', () => { reported = silent; post({ kind: 'gone' }); });
       addEventListener('pageshow', event => { if (event.persisted) schedule(); });
 
       const leave = video => {
@@ -268,16 +294,18 @@ final class PictureInPicture: NSObject, WKScriptMessageHandler {
       };
       globalThis.__boazPiP = Object.freeze({
         async float(onLeaving) {
-          if (videos().some(isFloating)) return true;
-          const found = best(true, onLeaving) ?? (onLeaving ? null : best(false, false));
+          const all = videos();
+          if (all.some(isFloating)) return true;
+          const found = best(all, true, onLeaving) ?? (onLeaving ? null : best(all, false, false));
           if (!found) return false;
           const video = found.video;
-          // Asked by the user, Boaz floats it even where the site opts out of offering it.
+          // Asked by the user, Boaz floats it even where the site opts out of offering it, and puts the opt-out back.
+          const optedOut = video.disablePictureInPicture;
           if (!onLeaving) video.disablePictureInPicture = false;
           try {
             if (video.requestPictureInPicture) await video.requestPictureInPicture();
             else video.webkitSetPresentationMode('picture-in-picture');
-          } catch { return false; }
+          } catch { return false; } finally { if (optedOut) video.disablePictureInPicture = true; }
           floatedOnLeaving = onLeaving ? video : null;
           return true;
         },
