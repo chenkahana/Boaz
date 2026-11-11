@@ -18,16 +18,11 @@ final class AppModel {
     @ObservationIgnored private var sidebarGeneration = 0
     /// Counts sidebar saves, which show before they are written (see `reloadSidebar`).
     @ObservationIgnored private var sidebarSaves = 0
-    var currentSpaceID: String? {
-        didSet {
-            guard currentSpaceID != oldValue else { return }
-            UserDefaults(suiteName: BoazStore.appGroup)?.set(currentSpaceID, forKey: "currentSpaceID")
-        }
-    }
     /// The page on screen. Remembered across launches: the app opens on it again (mobile has no home screen).
     var activeTabID: String? {
         didSet {
             guard activeTabID != oldValue else { return }
+            swipeOrder = nil
             // One page never shows in both panes: the other pane takes this pane's tab in trade.
             if activeTabID != nil, activeTabID == otherPaneTabID { otherPaneTabID = oldValue }
             pagesInViewChanged()
@@ -36,6 +31,8 @@ final class AppModel {
         }
     }
     private static let lastTabKey = "lastTabID"
+    /// The tab order a run of swipes between tabs follows (see `pageTab`).
+    @ObservationIgnored private var swipeOrder: [String]?
     var searchTarget: SearchTarget? { didSet { if searchTarget == nil { remoteSuggestions.clear() } } }
     var searchText = "" { didSet { refreshHistorySuggestions(); refreshRemoteSuggestions() } }
     var historySuggestions: [HistoryVisit] = []
@@ -103,7 +100,7 @@ final class AppModel {
     /// The stale-tab sweep waits until the tab open at the last quit is back on screen, which keeps it out of the sweep.
     @ObservationIgnored private var holdsSweeps = true
     private let maxLivePages = 8
-    /// This iPhone, in the device list: Today shows only the tabs opened here (see `SidebarItem.deviceID`).
+    /// This iPhone, in the device list: its tabs are the ones opened here (see `SidebarItem.isMobileTab`).
     let deviceID = Device.localID(in: UserDefaults(suiteName: BoazStore.appGroup) ?? .standard)
     /// Archived by closing, newest last; observed so the More menu's Reopen Closed Tab stays current.
     private var closedTabs: [(tab: SidebarItem, archiveID: String?, snapshot: UIImage?)] = []
@@ -143,6 +140,8 @@ final class AppModel {
             }
             try StarterLibrary.seedIfEmpty(store)
             showOnboarding = showOnboarding || Onboarding.shouldShow(store)
+            // Tabs filed under a space's Today by 0.2.3 and before join the stack.
+            try await store.adoptMobileStack(deviceID: deviceID)
             Task { await restoreSnapshots(from: store) }
             Task { await sync.start() }
             registerDevice()
@@ -165,7 +164,6 @@ final class AppModel {
                     sidebarGeneration += 1
                     // Also how the stale-tab sweep's archived tabs lose their previews: the sweep lands as an update.
                     pruneSnapshots()
-                    if currentSpace == nil { currentSpaceID = snapshot.spaces.first?.id }
                     if sidebarGeneration == 1 {
                         reopenLastTab()
                         holdsSweeps = false
@@ -289,22 +287,26 @@ final class AppModel {
 
     // MARK: Reads
 
+    /// The Mac's spaces, for Tabs on Your Mac. The phone's own tabs are in none of them.
     var spaces: [Space] { sidebar.spaces }
-    var currentSpace: Space? { sidebar.spaces.first { $0.id == currentSpaceID } }
     var activeTab: SidebarItem? { activeTabID.flatMap(item(withID:)) }
+    /// Whether the library's first snapshot has landed; a new tab needs its profile.
+    var hasLibrary: Bool { !sidebar.profiles.isEmpty }
 
-    /// This iPhone's Today tabs in a space, in order. Tabs the Mac filed into folders under Today stand in their
-    /// folder's place: the phone lists no folders.
-    func todayTabs(in space: Space) -> [SidebarItem] {
-        func tabs(under parent: String) -> [SidebarItem] {
-            sidebar.children(of: parent).flatMap { $0.kind == .folder ? tabs(under: $0.id) : $0.kind == .tab ? [$0] : [] }
-        }
-        return sidebar.container(.unpinned, in: space.id).map { tabs(under: $0.id) }?
-            .filter { $0.deviceID == nil || $0.deviceID == deviceID } ?? []
+    /// The phone's tabs, most recently used first: its mobile stack, or the private tabs in Incognito. The stack
+    /// is no space's (`SidebarItem.isMobileTab`); the Mac's spaces are only for picking pages from.
+    var phoneTabs: [SidebarItem] {
+        isIncognito ? incognitoTabs.sorted { ($0.lastActiveAt ?? $0.createdAt) > ($1.lastActiveAt ?? $1.createdAt) }
+            : sidebar.mobileTabs(onDevice: deviceID)
     }
 
-    /// The phone's tabs: this iPhone's Today tabs in the current space, or the private ones in Incognito.
-    var phoneTabs: [SidebarItem] { isIncognito ? incognitoTabs : currentSpace.map(todayTabs(in:)) ?? [] }
+    /// Whether a tab is one of this iPhone's own (not a space's, not another device's, not private).
+    func isMine(_ tab: SidebarItem) -> Bool { tab.isMobileTab && tab.deviceID == deviceID }
+
+    /// New tabs browse with the default profile's website data; a page picked from the Mac keeps its tab's.
+    private var defaultProfileID: String? {
+        (sidebar.profiles.first { $0.isDefault } ?? sidebar.profiles.first)?.id
+    }
 
     /// The tab a pane shows; the second pane exists only in the split.
     func tabID(inPane pane: Int) -> String? { pane == focusedPane ? activeTabID : otherPaneTabID }
@@ -318,10 +320,8 @@ final class AppModel {
 
     func isPrivate(_ tab: SidebarItem) -> Bool { tab.parentID == Self.incognitoParent }
 
-    /// Whether a tab is open here: every Today tab of this iPhone is, and any tab whose page has been opened.
-    func isOpen(_ tab: SidebarItem) -> Bool {
-        pages[tab.id] != nil || !isPinned(tab) && (tab.deviceID == nil || tab.deviceID == deviceID)
-    }
+    /// Whether a tab is open here: every tab of this iPhone's is, and any tab whose page has been opened.
+    func isOpen(_ tab: SidebarItem) -> Bool { pages[tab.id] != nil || isMine(tab) }
 
     // MARK: Pages
 
@@ -705,7 +705,9 @@ final class AppModel {
         }
     }
 
-    func openNewTab(_ url: URL, title: String? = nil) {
+    /// Opens a page in a new tab, on top of the stack. It browses with `profileID`'s website data, else the default
+    /// profile's.
+    func openNewTab(_ url: URL, title: String? = nil, profileID: String? = nil) {
         searchTarget = nil
         if isIncognito {
             let tab = SidebarItem(id: UUID().uuidString, spaceID: nil, profileID: "incognito",
@@ -715,21 +717,19 @@ final class AppModel {
             activeTabID = tab.id
             return
         }
-        guard let space = currentSpace, let box = sidebar.container(.unpinned, in: space.id) else { return }
-        let tab = SidebarItem(id: UUID().uuidString, spaceID: space.id, profileID: space.profileID, parentID: box.id,
-                              kind: .tab, title: title ?? url.host(), url: url,
-                              position: sidebar.nextPosition(in: box.id), lastActiveAt: .now, deviceID: deviceID)
+        guard let profileID = profileID ?? defaultProfileID else { return }
+        let tab = SidebarItem.mobileTab(url: url, title: title, profileID: profileID, deviceID: deviceID)
         commit(tab)
         activate(tab)
     }
 
     func activate(_ tab: SidebarItem) {
         guard tab.kind == .tab else { return }
-        // The phone's tabs are its own: a pinned tab, or one open on another device, opens as one of them (the one
-        // already showing its address, else a new one), so it is in the tab fan and the shared item stays as it is.
-        if isPinned(tab) || tab.deviceID.map({ $0 != deviceID }) == true, let url = tab.url {
-            if let mine = phoneTabs.first(where: { $0.url == url }) { return activate(mine) }
-            return openNewTab(url, title: tab.title)
+        // The phone shows only its own tabs: a space's tab (pinned, a favorite, or open on a Mac) is copied into a
+        // new tab on top of the stack, with its website data, and the space's item stays as it is.
+        if !isMine(tab), !isPrivate(tab) {
+            guard let url = tab.url else { return }
+            return openNewTab(url, title: tab.title, profileID: tab.profileID)
         }
         guard tab.id == otherPaneTabID else { return show(tab) }
         // The panes trade tabs (see `activeTabID`) in place: neither page slides, even when the change animates. All
@@ -745,7 +745,6 @@ final class AppModel {
         item.lastActiveAt = .now
         item.isUnread = false
         commit(item)
-        if let space = tab.spaceID { currentSpaceID = space }
         activeTabID = tab.id
         // A normal tab can't show in Incognito: opening one leaves it, closing the private tabs as Leave Incognito does.
         if isIncognito, !isPrivate(tab) { setIncognito(false) }
@@ -776,32 +775,26 @@ final class AppModel {
         }
     }
 
-    /// The tab stack: the phone's tabs, most recently used first.
+    /// The top of the stack, skipping `ids`.
     private func mostRecentTab(excluding ids: [String?]) -> SidebarItem? {
-        phoneTabs.filter { !ids.contains($0.id) }.max { ($0.lastActiveAt ?? $0.createdAt) < ($1.lastActiveAt ?? $1.createdAt) }
+        phoneTabs.first { !ids.contains($0.id) }
     }
 
     private func item(withID id: String) -> SidebarItem? {
         sidebar.items.first { $0.id == id } ?? incognitoTabs.first { $0.id == id }
     }
 
-    /// The page open when the app last closed, else the most recently used of this iPhone's tabs. Opened in its own
-    /// space, and marked active like any tab the user opens (which keeps it out of the launch sweep). Unlike
-    /// `activate`, it leaves a search panel a deep link opened meanwhile up.
+    /// The page open when the app last closed, else the top of the stack. Marked active like any tab the user opens
+    /// (which keeps it out of the launch sweep). Unlike `activate`, it leaves a search panel a deep link opened
+    /// meanwhile up.
     private func reopenLastTab() {
         guard activeTabID == nil else { return }
         let last = UserDefaults.standard.string(forKey: Self.lastTabKey)
         // Only one of the phone's own tabs (see `activate`); before 0.2.4 a pinned tab could be the one left open.
-        guard var tab = sidebar.items.first(where: { $0.id == last && $0.kind == .tab && !isPinned($0)
-                    && ($0.deviceID == nil || $0.deviceID == deviceID) })
-                ?? currentSpace.flatMap({ space in
-                    todayTabs(in: space).max { ($0.lastActiveAt ?? .distantPast) < ($1.lastActiveAt ?? .distantPast) }
-                })
-        else { return }
+        guard var tab = phoneTabs.first(where: { $0.id == last }) ?? phoneTabs.first else { return }
         tab.lastActiveAt = .now
         tab.isUnread = false
         commit(tab)
-        if let space = tab.spaceID { currentSpaceID = space }
         activeTabID = tab.id
     }
 
@@ -865,14 +858,15 @@ final class AppModel {
         showToast("Tab restored")
     }
 
+    /// Brings an archived page back as a new tab, with its website data if its profile is still here.
     func restore(_ item: ArchiveItem) {
         try? store?.removeFromArchive(item.id)
-        if let space = item.spaceID, sidebar.spaces.contains(where: { $0.id == space }) { currentSpaceID = space }
-        openAfterSheet(item.url, title: item.title)
+        let profileID = sidebar.profiles.contains { $0.id == item.profileID } ? item.profileID : nil
+        openAfterSheet(item.url, title: item.title, profileID: profileID)
     }
 
-    func openAfterSheet(_ url: URL, title: String?) {
-        afterSheet = { [weak self] in self?.openNewTab(url, title: title) }
+    func openAfterSheet(_ url: URL, title: String?, profileID: String? = nil) {
+        afterSheet = { [weak self] in self?.openNewTab(url, title: title, profileID: profileID) }
         sheet = nil
     }
 
@@ -911,14 +905,18 @@ final class AppModel {
         showToast(on ? "Incognito on" : "Incognito off — private tabs closed")
     }
 
-    /// Moves to the previous (-1) or next (+1) tab in the active tab's list. Returns false at the ends.
+    /// Moves to the tab used before (-1) or after (+1) the active one, as the tab carousel lays them out (the most
+    /// recent last). Returns false at the ends.
+    /// Swiping through tabs keeps the order the first swipe saw, though each tab reached comes to the top of the
+    /// stack: swiping back twice goes two tabs back rather than between the same two. Any other tab change ends it.
     @discardableResult
     func pageTab(by offset: Int) -> Bool {
         guard let tab = activeTab else { return false }
-        let siblings = siblings(of: tab)
-        guard let index = siblings.firstIndex(where: { $0.id == tab.id }),
-              siblings.indices.contains(index + offset) else { return false }
-        activate(siblings[index + offset])
+        let order = swipeOrder ?? phoneTabs.reversed().map(\.id)
+        guard let index = order.firstIndex(of: tab.id), order.indices.contains(index + offset),
+              let next = item(withID: order[index + offset]) else { return false }
+        activate(next)
+        swipeOrder = order
         return true
     }
 
@@ -967,13 +965,6 @@ final class AppModel {
     private func refreshRemoteSuggestions() {
         guard asksSearchEngine, !SearchSuggestions.looksLikeAddress(searchText) else { return remoteSuggestions.clear() }
         remoteSuggestions.update(searchText, engine: Preferences.searchEngine)
-    }
-
-    /// The tabs listed alongside `tab`; another device's Today tabs aren't listed here.
-    private func siblings(of tab: SidebarItem) -> [SidebarItem] {
-        isPrivate(tab) ? incognitoTabs : sidebar.children(of: tab.parentID ?? "").filter {
-            $0.kind == .tab && ($0.deviceID == nil || $0.deviceID == deviceID)
-        }
     }
 
     private func ancestorContainer(of id: String) -> SidebarItem? {

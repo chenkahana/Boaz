@@ -251,7 +251,7 @@ private struct EmptyBrowser: View {
     @Environment(\.paneIndex) private var pane
 
     var body: some View {
-        let style = SpaceStyle(model.currentSpace, scheme: scheme)
+        let style = SpaceStyle(nil, scheme: scheme)
         VStack(spacing: 18) {
             Image(systemName: "square.on.square")
                 .font(.system(size: 44, weight: .light))

@@ -8,10 +8,16 @@ All notable changes to Boaz are recorded here. The format follows
 
 ### Changed
 
+- iPhone: the phone's tabs are one stack, newest first, and no longer belong to a space. There is no space on the
+  phone: no space name, color or switching, no pinned tabs or favorites of its own. The Mac's spaces, with their
+  pinned tabs, favorites and open tabs, are in Tabs on Your Mac, and tapping any of them opens a copy on top of the
+  stack, leaving the Mac's item as it is. Deleting, renaming or reordering a space on the Mac no longer touches the
+  phone's tabs, and the Mac never shows them. Tabs opened on the phone before this move into the stack on first
+  launch; tabs from before 0.2.3, which recorded no device, stay in their space and show in Tabs on Your Mac.
 - iPhone: Tabs on Your Mac looks like the Mac's sidebar. Swipe between spaces or pick one from the space buttons at
   the bottom. Each space shows its favorites, its pinned tabs and folders (tap a folder to open it), and then the
   Today tabs open on your Mac. Tapping any of them opens the page in a new tab on the phone, in front of your other
-  tabs, and leaves the Mac's tab where it is.
+  tabs, and leaves the Mac's tab where it is. It opens on the space you looked at last.
 - iPhone: the page's "…" menu has Copy URL (it was Copy Link, and missing when the page had no address; now it's
   dimmed). It shows "Copied URL", in Incognito too.
 
@@ -19,9 +25,9 @@ All notable changes to Boaz are recorded here. The format follows
 
 - iPhone: tab previews last past a quit. They were saved in Caches/Snapshots, a folder iOS keeps for its own app
   switcher images and that refuses the app's writes on a device, so a card showed the site's icon after a relaunch.
-- iPhone: a pinned tab, or a tab open on another device, picked from search ("Switch to Tab") opens as one of the
-  phone's tabs, or switches to the phone's tab already showing that address. Before, the pinned tab itself opened:
-  it showed, but was missing from the tab fan, and it changed the Mac's pinned tab.
+- iPhone: a pinned tab, or a tab open on another device, picked from search opens as one of the phone's tabs, on
+  top of the stack. Before, the pinned tab itself opened: it showed, but was missing from the tab fan, and it changed
+  the Mac's pinned tab. Search lists the phone's own tabs first ("Switch to Tab"), then the Mac's.
 - Mac: a page that failed to load because the connection was down or dropped (after the Mac wakes, or on a Wi-Fi
   change) loads again on its own: once a second later, then whenever the network comes back, Boaz comes forward or
   the Mac wakes. A failure isn't shown while that first retry is pending.
