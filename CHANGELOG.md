@@ -6,6 +6,11 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- iPhone: favorites and tabs in Tabs on Your Mac show the site's own icon, full and sharp as on the Mac, rather than
+  a letter. A site with no icon at its root (ChatGPT, Gemini) names one in its page, and Boaz now reads it there.
+
 ## [0.2.4] - 2026-11-11
 
 ### Added

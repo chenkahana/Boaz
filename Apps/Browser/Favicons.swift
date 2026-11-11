@@ -137,7 +137,7 @@ final class Favicons {
 
     /// Kicks off a lookup for `url`'s host if nothing is cached, already in flight, or recently failed.
     /// Checks disk before spending a network round trip, then tries `apple-touch-icon.png` and
-    /// `favicon.ico` directly. Safe to call on every render — it no-ops once a result (or a miss) is known.
+    /// `favicon.ico` directly, then the icons `url`'s page names in its markup if those are missing or small. Safe to call on every render — it no-ops once a result (or a miss) is known.
     /// In private browsing it only reads what's already cached: no request goes out and nothing is written,
     /// so private hosts leave no trace on disk.
     func request(_ url: URL?, isPrivate: Bool = false) {
@@ -154,7 +154,13 @@ final class Favicons {
             guard !isPrivate else { return }
             // Earlier builds kept the smallest image in an .ico, so a small one gets one look for a sharper icon.
             if let onDisk, onDisk.image.width >= 32 { return }
-            guard let icon = await self.fetchWellKnownIcon(host: host) else {
+            var icon = await self.fetchWellKnownIcon(host: host)
+            // A page never opened here (a tab picked from the Mac's sidebar, say) names its icon only in its markup.
+            if icon.map({ $0.image.width < 64 }) ?? true, let url, let declared = await self.fetchDeclaredIcon(of: url),
+               declared.image.width > icon?.image.width ?? 0 {
+                icon = declared
+            }
+            guard let icon else {
                 if onDisk == nil { self.negativeCache[host] = .now }
                 return
             }
@@ -200,6 +206,46 @@ final class Favicons {
             return icon
         }
         return nil
+    }
+
+    /// The sharpest icon `page` names (`<link rel="apple-touch-icon">`, `<link rel="icon" sizes=…>`), read from its
+    /// markup without running it. SVG and mask icons are skipped: they don't decode as bitmaps on every platform.
+    private func fetchDeclaredIcon(of page: URL) async -> Favicon? {
+        guard ["http", "https"].contains(page.scheme?.lowercased()) else { return nil }
+        for iconURL in await Self.declaredIcons(of: page, gate: gate).prefix(3) {
+            if let icon = await download(iconURL) { return icon }
+        }
+        return nil
+    }
+
+    nonisolated private static func declaredIcons(of page: URL, gate: FetchGate) async -> [URL] {
+        await gate.wait()
+        defer { gate.signal() }
+        var request = URLRequest(url: page)
+        // Some sites turn away a request that doesn't look like a browser's.
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                         + "Version/26.0 Safari/605.1.15", forHTTPHeaderField: "User-Agent")
+        guard let (data, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return [] }
+        let base = http.url ?? page
+        let html = String(decoding: data.prefix(512 * 1024), as: UTF8.self)
+        let attribute = /\b(rel|href|sizes)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/.ignoresCase()
+        var found: [(url: URL, rank: Int)] = []
+        for tag in html.matches(of: /<link\b[^>]*>/.ignoresCase()) {
+            var values: [String: String] = [:]
+            for match in tag.output.matches(of: attribute) {
+                values[match.output.1.lowercased()] = String(match.output.2 ?? match.output.3 ?? match.output.4 ?? "")
+            }
+            let rel = values["rel", default: ""].lowercased()
+            guard rel.contains("icon"), !rel.contains("mask"),
+                  let href = values["href"]?.replacingOccurrences(of: "&amp;", with: "&"), !href.isEmpty,
+                  let url = URL(string: href, relativeTo: base)?.absoluteURL, url.scheme == "https",
+                  !url.pathExtension.lowercased().hasPrefix("svg") else { continue }
+            // A touch icon is drawn for a home screen (180px); otherwise the largest size it declares.
+            let size = values["sizes"].flatMap { Int($0.lowercased().split(separator: "x").first ?? "") } ?? 16
+            found.append((url, rel.contains("apple-touch-icon") ? max(size, 180) : size))
+        }
+        return found.sorted { $0.rank > $1.rank }.map(\.url)
     }
 
     /// Fetching and decoding stay off the main thread.
