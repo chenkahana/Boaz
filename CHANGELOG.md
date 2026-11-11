@@ -6,6 +6,11 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- iPhone: ready to be the default browser once Apple grants the entitlement it needs (off until then;
+  `web-browser.yml`). The app declares `http` and `https`, and links from other apps open in a new tab.
+
 ### Changed
 
 - Mac: a link a page opens in a new window (`target="_blank"`, `window.open`) opens in a tab right below the page,
