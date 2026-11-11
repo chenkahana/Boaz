@@ -108,6 +108,13 @@ turn passkeys on, set `enable: true` and run `make project`, which writes it int
 (the DMG build includes `project.yml`, so it follows). `ASAuthorizationWebBrowserPublicKeyCredentialManager` isn't
 needed: it lists saved passkeys for browsers that draw their own sign-in suggestions.
 
+**Default browser on iPhone.** iOS only offers "Default Browser App" to apps holding the managed entitlement
+`com.apple.developer.web-browser`, which Apple grants per App ID through its default browser entitlement request
+form. The iPhone app gets it from [`web-browser.yml`](../web-browser.yml), which `project.yml` includes with
+`enable: false` until the grant, the same way as passkeys. The iPhone app already declares the `http` and `https`
+schemes Apple requires, and `DeepLink` opens those links in a new tab. The Mac needs no entitlement to be the default
+browser.
+
 ## iPhone Duo postures
 
 `RootView` picks a layout from the size class and the hinge **state**; the raw hinge angle only drives effects such

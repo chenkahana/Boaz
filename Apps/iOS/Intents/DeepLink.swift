@@ -2,10 +2,11 @@ import BoazKit
 import Foundation
 
 /// Parses and dispatches `boaz://` deep links from `.onOpenURL`, App Intents and the widgets'
-/// `Link` destinations.
+/// `Link` destinations, and the web links iOS hands Boaz as the default browser.
 ///
 /// Supported links:
-/// - `boaz://open?url=<encoded http(s) URL>` opens (or switches to) that address in a new tab.
+/// - `http(s)://…` opens (or switches to) that address in a new tab.
+/// - `boaz://open?url=<encoded http(s) URL>` does the same.
 /// - `boaz://search?q=<encoded text>` runs a search and opens the results in a new tab.
 /// - `boaz://search` focuses the search overlay without a query.
 enum DeepLink {
@@ -16,6 +17,7 @@ enum DeepLink {
     }
 
     static func parse(_ url: URL) -> Intent? {
+        if ["http", "https"].contains(url.scheme?.lowercased()), url.host() != nil { return .open(url) }
         guard url.scheme == "boaz", let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         else { return nil }
         func value(_ name: String) -> String? { components.queryItems?.first { $0.name == name }?.value }
