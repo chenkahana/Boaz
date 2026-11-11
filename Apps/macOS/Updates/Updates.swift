@@ -9,18 +9,23 @@ import SwiftUI
 final class Updates {
     static let shared = Updates()
 
+    /// Until project-dmg.yml carries the real public key, a build can't verify an update: no updater, no menu item.
+    static let isConfigured = (Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") as? String)
+        .map { !$0.isEmpty && $0 != "SPARKLE_PUBLIC_ED_KEY_PLACEHOLDER" } ?? false
+
     private(set) var canCheck = false
-    @ObservationIgnored private let controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil,
-                                                                                userDriverDelegate: nil)
+    @ObservationIgnored private let controller: SPUStandardUpdaterController?
     @ObservationIgnored private var canCheckObservation: AnyCancellable?
 
     private init() {
-        canCheckObservation = controller.updater.publisher(for: \.canCheckForUpdates)
+        controller = Self.isConfigured
+            ? SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil) : nil
+        canCheckObservation = controller?.updater.publisher(for: \.canCheckForUpdates)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] canCheck in MainActor.assumeIsolated { self?.canCheck = canCheck } }
     }
 
-    func check() { controller.checkForUpdates(nil) }
+    func check() { controller?.checkForUpdates(nil) }
 }
 
 /// Boaz › Check for Updates…, which also starts the updater (and its daily checks) when the menu is built at launch.
@@ -29,7 +34,9 @@ struct UpdateCommands: Commands {
 
     var body: some Commands {
         CommandGroup(after: .appInfo) {
-            Button("Check for Updates…") { updates.check() }.disabled(!updates.canCheck)
+            if Updates.isConfigured {
+                Button("Check for Updates…") { updates.check() }.disabled(!updates.canCheck)
+            }
         }
     }
 }
