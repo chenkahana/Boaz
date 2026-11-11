@@ -22,6 +22,8 @@ enum Preferences {
     static let blockTrackersKey = "blockTrackers"
     /// Read through `@AppStorage` (default on) by the views that tint.
     static let tintWithSiteColorsKey = "tintWithSiteColors"
+    /// The sidebar rows' point size, read through `@AppStorage` (default `SidebarStyle.defaultTextSize`).
+    static let sidebarTextSizeKey = "sidebarTextSize"
 
     static func registerDefaults() {
         UserDefaults.standard.register(defaults: [

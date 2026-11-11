@@ -6,7 +6,8 @@ The Mac sidebar and its tab list follow these rules. The tokens live in `Sidebar
 ## Type
 
 - The system font (SF Pro), never the rounded design.
-- Rows 14 pt regular; the selected row 14 pt medium.
+- Rows 14 pt regular; the selected row 14 pt medium. Settings › General › Sidebar text size sets rows to 13, 14 or
+  16 pt; headers and the title keep their offset (-3 pt, +1 pt).
 - Section headers 11 pt semibold. The space title 15 pt semibold.
 
 ## Spacing

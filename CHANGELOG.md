@@ -12,6 +12,7 @@ All notable changes to Boaz are recorded here. The format follows
   menu, its dot, the View menu or a double-click on its name. It sets the name, icon and color (a palette or any
   color), the Light and Dark background colors, a one- or two-color gradient, the accent, the appearance (System,
   Light or Dark), grain and the light streak, with a live preview in Light and Dark. The theme syncs with the space.
+- Mac: Settings › General › Sidebar text size: Small (13 pt), Medium (14 pt, the default) or Large (16 pt).
 
 ### Changed
 

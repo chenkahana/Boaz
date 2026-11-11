@@ -323,15 +323,15 @@ extension SpaceEditor {
         return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 Text(icon).font(.system(size: 15))
-                Text(trimmedTitle.isEmpty ? "New Space" : trimmedTitle).font(SidebarStyle.titleFont).lineLimit(1)
+                Text(trimmedTitle.isEmpty ? "New Space" : trimmedTitle).font(SidebarStyle.titleFont()).lineLimit(1)
             }
             .frame(height: SidebarStyle.rowHeight)
             Text("Selected Tab")
-                .font(SidebarStyle.selectedRowFont)
+                .font(SidebarStyle.rowFont(selected: true))
                 .padding(.horizontal, 8)
                 .frame(maxWidth: .infinity, minHeight: SidebarStyle.rowHeight, alignment: .leading)
                 .background(SidebarStyle.selection(), in: .rect(cornerRadius: MacRadius.row, style: .continuous))
-            Text("Tab").font(SidebarStyle.rowFont).padding(.horizontal, 8).frame(height: SidebarStyle.rowHeight)
+            Text("Tab").font(SidebarStyle.rowFont()).padding(.horizontal, 8).frame(height: SidebarStyle.rowHeight)
         }
         .foregroundStyle(style.foreground)
         .padding(.horizontal, 8)

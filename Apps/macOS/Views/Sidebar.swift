@@ -15,10 +15,13 @@ enum SidebarDrag {
 /// The sidebar's type, spacing, fills and motion (docs/design.md).
 enum SidebarStyle {
     static let rowHeight: CGFloat = 32
-    static let rowFont = Font.system(size: 14)
-    static let selectedRowFont = Font.system(size: 14, weight: .medium)
-    static let sectionFont = Font.system(size: 11, weight: .semibold)
-    static let titleFont = Font.system(size: 15, weight: .semibold)
+    /// Rows' text size; Settings › General › Sidebar Text Size picks 13, 14 or 16 (`sidebarTextSize`).
+    static let defaultTextSize: CGFloat = 14
+    static func rowFont(size: CGFloat = defaultTextSize, selected: Bool = false) -> Font {
+        .system(size: size, weight: selected ? .medium : .regular)
+    }
+    static func sectionFont(size: CGFloat = defaultTextSize) -> Font { .system(size: size - 3, weight: .semibold) }
+    static func titleFont(size: CGFloat = defaultTextSize) -> Font { .system(size: size + 1, weight: .semibold) }
     /// The label color at 12%: one flat fill for the selection, on every theme and site color.
     static func selection(increasedContrast: Bool = false) -> Color { .primary.opacity(increasedContrast ? 0.24 : 0.12) }
     /// Half the selection.
@@ -27,12 +30,17 @@ enum SidebarStyle {
     static let motion = Animation.smooth(duration: 0.2)
 }
 
+extension EnvironmentValues {
+    @Entry var sidebarTextSize = SidebarStyle.defaultTextSize
+}
+
 struct SidebarView: View {
     @Environment(MacModel.self) private var model
     @Environment(BrowserState.self) private var browser
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
+    @AppStorage(Preferences.sidebarTextSizeKey) private var textSize = SidebarStyle.defaultTextSize
     @State private var swipe: CGFloat = 0
 
     var body: some View {
@@ -63,6 +71,7 @@ struct SidebarView: View {
         .padding(.horizontal, 8)
         .padding(.bottom, 8)
         .environment(\.colorScheme, appearance)
+        .environment(\.sidebarTextSize, textSize)
         .animation(SiteColor.fade(reduceMotion: reduceMotion)) {
             // `.secondary` below is the second style: dimmer text and icons that still read at 4.5:1.
             $0.foregroundStyle(browser.isIncognito ? .white : site?.foreground ?? style.foreground,
@@ -150,6 +159,7 @@ private struct HistoryButton: View {
 /// Arc's URL field in the sidebar: shows the host, opens the command bar on the current tab (⌘L).
 private struct AddressPill: View {
     @Environment(BrowserState.self) private var browser
+    @Environment(\.sidebarTextSize) private var textSize
     @State private var hovering = false
 
     var body: some View {
@@ -160,7 +170,7 @@ private struct AddressPill: View {
                     Image(systemName: "lock.fill").font(.system(size: 10)).foregroundStyle(.secondary)
                 }
                 Text(url?.host()?.replacingOccurrences(of: "www.", with: "") ?? "Search or enter address")
-                    .font(SidebarStyle.rowFont)
+                    .font(SidebarStyle.rowFont(size: textSize))
                     .foregroundStyle(url == nil ? .secondary : .primary)
                     .lineLimit(1)
                 Spacer(minLength: 0)
@@ -302,13 +312,14 @@ private struct SpaceColumn: View {
 
 private struct SpaceHeader: View {
     @Environment(BrowserState.self) private var browser
+    @Environment(\.sidebarTextSize) private var textSize
     let space: Space
     @State private var hovering = false
 
     var body: some View {
         HStack(spacing: 8) {
             SpaceIcon(space: space, size: 15)
-            Text(space.title).font(SidebarStyle.titleFont).lineLimit(1)
+            Text(space.title).font(SidebarStyle.titleFont(size: textSize)).lineLimit(1)
                 .onTapGesture(count: 2) { browser.spaceEditor = .init(spaceID: space.id) }
                 .help("Double-click to customize")
             Spacer()
@@ -359,6 +370,7 @@ struct SpaceMenu: View {
 
 private struct TodayDivider: View {
     @Environment(MacModel.self) private var model
+    @Environment(\.sidebarTextSize) private var textSize
     let space: Space
     let hasTabs: Bool
     @State private var hovering = false
@@ -370,7 +382,7 @@ private struct TodayDivider: View {
                 Button {
                     withAnimation(SidebarStyle.motion) { model.clearToday(in: space) }
                 } label: {
-                    Label("Clear", systemImage: "arrow.down").font(SidebarStyle.sectionFont)
+                    Label("Clear", systemImage: "arrow.down").font(SidebarStyle.sectionFont(size: textSize))
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
@@ -387,13 +399,14 @@ private struct TodayDivider: View {
 
 private struct NewTabRow: View {
     @Environment(BrowserState.self) private var browser
+    @Environment(\.sidebarTextSize) private var textSize
     @State private var hovering = false
 
     var body: some View {
         Button { browser.commandMode = .newTab } label: {
             HStack(spacing: 8) {
                 Image(systemName: "plus").font(.system(size: 12, weight: .semibold)).frame(width: 18)
-                Text("New Tab").font(SidebarStyle.rowFont)
+                Text("New Tab").font(SidebarStyle.rowFont(size: textSize))
                 Spacer()
             }
             .foregroundStyle(.secondary)
@@ -422,6 +435,7 @@ struct ItemRow: View {
     @Environment(MacModel.self) private var model
     @Environment(BrowserState.self) private var browser
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.sidebarTextSize) private var textSize
     let item: SidebarItem
     let depth: Int
     let tint: Color
@@ -443,7 +457,7 @@ struct ItemRow: View {
             Button(action: open) {
                 HStack(spacing: 8) {
                     leadingIcon
-                    Text(title).font(active ? SidebarStyle.selectedRowFont : SidebarStyle.rowFont).lineLimit(1)
+                    Text(title).font(SidebarStyle.rowFont(size: textSize, selected: active)).lineLimit(1)
                     Spacer(minLength: 0)
                 }
                 .padding(.leading, 8 + CGFloat(depth) * 14)
@@ -589,13 +603,14 @@ struct TabMenu: View {
 
 private struct IncognitoColumn: View {
     @Environment(BrowserState.self) private var browser
+    @Environment(\.sidebarTextSize) private var textSize
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(spacing: 8) {
                     Image(systemName: "eyeglasses")
-                    Text("Incognito").font(SidebarStyle.titleFont)
+                    Text("Incognito").font(SidebarStyle.titleFont(size: textSize))
                 }
                 .padding(.horizontal, 8).frame(height: SidebarStyle.rowHeight)
                 NewTabRow()
