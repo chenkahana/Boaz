@@ -348,10 +348,10 @@ public struct Sidebar: Equatable, Sendable {
         return children(of: box.id).filter { $0.kind == .tab && ($0.deviceID == nil || $0.deviceID == deviceID) }
     }
 
-    /// Every Today tab opened on `deviceID`, across spaces.
-    public func todayTabs(openedOn deviceID: String) -> [SidebarItem] {
-        let boxes = Set(items.lazy.filter { $0.containerKind == .unpinned }.map(\.id))
-        return items.filter { $0.kind == .tab && $0.deviceID == deviceID && $0.parentID.map(boxes.contains) == true }
+    /// An iPhone's mobile stack: its tabs (`SidebarItem.isMobileTab`), most recently used first.
+    public func mobileTabs(onDevice deviceID: String) -> [SidebarItem] {
+        items.filter { $0.isMobileTab && $0.deviceID == deviceID }
+            .sorted { ($0.lastActiveAt ?? $0.createdAt, $0.id) > ($1.lastActiveAt ?? $1.createdAt, $1.id) }
     }
 
     public func children(of parentID: String) -> [SidebarItem] {

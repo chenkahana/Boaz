@@ -159,13 +159,20 @@ extension BoazStore {
     }
 
     /// Archives Today tabs that haven't been active for `interval`. Pinned and favorite tabs are never archived.
-    /// Only `deviceID`'s tabs (and those that recorded no device) go: another device sweeps its own.
+    /// Only `deviceID`'s tabs (and those that recorded no device) go: another device sweeps its own. An iPhone's
+    /// mobile stack (`SidebarItem.isMobileTab`) is swept the same way.
     @discardableResult
     /// Runs on the database's queue: a backlog of thousands of tabs takes ~150 ms.
     public func archiveStaleTabs(olderThan interval: TimeInterval, onDevice deviceID: String,
                                  now: Date = .now) async throws -> Int {
         let cutoff = now.addingTimeInterval(-interval)
         return try await writer.write { db in
+            let staleMobile = try SidebarItem
+                .filter(Column("kind") == SidebarItem.Kind.tab.rawValue)
+                .filter(Column("spaceID") == nil && Column("parentID") == nil && Column("deviceID") == deviceID)
+                .filter(Column("deletedAt") == nil)
+                .filter(SQL(sql: "COALESCE(lastActiveAt, createdAt) < ?", arguments: [cutoff]))
+                .fetchAll(db)
             let todayContainers = try SidebarItem
                 .filter(Column("kind") == SidebarItem.Kind.container.rawValue)
                 .filter(Column("containerKind") == SidebarItem.ContainerKind.unpinned.rawValue)
@@ -183,9 +190,39 @@ extension BoazStore {
                 .filter(Column("deletedAt") == nil)
                 .filter(Column("deviceID") == nil || Column("deviceID") == deviceID)
                 .filter(SQL(sql: "COALESCE(lastActiveAt, createdAt) < ?", arguments: [cutoff]))
-                .fetchAll(db)
+                .fetchAll(db) + staleMobile
             for tab in stale { try Self.archive(tab, reason: "autoArchived", at: now, in: db) }
             return stale.count
+        }
+    }
+
+    /// Moves `deviceID`'s Today tabs out of their spaces into its mobile stack (`SidebarItem.isMobileTab`), for an
+    /// iPhone whose tabs were filed under a space's Today before 0.2.4. Nothing to move after that, so it is cheap
+    /// to run at every launch. The moves are ordinary local edits, so sync carries them; a Mac that hid the tabs as
+    /// another device's goes on hiding them. Returns how many moved.
+    @discardableResult
+    public func adoptMobileStack(deviceID: String, at date: Date = .now) async throws -> Int {
+        try await writer.write { db in
+            // Only tabs under a Today container (or a folder in one): a pinned tab stays the space's.
+            let groups = try SidebarItem.filter(Column("kind") != SidebarItem.Kind.tab.rawValue)
+                .filter(Column("deletedAt") == nil).fetchAll(db)
+            var today = Set(groups.filter { $0.kind == .container && $0.containerKind == .unpinned }.map(\.id))
+            while case let more = groups.filter({ $0.kind == .folder && !today.contains($0.id)
+                                                   && $0.parentID.map(today.contains) == true }), !more.isEmpty {
+                today.formUnion(more.map(\.id))
+            }
+            let filed = try SidebarItem
+                .filter(Column("kind") == SidebarItem.Kind.tab.rawValue && Column("deviceID") == deviceID)
+                .filter(today.contains(Column("parentID")))
+                .filter(Column("deletedAt") == nil)
+                .fetchAll(db)
+            for var tab in filed {
+                tab.spaceID = nil
+                tab.parentID = nil
+                tab.modifiedAt = date
+                try tab.update(db)
+            }
+            return filed.count
         }
     }
 

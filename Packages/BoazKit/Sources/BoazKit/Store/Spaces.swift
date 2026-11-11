@@ -200,8 +200,9 @@ extension BoazStore {
     }
 
     /// Deletes a space. Its tabs (pinned, in folders and in Today) go to the Archive, so nothing is lost.
-    /// The last space of a profile takes the profile with it, and its favorites go to the Archive too. Returns how
-    /// many tabs were archived. The library's last space can't be deleted.
+    /// The last space of a profile takes the profile with it, and its favorites and the iPhones' tabs that use its
+    /// website data go to the Archive too. Returns how many tabs were archived. The library's last space can't be
+    /// deleted.
     @discardableResult
     public func deleteSpace(_ id: String, at date: Date = .now) throws -> Int {
         try writer.write { db in

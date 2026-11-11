@@ -28,17 +28,18 @@ struct PageAIMenuItems: View {
     }
 }
 
-/// Tidy Tab Titles for the current space's tabs, for the menu. Tidy Tabs stays on the Mac: the phone has no
-/// folders to file tabs into.
+/// Tidy Tab Titles for the phone's tabs, for the menu. Tidy Tabs stays on the Mac: the phone has no folders to file
+/// tabs into.
 struct SpaceAIMenuItems: View {
     @Environment(AppModel.self) private var model
     @AppStorage(AIFeatures.preferenceKey) private var showAIFeatures = true
 
     var body: some View {
-        if AIFeatures.showsEntryPoints(preference: showAIFeatures), !model.isIncognito, let space = model.currentSpace {
+        if AIFeatures.showsEntryPoints(preference: showAIFeatures), !model.isIncognito {
             Section {
                 Button("Tidy Tab Titles", systemImage: "character.cursor.ibeam") {
-                    AIPresenter.shared.request = .tidyTitles(spaceID: space.id)
+                    // The phone's stack is no space's; it stands in for one here.
+                    AIPresenter.shared.request = .tidyTitles(spaceID: model.deviceID)
                 }
             }
         }
@@ -57,7 +58,7 @@ extension View {
         }
     }
 
-    /// The tidy sheets for the current space.
+    /// The tidy sheet for the phone's tabs.
     func tidyAISheets() -> some View { modifier(TidySheets()) }
 }
 
@@ -69,10 +70,8 @@ private struct TidySheets: ViewModifier {
             get: { AIPresenter.shared.request.map { if case .page = $0 { false } else { true } } ?? false },
             set: { if !$0 { AIPresenter.shared.request = nil } })) {
             switch AIPresenter.shared.request {
-            case .tidyTitles(let spaceID):
-                if let space = model.spaces.first(where: { $0.id == spaceID }) {
-                    TidyTitlesView(tabs: model.todayTabs(in: space)) { model.applyTitles($0) }
-                }
+            case .tidyTitles:
+                TidyTitlesView(tabs: model.phoneTabs) { model.applyTitles($0) }
             default:
                 EmptyView()
             }

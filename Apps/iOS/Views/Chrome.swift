@@ -218,8 +218,10 @@ struct SearchPanel: View {
         let query = query
         guard query.count > 1, model.searchTarget == .newTab, !model.isIncognito else { return [] }
         func contains(_ text: String?) -> Bool { text?.range(of: query, options: .caseInsensitive) != nil }
-        return Array(model.sidebar.items.lazy
-            .filter { $0.kind == .tab && (contains($0.title) || contains($0.url?.absoluteString)) }
+        // The phone's own tabs first, then the spaces' (pinned, favorites, open on a Mac), which open as copies.
+        let spaceTabs = model.sidebar.items.lazy.filter { $0.kind == .tab && $0.parentID != nil }
+        return Array((model.phoneTabs + spaceTabs)
+            .filter { contains($0.title) || contains($0.url?.absoluteString) }
             .prefix(3))
     }
 }

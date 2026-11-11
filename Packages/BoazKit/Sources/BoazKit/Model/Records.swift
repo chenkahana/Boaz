@@ -67,10 +67,24 @@ public struct SidebarItem: Codable, Identifiable, Hashable, Sendable, FetchableR
     public var modifiedAt: Date
     public var deletedAt: Date?
     /// The `Device` a Today tab was opened on: each device's Today lists only its own tabs. Nil for pinned and
-    /// favorite items, and for tabs from before devices were recorded, which show on every device.
+    /// favorite items, and for tabs from before devices were recorded, which show on every device. An iPhone's
+    /// tabs are its mobile stack, in no space (`isMobileTab`).
     public var deviceID: String?
 
     public static let databaseTableName = "sidebarItem"
+
+    /// Whether this is a tab in an iPhone's mobile stack: its device's, in no space and under no container
+    /// (`Sidebar.mobileTabs(onDevice:)`). Being in no space, deleting, renaming or reordering spaces on the Mac
+    /// leaves it be, and the Mac, which lists tabs by their containers, never shows it.
+    public var isMobileTab: Bool { kind == .tab && spaceID == nil && parentID == nil && deviceID != nil }
+
+    /// A tab for an iPhone's mobile stack, opened now (so it is on top), with `profileID`'s website data.
+    public static func mobileTab(url: URL, title: String?, profileID: String, deviceID: String,
+                                 at date: Date = .now) -> SidebarItem {
+        SidebarItem(id: UUID().uuidString, spaceID: nil, profileID: profileID, parentID: nil, kind: .tab,
+                    title: title ?? url.host(), url: url, position: 0, createdAt: date, lastActiveAt: date,
+                    modifiedAt: date, deviceID: deviceID)
+    }
 
     public init(id: String, spaceID: String?, profileID: String, parentID: String?, kind: Kind,
                 containerKind: ContainerKind? = nil, title: String? = nil, url: URL? = nil,
