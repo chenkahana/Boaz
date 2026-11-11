@@ -19,6 +19,9 @@ PACKAGES=$OUT/SourcePackages
 SPARKLE_BIN=$PACKAGES/artifacts/sparkle/Sparkle/bin
 
 cd "$(dirname "$0")/.."
+# Before an archive that would only fail at the key check.
+! grep -q SPARKLE_PUBLIC_ED_KEY_PLACEHOLDER project-dmg.yml || {
+    echo "project-dmg.yml still has the placeholder SUPublicEDKey: paste the Sparkle public key first (docs/release.md)."; exit 1; }
 if [ "$PUBLISH" != "--no-publish" ]; then
     git fetch -q origin tag "$TAG" 2>/dev/null || { echo "Tag $TAG isn't on GitHub yet: tag the release commit first."; exit 1; }
     # Not checked out here: bash reads this script as it runs, so it can't change underneath itself.
@@ -63,6 +66,8 @@ echo "==> Waiting for notarization"
 # Usually minutes; give up after an hour and show why the last attempt failed.
 for attempt in $(seq 120); do
     xcodebuild -exportNotarizedApp -archivePath "$ARCHIVE" -exportPath "$OUT/export" -quiet 2> "$OUT/notarize.log" && break
+    # Apple turning the app down won't change by waiting.
+    grep -qiE "invalid|rejected" "$OUT/notarize.log" && { echo "Notarization failed:"; tail -20 "$OUT/notarize.log"; exit 1; }
     [ "$attempt" = 120 ] && { echo "Notarization didn't finish within an hour:"; tail -20 "$OUT/notarize.log"; exit 1; }
     sleep 30
 done
