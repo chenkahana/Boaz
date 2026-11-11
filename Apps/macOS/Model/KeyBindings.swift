@@ -122,6 +122,18 @@ extension KeyboardShortcut {
         }
         return text
     }
+
+    /// Whether a key-down event is this shortcut.
+    func matches(_ event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        var mods: EventModifiers = []
+        if flags.contains(.command) { mods.insert(.command) }
+        if flags.contains(.shift) { mods.insert(.shift) }
+        if flags.contains(.option) { mods.insert(.option) }
+        if flags.contains(.control) { mods.insert(.control) }
+        guard mods == modifiers, let typed = event.charactersIgnoringModifiers?.lowercased() else { return false }
+        return typed == String(key.character).lowercased()
+    }
 }
 
 extension KeyBindings {

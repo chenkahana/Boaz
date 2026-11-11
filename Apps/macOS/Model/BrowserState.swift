@@ -78,6 +78,7 @@ final class BrowserState {
     @ObservationIgnored private var keyObserver: NSObjectProtocol?
     @ObservationIgnored private var closeObserver: NSObjectProtocol?
     @ObservationIgnored private var typeAheadMonitor: Any?
+    @ObservationIgnored private var sidebarKeyMonitor: Any?
     /// What was typed after the command bar opened but before its field had the keyboard.
     @ObservationIgnored private var typeAhead = ""
     @ObservationIgnored private var typeAheadSubmits = false
@@ -93,6 +94,7 @@ final class BrowserState {
         if let keyObserver { NotificationCenter.default.removeObserver(keyObserver) }
         if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
         if let typeAheadMonitor { NSEvent.removeMonitor(typeAheadMonitor) }
+        if let sidebarKeyMonitor { NSEvent.removeMonitor(sidebarKeyMonitor) }
     }
 
     // MARK: Window
@@ -124,6 +126,24 @@ final class BrowserState {
             }
         }
         model.register(self)
+        watchSidebarShortcut()
+    }
+
+    /// The sidebar's shortcut, taken before the key reaches the focused view or the menu bar, so it folds the
+    /// sidebar wherever the keyboard focus is, a web page included.
+    private func watchSidebarShortcut() {
+        guard sidebarKeyMonitor == nil else { return }
+        sidebarKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            // Local monitors run on the main thread.
+            nonisolated(unsafe) let event = event
+            let handled = MainActor.assumeIsolated {
+                guard let self, let window = self.window, event.window === window, window.attachedSheet == nil,
+                      self.model.keyBindings.shortcut(.toggleSidebar)?.matches(event) == true else { return false }
+                self.toggleSidebar()
+                return true
+            }
+            return handled ? nil : event
+        }
     }
 
     /// Arc hides the traffic lights with the sidebar; they come back while the sidebar peeks.

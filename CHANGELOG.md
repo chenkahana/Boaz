@@ -10,6 +10,7 @@ All notable changes to Boaz are recorded here. The format follows
 
 - Mac: switching spaces always shows a tab from the new space: the one last used there, else its most recent tab,
   else an empty New Tab page. A favorite the two spaces share stays open (#37).
+- Mac: ⌘S (or its rebound shortcut) folds and unfolds the sidebar wherever the keyboard focus is, a web page included.
 
 ## [0.1.0] - 2026-11-10
 
