@@ -33,6 +33,8 @@ targets:
         # Mac's login keychain.
         SUPublicEDKey: nugsTugZI71XGe2tvA+/MiVU1PcIgJeMRJPUpue+ee0=
         SUEnableInstallerLauncherService: true
+        # The DMG's EdDSA signature is checked before it's opened, not only the app after it's copied out.
+        SUVerifyUpdateBeforeExtraction: true
         SUEnableAutomaticChecks: true
         SUScheduledCheckInterval: 86400
     settings:

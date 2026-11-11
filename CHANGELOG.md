@@ -6,6 +6,18 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Mac: a link a page opens in a new window (`target="_blank"`, `window.open`) opens in a tab right below the page,
+  rather than at the top of Today.
+- Mac (DMG): an update's signature is checked before its DMG is opened.
+
+### Fixed
+
+- iPhone and Mac: a background tab that's playing audio or video, using the camera or microphone, or in full screen
+  keeps running when more tabs open; before, the oldest page was closed past 8 (iPhone) or 10 (Mac) open pages,
+  whatever it was doing.
+
 ## [0.2.0] - 2026-11-11
 
 ### Added
