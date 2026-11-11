@@ -210,8 +210,10 @@ private struct FavoritesGrid: View {
                     .opacity(targeted ? 0.6 : 0)
                     .frame(height: targeted ? 44 : 6)
             } else {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: min(4, max(favorites.count, 3))),
-                          spacing: 8) {
+                // Up to four a row, with the rows as even as they can be: six are two rows of three, not four and two.
+                let rows = (favorites.count + 3) / 4
+                let columns = max(3, (favorites.count + rows - 1) / rows)
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: columns), spacing: 8) {
                     ForEach(favorites) { FavoriteTile(tab: $0, tint: tint) }
                 }
             }
@@ -319,7 +321,8 @@ private struct SpaceHeader: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            SpaceIcon(space: space, size: 15)
+            // As wide as a row's icon, so the title lines up with the titles below it.
+            SpaceIcon(space: space, size: 15).frame(width: 18)
             Text(space.title).font(SidebarStyle.titleFont(size: textSize)).lineLimit(1)
                 .onTapGesture(count: 2) { browser.spaceEditor = .init(spaceID: space.id) }
                 .help("Double-click to customize")
