@@ -53,6 +53,7 @@ struct SidebarView: View {
         VStack(alignment: .leading, spacing: 8) {
             SidebarTopBar()
             AddressPill()
+            ExtensionActionsBar()
             if !browser.isIncognito { FavoritesGrid(tint: style.tint) }
             ZStack(alignment: .top) {
                 if browser.isIncognito {

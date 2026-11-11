@@ -85,7 +85,8 @@ Both apps render pages with WebKit. Shared glue in `Apps/Browser` handles:
 - **Downloads**, **favicons** (fetched from each site directly) and **site colors** for tab tinting.
 
 Platform specifics live in each app: on iPhone, cookie-banner declining, the reader view, pull to refresh and the
-navigation policy; on Mac, the sidebar window, split view, command bar and rebindable shortcuts.
+navigation policy; on Mac, the sidebar window, split view, command bar, rebindable shortcuts and Chrome extensions
+([extensions.md](extensions.md)).
 
 **Passkeys.** WebKit handles WebAuthn (`navigator.credentials.create` and `get`) itself and shows the system's
 passkey sheet, so neither app has passkey code of its own. For any site beyond the app's associated domains, the

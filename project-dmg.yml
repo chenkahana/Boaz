@@ -37,4 +37,6 @@ targets:
         SUScheduledCheckInterval: 86400
     settings:
       base:
-        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) SPARKLE
+        # DIRECT_DISTRIBUTION: installing extensions from the Chrome Web Store, which downloads their code
+        # (docs/extensions.md), stays out of the App Store build.
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) SPARKLE DIRECT_DISTRIBUTION

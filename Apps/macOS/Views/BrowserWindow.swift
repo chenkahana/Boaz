@@ -58,6 +58,21 @@ struct BrowserWindow: View {
         .sheet(item: $browser.onboarding) { OnboardingView(start: $0).environment(model).environment(browser) }
         .sheet(item: $browser.rename) { request in RenameSheet(request: request).environment(browser) }
         .sheet(item: $browser.ai) { MacAISheet(request: $0).environment(model).environment(browser) }
+        .sheet(item: $browser.extensionSheet) { sheet in
+            Group {
+                switch sheet {
+                case .manage: ExtensionsManagerView()
+                case .confirm(let pending): ConfirmExtensionView(pending: pending)
+                case .webStore(let text):
+                    #if DIRECT_DISTRIBUTION
+                    WebStoreInstallView(text: text)
+                    #else
+                    let _ = text
+                    #endif
+                }
+            }
+            .environment(browser)
+        }
         .confirmationDialog("Delete \"\(browser.spaceToDelete?.title ?? "")\"?",
                             isPresented: Binding { browser.spaceToDelete != nil } set: { if !$0 { browser.spaceToDelete = nil } },
                             titleVisibility: .visible, presenting: browser.spaceToDelete) { space in
@@ -257,6 +272,9 @@ private struct ContentArea: View {
                     }
                 }
             }
+            #if DIRECT_DISTRIBUTION
+            WebStoreBanner().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            #endif
             if let peek = browser.peek {
                 PeekOverlay(peek: peek)
                     .transition(reduceMotion ? .opacity : .scale(scale: 0.9).combined(with: .opacity))

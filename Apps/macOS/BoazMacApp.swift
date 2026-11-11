@@ -199,6 +199,18 @@ struct BoazCommands: Commands {
             }
         }
 
+        CommandMenu("Extensions") {
+            Button("Manage Extensions…") { browser?.extensionSheet = .manage }.disabled(browser == nil || browser?.isIncognito == true)
+            Divider()
+            #if DIRECT_DISTRIBUTION
+            Button("Install from Chrome Web Store…") { browser?.extensionSheet = .webStore() }
+                .disabled(browser == nil || browser?.isIncognito == true)
+            #endif
+            Button("Load Unpacked…") { browser?.chooseExtension(folder: true) }.disabled(browser == nil || browser?.isIncognito == true)
+            Button("Install from File…") { browser?.chooseExtension(folder: false) }
+                .disabled(browser == nil || browser?.isIncognito == true)
+        }
+
         CommandMenu("Spaces") {
             Button("Next Space") { browser?.shiftSpace(by: 1) }.keyboardShortcut(key(.nextSpace)).disabled(browser == nil)
             Button("Previous Space") { browser?.shiftSpace(by: -1) }.keyboardShortcut(key(.previousSpace)).disabled(browser == nil)

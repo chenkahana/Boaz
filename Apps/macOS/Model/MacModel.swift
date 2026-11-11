@@ -124,6 +124,7 @@ final class MacModel {
                     removed.forEach(removeSiteData)
                     guard !loaded else { continue }
                     loaded = true
+                    Extensions.shared.loadInstalled()
                     // A launch without a main window (a link to a Quick Window) has nothing to restore.
                     Task {
                         try? await Task.sleep(for: .seconds(10))
@@ -247,6 +248,9 @@ final class MacModel {
     }
 
     private struct WeakBrowser { weak var browser: BrowserState? }
+
+    /// The main windows open now (not Incognito).
+    var openBrowsers: [BrowserState] { browsers.compactMap(\.browser) }
 
     func register(_ browser: BrowserState) {
         guard !browser.isIncognito else { return }

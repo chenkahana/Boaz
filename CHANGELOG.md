@@ -22,6 +22,11 @@ All notable changes to Boaz are recorded here. The format follows
   in the background: a Today tab goes to the Archive and a pinned tab unloads.
 - Passkeys in web pages on iPhone and Mac, through the system's passkey sheet, ready to turn on once Apple grants the
   entitlement they need (off until then; `passkeys.yml`).
+- Mac: Chrome extensions, through WebKit's web extension support, per profile. The Extensions menu loads an unpacked
+  folder or a `.crx`/`.zip`; the DMG build also installs from the Chrome Web Store, by address or ID or from the Add
+  to Boaz button on an extension's store page. Boaz shows what an extension asks for before adding it. Toolbar
+  buttons sit under the address field, and Manage Extensions… turns them on or off, opens their options or removes
+  them. Some Chrome APIs aren't available; see `docs/extensions.md`.
 
 ### Changed
 

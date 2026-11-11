@@ -54,6 +54,7 @@ final class BrowserState {
     var rename: RenameRequest?
     /// The space whose deletion is waiting for confirmation.
     var spaceToDelete: Space?
+    var extensionSheet: ExtensionSheet?
     /// Summarize/Ask or a tidy preview (`MacAISheet`).
     var ai: AIRequest?
     var showImport = false
@@ -109,12 +110,14 @@ final class BrowserState {
         window.tabbingMode = .disallowed
         updateTrafficLights()
         if !isIncognito { model.lastActiveBrowser = self }
+        Extensions.shared.didOpenWindow(self)
         if let keyObserver { NotificationCenter.default.removeObserver(keyObserver) }
         keyObserver = NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: window,
                                                              queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, !self.isIncognito else { return }
                 self.model.lastActiveBrowser = self
+                Extensions.shared.didFocusWindow(self)
             }
         }
         if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
@@ -123,6 +126,7 @@ final class BrowserState {
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.model.windowWillClose(self)
+                Extensions.shared.didCloseWindow(self)
             }
         }
         model.register(self)
@@ -213,9 +217,12 @@ final class BrowserState {
         return page
     }
 
+    func existingPage(for tabID: String) -> WebPage? { pages[tabID] }
+
     func makePage(profileID: String?, context: NavigationRouter.Context, loading url: URL? = nil) -> WebPage {
         var configuration = WebPage.Configuration()
         configuration.websiteDataStore = dataStore(profileID: profileID)
+        if !isIncognito { configuration.webExtensionController = Extensions.shared.controller(profileID: profileID) }
         configuration.applicationNameForUserAgent = "Version/26.0 Safari/605.1.15"
         model.applyContentBlocking(to: &configuration)
         let page = WebPage(configuration: configuration, navigationDecider: NavigationRouter(browser: self, context: context),
@@ -311,8 +318,10 @@ final class BrowserState {
         if let split, !split.contains(tab.id) { self.split = nil }
         if let space = tab.spaceID, space != spaceID { switchSpace(to: space, restoringTab: false) }
         if !isPrivate(tab) { model.markActive(tab) }
+        let previous = activeTabID
         activeTabID = tab.id
         if let spaceID { lastTabPerSpace[spaceID] = tab.id }
+        if previous != tab.id { Extensions.shared.didActivate(tab, previous: previous, in: self) }
     }
 
     func openTab(_ url: URL, title: String? = nil) {
