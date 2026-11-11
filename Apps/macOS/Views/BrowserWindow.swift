@@ -145,9 +145,7 @@ struct WindowBackdrop: View {
                             .mask(LinearGradient(colors: [.black, .black.opacity(0.78)], startPoint: .top, endPoint: .bottom))
                             .transition(.opacity)
                     }
-                    // Soft light from the top-left corner, like Arc's vibrant themes.
-                    RadialGradient(colors: [.white.opacity(scheme == .dark ? 0.06 : 0.35), .clear],
-                                   center: .topLeading, startRadius: 0, endRadius: 520)
+                    if style.lightStreak { LightStreak() }
                 }
             }
         }
@@ -157,6 +155,18 @@ struct WindowBackdrop: View {
     }
 
     private var site: SiteColor? { browser.activeSiteColor(enabled: tintWithSiteColors) }
+}
+
+/// Soft light from the top-left corner, like Arc's vibrant themes; a theme option, off by default.
+struct LightStreak: View {
+    @Environment(\.colorScheme) private var scheme
+    var radius: CGFloat = 520
+
+    var body: some View {
+        RadialGradient(colors: [.white.opacity(scheme == .dark ? 0.06 : 0.35), .clear],
+                       center: .topLeading, startRadius: 0, endRadius: radius)
+            .allowsHitTesting(false)
+    }
 }
 
 /// Hover the left edge with the sidebar hidden to slide it out over the content.

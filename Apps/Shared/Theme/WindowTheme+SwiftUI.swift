@@ -69,6 +69,15 @@ struct SpaceStyle {
         Color(Contrast.legible(Contrast.mix(primaryText, Contrast.average(backdrop), 0.4), on: backdrop))
     }
 
+    /// `secondary` for the Mac sidebar: still 4.5:1 where a row's hover or selection fill (the label color at up to
+    /// 12%) lies under it.
+    var secondaryOnFills: Color {
+        let label = (dark ? Color.white : .black).resolve(in: environment)
+        let fill = Color.Resolved(red: label.red, green: label.green, blue: label.blue, opacity: 0.12)
+        let backgrounds = backdrop + backdrop.map { Contrast.over(fill, $0) }
+        return Color(Contrast.legible(Contrast.mix(primaryText, Contrast.average(backdrop), 0.4), on: backgrounds))
+    }
+
     private var themeText: Color {
         (theme?.color("title", dark: dark) ?? theme?.color("foregroundPrimary", dark: dark))?.color ?? Theme.textPrimary
     }
@@ -86,8 +95,15 @@ struct SpaceStyle {
         environment.colorScheme = dark ? .dark : .light
         return environment
     }
-    /// Arc's grain overlay strength, 0…1.
-    var grain: Double { theme?.backdrop(dark: dark)?.noise ?? 0 }
+    /// The grain overlay's strength, 0…1, when the theme turns grain on: Arc's `noiseFactor`, else a light default.
+    var grain: Double {
+        guard theme?.showsGrain == true else { return 0 }
+        let noise = theme?.backdrop(dark: dark)?.noise ?? 0
+        return noise > 0 ? noise : 0.2
+    }
+
+    /// Whether the theme turns on the soft light from the window's top corner.
+    var lightStreak: Bool { theme?.showsLightStreak == true }
 
     var gradient: LinearGradient {
         theme?.backdrop(dark: dark) == nil

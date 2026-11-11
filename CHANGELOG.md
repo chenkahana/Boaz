@@ -8,6 +8,11 @@ All notable changes to Boaz are recorded here. The format follows
 
 ### Changed
 
+- Mac: a calmer sidebar. The system font at 14 pt (15 pt semibold space title), 32 pt rows on a 4 pt grid, one flat
+  selection fill and half of it on hover, with no glow, shadow or border. Favorites are flat tiles that lift only on
+  hover. Dimmer text and icons now read at 4.5:1 or better on every theme, in Light and Dark. One animation curve,
+  and nothing moves with Reduce Motion. The rules are in `docs/design.md`.
+- Mac: a space's grain texture and light streak are off unless its theme turns them on.
 - Mac: any space can be deleted while another remains, including a profile's last one; that removes the profile too,
   with its favorites moving to the Archive and its site data deleted, and the confirmation says so. Delete Space… is
   in the space's right-click menu, on its header and its dot.
