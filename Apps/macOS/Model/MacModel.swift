@@ -54,6 +54,9 @@ final class MacModel {
     @ObservationIgnored private var holdsSweeps = true
     @ObservationIgnored private var restoringWindows = 0
     @ObservationIgnored private var browsers: [WeakBrowser] = []
+    /// Where each tab's page was last read, which a page loaded again goes back to (`PageState`). Incognito windows
+    /// keep their own, in memory.
+    @ObservationIgnored let pageStates = PageState.Store.saved()
     @ObservationIgnored private var windowsToRestore = SavedWindow.load()
     @ObservationIgnored private var openedRestoredWindows = false
     /// Set once the app has agreed to quit, so the windows closing on the way out don't count as closed by hand.
@@ -103,6 +106,10 @@ final class MacModel {
                     Task { await sync.syncNow() }
                 }
             }
+            NotificationCenter.default.addObserver(forName: NSApplication.willResignActiveNotification, object: nil,
+                                                   queue: .main) { _ in
+                MainActor.assumeIsolated { MacModel.shared.openBrowsers.forEach { $0.rememberPagesInView() } }
+            }
         } catch {
             loadError = String(describing: error)
             return
@@ -128,6 +135,7 @@ final class MacModel {
                     // Read before the snapshot: a profile deleted on another device arrives without its tabs.
                     let removedTabs = sidebar.items.filter { removedIDs.contains($0.profileID) }.map(\.id)
                     sidebar = snapshot
+                    pageStates.prune(keeping: Set(snapshot.items.map(\.id)))
                     if !removed.isEmpty { closePages(of: removedIDs, tabIDs: removedTabs) }
                     removeSiteData(removed.map(\.dataStoreID))
                     guard !loaded else { continue }

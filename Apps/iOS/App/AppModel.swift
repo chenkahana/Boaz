@@ -86,11 +86,14 @@ final class AppModel {
     @ObservationIgnored private var historyLookup: Task<Void, Never>?
     /// The previews waiting for their pages to stop scrolling, by tab (see `pageDidScroll`).
     @ObservationIgnored private var settledCaptures: [String: Task<Void, Never>] = [:]
-    /// Where each tab's page last came to rest, and at which address; a page loaded again (evicted from the live
-    /// pages, or after a relaunch) goes back there. Kept across launches; private tabs' aren't kept.
-    @ObservationIgnored private var scrollPositions = ScrollPosition.saved()
-    /// Positions waiting for their tab's page to finish loading (`pageDidFinishLoading`).
-    @ObservationIgnored private var pendingScrolls: [String: ScrollPosition] = [:]
+    /// Where each tab's page was last read (`PageState`); a page loaded again (unloaded past `maxLivePages`, its
+    /// process ended by iOS, or after a relaunch) goes back there. Kept a week; private tabs' only in memory.
+    @ObservationIgnored private let pageStates = PageState.Store.saved()
+    @ObservationIgnored private var privatePageStates = PageState.Store()
+    /// States waiting for their tab's page to finish loading (`pageDidFinishLoading`).
+    @ObservationIgnored private var pendingRestores: [String: PageState] = [:]
+    /// Tabs whose page is going back to its place, which their browser covers with the preview meanwhile.
+    private(set) var restoringTabs: Set<String> = []
     /// Tabs whose title is cooling down after a save, and whether it changed again meanwhile (`didChangeTitle`).
     @ObservationIgnored private var titleCooldowns: [String: Bool] = [:]
     /// The address each tab's current page was recorded at in history, which its later titles name (`didCommitLoad`).
@@ -108,12 +111,14 @@ final class AppModel {
 
     init() {
         UserDefaults.standard.register(defaults: [
-            Preferences.archiveAfterKey: ArchiveInterval.day.rawValue,
+            Preferences.archiveAfterKey: ArchiveInterval.week.rawValue,
             Preferences.searchEngineKey: SearchEngine.duckDuckGo.rawValue,
             Preferences.searchSuggestionsKey: true,
             Preferences.blockTrackersKey: true,
             Preferences.hideCookieBannersKey: true,
         ])
+        // Window-only scroll offsets from before 0.2.4, replaced by `pageStates`.
+        UserDefaults.standard.removeObject(forKey: "scrollPositions")
     }
 
     // MARK: Lifecycle
@@ -342,6 +347,7 @@ final class AppModel {
             configuration.userContentController.addUserScript(CookieBanners.userScript())
         }
         configuration.userContentController.addUserScript(SiteEdges.userScript())
+        PageState.install(in: &configuration) { [weak self] state in self?.pageDidSettle(state, tabID: tab.id) }
         configuration.userContentController.add(SiteEdges.Messages { [weak self] edges, url in
             self?.didSampleEdges(edges, at: url, tabID: tab.id, isPrivate: tabIsPrivate)
         }, contentWorld: .defaultClient, name: SiteEdges.messageName)
@@ -384,7 +390,9 @@ final class AppModel {
             }
         }
         pages[tab.id] = page
-        if let position = scrollPositions[tab.id], position.url == tab.url { pendingScrolls[tab.id] = position }
+        if let state = pageStates(tabIsPrivate)[tab.id], tab.url?.isSamePage(as: state.url) == true {
+            armRestore(state, for: tab.id)
+        }
         closeIdlePages()
         return page
     }
@@ -438,6 +446,7 @@ final class AppModel {
     func sceneDidChange(isActive: Bool) {
         guard isActive != isInForeground else { return }
         isInForeground = isActive
+        if !isActive { for id in pagesInView { Task { await rememberPageState(id) } } }
         for id in pagesInView {
             if isActive { pictureInPicture(id)?.returnFromLeaving() } else { pictureInPicture(id)?.floatOnLeaving() }
         }
@@ -452,9 +461,16 @@ final class AppModel {
     func pageDidFinishLoading(_ tab: SidebarItem) {
         guard let page = pages[tab.id] else { return }
         let tabIsPrivate = isPrivate(tab)
-        captureSnapshot(of: page, tab: tab)
-        if let position = pendingScrolls.removeValue(forKey: tab.id), position.url == page.url {
-            Task { _ = try? await page.callJavaScript(ScrollPosition.restoreScript, arguments: ["y": position.y]) }
+        if let state = pendingRestores.removeValue(forKey: tab.id), page.url?.isSamePage(as: state.url) == true {
+            // The preview waits for the page to be back at its place.
+            Task {
+                await state.restore(on: page)
+                endRestoring(tab.id)
+                await snapshot(page, tab: tab)
+            }
+        } else {
+            endRestoring(tab.id)
+            captureSnapshot(of: page, tab: tab)
         }
         Task {
             guard let pageURL = page.url,
@@ -497,27 +513,62 @@ final class AppModel {
             try? await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled, let page = pages[tab.id] else { return }
             settledCaptures[tab.id] = nil
-            await rememberScroll(of: page, tab: tab)
+            // Until the page is back at its place, it shows the top: the preview from before stays.
+            guard !restoringTabs.contains(tab.id) else { return }
             await snapshot(page, tab: tab)
         }
     }
 
-    /// Drops a position waiting to be put back once the page is no longer loading the address it was saved at: it
+    /// Drops a state waiting to be put back once the page is no longer loading the address it was saved at: it
     /// finished while its browser wasn't watching, or went somewhere else first.
     func dropStalePendingScroll(_ tab: SidebarItem) {
-        guard let position = pendingScrolls[tab.id], let page = pages[tab.id], let url = page.url,
-              !page.isLoading || !url.isSamePage(as: position.url) else { return }
-        pendingScrolls[tab.id] = nil
+        guard let state = pendingRestores[tab.id], let page = pages[tab.id], let url = page.url,
+              !page.isLoading || !url.isSamePage(as: state.url) else { return }
+        pendingRestores[tab.id] = nil
+        endRestoring(tab.id)
     }
 
-    /// Saves where the page came to rest. Not while it loads: a page loading again sits at the top until its
-    /// position is put back.
-    private func rememberScroll(of page: WebPage, tab: SidebarItem) async {
-        guard !isPrivate(tab), !page.isLoading, let url = page.url,
-              let y = (try? await page.callJavaScript("return window.scrollY;") as? NSNumber)?.doubleValue,
-              scrollPositions[tab.id] != ScrollPosition(url: url, y: y) else { return }
-        scrollPositions[tab.id] = ScrollPosition(url: url, y: y)
-        ScrollPosition.save(scrollPositions)
+    /// iOS ended the page's process: the reload that follows goes back to where the page was. The page has no address
+    /// until then; the tab's is the one it showed.
+    func pageDidTerminate(_ tab: SidebarItem) {
+        guard let state = pageStates(isPrivate(tab))[tab.id], let url = pages[tab.id]?.url ?? tab.url,
+              url.isSamePage(as: state.url) else { return }
+        armRestore(state, for: tab.id)
+    }
+
+    /// The page goes back to `state` once it has loaded, under its preview for at most a second and a half.
+    private func armRestore(_ state: PageState, for tabID: String) {
+        pendingRestores[tabID] = state
+        // Not while the browser asking for the page renders.
+        Task {
+            guard pendingRestores[tabID] != nil else { return }
+            restoringTabs.insert(tabID)
+            try? await Task.sleep(for: .seconds(1.5))
+            endRestoring(tabID)
+        }
+    }
+
+    private func endRestoring(_ tabID: String) {
+        if restoringTabs.contains(tabID) { restoringTabs.remove(tabID) }
+    }
+
+    private func pageStates(_ isPrivate: Bool) -> PageState.Store { isPrivate ? privatePageStates : pageStates }
+
+    /// Where the page's scrolling came to rest (the page's script reports it). Not while the page waits to be put
+    /// back (until then it sits at the top), nor once it has left the screen: off screen it is laid out at another
+    /// size, which moves a page scrolled to its end.
+    private func pageDidSettle(_ state: PageState, tabID: String) {
+        guard pendingRestores[tabID] == nil, pagesInView.contains(tabID), let tab = item(withID: tabID) else { return }
+        pageStates(isPrivate(tab)).set(state, for: tabID)
+    }
+
+    /// Reads and keeps where a page on screen is, as the app goes away. Pages off screen aren't read (see
+    /// `pageDidSettle`); a page only scrolls on screen, so its last report there already says where it is.
+    private func rememberPageState(_ tabID: String) async {
+        guard pendingRestores[tabID] == nil, pagesInView.contains(tabID), let page = pages[tabID], !page.isLoading,
+              let state = await PageState.read(page), pendingRestores[tabID] == nil, let tab = item(withID: tabID)
+        else { return }
+        pageStates(isPrivate(tab)).set(state, for: tabID)
     }
 
     private func snapshot(_ page: WebPage, tab: SidebarItem) async {
@@ -548,11 +599,7 @@ final class AppModel {
             snapshots[id] = nil
             SnapshotCache.remove(id)
         }
-        let kept = scrollPositions.filter { ids.contains($0.key) }
-        if kept.count != scrollPositions.count {
-            scrollPositions = kept
-            ScrollPosition.save(kept)
-        }
+        pageStates.prune(keeping: ids)
     }
 
     // WebKit traps when two WebViews show the same WebPage. That happens for a moment whenever the posture
@@ -893,6 +940,7 @@ final class AppModel {
             }
             pageRecency.removeAll { id in incognitoTabs.contains { $0.id == id } }
             incognitoTabs = []
+            privatePageStates = PageState.Store()
             PageSettings.forgetPrivateChoices()
             PageZoom.forgetPrivateLevels()
             if let id = otherPaneTabID, sidebar.items.first(where: { $0.id == id }) == nil { otherPaneTabID = nil }
@@ -990,34 +1038,6 @@ final class AppModel {
     }
 }
 
-/// A page's vertical scroll offset in CSS pixels (`window.scrollY`), and the address it was on.
-struct ScrollPosition: Codable, Equatable {
-    var url: URL
-    var y: Double
-
-    private static let key = "scrollPositions"
-
-    static func saved() -> [String: ScrollPosition] {
-        UserDefaults.standard.data(forKey: key).flatMap { try? JSONDecoder().decode([String: Self].self, from: $0) } ?? [:]
-    }
-
-    static func save(_ positions: [String: ScrollPosition]) {
-        UserDefaults.standard.set(try? JSONEncoder().encode(positions), forKey: key)
-    }
-
-    /// Scrolls to `y`, trying again for two seconds while the page is still too short to get there (late images,
-    /// lazy content). Stops as soon as the user scrolls it.
-    static let restoreScript = """
-    var tries = 0, last = null;
-    (function go() {
-      if (last !== null && Math.abs(window.scrollY - last) > 2) { return; }
-      window.scrollTo(0, y);
-      last = window.scrollY;
-      if (Math.abs(last - y) > 2 && ++tries < 20) { setTimeout(go, 100); }
-    })();
-    """
-}
-
 enum ArchiveInterval: Int, CaseIterable, Identifiable {
     case twelveHours = 43_200, day = 86_400, week = 604_800, month = 2_592_000, never = 0
     var id: Int { rawValue }
@@ -1042,7 +1062,7 @@ enum Preferences {
     static let tintWithSiteColorsKey = "tintWithSiteColors"
 
     static var archiveAfter: ArchiveInterval {
-        ArchiveInterval(rawValue: UserDefaults.standard.integer(forKey: archiveAfterKey)) ?? .day
+        ArchiveInterval(rawValue: UserDefaults.standard.integer(forKey: archiveAfterKey)) ?? .week
     }
     static var searchEngine: SearchEngine {
         SearchEngine(rawValue: UserDefaults.standard.string(forKey: searchEngineKey) ?? "") ?? .duckDuckGo

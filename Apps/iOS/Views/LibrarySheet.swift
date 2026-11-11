@@ -166,7 +166,7 @@ private struct Row: View {
 
 struct SettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @AppStorage(Preferences.archiveAfterKey) private var archiveAfter = ArchiveInterval.day.rawValue
+    @AppStorage(Preferences.archiveAfterKey) private var archiveAfter = ArchiveInterval.week.rawValue
     @AppStorage(Preferences.searchEngineKey) private var searchEngine = SearchEngine.duckDuckGo.rawValue
     @AppStorage(Preferences.searchSuggestionsKey) private var searchSuggestions = true
     @AppStorage("blockTrackers") private var blockTrackers = true

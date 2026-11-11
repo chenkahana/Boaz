@@ -211,7 +211,7 @@ struct MacSettingsView: View {
 
 private struct GeneralSettings: View {
     @Environment(MacModel.self) private var model
-    @AppStorage(Preferences.archiveAfterKey) private var archiveAfter = ArchiveInterval.day.rawValue
+    @AppStorage(Preferences.archiveAfterKey) private var archiveAfter = ArchiveInterval.week.rawValue
     @AppStorage(Preferences.searchEngineKey) private var searchEngine = SearchEngine.duckDuckGo.rawValue
     @AppStorage(Preferences.sidebarTextSizeKey) private var sidebarTextSize = SidebarStyle.defaultTextSize
     @AppStorage(PictureInPicture.whenLeavingKey) private var pictureInPictureWhenLeaving = true

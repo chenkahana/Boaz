@@ -96,11 +96,16 @@ final class BrowserState {
     @ObservationIgnored private var typeAhead = ""
     @ObservationIgnored private var typeAheadSubmits = false
     @ObservationIgnored private var typeAheadClears = false
+    /// Where each tab's page was last read (`PageState`): the Mac's, or this Incognito window's own, in memory.
+    @ObservationIgnored private let pageStates: PageState.Store
+    /// States waiting for their tab's page to finish loading (`pageDidFinishLoading`).
+    @ObservationIgnored private var pendingRestores: [String: PageState] = [:]
     private let maxLivePages = 10
 
     init(incognito: Bool) {
         isIncognito = incognito
         privateStore = incognito ? .nonPersistent() : nil
+        pageStates = incognito ? PageState.Store() : MacModel.shared.pageStates
     }
 
     isolated deinit {
@@ -229,6 +234,8 @@ final class BrowserState {
         if loadFailures[tab.id] != nil { loadFailures[tab.id] = nil }
         let page = makePage(profileID: tab.profileID, context: .tab(tab.id), loading: tab.url)
         pages[tab.id] = page
+        // Unloaded past `maxLivePages`, or after a relaunch: back to where it was.
+        if let state = pageStates[tab.id], tab.url?.isSamePage(as: state.url) == true { pendingRestores[tab.id] = state }
         closeIdlePages()
         return page
     }
@@ -311,6 +318,9 @@ final class BrowserState {
         if !isIncognito { configuration.webExtensionController = Extensions.shared.controller(profileID: profileID) }
         configuration.applicationNameForUserAgent = "Version/26.0 Safari/605.1.15"
         model.applyContentBlocking(to: &configuration)
+        if case .tab(let id) = context {
+            PageState.install(in: &configuration) { [weak self] state in self?.pageDidSettle(state, tabID: id) }
+        }
         let pictureInPicture = PictureInPicture.install(in: &configuration)
         let router = NavigationRouter(browser: self, context: context)
         let page = WebPage(configuration: configuration, navigationDecider: router, dialogPresenter: MacDialogs())
@@ -523,14 +533,53 @@ final class BrowserState {
         }
     }
 
-    /// Learns the page's favicon once it finishes loading (skipped for incognito).
+    /// Puts a page loaded again back where it was, and learns its favicon (skipped for incognito) once it finishes
+    /// loading.
     func pageDidFinishLoading(page: WebPage) {
-        guard !page.isLoading, !isIncognito, let pageURL = page.url else { return }
+        guard !page.isLoading else { return }
+        if let id = pages.first(where: { $0.value === page })?.key, let state = pendingRestores.removeValue(forKey: id),
+           page.url?.isSamePage(as: state.url) == true {
+            Task { await state.restore(on: page) }
+        }
+        guard !isIncognito, let pageURL = page.url else { return }
         Task {
             guard let href = try? await page.callJavaScript(Favicons.discoveryScript, contentWorld: .defaultClient) as? String,
                   let iconURL = URL(string: href, relativeTo: pageURL)?.absoluteURL else { return }
             Favicons.shared.learn(iconURL: iconURL, forPageAt: pageURL, isPrivate: false)
         }
+    }
+
+    /// The page's process ended: the reload that follows goes back to where the page was. The page has no address
+    /// until then; the tab's is the one it showed.
+    func pageDidTerminate(_ tabID: String) {
+        guard let state = pageStates[tabID], let url = pages[tabID]?.url ?? tab(tabID)?.url,
+              url.isSamePage(as: state.url) else { return }
+        pendingRestores[tabID] = state
+    }
+
+    /// Where the page's scrolling came to rest (the page's script reports it). Not while the page waits to be put
+    /// back (until then it sits at the top), nor once it has left view: off screen it is laid out at another size,
+    /// which moves a page scrolled to its end. One that finished loading while no pane watched it isn't put back.
+    private func pageDidSettle(_ state: PageState, tabID: String) {
+        if pendingRestores[tabID] != nil {
+            guard pages[tabID]?.isLoading == false else { return }
+            pendingRestores[tabID] = nil
+        }
+        guard pagesInView.contains(tabID), tab(tabID) != nil else { return }
+        pageStates.set(state, for: tabID)
+    }
+
+    /// Reads and keeps where a page in view is, as Boaz goes to the background. A page only scrolls in view, so its last
+    /// report there already says where it is.
+    private func rememberPageState(_ tabID: String) async {
+        guard pendingRestores[tabID] == nil, pagesInView.contains(tabID), let page = pages[tabID], !page.isLoading,
+              let state = await PageState.read(page), pendingRestores[tabID] == nil, tab(tabID) != nil else { return }
+        pageStates.set(state, for: tabID)
+    }
+
+    /// Boaz is going to the background.
+    func rememberPagesInView() {
+        for id in pagesInView { Task { await rememberPageState(id) } }
     }
 
     /// ⌘W: archives a Today tab; a pinned or favorite tab just unloads (it stays in the sidebar).
@@ -548,6 +597,8 @@ final class BrowserState {
             activeTabID = next?.id
         }
         unload(tab.id)
+        // A closed tab opens fresh, a pinned one at its pinned page's top.
+        pageStates.remove(tab.id)
         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
             if isPrivate(tab) {
                 incognitoTabs.removeAll { $0.id == tab.id }

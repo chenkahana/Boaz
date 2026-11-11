@@ -25,14 +25,14 @@ enum Preferences {
 
     static func registerDefaults() {
         UserDefaults.standard.register(defaults: [
-            archiveAfterKey: ArchiveInterval.day.rawValue,
+            archiveAfterKey: ArchiveInterval.week.rawValue,
             searchEngineKey: SearchEngine.duckDuckGo.rawValue,
             blockTrackersKey: true,
         ])
     }
 
     static var archiveAfter: ArchiveInterval {
-        ArchiveInterval(rawValue: UserDefaults.standard.integer(forKey: archiveAfterKey)) ?? .day
+        ArchiveInterval(rawValue: UserDefaults.standard.integer(forKey: archiveAfterKey)) ?? .week
     }
     /// Ads and trackers (`ContentBlocking`); applies to pages opened after it changes.
     static var blockTrackers: Bool { UserDefaults.standard.bool(forKey: blockTrackersKey) }
