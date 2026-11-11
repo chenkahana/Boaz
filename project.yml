@@ -3,6 +3,9 @@ include:
   # Passkeys in web pages: a managed entitlement, off until Apple grants it (passkeys.yml).
   - path: passkeys.yml
     enable: false
+  # Default browser on iPhone: a managed entitlement, off until Apple grants it (web-browser.yml).
+  - path: web-browser.yml
+    enable: false
 options:
   bundleIdPrefix: com.chenkahana
   deploymentTarget:
@@ -72,6 +75,10 @@ targets:
           - CFBundleTypeRole: Editor
             CFBundleURLName: com.chenkahana.boaz
             CFBundleURLSchemes: [boaz]
+          # Required for the default browser entitlement (web-browser.yml); iOS ignores it until that's granted.
+          - CFBundleTypeRole: Viewer
+            CFBundleURLName: com.chenkahana.boaz.web
+            CFBundleURLSchemes: [http, https]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.chenkahana.boaz

@@ -1,0 +1,10 @@
+# Default browser on iPhone. With this entitlement, Boaz shows up in Settings › Apps › Boaz › Default Browser App and
+# iOS opens every http/https link from other apps in it. It is a managed entitlement that Apple grants per App ID
+# through the default browser entitlement request form. Signing with it fails until it's granted, so project.yml
+# includes this file with `enable: false`. Once granted, set `enable: true` there and regenerate (`make project`).
+# The Mac needs no entitlement for this.
+targets:
+  Boaz-iOS:
+    entitlements:
+      properties:
+        com.apple.developer.web-browser: true
