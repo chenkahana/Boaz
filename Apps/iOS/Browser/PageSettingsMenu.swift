@@ -147,12 +147,12 @@ struct PageSettingsPanel: View {
         }
         Button("Translate", systemImage: "translate") { closeThen(onTranslate) }
         Button("Print", systemImage: "printer") { closeThen { Task { await PagePrint.present(page) } } }
-        if let url = page.url {
-            Button("Copy Link", systemImage: "link") {
-                UIPasteboard.general.url = url
-                model.showToast("Link copied")
-            }
+        Button("Copy URL", systemImage: "doc.on.doc") {
+            guard let url = page.url else { return }
+            UIPasteboard.general.url = url
+            model.showToast("Copied URL")
         }
+        .disabled(page.url == nil)
         Button("Downloads", systemImage: "arrow.down.circle") { closeThen(onDownloads) }
     }
 
