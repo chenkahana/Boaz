@@ -1,5 +1,6 @@
 import AppKit
 import BoazKit
+import Network
 import SwiftUI
 import WebKit
 
@@ -8,6 +9,9 @@ struct TabPane: View {
     @Environment(BrowserState.self) private var browser
     let tab: SidebarItem
     let inSplit: Bool
+    @State private var retriedOnItsOwn = false
+    /// While the quiet retry is pending, the failure isn't shown.
+    @State private var retrying = false
 
     private var failure: LoadFailure? {
         get { browser.loadFailures[tab.id] }
@@ -25,10 +29,21 @@ struct TabPane: View {
                 .findNavigator(isPresented: Binding {
                     browser.findVisible && browser.activeTabID == tab.id
                 } set: { browser.findVisible = $0 })
-                .overlay { if let failure { LoadFailureView(failure: failure, page: page) } }
+                .overlay { if let failure, !retrying { LoadFailureView(failure: failure, page: page) } }
                 .overlay(alignment: .top) { LoadingGlow(page: page) }
         }
         .task(id: ObjectIdentifier(page)) { await track(page) }
+        // A load that failed for want of a connection loads again once there is one, when Boaz comes forward and
+        // when the Mac wakes. The monitor reports the current path first, so a tab shown later retries too.
+        .task(id: ObjectIdentifier(page)) {
+            for await path in NWPathMonitor() where path.status == .satisfied { retryIfPassing(on: page) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            retryIfPassing(on: page)
+        }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in
+            retryIfPassing(on: page)
+        }
         .onChange(of: page.url) { browser.didChangeURL(tab.id) }
         .onChange(of: page.title) { browser.didChangeTitle(tab.id) }
         .onChange(of: page.isLoading) { browser.pageDidFinishLoading(page: page) }
@@ -51,6 +66,7 @@ struct TabPane: View {
                     case .receivedServerRedirect:
                         requested = page.url
                     case .committed, .finished:
+                        if event == .finished { retriedOnItsOwn = false }
                         if event == .committed, let blocked = LoadFailure(blocked: requested, committed: page.url) {
                             failure = blocked
                         }
@@ -74,10 +90,26 @@ struct TabPane: View {
                 if case WebPage.NavigationError.webContentProcessTerminated = error {
                     PictureInPicture.controller(of: page)?.pageDidReset()
                 }
+                // The network often comes back a moment after a wake or a Wi-Fi change: one quiet retry first.
+                if failure?.passes == true, !retriedOnItsOwn {
+                    retriedOnItsOwn = true
+                    retrying = true
+                    Task {
+                        try? await Task.sleep(for: .seconds(1))
+                        retrying = false
+                        retryIfPassing(on: page)
+                    }
+                }
                 // Never spin if resubscribing fails straight away.
                 try? await Task.sleep(for: .milliseconds(50))
             }
         }
+    }
+
+    private func retryIfPassing(on page: WebPage) {
+        guard let failure, failure.passes else { return }
+        self.failure = nil
+        if let url = failure.url { _ = page.load(URLRequest(url: url)) } else { _ = page.reload(tabURL: tab.url) }
     }
 }
 
@@ -85,6 +117,8 @@ struct TabPane: View {
 struct LoadFailure {
     let message: String
     let url: URL?
+    /// Whether it may well load on its own later: the connection was down or dropped, or the page's process ended.
+    var passes = false
 
     /// Nil for loads that were stopped on purpose (a new navigation, a download, a link routed elsewhere).
     init?(_ error: Error) {
@@ -100,6 +134,12 @@ struct LoadFailure {
         default: nsError.localizedDescription
         }
         url = nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL
+        if case WebPage.NavigationError.webContentProcessTerminated = error { passes = true } else {
+            passes = nsError.domain == NSURLErrorDomain && [
+                NSURLErrorNotConnectedToInternet, NSURLErrorNetworkConnectionLost, NSURLErrorTimedOut,
+                NSURLErrorDataNotAllowed, NSURLErrorCannotFindHost, NSURLErrorCannotConnectToHost,
+            ].contains(nsError.code)
+        }
     }
 
     /// Waits out one load: why it failed, or nil once it commits a page.
