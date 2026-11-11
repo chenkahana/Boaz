@@ -29,6 +29,8 @@ rm -rf "$OUT" && mkdir -p "$OUT"
 echo "==> Archiving Boaz $VERSION"
 # The DMG build: project.yml plus Sparkle (project-dmg.yml). The App Store build never contains Sparkle.
 xcodegen generate --quiet --spec project-dmg.yml
+# Back to the App Store project however this ends, so a later `make mac` or Xcode build doesn't pick up Sparkle.
+trap 'xcodegen generate --quiet' EXIT
 # Seeded with BoazKit's pins, so Xcode records Sparkle's here and not in BoazKit's Package.resolved.
 mkdir -p Boaz.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
 cp Packages/BoazKit/Package.resolved Boaz.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
@@ -58,7 +60,10 @@ xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportPath "$OUT/upload" \
     -exportOptionsPlist "$OUT/ExportOptions.plist" -allowProvisioningUpdates -quiet
 
 echo "==> Waiting for notarization"
-until xcodebuild -exportNotarizedApp -archivePath "$ARCHIVE" -exportPath "$OUT/export" -quiet 2>/dev/null; do
+# Usually minutes; give up after an hour and show why the last attempt failed.
+for attempt in $(seq 120); do
+    xcodebuild -exportNotarizedApp -archivePath "$ARCHIVE" -exportPath "$OUT/export" -quiet 2> "$OUT/notarize.log" && break
+    [ "$attempt" = 120 ] && { echo "Notarization didn't finish within an hour:"; tail -20 "$OUT/notarize.log"; exit 1; }
     sleep 30
 done
 APP=$OUT/export/Boaz.app

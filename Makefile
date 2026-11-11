@@ -31,10 +31,11 @@ mac: project ## Build the Mac app (unsigned)
 	$(XCB) -scheme Boaz-macOS -configuration Debug -destination 'generic/platform=macOS' $(UNSIGNED) build
 
 mac-dmg: ## Build the DMG variant of the Mac app, with Sparkle (unsigned; project-dmg.yml)
-	xcodegen generate --quiet --spec project-dmg.yml
-	@# Seeded with BoazKit's pins, so Xcode records Sparkle's here and not in BoazKit's Package.resolved.
-	mkdir -p $(PROJECT)/project.xcworkspace/xcshareddata/swiftpm
-	cp Packages/BoazKit/Package.resolved $(PROJECT)/project.xcworkspace/xcshareddata/swiftpm/
+	@# One shell, so the App Store project comes back however the build ends. Seeded with BoazKit's pins, so Xcode
+	@# records Sparkle's here and not in BoazKit's Package.resolved.
+	xcodegen generate --quiet --spec project-dmg.yml && trap 'xcodegen generate --quiet' EXIT && \
+	mkdir -p $(PROJECT)/project.xcworkspace/xcshareddata/swiftpm && \
+	cp Packages/BoazKit/Package.resolved $(PROJECT)/project.xcworkspace/xcshareddata/swiftpm/ && \
 	$(XCB) -scheme Boaz-macOS -configuration Debug -destination 'generic/platform=macOS' $(UNSIGNED) build
 
 build: kit ios mac ## Build BoazKit and both apps (what CI runs)
