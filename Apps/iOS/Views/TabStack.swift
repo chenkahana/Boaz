@@ -545,54 +545,195 @@ private struct CarouselRail: View {
     }
 }
 
-/// Today tabs open on the user's Macs, by Mac. Read-only: picking one opens its page in a new tab here.
+/// The Mac's sidebar, one space at a time: favorites, pinned tabs and folders, then the Today tabs open on the user's
+/// Macs. Swipe or use the space bar to change spaces. Read-only: picking a page opens it in a new tab here.
 private struct MacTabsSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let pick: (SidebarItem) -> Void
+    @State private var spaceID: String?
 
     var body: some View {
-        let macs = model.sidebar.devices
-            .filter { $0.platform == .macOS }
-            .map { (device: $0, tabs: model.sidebar.todayTabs(openedOn: $0.id).filter { $0.url != nil }) }
-            .filter { !$0.tabs.isEmpty }
+        let spaces = model.spaces
+        let style = SpaceStyle(spaces.first { $0.id == spaceID }, scheme: scheme)
         NavigationStack {
-            List {
-                ForEach(macs, id: \.device.id) { mac in
-                    Section {
-                        ForEach(mac.tabs) { tab in
-                            Button { pick(tab); dismiss() } label: { row(tab) }
-                                .buttonStyle(.plain)
-                        }
-                    } header: {
-                        Text(mac.device.name)
-                    } footer: {
-                        Text("Last used \(mac.device.lastSeenAt, format: .relative(presentation: .named))")
-                    }
+            TabView(selection: $spaceID) {
+                ForEach(spaces) { space in
+                    MacSpaceColumn(space: space) { pick($0); dismiss() }.tag(Optional(space.id))
                 }
             }
-            .overlay {
-                if macs.isEmpty {
-                    ContentUnavailableView("No Tabs on Your Mac", systemImage: "laptopcomputer",
-                                           description: Text("Today tabs open in Boaz on your Mac appear here."))
-                }
-            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .safeAreaInset(edge: .bottom) { if spaces.count > 1 { spaceBar(spaces) } }
+            .foregroundStyle(style.foreground, style.secondary)
+            .background { style.gradient.background(Color(.systemBackground)).ignoresSafeArea() }
+            .animation(MacRowStyle.motion, value: spaceID)
             .navigationTitle("Tabs on Your Mac")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button(role: .close) { dismiss() } } }
         }
+        .onAppear { if spaceID == nil { spaceID = model.currentSpaceID ?? spaces.first?.id } }
     }
 
-    private func row(_ tab: SidebarItem) -> some View {
-        HStack(spacing: 12) {
-            Monogram(url: tab.url, tint: Theme.brand, size: 28)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(tab.title ?? tab.url?.host() ?? "").lineLimit(1)
-                Text(tab.url?.host() ?? "").font(.caption).foregroundStyle(Theme.textSecondary).lineLimit(1)
+    /// The Mac's space buttons: each space's icon, or a dot.
+    private func spaceBar(_ spaces: [Space]) -> some View {
+        HStack(spacing: 10) {
+            ForEach(spaces) { space in
+                let selected = space.id == spaceID
+                Button {
+                    withAnimation(reduceMotion ? .easeOut(duration: 0.2) : MacRowStyle.motion) { spaceID = space.id }
+                } label: {
+                    Group {
+                        if space.icon != nil { SpaceIcon(space: space, size: 17) } else { Circle().frame(width: 7, height: 7) }
+                    }
+                    .foregroundStyle(selected ? .primary : .secondary)
+                    .frame(width: 36, height: 36)
+                    .background(selected ? MacRowStyle.selection : .clear, in: .circle)
+                    .contentShape(.circle)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(space.title)
+                .accessibilityAddTraits(selected ? .isSelected : [])
             }
-            Spacer(minLength: 0)
         }
-        .contentShape(.rect)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity)
+    }
+}
+
+/// One space as the Mac's sidebar shows it, in the space's tint.
+private struct MacSpaceColumn: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.colorScheme) private var scheme
+    let space: Space
+    let open: (SidebarItem) -> Void
+
+    var body: some View {
+        let tint = SpaceStyle(space, scheme: scheme).tint
+        let favorites = model.sidebar.favorites(profileID: space.profileID).filter { $0.kind == .tab }
+        let pinned = model.sidebar.container(.pinned, in: space.id).map { model.sidebar.children(of: $0.id) } ?? []
+        let today = macTodayTabs
+        ScrollView {
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 10) {
+                    SpaceIcon(space: space, size: 17).frame(width: 22)
+                    Text(space.title).font(.headline).lineLimit(1)
+                }
+                .padding(.horizontal, 8)
+                .frame(height: 44)
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
+                if !favorites.isEmpty { favoritesGrid(favorites, tint: tint).padding(.bottom, 8) }
+                ForEach(pinned) { MacItemRow(item: $0, depth: 0, tint: tint, open: open) }
+                Rectangle().fill(.primary.opacity(0.15)).frame(height: 1)
+                    .padding(.horizontal, 8).padding(.vertical, 12)
+                    .accessibilityHidden(true)
+                if today.isEmpty {
+                    Text("No tabs open on your Mac in this space.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                }
+                ForEach(today) { MacItemRow(item: $0, depth: 0, tint: tint, open: open) }
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 16)
+        }
+        .scrollIndicators(.never)
+    }
+
+    /// Today tabs opened on a Mac, with the Mac's folders under Today flattened, as the phone's own Today does.
+    private var macTodayTabs: [SidebarItem] {
+        let macs = Set(model.sidebar.devices.filter { $0.platform == .macOS }.map(\.id))
+        func tabs(under parent: String) -> [SidebarItem] {
+            model.sidebar.children(of: parent)
+                .flatMap { $0.kind == .folder ? tabs(under: $0.id) : $0.kind == .tab ? [$0] : [] }
+        }
+        return model.sidebar.container(.unpinned, in: space.id).map { tabs(under: $0.id) }?
+            .filter { $0.url != nil && $0.deviceID.map(macs.contains) == true } ?? []
+    }
+
+    /// Up to four a row, the rows as even as they can be, as on the Mac.
+    private func favoritesGrid(_ favorites: [SidebarItem], tint: Color) -> some View {
+        let rows = (favorites.count + 3) / 4
+        let columns = max(3, (favorites.count + rows - 1) / rows)
+        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: columns), spacing: 8) {
+            ForEach(favorites) { tab in
+                Button { open(tab) } label: {
+                    Monogram(url: tab.url, tint: tint, size: 26)
+                        .frame(maxWidth: .infinity).frame(height: 52)
+                        // The icon's own color; a black, white or gray icon keeps the neutral fill.
+                        .background(Favicons.shared.resolved(for: tab.url)?.color.map { $0.opacity(0.24) } ?? MacRowStyle.hover,
+                                    in: .rect(cornerRadius: 12, style: .continuous))
+                        .contentShape(.rect)
+                }
+                .buttonStyle(PressableStyle())
+                .disabled(tab.url == nil)
+                .accessibilityLabel(tab.title ?? tab.url?.host() ?? "Favorite")
+            }
+        }
+    }
+}
+
+/// A pinned or Today row: favicon and title, as on the Mac. Folders open and close here without changing the Mac's.
+private struct MacItemRow: View {
+    @Environment(AppModel.self) private var model
+    let item: SidebarItem
+    let depth: Int
+    let tint: Color
+    let open: (SidebarItem) -> Void
+    @State private var expanded: Bool?
+
+    var body: some View {
+        let isFolder = item.kind == .folder
+        let isExpanded = expanded ?? item.isExpanded
+        VStack(alignment: .leading, spacing: 2) {
+            Button {
+                if isFolder { withAnimation(MacRowStyle.motion) { expanded = !isExpanded } } else { open(item) }
+            } label: {
+                HStack(spacing: 10) {
+                    if isFolder {
+                        Image(systemName: isExpanded ? "folder.fill" : "folder")
+                            .font(.system(size: 15, weight: .medium))
+                            .frame(width: 22)
+                    } else {
+                        Monogram(url: item.url, tint: tint, size: 20).frame(width: 22)
+                    }
+                    Text(isFolder ? item.title ?? "Folder" : item.title ?? item.url?.host() ?? "New Tab").lineLimit(1)
+                    Spacer(minLength: 0)
+                    if isFolder {
+                        Image(systemName: "chevron.right")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    }
+                }
+                .padding(.leading, 8 + CGFloat(depth) * 16)
+                .padding(.trailing, 8)
+                .frame(height: 44)
+            }
+            .buttonStyle(MacRowStyle())
+            .disabled(!isFolder && item.url == nil)
+            .accessibilityValue(isFolder ? (isExpanded ? "Expanded" : "Collapsed") : item.url?.host() ?? "")
+            if isFolder && isExpanded {
+                ForEach(model.sidebar.children(of: item.id)) { MacItemRow(item: $0, depth: depth + 1, tint: tint, open: open) }
+            }
+        }
+    }
+}
+
+/// The Mac sidebar's fills and motion (docs/design.md): the label color at 12% under a pressed row, half that at rest
+/// under a favorite.
+private struct MacRowStyle: ButtonStyle {
+    static let selection = Color.primary.opacity(0.12)
+    static let hover = Color.primary.opacity(0.06)
+    static let motion = Animation.smooth(duration: 0.2)
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .contentShape(.rect)
+            .background(configuration.isPressed ? Self.selection : .clear, in: .rect(cornerRadius: 10, style: .continuous))
     }
 }
 
