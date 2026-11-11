@@ -50,7 +50,6 @@ struct BrowserWindow: View {
         .navigationTitle(windowTitle)
         .preferredColorScheme(browser.isIncognito ? .dark : nil)
         .environment(\.isPrivateBrowsing, browser.isIncognito)
-        .sheet(item: $browser.themeEditor) { ThemeEditor(spaceID: $0.id).environment(model) }
         .sheet(item: $browser.spaceEditor) { request in MacSpaceEditor(request: request).environment(model).environment(browser) }
         .sheet(isPresented: $browser.showImport) {
             ArcImportView(store: model.store,
@@ -560,7 +559,7 @@ private struct BlurredBackdrop: NSViewRepresentable {
     }
 }
 
-/// The shared space editor, saving through the store; a new space opens as soon as it's created.
+/// Customize Space (the shared space editor), saving through the store; a new space opens as soon as it's created.
 private struct MacSpaceEditor: View {
     @Environment(MacModel.self) private var model
     @Environment(BrowserState.self) private var browser
@@ -569,16 +568,16 @@ private struct MacSpaceEditor: View {
     var body: some View {
         if let id = request.spaceID, let space = model.space(id) {
             SpaceEditor(mode: .edit(space, canDelete: model.sidebar.spaces.count > 1),
-                        deleteMessage: model.deletionMessage(for: space)) { title, icon, palette in
-                try? model.store?.updateSpace(space.id, title: title, icon: icon, palette: palette)
+                        deleteMessage: model.deletionMessage(for: space)) { title, icon, themeJSON in
+                try? model.store?.updateSpace(space.id, title: title, icon: icon, themeJSON: themeJSON)
             } onDelete: {
                 model.deleteSpace(space)
             }
         } else if let profileID = browser.currentSpace?.profileID ?? model.sidebar.profiles.first(where: \.isDefault)?.id
                     ?? model.sidebar.profiles.first?.id {
-            SpaceEditor(mode: .create) { title, icon, palette in
-                guard let space = try? model.store?.createSpace(title: title, icon: icon, palette: palette ?? .defaultPalette,
-                                                                profileID: profileID) else { return }
+            SpaceEditor(mode: .create) { title, icon, themeJSON in
+                guard let space = try? model.store?.createSpace(title: title, icon: icon, palette: .defaultPalette,
+                                                                themeJSON: themeJSON, profileID: profileID) else { return }
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(150))
                     browser.switchSpace(to: space.id)

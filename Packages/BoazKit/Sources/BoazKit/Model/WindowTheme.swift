@@ -78,8 +78,9 @@ public struct WindowTheme: Codable, Hashable, Sendable {
             lightBackdrop = (both["light"] as? [String: Any]).flatMap(Self.backdrop)
             darkBackdrop = (both["dark"] as? [String: Any]).flatMap(Self.backdrop)
         }
-        if let appearance = root["windowAppearance"] as? String, ["light", "dark"].contains(appearance) {
-            fixedAppearance = appearance
+        // Boaz writes "system" to follow the system again, even over a single backdrop.
+        if let appearance = root["windowAppearance"] as? String, ["light", "dark", "system"].contains(appearance) {
+            fixedAppearance = appearance == "system" ? nil : appearance
         }
     }
 

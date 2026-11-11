@@ -43,7 +43,6 @@ final class MacModel {
     /// have the lists, so no page loads with its ads.
     @ObservationIgnored private var contentBlockLists: [WKContentRuleList]?
     @ObservationIgnored private var awaitingBlockLists: [(controller: WKUserContentController, load: () -> Void)] = []
-    @ObservationIgnored private var themeSaves: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var started = false
     /// First launch: the first main window to appear shows the setup flow.
     @ObservationIgnored var needsOnboarding = false
@@ -645,19 +644,6 @@ final class MacModel {
         do { try store?.save([space]) } catch { showToast("Couldn't save: \(error.localizedDescription)") }
     }
 
-    /// Live theme edit: updates the in-memory space at once, writes to the store after a short pause.
-    func setThemeColor(_ color: NSColor, role: ThemeJSON.Role, of spaceID: String) {
-        guard var space = space(spaceID) else { return }
-        space.themeJSON = ThemeJSON.setting(color, role: role, in: space.themeJSON)
-        update(space, save: false)
-        themeSaves[spaceID]?.cancel()
-        themeSaves[spaceID] = Task {
-            try? await Task.sleep(for: .milliseconds(250))
-            guard !Task.isCancelled, let latest = self.space(spaceID) else { return }
-            try? self.store?.save([latest])
-        }
-    }
-
     // MARK: Helpers
 
     func commit(_ item: SidebarItem) { commit([item]) }
@@ -679,43 +665,5 @@ final class MacModel {
             try? await Task.sleep(for: .seconds(canUndo ? (voiceOver ? 10 : 5) : 2.5))
             if self.toast == toast { withAnimation(.easeOut(duration: 0.25)) { self.toast = nil } }
         }
-    }
-}
-
-/// Edits Arc `windowTheme` JSON in place, keeping every key Boaz doesn't understand.
-enum ThemeJSON {
-    enum Role: CaseIterable, Identifiable {
-        case backgroundLight, backgroundDark, accent
-        var id: Self { self }
-        var label: String {
-            switch self {
-            case .backgroundLight: "Background (Light)"
-            case .backgroundDark: "Background (Dark)"
-            case .accent: "Accent"
-            }
-        }
-        var path: [String] {
-            switch self {
-            case .backgroundLight: ["semanticColorPalette", "appearanceBased", "light", "background"]
-            case .backgroundDark: ["semanticColorPalette", "appearanceBased", "dark", "background"]
-            case .accent: ["primaryColorPalette", "midTone"]
-            }
-        }
-    }
-
-    static func setting(_ color: NSColor, role: Role, in json: Data?) -> Data {
-        let root = json.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
-        let rgb = color.usingColorSpace(.extendedSRGB) ?? color
-        let value: [String: Any] = ["colorSpace": "extendedSRGB", "red": rgb.redComponent, "green": rgb.greenComponent,
-                                    "blue": rgb.blueComponent, "alpha": rgb.alphaComponent]
-        let updated = set(value, at: role.path[...], in: root)
-        return (try? JSONSerialization.data(withJSONObject: updated, options: [.sortedKeys])) ?? (json ?? Data())
-    }
-
-    private static func set(_ value: Any, at path: ArraySlice<String>, in object: [String: Any]) -> [String: Any] {
-        guard let key = path.first else { return object }
-        var object = object
-        object[key] = path.count == 1 ? value : set(value, at: path.dropFirst(), in: object[key] as? [String: Any] ?? [:])
-        return object
     }
 }

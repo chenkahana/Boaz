@@ -6,6 +6,13 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Mac: Customize Space… brings the space editor and the color editor into one sheet, from the space's right-click
+  menu, its dot, the View menu or a double-click on its name. It sets the name, icon and color (a palette or any
+  color), the Light and Dark background colors, a one- or two-color gradient, the accent, the appearance (System,
+  Light or Dark), grain and the light streak, with a live preview in Light and Dark. The theme syncs with the space.
+
 ### Changed
 
 - Mac: a calmer sidebar. The system font at 14 pt (15 pt semibold space title), 32 pt rows on a 4 pt grid, one flat

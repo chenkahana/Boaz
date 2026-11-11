@@ -21,7 +21,6 @@ final class BrowserState {
         let page: WebPage
     }
 
-    struct SpaceRef: Identifiable { let id: String }
     struct SpaceEditorRequest: Identifiable {
         let id = UUID()
         var spaceID: String?
@@ -50,7 +49,6 @@ final class BrowserState {
     var sidebarVisible = true { didSet { updateTrafficLights() } }
     var sidebarPeeking = false { didSet { updateTrafficLights() } }
     var findVisible = false
-    var themeEditor: SpaceRef?
     /// The space editor sheet: a new space (nil id) or the space with this id.
     var spaceEditor: SpaceEditorRequest?
     var rename: RenameRequest?

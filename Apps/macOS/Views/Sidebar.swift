@@ -309,6 +309,8 @@ private struct SpaceHeader: View {
         HStack(spacing: 8) {
             SpaceIcon(space: space, size: 15)
             Text(space.title).font(SidebarStyle.titleFont).lineLimit(1)
+                .onTapGesture(count: 2) { browser.spaceEditor = .init(spaceID: space.id) }
+                .help("Double-click to customize")
             Spacer()
             Menu {
                 SpaceMenu(space: space)
@@ -335,9 +337,8 @@ struct SpaceMenu: View {
     let space: Space
 
     var body: some View {
-        Button("Edit Space…") { browser.spaceEditor = .init(spaceID: space.id) }
+        Button("Customize Space…") { browser.spaceEditor = .init(spaceID: space.id) }
         Button("Rename Space…") { browser.rename = .init(target: .space(space), text: space.title) }
-        Button("Custom Colors…") { browser.themeEditor = .init(id: space.id) }
         Button("New Folder") { withAnimation { model.newFolder(in: space) } }
         SpaceAIMenuItems(space: space)
         if model.sidebar.spaces.count > 1, let index = model.sidebar.spaces.firstIndex(where: { $0.id == space.id }) {

@@ -161,8 +161,8 @@ struct BoazCommands: Commands {
             Divider()
             Button(browser?.split == nil ? "Add Split View" : "Close Split View") { browser?.toggleSplit() }
                 .keyboardShortcut(key(.addSplitView)).disabled(browser?.activeTab == nil)
-            Button("Edit Space Theme…") {
-                if let browser, let id = browser.spaceID { browser.themeEditor = .init(id: id) }
+            Button("Customize Space…") {
+                if let browser, let id = browser.spaceID { browser.spaceEditor = .init(spaceID: id) }
             }
             .disabled(browser == nil || browser?.isIncognito == true)
             Button("Archive") { openWindow(id: "archive") }.keyboardShortcut(key(.showArchive))
