@@ -6,6 +6,10 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Mac: pressing the scroll wheel on a sidebar tab acts on that tab, not on the first pinned tab above it.
+
 ## [0.2.5] - 2026-11-12
 
 ### Added

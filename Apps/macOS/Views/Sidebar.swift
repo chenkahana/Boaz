@@ -751,8 +751,10 @@ struct MiddleClickReader: NSViewRepresentable {
             monitor = NSEvent.addLocalMonitorForEvents(matching: .otherMouseDown) { [weak self] event in
                 guard let self, let action = self.action, event.buttonNumber == 2, event.window === self.window,
                       self.window?.attachedSheet == nil,
-                      // Rows scrolled out of the sidebar are clipped out of `visibleRect`.
-                      self.visibleRect.contains(self.convert(event.locationInWindow, from: nil)) else { return event }
+                      // Rows scrolled out of the sidebar are clipped out of `visibleRect`, which SwiftUI can report
+                      // taller than the row itself, so it is cut to the row's bounds.
+                      self.visibleRect.intersection(self.bounds).contains(self.convert(event.locationInWindow, from: nil))
+                else { return event }
                 action()
                 return nil
             }
