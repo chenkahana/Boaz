@@ -67,6 +67,13 @@ struct PageState: Codable, Equatable {
                                            arguments: ["place": json], contentWorld: Self.world)
     }
 
+    /// Takes a page that is showing again back to where it was last read on screen: laid out off screen at another
+    /// size, it moved (a chat at its end comes back halfway up). Returns once it is there, or when there is nothing to
+    /// go back to; the page does this on its own as it shows, and this only says when it is done.
+    static func returnToPlace(_ page: WebPage) async {
+        _ = try? await page.callJavaScript("return window.__boazPageState?.returnToPlace() ?? null;", contentWorld: world)
+    }
+
     /// Receives the script's readings once scrolling settles.
     private final class Messages: NSObject, WKScriptMessageHandler {
         private let onSettle: (PageState) -> Void
@@ -111,6 +118,21 @@ struct PageState: Codable, Equatable {
                                                 atBottom: atEnd(e.scrollTop, e.scrollHeight - e.clientHeight) })),
                 });
             };
+            // Off screen a page is laid out 1024 wide, which moves it: a chat at its end comes back halfway up, or at the
+            // top. So readings are taken only at the width the page shows at (the one it had as the reader last touched
+            // it, or at the last reading), and it goes back to one once it is that wide again. Within two points: the
+            // browser gives the rail a point of clearance as it appears.
+            const near = width => Math.abs(innerWidth - width) <= 2;
+            let shown = null, kept = null, latest = null, before = null, latestAt = 0;
+            ['wheel', 'touchstart', 'keydown', 'pointerdown']
+                .forEach(type => addEventListener(type, () => { shown = innerWidth; }, { capture: true, passive: true }));
+            const onScreen = () => document.visibilityState === 'visible' && (shown === null || near(shown));
+            const keep = (state, width) => {
+                kept = { state, width };
+                shown = width;
+                latest = before = null;
+                window.webkit.messageHandlers.\(messageName).postMessage(state);
+            };
             document.addEventListener('scroll', event => {
                 const target = event.target;
                 if (target instanceof Element && !seen.has(target)) {
@@ -118,19 +140,28 @@ struct PageState: Codable, Equatable {
                     scrollers.push(new WeakRef(target));
                     if (scrollers.length > 32) scrollers = scrollers.filter(r => r.deref()?.isConnected).slice(-32);
                 }
+                if (!onScreen()) return;
+                // Read as it goes too, for a page that leaves the screen before its scrolling settles.
+                if (Date.now() - latestAt > 100) {
+                    latestAt = Date.now();
+                    before = latest;
+                    latest = { state: read(), width: innerWidth };
+                }
                 clearTimeout(settle);
                 settle = setTimeout(() => {
-                    const state = read();
-                    if (state) window.webkit.messageHandlers.\(messageName).postMessage(state);
+                    settle = 0;
+                    const state = onScreen() && read();
+                    if (state) keep(state, innerWidth);
                 }, 400);
             }, { capture: true, passive: true });
             // Tries again every 150 ms while the page is still rendering what it scrolled (the element is missing, or
-            // too short to get there); at the end, until there is content and it has stopped growing for 450 ms.
+            // too short to get there), and once more to see it stayed; at the end, until there is content and it has
+            // stopped growing for 450 ms.
             const restore = place => new Promise(resolve => {
                 const deadline = Date.now() + 8000, heights = new Map(), interactions = ['wheel', 'touchstart', 'keydown', 'pointerdown'];
                 const { top, left, atBottom } = place.window;
                 const offsets = (top || left || atBottom ? [place.window] : []).concat(place.scrollers);
-                let timer = 0;
+                let timer = 0, held = 0;
                 const finish = () => {
                     clearTimeout(timer);
                     interactions.forEach(type => removeEventListener(type, finish, true));
@@ -160,13 +191,41 @@ struct PageState: Codable, Equatable {
                             done = false;
                         }
                     }
-                    if (done || Date.now() > deadline) finish(); else timer = setTimeout(step, 150);
+                    held = done ? held + 1 : 0;
+                    if (held > 1 || Date.now() > deadline) finish(); else timer = setTimeout(step, 150);
                 };
                 interactions.forEach(type => addEventListener(type, finish, { capture: true, passive: true }));
                 restoring = true;
                 step();
             });
-            window.__boazPageState = { read, restore };
+            // Back on screen, a page still at the address it was last read at goes back there, once it is laid out as
+            // wide as it was read at (within a second). Once, however many ask.
+            let returning = null;
+            const returnToPlace = () => {
+                if (returning) return returning;
+                const place = kept && !restoring && JSON.parse(kept.state);
+                if (!place || place.url !== location.href) return null;
+                const deadline = Date.now() + 1000;
+                return returning = new Promise(resolve => {
+                    const wait = () => {
+                        if (document.visibilityState === 'visible' && near(kept.width)) resolve(restore(place));
+                        else if (Date.now() > deadline) resolve(null);
+                        else setTimeout(wait, 50);
+                    };
+                    wait();
+                }).then(() => { returning = null; return null; });
+            };
+            // Leaving the screen, a reading still settling is kept as it was last read, unless that was as the page left:
+            // WebKit lays it out at its off-screen size first, and the scroll that moves comes in at the old one.
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') { returnToPlace(); return; }
+                if (!settle) return;
+                clearTimeout(settle);
+                settle = 0;
+                const reading = Date.now() - latestAt < 100 ? before : latest;
+                if (reading?.state) keep(reading.state, reading.width);
+            });
+            window.__boazPageState = { read, restore, returnToPlace };
         })();
         """
 

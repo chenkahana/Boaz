@@ -80,9 +80,11 @@ struct RelayoutCover: ViewModifier {
                 if let cover { PreviewCover(image: cover, background: background) }
             }
             .onChange(of: posture) { hold() }
-            // Mid-fold the width can change more than once, and not always with the posture.
+            // Mid-fold the width can change more than once, and not always with the posture. The point of clearance
+            // the browser gives the rail as it appears (`TabBrowser`) is no new layout: held, a tab coming back would
+            // go to a place read before it left, or the top.
             .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { new in
-                if width > 0 { hold() }
+                if width > 0, abs(new - width) > 1 { hold() }
                 width = new
             }
             .onGeometryChange(for: CGSize.self, of: { $0.size }) { _ in if scroll.isHeld { settle() } }
