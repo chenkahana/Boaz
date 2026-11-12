@@ -536,6 +536,22 @@ final class AppModel {
         armRestore(state, for: tab.id)
     }
 
+    /// A live page coming back on screen goes back to where it was read there (see `PageState.returnToPlace`),
+    /// under its preview (what it showed then) for at most a second.
+    private func pageWillShowAgain(_ tabID: String) {
+        guard let page = pages[tabID], !page.isLoading, pendingRestores[tabID] == nil, !restoringTabs.contains(tabID),
+              let tab = item(withID: tabID), pageStates(isPrivate(tab))[tabID] != nil else { return }
+        restoringTabs.insert(tabID)
+        Task {
+            await PageState.returnToPlace(page)
+            endRestoring(tabID)
+        }
+        Task {
+            try? await Task.sleep(for: .seconds(1))
+            endRestoring(tabID)
+        }
+    }
+
     /// The page goes back to `state` once it has loaded, under its preview for at most a second and a half.
     private func armRestore(_ state: PageState, for tabID: String) {
         pendingRestores[tabID] = state
@@ -619,6 +635,7 @@ final class AppModel {
             pageOwners[tabID] = nil
         } else {
             pageOwners[tabID] = host
+            pageWillShowAgain(tabID)
         }
     }
 

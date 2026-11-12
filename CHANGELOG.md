@@ -10,6 +10,9 @@ All notable changes to Boaz are recorded here. The format follows
 
 - iPhone: favorites and tabs in Tabs on Your Mac show the site's own icon, full and sharp as on the Mac, rather than
   a letter. A site with no icon at its root (ChatGPT, Gemini) names one in its page, and Boaz now reads it there.
+- iPhone: going back to a tab returns to exactly where you left it. A ChatGPT chat read at its last message no longer
+  comes back halfway up, or at the top: a page out of sight is laid out at another size, and the place it was read
+  at on screen is what it now goes back to, under its preview until it is there.
 
 ## [0.2.4] - 2026-11-11
 
