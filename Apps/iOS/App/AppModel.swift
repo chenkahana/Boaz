@@ -348,6 +348,7 @@ final class AppModel {
         }
         configuration.userContentController.addUserScript(SiteEdges.userScript())
         PageState.install(in: &configuration) { [weak self] state in self?.pageDidSettle(state, tabID: tab.id) }
+        PasswordAutofill.shared.install(in: &configuration, tabID: tab.id, offersToSave: !tabIsPrivate)
         configuration.userContentController.add(SiteEdges.Messages { [weak self] edges, url in
             self?.didSampleEdges(edges, at: url, tabID: tab.id, isPrivate: tabIsPrivate)
         }, contentWorld: .defaultClient, name: SiteEdges.messageName)

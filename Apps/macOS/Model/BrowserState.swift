@@ -320,6 +320,7 @@ final class BrowserState {
         model.applyContentBlocking(to: &configuration)
         if case .tab(let id) = context {
             PageState.install(in: &configuration) { [weak self] state in self?.pageDidSettle(state, tabID: id) }
+            PasswordAutofill.shared.install(in: &configuration, tabID: id, offersToSave: !isIncognito)
         }
         let pictureInPicture = PictureInPicture.install(in: &configuration)
         let router = NavigationRouter(browser: self, context: context)

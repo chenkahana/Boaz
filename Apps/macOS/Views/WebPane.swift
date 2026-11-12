@@ -38,6 +38,9 @@ struct TabPane: View {
                 .findNavigator(isPresented: Binding {
                     browser.findVisible && browser.activeTabID == tab.id
                 } set: { browser.findVisible = $0 })
+                .overlay { PasswordSuggestions(tabID: tab.id, page: page) }
+                .overlay(alignment: .top) { SavePasswordPrompt(tabID: tab.id) }
+                .animation(.smooth(duration: 0.25), value: PasswordAutofill.shared.offer)
                 .overlay { if let failure, !retrying { LoadFailureView(failure: failure, page: page) } }
                 .overlay(alignment: .top) { LoadingGlow(page: page) }
                 .deviceViewport(devTools.responsive, scale: scale, appearance: devTools.appearance, stage: $stage)
