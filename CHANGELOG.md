@@ -6,6 +6,8 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-11-12
+
 ### Added
 
 - Mac and iPhone: Boaz suggests your saved passwords on a site's sign-in form and offers to save new ones after you
@@ -211,7 +213,8 @@ First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone
 - Share extension, search widget, App Shortcuts, the `boaz://` URL scheme and alternate app icons.
 - Privacy manifest, privacy policy and an About section with third-party notices.
 
-[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.2.4...HEAD
+[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.2.5...HEAD
+[0.2.5]: https://github.com/chenkahana/Boaz/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/chenkahana/Boaz/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/chenkahana/Boaz/compare/v0.2.1...v0.2.3
 [0.2.1]: https://github.com/chenkahana/Boaz/compare/v0.2.0...v0.2.1
