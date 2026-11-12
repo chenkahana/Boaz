@@ -11,6 +11,7 @@ struct BrowserWindow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var browser: BrowserState
     @AppStorage("sidebarWidth") private var sidebarWidth = 250.0
+    @AppStorage(Preferences.skipsPinnedRemovalWarningKey) private var skipsPinnedRemovalWarning = false
 
     init(incognito: Bool) {
         _browser = State(initialValue: BrowserState(incognito: incognito))
@@ -82,6 +83,14 @@ struct BrowserWindow: View {
         } message: { space in
             Text(model.deletionMessage(for: space))
         }
+        .confirmationDialog("Remove \"\(browser.pinnedTabToRemove.flatMap { $0.title ?? $0.url?.host() } ?? "Tab")\" from Pinned?",
+                            isPresented: Binding { browser.pinnedTabToRemove != nil } set: { if !$0 { browser.pinnedTabToRemove = nil } },
+                            titleVisibility: .visible, presenting: browser.pinnedTabToRemove) { tab in
+            Button("Remove", role: .destructive) { browser.removePinned(tab) }
+        } message: { _ in
+            Text("It moves to the Archive.")
+        }
+        .dialogSuppressionToggle(isSuppressed: $skipsPinnedRemovalWarning)
         .onAppear { model.registerOpenWindow(openWindow) }
         .onChange(of: browser.currentSpaceID) { if !browser.isIncognito { model.saveOpenWindows() } }
         .onChange(of: browser.activeTabID) { if !browser.isIncognito { model.saveOpenWindows() } }
