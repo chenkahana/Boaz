@@ -15,6 +15,8 @@ All notable changes to Boaz are recorded here. The format follows
 
 ### Fixed
 
+- Mac: pressing the scroll wheel on a link, or on an image or button inside one, opens it in a new background tab
+  in Today, as ⌘-click does, and leaves the page you're on where it was.
 - iPhone: favorites and tabs in Tabs on Your Mac show the site's own icon, full and sharp as on the Mac, rather than
   a letter. A site with no icon at its root (ChatGPT, Gemini) names one in its page, and Boaz now reads it there.
 - iPhone: going back to a tab returns to exactly where you left it. A ChatGPT chat read at its last message no longer
