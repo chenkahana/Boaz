@@ -6,6 +6,8 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-11-12
+
 ### Fixed
 
 - Mac: pressing the scroll wheel on a sidebar tab acts on that tab, not on the first pinned tab above it.
@@ -217,7 +219,8 @@ First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone
 - Share extension, search widget, App Shortcuts, the `boaz://` URL scheme and alternate app icons.
 - Privacy manifest, privacy policy and an About section with third-party notices.
 
-[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.2.5...HEAD
+[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.2.6...HEAD
+[0.2.6]: https://github.com/chenkahana/Boaz/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/chenkahana/Boaz/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/chenkahana/Boaz/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/chenkahana/Boaz/compare/v0.2.1...v0.2.3
