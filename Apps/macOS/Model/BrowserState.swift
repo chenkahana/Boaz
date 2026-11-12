@@ -61,6 +61,8 @@ final class BrowserState {
     var rename: RenameRequest?
     /// The space whose deletion is waiting for confirmation.
     var spaceToDelete: Space?
+    /// The unloaded pinned tab a middle-click asked to remove, waiting for confirmation.
+    var pinnedTabToRemove: SidebarItem?
     var extensionSheet: ExtensionSheet?
     /// Summarize/Ask or a tidy preview (`MacAISheet`).
     var ai: AIRequest?
@@ -608,6 +610,17 @@ final class BrowserState {
                 model.archive(tab)
             }
         }
+    }
+
+    /// A middle-click on a sidebar tab closes it as its row's button does, except that a pinned tab with nothing
+    /// loaded leaves Pinned for the Archive, after a warning the user can turn off.
+    func middleClick(_ tab: SidebarItem) {
+        guard model.isPinned(tab), pages[tab.id] == nil else { close(tab); return }
+        if Preferences.skipsPinnedRemovalWarning { removePinned(tab) } else { pinnedTabToRemove = tab }
+    }
+
+    func removePinned(_ tab: SidebarItem) {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { model.archive(tab) }
     }
 
     func reopenClosedTab() {

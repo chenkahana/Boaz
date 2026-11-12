@@ -494,8 +494,9 @@ struct ItemRow: View {
                 .fill(active ? SidebarStyle.selection(increasedContrast: contrast == .increased)
                       : hovering ? SidebarStyle.hover : .clear)
         }
-        // Closes as the row's own button does: a Today tab goes to the Archive, a pinned one unloads.
-        .background { if item.kind == .tab { MiddleClickReader(action: browser.commandMode == nil ? { browser.close(item) } : nil) } }
+        // Closes as the row's own button does: a Today tab goes to the Archive, a pinned one unloads, and one already
+        // unloaded leaves Pinned.
+        .background { if item.kind == .tab { MiddleClickReader(action: browser.commandMode == nil ? { browser.middleClick(item) } : nil) } }
         .overlay(alignment: item.kind == .folder ? .center : .top) {
             if targeted {
                 if item.kind == .folder {

@@ -22,6 +22,8 @@ enum Preferences {
     static let blockTrackersKey = "blockTrackers"
     /// The sidebar rows' point size, read through `@AppStorage` (default `SidebarStyle.defaultTextSize`).
     static let sidebarTextSizeKey = "sidebarTextSize"
+    /// Set from the "Don't ask again" box on the warning before a middle-click removes a pinned tab.
+    static let skipsPinnedRemovalWarningKey = "skipsPinnedRemovalWarning"
 
     static func registerDefaults() {
         UserDefaults.standard.register(defaults: [
@@ -36,6 +38,7 @@ enum Preferences {
     }
     /// Ads and trackers (`ContentBlocking`); applies to pages opened after it changes.
     static var blockTrackers: Bool { UserDefaults.standard.bool(forKey: blockTrackersKey) }
+    static var skipsPinnedRemovalWarning: Bool { UserDefaults.standard.bool(forKey: skipsPinnedRemovalWarningKey) }
     static var searchEngine: SearchEngine {
         SearchEngine(rawValue: UserDefaults.standard.string(forKey: searchEngineKey) ?? "") ?? .duckDuckGo
     }
