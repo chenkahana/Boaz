@@ -196,6 +196,7 @@ struct MacSettingsView: View {
             GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }
             PrivacySettings().tabItem { Label("Privacy", systemImage: "hand.raised") }
             SyncSettings().tabItem { Label("Sync", systemImage: "icloud") }
+            PasswordsSettings().frame(minHeight: 460).tabItem { Label("Passwords", systemImage: "key") }
             ShortcutsSettings().tabItem { Label("Shortcuts", systemImage: "keyboard") }
         }
         // System label colors on the system background. Footnotes and values take the second level, which reads at

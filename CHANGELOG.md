@@ -6,6 +6,13 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Mac and iPhone: Boaz suggests your saved passwords on a site's sign-in form and offers to save new ones after you
+  sign in, kept in your iCloud Keychain and shown only after you unlock with Touch ID, Face ID or your passcode.
+  Settings › Passwords lists and lets you delete them, and imports passwords exported as CSV from Chrome, Edge,
+  Brave, Arc, Firefox, Safari or the Passwords app.
+
 ### Fixed
 
 - iPhone: favorites and tabs in Tabs on Your Mac show the site's own icon, full and sharp as on the Mac, rather than

@@ -50,6 +50,8 @@
 	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>Websites you visit can ask to use your camera, for example for video calls or to take a photo to upload.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Boaz asks for Face ID before it fills a saved password or shows your passwords.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Websites you visit can ask for your location, for example to show nearby places on a map.</string>
 	<key>NSMicrophoneUsageDescription</key>

@@ -178,6 +178,9 @@ struct TabBrowser: View {
                 setBarCollapsed(scroll.barCollapses(new, collapsed: barCollapsed))
             }
             .findNavigator(isPresented: $findVisible)
+            .overlay { PasswordSuggestions(tabID: tab.id, page: page) }
+            .overlay(alignment: .top) { SavePasswordPrompt(tabID: tab.id) }
+            .animation(.smooth(duration: 0.25), value: PasswordAutofill.shared.offer)
             .ignoresSafeArea(.container, edges: collapsesBar ? .bottom : [])
             .modifier(RelayoutCover(page: page, scroll: scroll, snapshot: { [tab] in model.snapshots[tab.id] },
                                     background: edges?.page.color ?? Color(.systemBackground)))

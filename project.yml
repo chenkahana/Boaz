@@ -68,6 +68,7 @@ targets:
         NSCameraUsageDescription: Websites you visit can ask to use your camera, for example for video calls or to take a photo to upload.
         NSMicrophoneUsageDescription: Websites you visit can ask to use your microphone, for example for calls or voice search.
         NSLocationWhenInUseUsageDescription: Websites you visit can ask for your location, for example to show nearby places on a map.
+        NSFaceIDUsageDescription: Boaz asks for Face ID before it fills a saved password or shows your passwords.
         # Background refresh for sync; remote notifications are CloudKit's change pushes.
         BGTaskSchedulerPermittedIdentifiers: [com.chenkahana.boaz.sync]
         # audio: a video keeps playing, and floats in Picture in Picture, after leaving Boaz.
