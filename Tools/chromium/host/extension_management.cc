@@ -68,10 +68,12 @@ std::vector<ManagedExtension> ListManagedExtensions(Profile* profile) {
   auto* registry = extensions::ExtensionRegistry::Get(profile);
   if (!registry) return result;
   for (const auto& extension : registry->enabled_extensions()) {
+    if (extensions::Manifest::IsComponentLocation(extension->location())) continue;
     result.push_back({extension->id(), extension->name(), extension->version().GetString(),
                       true, CanDisable(profile, *extension), false, CanUninstall(profile, *extension), false});
   }
   for (const auto& extension : registry->disabled_extensions()) {
+    if (extensions::Manifest::IsComponentLocation(extension->location())) continue;
     result.push_back({extension->id(), extension->name(), extension->version().GetString(), false, false, CanEnable(profile, *extension), CanUninstall(profile, *extension), NeedsExtensionPermissionReview(profile, extension->id())});
   }
   std::ranges::sort(result, {}, &ManagedExtension::id);
