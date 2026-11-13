@@ -63,3 +63,7 @@ All existing feature rows apply to both DMG engines except Chromium-only extensi
 ## Native passkey acceptance expansion
 
 Passkeys remain mandatory in PR #70. [The passkey packet](passkeys.md) records pinned Chromium integration, native-window discovery, entitlement preparation and ten explicit runtime scenarios. Reuse Chromium WebAuthn; no JavaScript API replacement or independent authenticator. The real signed host is a prerequisite. Apple Passwords approval, physical security keys, phone interaction and test-account access remain separate dependencies; none count as passed by compilation.
+
+## Shared page-text preparation
+
+`PageText.swift` now contains the engine-neutral value and existing extraction script; `PageText+WebKit.swift` retains the unchanged WebKit adapter. Reader and PageAssistant call sites stay unchanged. Exact script/adapter comparison and Swift 6 typechecking passed for macOS 26 and the iOS 26 simulator using the project's MainActor default isolation. Both project specifications already include `Apps/Browser`, so no source-list changes are needed. This is preparation for Chromium page services, not a passed Chromium extraction or application-build gate.
