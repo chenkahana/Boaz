@@ -1,6 +1,8 @@
 #import <AppKit/AppKit.h>
 
 #include "native_window.h"
+#include "native_location_bar.h"
+#include "chrome/browser/ui/location_bar/location_bar.h"
 
 #include <algorithm>
 #include <utility>
@@ -79,8 +81,9 @@ class NativeWindow final : public BrowserWindow,
         restored_(gfx::ScreenRectFromNSRect(window.frame)) {
     Main();
     CHECK(browser_ && window_);
-    CHECK(services_.request_close && services_.content_view && services_.focus_address &&
+    CHECK(services_.request_close && services_.content_view && services_.address_field && services_.focus_address &&
           services_.focus_toolbar && services_.handle_key && services_.exclusive_access_notice);
+    location_bar_ = CreateNativeLocationBar(browser_, services_.address_field);
     restored_state_ = window_.zoomed ? ui::mojom::WindowShowState::kMaximized : ui::mojom::WindowShowState::kNormal;
     observers_ = [[NSMutableArray alloc] init];
     const base::WeakPtr<NativeWindow> weak = weak_factory_.GetWeakPtr();
@@ -164,6 +167,7 @@ class NativeWindow final : public BrowserWindow,
   void UpdateLoadingAnimations(bool) override {}
   void OnActiveTabChanged(content::WebContents*, content::WebContents* contents, int, int) override {
     Main(); notice_.reset(); NotifyPositionRequiresUpdate();
+    location_bar_->Update(contents);
     UpdateTitleBar(); if (contents && IsActive()) contents->Focus();
   }
   void OnTabDetached(content::WebContents*, bool) override { Main(); notice_.reset(); NotifyPositionRequiresUpdate(); }
@@ -174,15 +178,15 @@ class NativeWindow final : public BrowserWindow,
     frame.origin.y -= size.height() - current.height(); [window_ setFrame:frame display:YES];
   }
   autofill::AutofillBubbleHandler* GetAutofillBubbleHandler() override { return nullptr; }
-  LocationBar* GetLocationBar() const override { return nullptr; }
+  LocationBar* GetLocationBar() const override { return location_bar_.get(); }
   ui::AcceleratorProvider* GetAcceleratorProvider() override { return nullptr; }
   PinnedToolbarActions* GetPinnedToolbarActions() override { return nullptr; }
-  void SetFocusToLocationBar(bool) override { Main(); services_.focus_address.Run(); }
+  void SetFocusToLocationBar(bool user) override { Main(); location_bar_->FocusLocation(user, false); }
   void UpdateReloadStopState(bool, bool) override {}
-  void UpdateToolbar(content::WebContents*) override {}
+  void UpdateToolbar(content::WebContents* contents) override { Main(); location_bar_->Update(contents); }
   bool UpdateToolbarSecurityState() override { return false; }
   void UpdateCustomTabBarVisibility(bool, bool) override {}
-  void ResetToolbarTabState(content::WebContents*) override {}
+  void ResetToolbarTabState(content::WebContents* contents) override { Main(); location_bar_->ResetTabState(contents); }
   void FocusToolbar() override { Main(); services_.focus_toolbar.Run(); }
   void ToolbarSizeChanged(bool) override { Main(); NotifyPositionRequiresUpdate(); }
   void TabDraggingStatusChanged(bool) override {}
@@ -313,6 +317,7 @@ class NativeWindow final : public BrowserWindow,
   ui::mojom::WindowShowState restored_state_ = ui::mojom::WindowShowState::kNormal;
   NSInteger attention_ = 0;
   std::unique_ptr<NativeNotice> notice_;
+  std::unique_ptr<LocationBar> location_bar_;
   base::ObserverList<web_modal::ModalDialogHostObserver> modal_observers_;
   base::WeakPtrFactory<NativeWindow> weak_factory_{this};
 };

@@ -1,0 +1,13 @@
+#ifndef BOAZ_CHROMIUM_NATIVE_LOCATION_BAR_H_
+#define BOAZ_CHROMIUM_NATIVE_LOCATION_BAR_H_
+
+#include <memory>
+#include "base/functional/callback.h"
+class BrowserWindowInterface;
+class LocationBar;
+namespace boaz {
+// Provider returns the stable, UI-owned, attached NSTextField. UI thread only.
+std::unique_ptr<LocationBar> CreateNativeLocationBar(
+    BrowserWindowInterface* browser, base::RepeatingCallback<void*()> field);
+}
+#endif
