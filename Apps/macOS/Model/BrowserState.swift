@@ -78,6 +78,8 @@ final class BrowserState {
     @ObservationIgnored let model = MacModel.shared
     @ObservationIgnored weak var window: NSWindow?
     @ObservationIgnored private var pages: [String: WebPage] = [:]
+    @ObservationIgnored private var enginePages: [String: EnginePage] = [:]
+    private let privateEngineProfileID = UUID().uuidString
     @ObservationIgnored private var recency: [String] = []
     @ObservationIgnored private var isClosingIdlePages = false
     /// Tabs whose title is cooling down after a save, and whether it changed again meanwhile (`didChangeTitle`).
@@ -236,6 +238,7 @@ final class BrowserState {
         if loadFailures[tab.id] != nil { loadFailures[tab.id] = nil }
         let page = makePage(profileID: tab.profileID, context: .tab(tab.id), loading: tab.url)
         pages[tab.id] = page
+        enginePages[tab.id] = wrapPage(page, profileID: tab.profileID)
         // Unloaded past `maxLivePages`, or after a relaunch: back to where it was.
         if let state = pageStates[tab.id], tab.url?.isSamePage(as: state.url) == true { pendingRestores[tab.id] = state }
         closeIdlePages()
@@ -253,6 +256,7 @@ final class BrowserState {
             for id in close where !pagesInView.contains(id) {
                 recency.removeAll { $0 == id }
                 pages[id] = nil
+                enginePages[id] = nil
                 devTools.drop(id)
             }
             isClosingIdlePages = false
@@ -314,6 +318,26 @@ final class BrowserState {
 
     func existingPage(for tabID: String) -> WebPage? { pages[tabID] }
 
+    func enginePage(for tab: SidebarItem) -> EnginePage {
+        let page = page(for: tab)
+        if let engine = enginePages[tab.id] { return engine }
+        let engine = wrapPage(page, profileID: tab.profileID)
+        enginePages[tab.id] = engine
+        return engine
+    }
+
+    private func wrapPage(_ page: WebPage, profileID: String?) -> EnginePage {
+        let profile = EngineProfileIdentity(id: isIncognito ? privateEngineProfileID : (profileID ?? "default"),
+                                            isPrivate: isIncognito)
+        return EnginePage(adapter: WebKitEnginePageAdapter(page: page, profile: profile))
+    }
+
+    private func navigateEngine(_ operation: (EnginePage) throws -> Void) {
+        guard let tab = activeTab else { return }
+        do { try operation(enginePage(for: tab)) }
+        catch { model.showToast(error.localizedDescription) }
+    }
+
     func makePage(profileID: String?, context: NavigationRouter.Context, loading url: URL? = nil) -> WebPage {
         var configuration = WebPage.Configuration()
         configuration.websiteDataStore = dataStore(profileID: profileID)
@@ -359,6 +383,7 @@ final class BrowserState {
     func unload(_ tabID: String) {
         pictureInPicture(tabID)?.detach()
         pages[tabID] = nil
+        enginePages[tabID] = nil
         loadFailures[tabID] = nil
         devTools.drop(tabID)
         savedURLs[tabID] = nil
@@ -492,7 +517,8 @@ final class BrowserState {
 
     func load(_ url: URL) {
         guard let tab = activeTab else { openTab(url); return }
-        page(for: tab).load(URLRequest(url: url))
+        do { try enginePage(for: tab).navigate(to: url) }
+        catch { model.showToast(error.localizedDescription) }
     }
 
     func didNavigate(_ tabID: String, url: URL?, title: String) {
@@ -667,13 +693,11 @@ final class BrowserState {
     }
 
     func goBack() {
-        guard let page = activePage, let item = page.backForwardList.backList.last else { return }
-        page.load(item)
+        navigateEngine { try $0.goBack() }
     }
 
     func goForward() {
-        guard let page = activePage, let item = page.backForwardList.forwardList.first else { return }
-        page.load(item)
+        navigateEngine { try $0.goForward() }
     }
 
     func zoom(_ change: PageZoom.Change) {
@@ -884,6 +908,7 @@ final class BrowserState {
                 model.newTab(url, title: peek.page.title, in: spaceID)
             }) {
                 pages[tab.id] = peek.page
+                enginePages[tab.id] = wrapPage(peek.page, profileID: peek.profileID)
                 recency.append(tab.id)
                 if let peekRouter, peekRouter.page == ObjectIdentifier(peek.page) { peekRouter.target.context = .tab(tab.id) }
                 PictureInPicture.controller(of: peek.page)?.onRestore = { [weak browser = self] in
