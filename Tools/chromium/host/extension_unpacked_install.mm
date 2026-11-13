@@ -74,13 +74,13 @@ struct Operation : ProfileObserver, std::enable_shared_from_this<Operation> {
     UI();
     if (!completion || loading) return;
     if (!parent || !parent.isVisible) { Cancel(); return; }
-    auto* prefs = profile->GetPrefs();
-    if (!prefs->GetBoolean(prefs::kExtensionsUIDeveloperMode)) {
-      if (!prefs->IsUserModifiablePreference(prefs::kExtensionsUIDeveloperMode)) {
+    auto* profile_prefs = profile->GetPrefs();
+    if (!profile_prefs->GetBoolean(prefs::kExtensionsUIDeveloperMode)) {
+      if (!profile_prefs->IsUserModifiablePreference(prefs::kExtensionsUIDeveloperMode)) {
         Finish(ExtensionInstallResult::kFailed);
         return;
       }
-      prefs->SetBoolean(prefs::kExtensionsUIDeveloperMode, true);
+      profile_prefs->SetBoolean(prefs::kExtensionsUIDeveloperMode, true);
     }
     if (!completion || !profile) return;
     loading = true;
