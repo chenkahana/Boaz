@@ -44,3 +44,25 @@
    // Set state_ here, so that extensions, etc, do not attempt to add tabs to the
    // browser before it closes.
    if (state_ == State::kIdle) {
+--- a/chrome/browser/ui/BUILD.gn
++++ b/chrome/browser/ui/BUILD.gn
+@@ -651,6 +651,9 @@
+     }
+     if (is_chromeos) {
+       deps += [ "//chrome/browser/ash/boca/on_task" ]
++    }
++    if (is_mac) {
++      deps += [ "//boaz:headers" ]
+     }
+   }
+ 
+@@ -1624,6 +1627,9 @@
+     if (enable_captive_portal_detection) {
+       deps += [ "//components/captive_portal/content" ]
+     }
++    if (is_mac) {
++      deps += [ "//boaz:headers" ]
++    }
+   }
+ }
+ 

@@ -148,6 +148,27 @@
           "after": "d95189b0ba039b20a3e553d1f9d6d18b523c6c05bcc9dcca180c46167076796c"
         }
       ]
+    },
+    {
+      "file": "patches/native-mixed-engine-lifetime.patch",
+      "sha256": "645a176f854497b2ca22cb8afc320360e81bfaf15b34077cb3becc7d8bb24fbd",
+      "files": [
+        {
+          "path": "chrome/browser/ui/browser.cc",
+          "before": "a7b752cb25c769cf417098322cea01531a282f6487a50b512df52e8a36148204",
+          "after": "d4470049c141a7d2c97fcd748352274a20471529726d75516316267af2800be1"
+        },
+        {
+          "path": "chrome/browser/ui/unload_controller.cc",
+          "before": "f2910e6cae70fbb670e891c588f29b65ea3bfa7c4ffb3657b266a35e7a152531",
+          "after": "fc2e53d82f61b222373f788d74530ec263abb16a4f152d0f35b89d3eafff7069"
+        },
+        {
+          "path": "chrome/browser/ui/BUILD.gn",
+          "before": "68dc27f85edc849e292303170dde9444aad8c4f9bd2670fb73e5f0ac5d13f7c1",
+          "after": "abb1fe8eda4d06ee6ad0943aeb672f393dbe82abe0467aec5214752649abaa85"
+        }
+      ]
     }
   ]
 }
