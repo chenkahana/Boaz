@@ -155,14 +155,15 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver, find_in_page::Fin
           auto* frame = document.AsRenderFrameHostIfValid();
           if (frame) {
             if (page->closing || page->destroyed || !page->view_available || !page->web_contents() ||
-                frame != page->web_contents()->GetFocusedFrame()) return;
+                frame != page->web_contents()->GetFocusedFrame()) { page->QueuePasswordFocus(); return; }
             if (!page->scripts) page->scripts = std::make_unique<TrustedScriptChannel>(page->web_contents());
             auto captured = page->scripts->Capture(&origin, true);
-            if (!captured) return;
+            if (!captured) { page->QueuePasswordFocus(); return; }
             token = *captured;
             if (origin.empty() || origin.size() >= 2048 ||
                 !frame->GetLastCommittedURL().SchemeIsHTTPOrHTTPS()) {
               page->scripts->Release(token);
+              page->QueuePasswordFocus();
               return;
             }
           }
