@@ -44,7 +44,8 @@ class Popup final : public content::WebContentsObserver,
     if (!navigation.GetURL().SchemeIsHTTPOrHTTPS()) {
       return Throttle::PROCEED;
     }
-    if (current_navigation_ != navigation.GetNavigationId()) return Throttle::PROCEED;
+    if (current_navigation_ != navigation.GetNavigationId())
+      return {Throttle::CANCEL, net::ERR_ABORTED};
     return Throttle::DEFER;
   }
   struct Input {
@@ -146,7 +147,7 @@ class PopupThrottle final : public content::NavigationThrottle {
     pending_ = false;
     if (!popup_ || navigation_handle()->GetNavigationId() != id ||
         navigation_handle()->GetURL() != target) {
-      Resume();
+      CancelDeferredNavigation({CANCEL, net::ERR_ABORTED});
       return;
     }
     const auto decision = popup_->Apply(*navigation_handle(), result);
