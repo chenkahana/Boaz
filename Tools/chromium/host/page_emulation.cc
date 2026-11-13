@@ -117,6 +117,31 @@ void PageEmulation::ApplyMedia(std::optional<Media> media, Completion completion
   media_ = media.value_or(Media{});
   Start(!media.has_value(), Operation::kMedia, std::move(completion));
 }
+void PageEmulation::ApplyNetwork(std::optional<Network> network, Completion completion) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  if (closed_) { Reply(std::move(completion), Result::kClosed); return; }
+  if (completion_) { Reply(std::move(completion), Result::kUnavailable); return; }
+  auto valid_throughput = [](double value) {
+    return std::isfinite(value) && (value == -1 || (value >= 1 && value <= 1e9));
+  };
+  if (network && (!std::isfinite(network->latency_ms) || network->latency_ms < 0 ||
+      network->latency_ms > 10000 || !valid_throughput(network->download_bytes_per_second) ||
+      !valid_throughput(network->upload_bytes_per_second))) {
+    Reply(std::move(completion), Result::kInvalid); return;
+  }
+  network_ = network.value_or(Network{false, 0, -1, -1});
+  Start(!network.has_value(), Operation::kNetwork, std::move(completion));
+}
+void PageEmulation::ApplyCPU(double rate, Completion completion) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  if (closed_) { Reply(std::move(completion), Result::kClosed); return; }
+  if (completion_) { Reply(std::move(completion), Result::kUnavailable); return; }
+  if (!std::isfinite(rate) || rate < 1 || rate > 20) {
+    Reply(std::move(completion), Result::kInvalid); return;
+  }
+  cpu_rate_ = rate;
+  Start(rate == 1, Operation::kCPU, std::move(completion));
+}
 void PageEmulation::Start(bool clear, Operation operation, Completion completion) {
   if (closed_) { Reply(std::move(completion), Result::kClosed); return; }
   if (!completion || completion_ || !web_contents() ||
@@ -146,13 +171,39 @@ void PageEmulation::Start(bool clear, Operation operation, Completion completion
 }
 void PageEmulation::SendNext() {
   if (!completion_ || !host_) return;
-  if (step_ == (operation_ == Operation::kUserAgent ? 1 : 2)) { Finish(resetting_ ? failure_ : Result::kSuccess); return; }
+  if (step_ == ((operation_ == Operation::kUserAgent || operation_ == Operation::kCPU) ? 1 : 2)) { Finish(resetting_ ? failure_ : Result::kSuccess); return; }
   if (next_id_ == std::numeric_limits<int>::max()) { Cancel(Result::kUnavailable); return; }
   base::DictValue params;
   std::string method;
   if (operation_ == Operation::kUserAgent) {
     method = "Emulation.setUserAgentOverride";
     params.Set("userAgent", clearing_ ? std::string() : user_agent_);
+  } else if (operation_ == Operation::kCPU) {
+    method = "Emulation.setCPUThrottlingRate";
+    params.Set("rate", clearing_ ? 1.0 : cpu_rate_);
+  } else if (operation_ == Operation::kNetwork) {
+    const auto network = clearing_ ? Network{false, 0, -1, -1} : network_;
+    if (step_ == 0) {
+      method = "Network.emulateNetworkConditionsByRule";
+      params.Set("emulateOfflineServiceWorker", network.offline);
+      base::ListValue rules;
+      if (!clearing_) {
+        base::DictValue rule;
+        rule.Set("urlPattern", "");
+        rule.Set("offline", network.offline);
+        rule.Set("latency", network.latency_ms);
+        rule.Set("downloadThroughput", network.download_bytes_per_second);
+        rule.Set("uploadThroughput", network.upload_bytes_per_second);
+        rules.Append(std::move(rule));
+      }
+      params.Set("matchedNetworkConditions", std::move(rules));
+    } else {
+      method = "Network.overrideNetworkState";
+      params.Set("offline", network.offline);
+      params.Set("latency", network.latency_ms);
+      params.Set("downloadThroughput", network.download_bytes_per_second);
+      params.Set("uploadThroughput", network.upload_bytes_per_second);
+    }
   } else if (operation_ == Operation::kMedia) {
     if (step_ == 0) {
       method = "Emulation.setEmulatedMedia";
