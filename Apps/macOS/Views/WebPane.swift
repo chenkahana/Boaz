@@ -74,10 +74,22 @@ private struct ChromiumTabPane: View {
             }
         }
         .task(id: tab.id) { open() }
+        .task(id: faviconDocument) {
+            guard faviconDocument != nil,
+                  let adapter = engine?.adapter as? ChromiumEnginePageAdapter else { return }
+            await ChromiumPageServices.learnFavicon(from: adapter)
+        }
         .onChange(of: engine?.state, initial: true) {
             guard let state = engine?.state, !state.isLoading, state.lifecycle == .active else { return }
             browser.didNavigate(tab.id, url: state.url, title: state.title)
         }
+    }
+
+    private var faviconDocument: String? {
+        guard let adapter = engine?.adapter as? ChromiumEnginePageAdapter,
+              !adapter.profile.isPrivate, adapter.state.lifecycle == .active,
+              !adapter.state.isLoading, let url = adapter.state.url else { return nil }
+        return "\(adapter.handle):\(adapter.state.navigationID):\(url.absoluteString)"
     }
 
     private func open() {
