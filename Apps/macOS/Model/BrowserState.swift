@@ -108,6 +108,7 @@ final class BrowserState {
     @ObservationIgnored weak var window: NSWindow?
     @ObservationIgnored private var pages: [String: WebPage] = [:]
     private var enginePages: [String: EnginePage] = [:]
+    private var chromiumPinnedLandings: [String: (pageID: UUID, url: URL)] = [:]
     var activeEnginePage: EnginePage? { activeTabID.flatMap { enginePages[$0] } }
     private let privateEngineProfileID = UUID().uuidString
     #if BOAZ_CHROMIUM
@@ -811,6 +812,7 @@ final class BrowserState {
     }
 
     private func finishUnload(_ tabID: String) {
+        chromiumPinnedLandings[tabID] = nil
         pictureInPicture(tabID)?.detach()
         pages[tabID] = nil
         enginePages[tabID] = nil
@@ -835,21 +837,34 @@ final class BrowserState {
 
     /// Whether a pinned tab's page has browsed away from where it was pinned.
     func hasWandered(_ tab: SidebarItem) -> Bool {
-        guard model.isPinned(tab), let page = pages[tab.id] else { return false }
+        guard model.isPinned(tab) else { return false }
+        if let engine = enginePages[tab.id], engine.kind == .chromium {
+            let landing = chromiumPinnedLandings[tab.id]
+            return PinnedAnchor.hasWandered(current: engine.state.url, saved: tab.url,
+                landing: landing?.pageID == engine.id ? landing?.url : nil)
+        }
+        guard let page = pages[tab.id] else { return false }
         return PinnedAnchor.hasWandered(page, from: tab.url)
     }
 
     func returnToPinnedPage(_ tab: SidebarItem) {
         guard let url = tab.url else { return }
         activate(tab)
-        page(for: tab).load(URLRequest(url: url))
+        do { try enginePage(for: tab).navigate(to: url) }
+        catch { model.showToast(error.localizedDescription) }
     }
 
     /// Pins or unpins; unpinning keeps the tab where its page is now, not where it was pinned.
     func togglePin(_ tab: SidebarItem) {
         let unpinning = model.isPinned(tab) && !model.isFavorite(tab)
         model.togglePin(tab)
-        if unpinning, let page = pages[tab.id] { model.didNavigate(tab.id, url: page.url, title: page.title) }
+        if unpinning {
+            if let engine = enginePages[tab.id], engine.kind == .chromium {
+                model.didNavigate(tab.id, url: engine.state.url, title: engine.state.title)
+            } else if let page = pages[tab.id] {
+                model.didNavigate(tab.id, url: page.url, title: page.title)
+            }
+        }
     }
 
     /// Link routing: a middle-click or ⌘-click opens the link in a background tab right below this one, ⌘⇧-click in
@@ -984,6 +999,12 @@ final class BrowserState {
     }
 
     func didNavigate(_ tabID: String, url: URL?, title: String) {
+        if let engine = enginePages[tabID], engine.kind == .chromium,
+           engine.state.lifecycle == .active, !engine.state.isLoading, engine.state.loadFailure == nil,
+           let url, url.absoluteString != "about:blank", engine.state.url == url,
+           chromiumPinnedLandings[tabID]?.pageID != engine.id {
+            chromiumPinnedLandings[tabID] = (engine.id, url)
+        }
         if let index = incognitoTabs.firstIndex(where: { $0.id == tabID }) {
             if let url, url.absoluteString != "about:blank" { incognitoTabs[index].url = url }
             if !title.isEmpty { incognitoTabs[index].title = title }
