@@ -5,7 +5,7 @@ import SwiftUI
 
 @MainActor @Observable
 final class ChromiumExtensionActionsModel {
-    struct Action: Identifiable { let id: String; let name: String; var title = ""; var badge = "" }
+    struct Action: Identifiable { let id: String; let name: String; var title = ""; var badge = ""; var icon: NSImage? }
     private(set) var actions: [Action] = []
     var failure: String?
     @ObservationIgnored private let api: BoazHostAPI
@@ -21,7 +21,7 @@ final class ChromiumExtensionActionsModel {
     var activeHandle: BoazHostPage? { activePage()?.handle }
 
     private final class Snapshot { var actions: [Action] = [] }
-    private final class Metadata { var title = ""; var badge = "" }
+    private final class Metadata { var title = ""; var badge = ""; var icon: NSImage? }
     func refresh() {
         guard api.size >= MemoryLayout<BoazHostAPI>.size,
               api.version == BOAZ_HOST_ABI_VERSION,
@@ -47,18 +47,22 @@ final class ChromiumExtensionActionsModel {
             for index in snapshot.actions.indices {
                 let value = Metadata()
                 let result = snapshot.actions[index].id.withCString {
-                    metadata(window, page.handle, $0, { context, title, badge in
+                    metadata(window, page.handle, $0, { context, title, badge, png, count in
                         guard let context, let title, let badge else { return }
                         MainActor.assumeIsolated {
                             let value = Unmanaged<Metadata>.fromOpaque(context).takeUnretainedValue()
                             value.title = String(cString: title)
                             value.badge = String(cString: badge)
+                            if let png, count > 0, count <= 262_144 {
+                                value.icon = NSImage(data: Data(bytes: png, count: count))
+                            }
                         }
                     }, Unmanaged.passUnretained(value).toOpaque())
                 }
                 if result == BOAZ_HOST_OK {
                     snapshot.actions[index].title = value.title
                     snapshot.actions[index].badge = value.badge
+                    snapshot.actions[index].icon = value.icon
                 }
             }
         }
@@ -140,6 +144,8 @@ private struct NativeExtensionActionButton: NSViewRepresentable {
     func updateNSView(_ button: NSButton, context: Context) {
         context.coordinator.model = model
         context.coordinator.id = action.id
+        button.image = action.icon ?? NSImage(systemSymbolName: "puzzlepiece.extension", accessibilityDescription: action.name)
+        button.imageScaling = .scaleProportionallyDown
         button.toolTip = action.title.isEmpty ? action.name : action.title
         button.setAccessibilityLabel(action.badge.isEmpty ? action.name : "\(action.name), \(action.badge)")
         button.isEnabled = model.activeHandle != nil

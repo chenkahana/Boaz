@@ -536,7 +536,8 @@ BoazHostResult ExtensionMetadata(BoazHostWindow id, BoazHostPage page,
   NativeExtensionActions::Metadata metadata;
   if (it->second.actions->GetMetadata(active->GetContents(), extension_id, &metadata) != NativeExtensionActions::Result::kOk)
     return BOAZ_HOST_UNAVAILABLE;
-  Notify([&] { visitor(context, metadata.title.c_str(), metadata.badge_text.c_str()); });
+  Notify([&] { visitor(context, metadata.title.c_str(), metadata.badge_text.c_str(),
+      metadata.icon_png.data(), metadata.icon_png.size()); });
   return BOAZ_HOST_OK;
 }
 BoazHostResult EnumerateExtensions(BoazHostWindow id,

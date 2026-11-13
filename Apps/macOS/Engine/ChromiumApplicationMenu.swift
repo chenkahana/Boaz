@@ -46,6 +46,9 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         add(app, "Manage Chromium Extensions…", enabled: {
             $0?.isIncognito == false && $0?.manageChromiumExtensions != nil
         }) { $0?.manageChromiumExtensions?() }
+        add(app, "Review Previous Extensions…", enabled: {
+            $0?.isIncognito == false && $0?.reviewPreviousChromiumExtensions != nil
+        }) { $0?.reviewPreviousChromiumExtensions?() }
         app.addItem(.separator())
         let services = NSMenu(title: "Services")
         let servicesItem = NSMenuItem(title: "Services", action: nil, keyEquivalent: "")

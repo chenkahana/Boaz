@@ -14,6 +14,7 @@ final class BrowserState {
     var loadChromiumDeveloperExtension: (() -> Void)?
     var installChromiumExtension: (() -> Void)?
     var manageChromiumExtensions: (() -> Void)?
+    var reviewPreviousChromiumExtensions: (() -> Void)?
     enum CommandMode: Equatable { case newTab, currentTab, split }
 
     struct Split: Equatable {
