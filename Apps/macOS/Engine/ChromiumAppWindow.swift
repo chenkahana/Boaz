@@ -54,6 +54,10 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
             window.close()
             throw error
         }
+        browser.chromiumExtensions = ChromiumExtensionActionsModel(api: runtime.api, window: handle,
+            activePage: { [weak browser = browser] in
+                browser?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter
+            })
         let hosting = NSHostingView(rootView: BrowserWindow(browser: browser)
             .environment(model).task { await model.start() })
         hosting.frame = contentContainer.bounds
@@ -234,6 +238,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
     func finishClose() {
         guard !finished else { return }
         finished = true
+        browser.chromiumExtensions = nil
         browser.createChromiumPage = nil
         browser.activateChromiumPage = nil
         browser.chromiumLayoutChanged = nil

@@ -99,6 +99,7 @@ final class BrowserState {
     var activeEnginePage: EnginePage? { activeTabID.flatMap { enginePages[$0] } }
     private let privateEngineProfileID = UUID().uuidString
     #if BOAZ_CHROMIUM
+    var chromiumExtensions: ChromiumExtensionActionsModel?
     @ObservationIgnored var createChromiumPage: ((SidebarItem) throws -> EnginePage)?
     @ObservationIgnored var chromiumAddressField: NSTextField?
     @ObservationIgnored var activateChromiumPage: ((EnginePage) -> Void)?
