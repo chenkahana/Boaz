@@ -176,6 +176,9 @@ struct SettingsSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                #if DEFAULT_BROWSER
+                DefaultBrowserSection()
+                #endif
                 Section {
                     Picker("Archive Inactive Tabs After", selection: $archiveAfter) {
                         ForEach(ArchiveInterval.allCases) { Text($0.label).tag($0.rawValue) }
