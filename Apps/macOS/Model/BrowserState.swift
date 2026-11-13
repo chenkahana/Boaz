@@ -771,6 +771,10 @@ final class BrowserState {
         model.showToast("Copied URL")
     }
 
+    func stopLoading() {
+        navigateEngine { try $0.stopLoading() }
+    }
+
     func reload() {
         if let id = activeTabID, let engine = enginePages[id], engine.kind == .chromium {
             navigateEngine { try $0.reload() }

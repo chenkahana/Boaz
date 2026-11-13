@@ -100,14 +100,17 @@ private struct SidebarTopBar: View {
             }
             Spacer()
             if let engine = browser.activeEnginePage, engine.kind == .chromium {
-                HoverIconButton(symbol: "arrow.left", help: "Back", hint: keys.hint("Back", .goBack)) {
-                    browser.goBack()
-                }.disabled(!engine.state.canGoBack)
-                HoverIconButton(symbol: "arrow.right", help: "Forward", hint: keys.hint("Forward", .goForward)) {
-                    browser.goForward()
-                }.disabled(!engine.state.canGoForward)
-                HoverIconButton(symbol: "arrow.clockwise", help: "Reload", hint: keys.hint("Reload", .reload)) {
-                    browser.reload()
+                #if BOAZ_CHROMIUM
+                if let adapter = engine.adapter as? ChromiumEnginePageAdapter {
+                    ChromiumHistoryButton(adapter: adapter, forward: false, hint: keys.hint("Back", .goBack),
+                        onError: { browser.model.showToast($0) }).frame(width: 26, height: 26)
+                    ChromiumHistoryButton(adapter: adapter, forward: true, hint: keys.hint("Forward", .goForward),
+                        onError: { browser.model.showToast($0) }).frame(width: 26, height: 26)
+                }
+                #endif
+                HoverIconButton(symbol: engine.state.isLoading ? "xmark" : "arrow.clockwise",
+                    help: engine.state.isLoading ? "Stop" : "Reload", hint: keys.hint("Reload", .reload)) {
+                    if engine.state.isLoading { browser.stopLoading() } else { browser.reload() }
                 }
             } else {
             HistoryButton(symbol: "arrow.left", help: "Back", hint: keys.hint("Back", .goBack),
