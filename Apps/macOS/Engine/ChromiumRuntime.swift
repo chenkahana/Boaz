@@ -312,7 +312,10 @@ final class ChromiumRuntime {
         } else {
             pages[copied.page]?.apply(event: event, snapshot: copied.snapshot)
         }
-        if event == BOAZ_HOST_PAGE_CLOSE_CANCELLED { closingPages.remove(copied.page) }
+        if event == BOAZ_HOST_PAGE_CLOSE_CANCELLED {
+            closingPages.remove(copied.page)
+            blockingShutdownRequested = false
+        }
         if pages[copied.page] != nil {
             pageEvent?(copied.page, event)
             if event != BOAZ_HOST_PAGE_CLOSING && event != BOAZ_HOST_PAGE_CLOSED &&
