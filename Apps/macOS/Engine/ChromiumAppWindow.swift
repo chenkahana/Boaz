@@ -13,6 +13,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
     private(set) var handle: BoazHostWindow = 0
     var onClosed: (() -> Void)?
     private let model: MacModel
+    private let initialTabID: String?
     private let restoration: MacModel.NativeWindowRestoration?
     private var installed = false
     private var finished = false
@@ -22,8 +23,9 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
 
     init(runtime: ChromiumRuntime, profile: ChromiumProfile, model: MacModel,
          preparedForNativeCreation: Bool = false,
-         restoration: MacModel.NativeWindowRestoration? = nil) throws {
+         restoration: MacModel.NativeWindowRestoration? = nil, initialTabID: String? = nil) throws {
         self.model = model
+        self.initialTabID = initialTabID
         self.restoration = restoration
         self.runtime = runtime
         self.profile = profile
@@ -122,7 +124,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
             activePage: { [weak browser = browser] in
                 browser?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter
             })
-        let hosting = NSHostingView(rootView: BrowserWindow(browser: browser, nativeRestoration: restoration)
+        let hosting = NSHostingView(rootView: BrowserWindow(browser: browser, nativeRestoration: restoration, initialTabID: initialTabID)
             .environment(model).task { await self.model.start() })
         hosting.frame = contentContainer.bounds
         hosting.autoresizingMask = [.width, .height]

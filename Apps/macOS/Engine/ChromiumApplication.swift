@@ -192,9 +192,11 @@ private final class ChromiumApplication: NSObject {
         NotificationCenter.default.addObserver(self, selector: #selector(willTerminate),
             name: NSApplication.willTerminateNotification, object: nil)
         installMenu()
-        model.registerNativeOpenWindow { [weak self] id, url in
+        model.registerNativeOpenWindow({ [weak self] id, url in
             Task { @MainActor in await self?.openScene(id, url: url) }
-        }
+        }, openTab: { [weak self] tabID in
+            Task { @MainActor in await self?.openScene("main", url: nil, tabID: tabID) }
+        })
         legacyDelegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
         Task { @MainActor in _ = await ensureMainWindow() }
     }
@@ -264,8 +266,17 @@ private final class ChromiumApplication: NSObject {
         }
     }
 
-    func openScene(_ id: String, url: URL?) async {
+    func openScene(_ id: String, url: URL?, tabID: String? = nil) async {
         guard !finished else { return }
+        var explicitProfileID: String?
+        if let tabID {
+            guard id == "main", let tab = model.item(tabID), tab.kind == .tab,
+                  model.sidebar.profiles.contains(where: { $0.id == (tab.profileID ?? "default") }) else {
+                showError("This tab or its profile is no longer available.")
+                return
+            }
+            explicitProfileID = tab.profileID ?? "default"
+        }
         await model.start()
         while model.sidebar.spaces.isEmpty && model.loadError == nil {
             guard !finished else { return }
@@ -289,7 +300,11 @@ private final class ChromiumApplication: NSObject {
             } catch { showError(error.localizedDescription) }
         default:
             let isPrivate = id == "incognito"
-            let restoration = isPrivate ? nil : model.claimNativeSavedWindow()
+            if let explicitProfileID, !model.sidebar.profiles.contains(where: { $0.id == explicitProfileID }) {
+                showError("This tab or its profile is no longer available.")
+                return
+            }
+            let restoration = isPrivate || tabID != nil || url != nil ? nil : model.claimNativeSavedWindow()
             var created = false
             defer {
                 if !created, let restoration { model.finishNativeRestoration(restoration, succeeded: false) }
@@ -299,7 +314,7 @@ private final class ChromiumApplication: NSObject {
             let savedTabProfile = model.item(saved?.tabID).map { $0.profileID ?? "default" }
             let fallback = model.sidebar.spaces.first?.profileID
                 ?? model.sidebar.profiles.first(where: \.isDefault)?.id ?? "default"
-            let candidates = [savedSpaceProfile, savedTabProfile, fallback].compactMap { $0 }
+            let candidates = [explicitProfileID, savedSpaceProfile, savedTabProfile, fallback].compactMap { $0 }
             let profileID = candidates.first(where: { candidate in
                 model.sidebar.profiles.contains { $0.id == candidate }
             }) ?? fallback
@@ -310,8 +325,15 @@ private final class ChromiumApplication: NSObject {
                 guard !finished else { return }
                 let profile = try await runtime.prepareProfile(identity)
                 guard !finished else { return }
+                if let tabID {
+                    guard let tab = model.item(tabID), tab.kind == .tab, (tab.profileID ?? "default") == profile.identity.id,
+                          model.sidebar.profiles.contains(where: { $0.id == profile.identity.id }) else {
+                        showError("This tab or its profile is no longer available.")
+                        return
+                    }
+                }
                 let window = try ChromiumAppWindow(runtime: runtime, profile: profile, model: model,
-                                                    restoration: restoration)
+                                                    restoration: restoration, initialTabID: tabID)
                 windows.append(window)
                 created = true
                 if let url { window.browser.openTab(url) }

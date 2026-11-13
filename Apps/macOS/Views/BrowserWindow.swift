@@ -10,6 +10,8 @@ struct BrowserWindow: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let nativeRestoration: MacModel.NativeWindowRestoration?
+    private let initialTabID: String?
+    @State private var consumedInitialTab = false
     private let claimsSavedWindow: Bool
     @State private var browser: BrowserState
     @AppStorage("sidebarWidth") private var sidebarWidth = 250.0
@@ -17,17 +19,20 @@ struct BrowserWindow: View {
 
     init(incognito: Bool) {
         nativeRestoration = nil
+        initialTabID = nil
         claimsSavedWindow = true
         _browser = State(initialValue: BrowserState(incognito: incognito))
     }
 
     init(browser: BrowserState) {
         nativeRestoration = nil
+        initialTabID = nil
         claimsSavedWindow = true
         _browser = State(initialValue: browser)
     }
 
-    init(browser: BrowserState, nativeRestoration: MacModel.NativeWindowRestoration?) {
+    init(browser: BrowserState, nativeRestoration: MacModel.NativeWindowRestoration?, initialTabID: String? = nil) {
+        self.initialTabID = initialTabID
         self.nativeRestoration = nativeRestoration
         claimsSavedWindow = false
         _browser = State(initialValue: browser)
@@ -165,7 +170,18 @@ struct BrowserWindow: View {
                 if saved.minimized == true { browser.window?.miniaturize(nil) }
             }
             restorationFinished = !Task.isCancelled
-            browser.consumePendingURL()
+            if claimsSavedWindow { browser.consumePendingURL() }
+            #if BOAZ_CHROMIUM
+            if !claimsSavedWindow, !consumedInitialTab, let initialTabID, !Task.isCancelled {
+                consumedInitialTab = true
+                if let tab = browser.tab(initialTabID),
+                   (tab.profileID ?? "default") == browser.chromiumProfileIdentity?.id {
+                    browser.activate(tab)
+                } else {
+                    model.showToast("This tab or its profile is no longer available.")
+                }
+            }
+            #endif
         }
     }
 

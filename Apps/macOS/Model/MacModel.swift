@@ -32,6 +32,7 @@ final class MacModel {
     /// iCloud sync with the user's other devices (a picked folder only when iCloud isn't available).
     @ObservationIgnored private(set) var sync: LibrarySync?
     @ObservationIgnored weak var lastActiveBrowser: BrowserState?
+    @ObservationIgnored private var nativeOpenTab: ((String) -> Void)?
     @ObservationIgnored private var openWindowAction: ((String, URL?) -> Void)?
     @ObservationIgnored private var usesNativeOpenWindow = false
     @ObservationIgnored private var pendingExternalURLs: [URL] = []
@@ -250,8 +251,10 @@ final class MacModel {
         drainPendingExternalURLs()
     }
 
-    func registerNativeOpenWindow(_ action: @escaping (String, URL?) -> Void) {
+    func registerNativeOpenWindow(_ action: @escaping (String, URL?) -> Void,
+                                  openTab: ((String) -> Void)? = nil) {
         usesNativeOpenWindow = true
+        nativeOpenTab = openTab
         openWindowAction = action
         drainPendingExternalURLs()
     }
@@ -277,6 +280,8 @@ final class MacModel {
             browser.openTab(url, title: title)
             window.makeKeyAndOrderFront(nil)
             NSApp.activate()
+        } else if usesNativeOpenWindow {
+            openWindowAction?("main", url)
         } else {
             pendingMainURL = url
             openWindowAction?("main", nil)
@@ -368,6 +373,11 @@ final class MacModel {
     }
 
     func openInNewWindow(_ tab: SidebarItem) {
+        if usesNativeOpenWindow {
+            guard let nativeOpenTab else { showToast("Opening this tab in a new window is unavailable."); return }
+            nativeOpenTab(tab.id)
+            return
+        }
         pendingMainTabID = tab.id
         openWindowAction?("main", nil)
     }
