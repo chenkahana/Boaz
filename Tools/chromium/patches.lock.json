@@ -325,7 +325,7 @@
     },
     {
       "file": "patches/native-devtools-panels.patch",
-      "sha256": "23140f7cca4d1e5071583f9aefc4e35a4d16b348a203b840ad30c74473eab474",
+      "sha256": "c1218af8ddfa70680fdc39b7022c02cdf3cbb0276a67b078e5b13a31d38b0c17",
       "files": [
         {
           "path": "chrome/browser/devtools/devtools_toggle_action.h",
@@ -335,7 +335,7 @@
         {
           "path": "chrome/browser/devtools/devtools_toggle_action.cc",
           "before": "0e72a64c970430ce8de29e674bb32b0576433d7b04d1ac329a2efc186e0499ac",
-          "after": "1913398a6222fea9b1eb8b30e2c70067058c5279a39d199b3e95fa4a5a4c9fe9"
+          "after": "96743092dc5d96f5ef6c55402e598368323f072e53b8d9d07b04b9c2034665fa"
         },
         {
           "path": "chrome/browser/devtools/devtools_window.cc",
@@ -346,12 +346,12 @@
     },
     {
       "file": "patches/native-devtools-docking.patch",
-      "sha256": "f0b45c5437646a5bdab1f08966202494007c35b9cf5afb704a194156d8f5d6c6",
+      "sha256": "df3222460ca94dfe93daa44ceaeb2fb51e83641faf6add8711544a5562fd832c",
       "files": [
         {
           "path": "chrome/browser/devtools/devtools_window.cc",
           "before": "0d074e6f0a7a3ce59dbb182d08e06e71e30e1f64580848326f320a2213127adf",
-          "after": "df3c79d2043db08ea21cec80c1ee29acb57a3c3059c7f1c6ceeb105712a3b4ae"
+          "after": "8ae652ecb4f4f65e7216650e011e95111ce160774ac4c19e7f9f2366e46615cb"
         },
         {
           "path": "chrome/browser/devtools/devtools_window_views.cc",

@@ -25,7 +25,7 @@
    static DevToolsToggleAction PauseInDebugger();
 --- a/chrome/browser/devtools/devtools_toggle_action.cc
 +++ b/chrome/browser/devtools/devtools_toggle_action.cc
-@@ -74,3 +74,16 @@
+@@ -74,3 +74,15 @@
  DevToolsToggleAction DevToolsToggleAction::NoOp() {
    return DevToolsToggleAction(kNoOp);
  }
@@ -41,7 +41,6 @@
 +DevToolsToggleAction DevToolsToggleAction::ShowLighthousePanel() {
 +  return DevToolsToggleAction(kShowLighthousePanel);
 +}
-+
 --- a/chrome/browser/devtools/devtools_window.cc
 +++ b/chrome/browser/devtools/devtools_window.cc
 @@ -895,6 +895,15 @@

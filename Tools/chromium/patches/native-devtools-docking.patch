@@ -1,6 +1,17 @@
 --- a/chrome/browser/devtools/devtools_window.cc
 +++ b/chrome/browser/devtools/devtools_window.cc
-@@ -517,6 +517,11 @@
+@@ -3,6 +3,10 @@
+ // found in the LICENSE file.
+ 
+ #include "chrome/browser/devtools/devtools_window.h"
++#include "build/build_config.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/native_devtools.h"
++#endif
+ 
+ #include <algorithm>
+ #include <memory>
+@@ -517,6 +521,11 @@
    }
  
    life_stage_ = kClosing;
@@ -12,7 +23,7 @@
  
    base::RecordAction(base::UserMetricsAction("DevTools_Close"));
  
-@@ -1084,6 +1089,11 @@
+@@ -1084,6 +1093,11 @@
          FROM_HERE, base::BindOnce(&DevToolsWindow::ActivateInspectedTab,
                                    weak_factory_.GetWeakPtr()));
  
@@ -24,7 +35,7 @@
      if (auto* devtools_ui_controller =
              DevtoolsUIController::From(inspected_browser)) {
        devtools_ui_controller->UpdateDevtools(inspected_web_contents);
-@@ -1424,6 +1434,11 @@
+@@ -1424,6 +1438,11 @@
  #endif  // BUILDFLAG(IS_MAC)
      DevtoolsUIController* devtools_ui_controller =
          browser ? DevtoolsUIController::From(browser) : nullptr;
@@ -36,7 +47,7 @@
      if (!devtools_ui_controller || !devtools_ui_controller->CanDockDevtools()) {
        can_dock = false;
      }
-@@ -1806,6 +1821,13 @@
+@@ -1806,6 +1825,13 @@
      dock_requested = false;
    }
  
