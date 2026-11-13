@@ -16,7 +16,7 @@
 #include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
 #include "content/public/browser/browser_thread.h"
 #include "extensions/browser/crx_installer.h"
-#include "extensions/browser/crx_install_error.h"
+#include "extensions/browser/install/crx_install_error.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/install_prompt_data.h"
 #include "extensions/common/extension.h"
