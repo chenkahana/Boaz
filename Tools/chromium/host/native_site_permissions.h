@@ -5,13 +5,16 @@
 class Profile;
 namespace url { class Origin; }
 namespace boaz {
-enum class SitePermissionKind { kCamera, kMicrophone, kNotifications };
+enum class SitePermissionKind { kCamera, kMicrophone, kNotifications, kLocation = 3 };
 struct PermissionState {
   enum class Setting { kAsk, kAllow, kBlock, kOther };
   SitePermissionKind kind;
   Setting setting;
   bool can_reset;
   bool embargoed;
+  bool has_accuracy_options = false;
+  Setting approximate_setting = Setting::kOther;
+  Setting precise_setting = Setting::kOther;
 };
 std::vector<PermissionState> ReadSitePermissions(Profile*, const url::Origin& requesting,
                                                const url::Origin& embedding);

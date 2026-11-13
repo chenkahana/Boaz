@@ -1,10 +1,12 @@
 #include "native_site_permissions.h"
 #include <optional>
+#include <variant>
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/permissions/permission_decision_auto_blocker_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/content_settings.h"
+#include "components/content_settings/core/common/content_settings_utils.h"
 #include "components/permissions/permission_decision_auto_blocker.h"
 #include "components/permissions/permission_util.h"
 #include "content/public/browser/browser_thread.h"
@@ -24,8 +26,17 @@ std::optional<Types> GetTypes(SitePermissionKind kind) {
     case SitePermissionKind::kCamera: return Types{ContentSettingsType::MEDIASTREAM_CAMERA, blink::PermissionType::VIDEO_CAPTURE, blink::mojom::PermissionName::VIDEO_CAPTURE};
     case SitePermissionKind::kMicrophone: return Types{ContentSettingsType::MEDIASTREAM_MIC, blink::PermissionType::AUDIO_CAPTURE, blink::mojom::PermissionName::AUDIO_CAPTURE};
     case SitePermissionKind::kNotifications: return Types{ContentSettingsType::NOTIFICATIONS, blink::PermissionType::NOTIFICATIONS, blink::mojom::PermissionName::NOTIFICATIONS};
+    case SitePermissionKind::kLocation: return Types{content_settings::GeolocationContentSettingsType(), blink::PermissionType::GEOLOCATION, blink::mojom::PermissionName::GEOLOCATION};
   }
   return std::nullopt;
+}
+PermissionState::Setting SavedSetting(PermissionOption option) {
+  switch (option) {
+    case PermissionOption::kAllowed: return PermissionState::Setting::kAllow;
+    case PermissionOption::kDenied: return PermissionState::Setting::kBlock;
+    case PermissionOption::kAsk: return PermissionState::Setting::kAsk;
+  }
+  return PermissionState::Setting::kOther;
 }
 bool Valid(Profile* profile, const url::Origin& requesting, const url::Origin& embedding) {
   return profile && !profile->ShutdownStarted() && !requesting.opaque() && !embedding.opaque() &&
@@ -42,7 +53,7 @@ std::optional<PermissionState> Read(Profile* profile, const url::Origin& request
   const GURL canonical = permissions::PermissionUtil::GetCanonicalOrigin(
       types->content, requesting.GetURL(), embedding.GetURL());
   content_settings::SettingInfo info;
-  map->GetContentSetting(canonical, embedding.GetURL(), types->content, &info);
+  auto saved = map->GetPermissionSetting(canonical, embedding.GetURL(), types->content, &info);
   auto descriptor = blink::mojom::PermissionDescriptor::New();
   descriptor->name = types->name;
   const auto status = delegate->GetPermissionStatus(descriptor, requesting.GetURL(), embedding.GetURL());
@@ -54,8 +65,17 @@ std::optional<PermissionState> Read(Profile* profile, const url::Origin& request
   }
   const bool editable = info.source == content_settings::SettingSource::kUser ||
                         info.source == content_settings::SettingSource::kNone;
-  return PermissionState{kind, setting, editable,
-                         blocker->GetEmbargoResult(canonical, types->content).has_value()};
+  PermissionState state{kind, setting, editable,
+                        blocker->GetEmbargoResult(canonical, types->content).has_value()};
+  if (kind == SitePermissionKind::kLocation &&
+      types->content == ContentSettingsType::GEOLOCATION_WITH_OPTIONS) {
+    const auto* accuracy = std::get_if<GeolocationSetting>(&saved);
+    if (!accuracy) return std::nullopt;
+    state.has_accuracy_options = true;
+    state.approximate_setting = SavedSetting(accuracy->approximate);
+    state.precise_setting = SavedSetting(accuracy->precise);
+  }
+  return state;
 }
 }
 std::vector<PermissionState> ReadSitePermissions(Profile* profile, const url::Origin& requesting,
@@ -63,7 +83,7 @@ std::vector<PermissionState> ReadSitePermissions(Profile* profile, const url::Or
   CHECK_CURRENTLY_ON(content::BrowserThread::UI);
   if (!Valid(profile, requesting, embedding)) return {};
   std::vector<PermissionState> result;
-  for (auto kind : {SitePermissionKind::kCamera, SitePermissionKind::kMicrophone, SitePermissionKind::kNotifications}) {
+  for (auto kind : {SitePermissionKind::kCamera, SitePermissionKind::kMicrophone, SitePermissionKind::kNotifications, SitePermissionKind::kLocation}) {
     auto state = Read(profile, requesting, embedding, kind);
     if (!state) return {};
     result.push_back(*state);
