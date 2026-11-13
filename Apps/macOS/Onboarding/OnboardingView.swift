@@ -476,6 +476,7 @@ extension LibrarySync {
 private struct DefaultBrowserPanel: View {
     @State private var current = DefaultBrowser.current()
     @State private var message: String?
+    @State private var requesting = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -498,28 +499,37 @@ private struct DefaultBrowserPanel: View {
                 Image(systemName: "checkmark.circle.fill").font(.title2).foregroundStyle(.green)
                     .accessibilityHidden(true)
             } else {
-                Button("Make Default", action: makeDefault).buttonStyle(.glass)
+                Button("Set as Default Browser", action: makeDefault).buttonStyle(.glass)
+                    .disabled(requesting)
             }
         }
         .padding(16)
         .glassEffect(.regular, in: .rect(cornerRadius: 20))
         .accessibilityElement(children: .contain)
         .animation(Onboarding.spring, value: current.isBoaz)
+        .onAppear { current = DefaultBrowser.current() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             current = DefaultBrowser.current()
+            if current.isBoaz { message = nil }
         }
     }
 
     /// Asks macOS, which shows its own confirmation; Boaz never changes the setting itself.
     private func makeDefault() {
+        guard !requesting else { return }
+        requesting = true
+        message = nil
         Task {
+            defer {
+                current = DefaultBrowser.current()
+                requesting = false
+            }
             do {
                 try await DefaultBrowser.makeBoazDefault()
                 message = nil
             } catch {
-                message = "Your default browser didn't change."
+                message = error.localizedDescription
             }
-            current = DefaultBrowser.current()
         }
     }
 }
@@ -533,13 +543,26 @@ struct DefaultBrowser: Equatable {
         for scheme in ["http", "https"] {
             try await NSWorkspace.shared.setDefaultApplication(at: Bundle.main.bundleURL, toOpenURLsWithScheme: scheme)
         }
+        guard current().isBoaz else {
+            throw NSError(domain: "com.chenkahana.boaz.default-browser", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey: "Boaz is not the default for both HTTP and HTTPS. You can try again or change your default browser in System Settings."])
+        }
     }
 
     static func current() -> DefaultBrowser {
-        guard let app = NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!) else {
+        let apps = ["http", "https"].map { scheme in
+            NSWorkspace.shared.urlForApplication(toOpen: URL(string: "\(scheme)://example.com")!)
+        }
+        let identifiers = apps.map { $0.flatMap { Bundle(url: $0)?.bundleIdentifier } }
+        let isBoaz = Bundle.main.bundleIdentifier.map { identifier in
+            identifiers.allSatisfy { $0 == identifier }
+        } ?? false
+        guard let app = apps[1], identifiers.allSatisfy({ $0 != nil }) else {
             return DefaultBrowser(appURL: nil, name: "another browser", isBoaz: false)
         }
-        return DefaultBrowser(appURL: app, name: FileManager.default.displayName(atPath: app.path),
-                              isBoaz: Bundle(url: app)?.bundleIdentifier == Bundle.main.bundleIdentifier)
+        guard identifiers[0] == identifiers[1] else {
+            return DefaultBrowser(appURL: nil, name: "different browsers for HTTP and HTTPS", isBoaz: false)
+        }
+        return DefaultBrowser(appURL: app, name: FileManager.default.displayName(atPath: app.path), isBoaz: isBoaz)
     }
 }

@@ -251,28 +251,43 @@ private struct GeneralSettings: View {
 
 private struct DefaultBrowserRow: View {
     @State private var current = DefaultBrowser.current()
-    @State private var failed = false
+    @State private var message: String?
+    @State private var requesting = false
 
     var body: some View {
         LabeledContent("Default browser") {
             if current.isBoaz {
-                Text("Boaz")
+                Text("Boaz is your default browser")
             } else {
-                HStack {
-                    Text(current.name)
-                    Button("Make Default") {
-                        Task {
-                            failed = (try? await DefaultBrowser.makeBoazDefault()) == nil
+                Button("Set as Default Browser") {
+                    guard !requesting else { return }
+                    requesting = true
+                    message = nil
+                    Task {
+                        defer {
                             current = DefaultBrowser.current()
+                            requesting = false
+                        }
+                        do {
+                            try await DefaultBrowser.makeBoazDefault()
+                        } catch {
+                            message = error.localizedDescription
                         }
                     }
                 }
+                .disabled(requesting)
             }
         }
+        .onAppear { refresh() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            current = DefaultBrowser.current()
+            refresh()
         }
-        if failed { Text("Your default browser didn't change.").font(.caption).foregroundStyle(.secondary) }
+        if let message { Text(message).font(.caption).foregroundStyle(.secondary) }
+    }
+
+    private func refresh() {
+        current = DefaultBrowser.current()
+        if current.isBoaz { message = nil }
     }
 }
 
