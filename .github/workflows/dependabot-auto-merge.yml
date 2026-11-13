@@ -1,0 +1,24 @@
+name: Dependabot auto-merge
+
+# Approves Dependabot's pull requests and turns on auto-merge. GitHub then squash-merges each one only after the
+# required CI checks pass; a red check leaves the pull request open for a maintainer.
+on: pull_request
+
+permissions: {}
+
+jobs:
+  enable:
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository_owner == 'chenkahana'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - run: |
+          gh pr review "$PR" --approve --body "Dependency update from Dependabot; merges automatically once CI is green."
+          gh pr merge "$PR" --auto --squash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
