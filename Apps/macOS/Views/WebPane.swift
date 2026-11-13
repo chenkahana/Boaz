@@ -4,8 +4,98 @@ import Network
 import SwiftUI
 import WebKit
 
-/// One tab's live page. In split view it gets a slim header that focuses the pane when clicked.
 struct TabPane: View {
+    @Environment(BrowserState.self) private var browser
+    let tab: SidebarItem
+    let inSplit: Bool
+
+    var body: some View {
+        #if BOAZ_CHROMIUM
+        if browser.createChromiumPage != nil {
+            ChromiumTabPane(tab: tab, inSplit: inSplit).id(tab.id)
+        } else {
+            WebKitTabPane(tab: tab, inSplit: inSplit)
+        }
+        #else
+        WebKitTabPane(tab: tab, inSplit: inSplit)
+        #endif
+    }
+}
+
+#if BOAZ_CHROMIUM
+private struct ChromiumTabPane: View {
+    @Environment(BrowserState.self) private var browser
+    let tab: SidebarItem
+    let inSplit: Bool
+    @State private var engine: EnginePage?
+    @State private var failure: String?
+    @State private var hovering = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if inSplit {
+                let focused = browser.activeTabID == tab.id
+                HStack(spacing: 8) {
+                    Text(engine?.state.title.isEmpty == false ? engine!.state.title :
+                         (tab.title ?? engine?.state.url?.host() ?? "New Tab"))
+                        .font(.caption.weight(focused ? .semibold : .regular)).lineLimit(1)
+                    Spacer()
+                    if hovering {
+                        HoverIconButton(symbol: "rectangle.split.2x1.slash", help: "Separate", size: 20) {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                                browser.split = nil
+                                browser.focusPane(tab.id)
+                            }
+                        }
+                        HoverIconButton(symbol: "xmark", help: "Close", size: 20) { browser.close(tab) }
+                    }
+                }
+                .padding(.horizontal, 10).frame(height: 26)
+                .background(.primary.opacity(focused ? 0.06 : 0.02))
+                .contentShape(Rectangle())
+                .onTapGesture { browser.focusPane(tab.id) }
+                .onHover { hovering = $0 }
+            }
+            if let failure {
+                ContentUnavailableView {
+                    Label("Can't Open This Page", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(failure)
+                } actions: {
+                    Button("Try Again", action: open).buttonStyle(.glass)
+                }
+            } else if let engine, let adapter = engine.adapter as? ChromiumEnginePageAdapter {
+                ChromiumPageView(adapter: adapter)
+                    .overlay(alignment: .top) {
+                        if engine.state.isLoading { ProgressView().padding(8) }
+                    }
+            } else {
+                ProgressView("Opening page…").frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .task(id: tab.id) { open() }
+        .onChange(of: engine?.state, initial: true) {
+            guard let state = engine?.state, !state.isLoading, state.lifecycle == .active else { return }
+            browser.didNavigate(tab.id, url: state.url, title: state.title)
+        }
+    }
+
+    private func open() {
+        failure = nil
+        do {
+            let page = try browser.enginePage(for: tab)
+            guard page.adapter is ChromiumEnginePageAdapter else { throw EnginePageError.incompatibleBridge }
+            engine = page
+        } catch {
+            engine = nil
+            failure = "Chromium could not open this page: \(String(describing: error))."
+        }
+    }
+}
+#endif
+
+/// One tab's live page. In split view it gets a slim header that focuses the pane when clicked.
+private struct WebKitTabPane: View {
     @Environment(BrowserState.self) private var browser
     let tab: SidebarItem
     let inSplit: Bool
