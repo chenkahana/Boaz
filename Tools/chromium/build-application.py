@@ -35,7 +35,7 @@ def available(path):
             raise RuntimeError(f'Library is in use or could not be checked: {path}')
 
 
-def build(jobs):
+def build(jobs, resume_run=None):
     if Path.cwd() != ROOT.parent or os.environ.get('TMPDIR') != str(ROOT.parent / 'tmp'):
         raise RuntimeError('Build requires the verified volume guard')
     with (ROOT.parent / '.build.lock').open() as lock:
@@ -55,12 +55,29 @@ def build(jobs):
     available(final)
     generate()
     stamp = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ') + '-' + uuid.uuid4().hex
-    run = APP / 'runs' / stamp
-    if run.resolve() != run:
+    runs = APP / 'runs'
+    run = runs / (resume_run or stamp)
+    if runs.resolve() != runs or run.resolve() != run:
         raise RuntimeError('Application run directory is redirected')
-    run.mkdir(parents=True)
-    for name in ('tmp', 'cache', 'artifacts'):
-        (run / name).mkdir()
+    if resume_run:
+        if not run.is_dir():
+            raise RuntimeError('Resume run does not exist or is not a directory')
+        receipt = run / 'artifacts/build.json'
+        if receipt.exists() or receipt.is_symlink():
+            raise RuntimeError('Resume run already has a completed build receipt')
+    else:
+        run.mkdir(parents=True)
+    for name in ('tmp', 'cache', 'artifacts', 'DerivedData', 'SourcePackages'):
+        directory = run / name
+        if directory.resolve() != directory:
+            raise RuntimeError(f'Redirected run directory: {directory}')
+        directory.mkdir(exist_ok=True)
+    artifacts = run / 'artifacts'
+    if resume_run:
+        artifacts = artifacts / ('resume-' + stamp)
+        artifacts.mkdir()
+    log_path = run / (f'xcodebuild-{stamp}.log' if resume_run else 'xcodebuild.log')
+    result_path = run / (f'Build-{stamp}.xcresult' if resume_run else 'Build.xcresult')
     env = dict(os.environ, TMPDIR=str(run / 'tmp'), XDG_CACHE_HOME=str(run / 'cache'),
                CLANG_MODULE_CACHE_PATH=str(run / 'cache/clang'),
                SWIFT_MODULE_CACHE_PATH=str(run / 'cache/swift'))
@@ -69,22 +86,22 @@ def build(jobs):
                '-destination', 'generic/platform=macOS', '-jobs', str(jobs),
                '-derivedDataPath', str(run / 'DerivedData'),
                '-clonedSourcePackagesDirPath', str(run / 'SourcePackages'),
-               '-resultBundlePath', str(run / 'Build.xcresult'),
+               '-resultBundlePath', str(result_path),
                'CODE_SIGNING_ALLOWED=NO', 'CODE_SIGNING_REQUIRED=NO', 'build']
-    print(f'Application build log: {run / "xcodebuild.log"}', flush=True)
-    with (run / 'xcodebuild.log').open('x') as log:
+    print(f'Application build log: {log_path}', flush=True)
+    with log_path.open('x') as log:
         subprocess.run(command, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
     products = run / 'DerivedData/Build/Products/Release'
     library = products / 'libBoazApplicationUI.dylib'
     if not library.is_file() or library.is_symlink():
         raise RuntimeError('Expected dynamic library was not produced')
-    staged = run / 'artifacts/libBoazApplicationUI.dylib'
+    staged = artifacts / 'libBoazApplicationUI.dylib'
     shutil.copy2(library, staged)
     resources = []
     for item in sorted(products.iterdir()):
         if item.suffix not in ('.bundle', '.car', '.metallib', '.framework'):
             continue
-        copied = run / 'artifacts' / item.name
+        copied = artifacts / item.name
         if item.is_symlink():
             raise RuntimeError(f'Unexpected top-level resource symlink: {item}')
         if item.is_dir():
@@ -114,8 +131,13 @@ def main():
     mode.add_argument('--generate-only', action='store_true')
     mode.add_argument('--build', action='store_true')
     parser.add_argument('--jobs', type=int, choices=(1, 2), default=2)
+    parser.add_argument('--resume-run', help='Reuse an incomplete run basename, preserving its outputs')
     parser.add_argument('--guarded', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.resume_run is not None:
+        name = args.resume_run
+        if not args.build or not name or name in ('.', '..') or '/' in name or '\\' in name or '\0' in name:
+            parser.error('--resume-run requires --build and a single run basename')
     if not args.build:
         if args.guarded:
             parser.error('--guarded requires --build')
@@ -123,9 +145,9 @@ def main():
     elif not args.guarded:
         subprocess.run([PYTHON, str(HERE.parent / 'cef/run-build.py'), '--', PYTHON,
                         str(Path(__file__).resolve()), '--build', '--guarded',
-                        '--jobs', str(args.jobs)], check=True)
+                        '--jobs', str(args.jobs)] + (['--resume-run', args.resume_run] if args.resume_run else []), check=True)
     else:
-        build(args.jobs)
+        build(args.jobs, args.resume_run)
 
 if __name__ == '__main__':
     main()
