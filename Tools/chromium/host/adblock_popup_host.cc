@@ -26,7 +26,7 @@ void AttachNativePopupBlocking(BrowserWindowInterface* browser, content::WebCont
       opener->GetOutermostMainFrame() != top || opener->GetLastCommittedOrigin().opaque()) return;
   auto state = NativeBlockingState(browser->GetProfile());
   if (!state) return;
-  AttachAdblockBlankPopup(created, target, opener->GetLastCommittedURL(),
+  AttachAdblockPopup(created, target, opener->GetLastCommittedURL(),
       top->GetLastCommittedOrigin(), std::move(state),
       base::BindOnce([](base::WeakPtr<content::WebContents> contents) {
         if (!contents) return;

@@ -162,11 +162,11 @@ content::NavigationThrottle::ThrottleCheckResult PopupThrottle::WillStartRequest
 content::NavigationThrottle::ThrottleCheckResult PopupThrottle::WillRedirectRequest() { return Check(); }
 const char* PopupThrottle::GetNameForLogging() { return "BoazAdblockPopup"; }
 }
-bool AttachAdblockBlankPopup(content::WebContents* contents, const GURL& target,
+bool AttachAdblockPopup(content::WebContents* contents, const GURL& target,
     GURL opener, url::Origin top, std::shared_ptr<AdblockProfileState> state,
     base::OnceClosure close) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  if (!contents || !IsBlank(target) || !opener.SchemeIsHTTPOrHTTPS() || top.opaque() ||
+  if (!contents || (!IsBlank(target) && !target.SchemeIsHTTPOrHTTPS()) || !opener.SchemeIsHTTPOrHTTPS() || top.opaque() ||
       !top.GetURL().SchemeIsHTTPOrHTTPS() || !state || !close || Popup::FromWebContents(contents)) return false;
   Popup::CreateForWebContents(contents, std::move(opener), net::SchemefulSite(top), std::move(state), std::move(close));
   return true;
