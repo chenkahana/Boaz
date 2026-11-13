@@ -4,18 +4,18 @@ The GitHub DMG is intended to move to Chromium while the Mac App Store and iPhon
 
 ## Current status
 
-The [S0 Crest study](spikes/S0-crest.md) selects a direct Chromium host. CEF development is frozen; the original runtime gates now apply to the new host. The [dual-engine revision](dual-engine.md) governs subsequent work. The external SSD now contains a verified APFS build image; CMake and Ninja are installed. Native hosting uses the prebuilt-distribution experiments before any production engine migration. See [feasibility.md](feasibility.md) and [SSD verification](spikes/storage.md).
+The [S0 Crest study](spikes/S0-crest.md) selects a direct Chromium host. CEF development is frozen; the original runtime gates now apply to the new host. The [dual-engine revision](dual-engine.md) governs subsequent work. The external SSD now contains a verified APFS build image; CMake and Ninja are installed. The pinned direct Chromium source and Mac toolchains are installed; the first native-host compile is in progress. Earlier prebuilt CEF runtime evidence does not pass the new host gates. See [feasibility.md](feasibility.md) and [SSD verification](spikes/storage.md).
 
 The [parity ledger](parity.md) records the existing implementation and required acceptance coverage. Source inventory is not runtime verification.
 
 ## Execution order
 
-1. Use the default worker model. Select and checksum a prebuilt CEF distribution and inspect its exact headers. The external APFS image is for custom builds; prebuilt experiments remain independent.
-2. Prove native lifecycle, extensions on actual Boaz tabs, and trusted scripts. Investigate a CEF Views host only as a bounded feasibility task, including focus, clipping, accessibility, split view, and native-window behavior. A hidden extension host is not accepted without evidence that it controls the visible tabs.
-3. After those gates pass, freeze engine contracts and implement WebKit adapters without changing iPhone behavior. Use a concrete observable page facade, typed script values, origin/frame/navigation identity, single-completion callbacks, and explicit page lifecycle states.
-4. Integrate the Objective-C++ Chromium bridge, helpers, artifact retrieval, and isolated build outputs. CEF callbacks retain their documented thread contracts; UI notifications cross to MainActor.
-5. Implement the ready packets in the parity ledger, two at a time, then developer tools and native UI polish.
-6. Verify performance, migration, signing, notarization, update/rollback, and three days of dogfooding. Working protected playback is a release blocker. Widevine approval gates enabling Widevine, not the dual-engine release.
+1. Use the default worker model and the verified SSD image. Build the pinned official Chromium source with independently authored host code. Preserve the frozen CEF experiments and outputs.
+2. Prove native lifecycle, retained tabs, split view, extensions on visible pages, and trusted scripts in the direct host. Verify native/page accessibility together and actual extension tab/window identities. No Chrome toolbar or hidden substitute host is accepted.
+3. After architecture gates pass, freeze engine contracts and implement WebKit adapters without changing iPhone behavior. The DMG keeps both engines, persistent tab choices and site rules. Use a concrete observable page facade, typed script values, origin/frame/navigation identity, single-completion callbacks, and explicit page lifecycle states.
+4. Integrate the Objective-C++ Chromium bridge, helpers, artifact retrieval, and isolated build outputs. Engine callbacks retain their required threads; UI notifications cross to MainActor. Preserve a WebKit DMG configuration for rollback.
+5. Implement ready packets in the parity ledger, two at a time, including protected-media routing, then developer tools and native UI polish. WebKit data remains intact and separate from Chromium data.
+6. Verify both engines' performance, migration, signing, notarization, update/rollback, and three days of dogfooding. Real Netflix and Disney+ FairPlay playback in WebKit is mandatory. Widevine approval gates enabling Widevine, not the dual-engine release.
 
 ## Worker dispatch
 

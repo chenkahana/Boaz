@@ -10,12 +10,12 @@ The dual-engine revision requires S0 Crest source inspection before further Wave
 
 | Gate | Status | Evidence or missing prerequisite |
 |---|---|---|
-| F1 native host and lifecycle | Partial; signed fresh-profile relaunch passes | Development signatures verify; two signed-profile runs load HTTPS and exit 0. Earlier ad-hoc profile still stalls. Notarization, IME, accessibility and performance remain pending |
+| F1 native host and lifecycle | Direct host pending; earlier CEF evidence only | Development signatures verify; two signed-profile runs load HTTPS and exit 0. Earlier ad-hoc profile still stalls. Notarization, IME, accessibility and performance remain pending |
 | F2 native embedding and extensions | Direct-host proof pending; CEF route frozen | S0 selected a direct Chromium host from source evidence. Real native window/tab identity, split view, actions, and all eight extensions remain unverified in Boaz |
 | F3 trusted scripts | Direct-host implementation pending | Crest demonstrates isolated-world APIs; Boaz must independently implement exact-document identity and cancellation and pass hostile-page/password acceptance |
-| F4 custom distribution | Paused for S0; project generation passed | Pinned checkout and 117 applicable CEF patches completed; Debug and Release project generation passed. Guarded SSD build retains the 12-job cap. No custom artifact or codec pass yet |
+| F4 custom distribution | Direct source/toolchains and GN passed; host compile running | Official Chromium 157.0.8103.51 checksum and extraction passed; ten pinned Mac toolchain packages installed. Native-host GN graph passed. First compile uses four jobs under the SSD guard. CEF output preserved. No complete custom artifact or codec pass |
 | F5 platform behavior | Not executed | Requires a working selected host |
-| F6 performance baseline | Not executed | Host now available; no benchmark numbers claimed |
+| F6 performance baseline | Not executed | Direct host not runnable yet; no benchmark numbers claimed. Do not benchmark during the custom build |
 | F7 external dependencies | Partly inspected; unresolved | Widevine inquiry submitted; approval gates dormant Chromium DRM only. WebKit/FairPlay playback, Developer ID/notarization and codec distribution remain unverified; see [dependencies](spikes/distribution-dependencies.md) |
 
 No complete S1–S7 gate has a GO verdict. SSD filesystem acceptance passed separately. The original upstream source revision below is an inspection reference, not the selected stable distribution.
@@ -46,7 +46,7 @@ Local checks:
 
 At the original checkpoint, no custom CEF build, application build, runtime spike, performance run, or release had been attempted. Later spike results appear below and in the linked reports. No secrets, cookies, passwords, or signing-key material were read by the inspection tools.
 
-## Updated execution decision
+## Earlier CEF execution decision, superseded by S0
 
 The APFS image at `/Volumes/Chen's SSD/BoazBuild.sparsebundle` preserves the exFAT drive and its existing files. It passed permissions, executable, symlink, hard-link, ownership, and detach/reattach checks. See [storage.md](spikes/storage.md).
 
@@ -58,7 +58,7 @@ Run S1 with Alloy in a native parent, then S2a with a Chrome-style CEF Views win
 
 Custom builds stay entirely in `/Volumes/BoazBuild/cef`, with space monitoring and at most 12 jobs initially. Widevine and production signing remain independent release gates.
 
-## Architecture decision after native accessibility comparison
+## Earlier CEF architecture decision, superseded by S0
 
 The user authorized the orchestrator to choose and implement the best-supported architecture, including public CEF interfaces and necessary Chromium changes. The earlier 300-line, libcef-only constraint and routine design-approval requests are superseded. Product, security, performance, DRM, and release gates remain unchanged.
 
