@@ -16,7 +16,7 @@ buildflag_header("buildflags") {
 }
 
 source_set("headers") {
-  public = [ "native_password_submission.h", "native_devtools.h", "bootstrap.h", "native_permission_prompt.h", "protected_media.h" ]
+  public = [ "native_extension_prompt.h", "native_password_submission.h", "native_devtools.h", "bootstrap.h", "native_permission_prompt.h", "protected_media.h" ]
   public_deps = [
     ":protected_media_mojom",
     "//chrome/browser/ui:browser_window_deleter",
@@ -38,6 +38,8 @@ source_set("host") {
     "page_emulation.cc",
     "native_password_submission.h",
     "native_password_submission.cc",
+    "native_extension_prompt.h",
+    "native_extension_prompt.mm",
     "extension_unpacked_install.h",
     "extension_unpacked_install.mm",
     "extension_install.h",

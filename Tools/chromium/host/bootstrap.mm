@@ -1,3 +1,4 @@
+#include "native_extension_prompt.h"
 #include "extension_unpacked_install.h"
 #include <set>
 #include "extension_install.h"
@@ -139,7 +140,7 @@ bool ValidOptions(const BoazHostWindowOptions* o) {
   });
 }
 void StartShutdownIfReady() {
-  if (!state->exit_requested || state->exit_started || state->pending_extension_installs) return;
+  if (!state->exit_requested || state->exit_started || state->pending_extension_installs || PendingNativeExtensionPrompts()) return;
   state->exit_started = true;
   chrome::AttemptExit();
 }
@@ -160,7 +161,7 @@ void FinishIfDrained() {
     }
   }
   if (!state->exit_requested || !state->windows.empty() ||
-      state->pending_scripts || state->pending_captures || state->pending_emulations || state->pending_cache_clears || state->pending_profiles || state->pending_extension_installs || state->finished) return;
+      state->pending_scripts || state->pending_captures || state->pending_emulations || state->pending_cache_clears || state->pending_profiles || state->pending_extension_installs || PendingNativeExtensionPrompts() || state->finished) return;
   state->finished = true;
   if (state->automation) state->automation->Stop();
   Notify([] { state->callbacks.shutdown_ready(state->callbacks.context); });
@@ -364,6 +365,7 @@ BoazHostResult Shutdown() {
   state->exit_requested = true;
   CancelNativeExtensionInstalls();
   CancelNativeUnpackedExtensionInstalls();
+  CancelNativeExtensionPrompts();
   StartShutdownIfReady();
   FinishIfDrained();
   return BOAZ_HOST_OK;
@@ -1008,6 +1010,20 @@ bool RouteExternalURLs(std::vector<std::string> urls) {
         FROM_HERE, base::BindOnce(&DeliverExternalURLs));
   }
   return true;
+}
+bool IsNativeExtensionPromptContext(Profile* profile, void* native_window) {
+  if (!state || state->exit_requested || state->finished || !state->profiles || !profile ||
+      profile->IsOffTheRecord() || !state->profiles->Owns(profile)) return false;
+  for (const auto& [id, window] : state->windows) {
+    if (window.browser && !window.browser->IsDeleteScheduled() &&
+        window.browser->GetProfile() == profile && window.options.native_nswindow == native_window) return true;
+  }
+  return false;
+}
+void NativeExtensionPromptsChanged() {
+  if (!state || state->finished) return;
+  StartShutdownIfReady();
+  FinishIfDrained();
 }
 void ReportNativePasswordSubmission(content::WebContents* contents,
     std::string origin, std::string username, std::string password) {

@@ -505,6 +505,22 @@
           "after": "441b53e4a936e4652ad72f8374d1c048296e00d797576d53182a4f7b01cee1e6"
         }
       ]
+    },
+    {
+      "file": "patches/native-extension-permission-dialog.patch",
+      "sha256": "9a4c6d54a49b9842ef50f3547aa37c58f75193e5db37839d1b1086f1ce7262a5",
+      "files": [
+        {
+          "path": "chrome/browser/ui/views/extensions/extension_install_dialog_view.cc",
+          "before": "78eeccae5dfa74cace459110d044200fc3de4951d8d8152f16ee8302cf3f4ae0",
+          "after": "7524425a013906a7c9a5df9676c58851ce039b6d3f0ef99c8061c1c9c7d4811b"
+        },
+        {
+          "path": "chrome/browser/ui/views/extensions/BUILD.gn",
+          "before": "133f3bd62216146451c912e435a8b94d77d8fcf41ac092ec1d9ae3c04e607b2b",
+          "after": "e1514ba17c0ed184e74aaf5aae8834cd975d2eb4fa17fbfadd070aa4cd1ee2a0"
+        }
+      ]
     }
   ]
 }
