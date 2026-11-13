@@ -1,0 +1,20 @@
+--- a/chrome/browser/extensions/chrome_extensions_browser_client.cc
++++ b/chrome/browser/extensions/chrome_extensions_browser_client.cc
+@@ -21,7 +21,7 @@
+ #include "build/android_buildflags.h"
+ #include "build/build_config.h"
+ #if BUILDFLAG(IS_MAC)
+-#include "boaz/launch.h"
++#include "boaz/bootstrap.h"
+ #include "boaz/extension_optional_permissions.h"
+ #endif
+ #include "build/chromeos_buildflags.h"
+@@ -1370,7 +1370,7 @@
+ #if BUILDFLAG(IS_MAC)
+   if (boaz::NativeHostEnabled()) {
+     return boaz::CreateNativeOptionalPermissionsPrompt(
+-        Profile::FromBrowserContext(&browser_context), native_window.GetNativeNSWindow(), requester);
++        Profile::FromBrowserContext(&browser_context), native_window, requester);
+   }
+ #endif
+   return CreateInstallPromptForNativeWindow(native_window, browser_context, std::move(prompt));

@@ -199,9 +199,9 @@ class NativeClient final : public Client {
 };
 }
 std::unique_ptr<extensions::ExtensionInstallPromptClient> CreateNativeOptionalPermissionsPrompt(
-    Profile* profile, void* window, ExtensionFunction& requester) {
+    Profile* profile, gfx::NativeWindow window, ExtensionFunction& requester) {
   UI();
-  return std::make_unique<NativeClient>(std::make_shared<Request>(profile, (__bridge NSWindow*)window, requester));
+  return std::make_unique<NativeClient>(std::make_shared<Request>(profile, window.GetNativeNSWindow(), requester));
 }
 void CancelNativeOptionalPermissionPrompts() {
   UI(); auto copy = Active();

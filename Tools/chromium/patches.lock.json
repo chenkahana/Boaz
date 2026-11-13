@@ -621,6 +621,17 @@
           "after": "e5e26957be7c814566bbf609718b286bb6f9416f1322ac09dd6f64af232a3461"
         }
       ]
+    },
+    {
+      "file": "patches/native-extension-permission-factory-types.patch",
+      "sha256": "2602fd64143eb7193fa484bcd9a535b182e5287b9ae913b3aded4bef36c14824",
+      "files": [
+        {
+          "path": "chrome/browser/extensions/chrome_extensions_browser_client.cc",
+          "before": "36fba23b114ff6a6d7e96e4f97ca307c1c5d25f727109cb7a7ba233d16b3f2fa",
+          "after": "f848a231ce464797ffb109bbf9ab9c11fcbb19df33833034e709e627105675a2"
+        }
+      ]
     }
   ]
 }
