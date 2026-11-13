@@ -155,10 +155,73 @@ private struct PageUpdate {
     }
 }
 
+@MainActor private final class SplitViewport: NSSplitView, NSSplitViewDelegate {
+    let firstPane = NSView()
+    let secondPane = NSView()
+    var firstRatio: CGFloat = 0.5
+    private var draggingDivider = false
+    var dividerChanged: ((Double) -> Void)?
+    override var isFlipped: Bool { true }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        delegate = self
+        dividerStyle = .thin
+        isVertical = true
+        addArrangedSubview(firstPane)
+        firstPane.setAccessibilityLabel("First page pane")
+        secondPane.setAccessibilityLabel("Second page pane")
+    }
+    required init?(coder: NSCoder) { fatalError("Programmatic viewport only") }
+
+    func configure(split: Bool, stacked: Bool, ratio: Double) {
+        isVertical = !stacked
+        if !draggingDivider { firstRatio = CGFloat(min(0.9, max(0.1, ratio))) }
+        if split && secondPane.superview == nil { addArrangedSubview(secondPane) }
+        if !split { secondPane.removeFromSuperview() }
+        if !draggingDivider { splitView(self, resizeSubviewsWithOldSize: bounds.size) }
+    }
+    func splitView(_ splitView: NSSplitView, resizeSubviewsWithOldSize oldSize: NSSize) {
+        guard secondPane.superview === self else { firstPane.frame = bounds; return }
+        let available = max(0, (isVertical ? bounds.width : bounds.height) - dividerThickness)
+        let first = available * firstRatio
+        if isVertical {
+            firstPane.frame = NSRect(x: 0, y: 0, width: first, height: bounds.height)
+            secondPane.frame = NSRect(x: first + dividerThickness, y: 0,
+                                     width: available - first, height: bounds.height)
+        } else {
+            firstPane.frame = NSRect(x: 0, y: 0, width: bounds.width, height: first)
+            secondPane.frame = NSRect(x: 0, y: first + dividerThickness,
+                                     width: bounds.width, height: available - first)
+        }
+    }
+    func splitView(_ splitView: NSSplitView, constrainSplitPosition proposedPosition: CGFloat,
+                   ofSubviewAt dividerIndex: Int) -> CGFloat {
+        let available = max(0, (isVertical ? bounds.width : bounds.height) - dividerThickness)
+        return min(available * 0.9, max(available * 0.1, proposedPosition))
+    }
+    override func mouseDown(with event: NSEvent) {
+        draggingDivider = true
+        super.mouseDown(with: event)
+        draggingDivider = false
+        guard secondPane.superview === self else { return }
+        let available = (isVertical ? bounds.width : bounds.height) - dividerThickness
+        guard available > 0 else { return }
+        let ratio = (isVertical ? firstPane.frame.width : firstPane.frame.height) / available
+        firstRatio = min(0.9, max(0.1, ratio))
+        dividerChanged?(Double(firstRatio))
+    }
+}
+
 @MainActor private final class HostWindow: NSObject, ObservableObject, NSWindowDelegate, NSTextFieldDelegate {
     unowned let owner: HostSession
     let window: NSWindow
-    let viewport = NSView()
+    let viewport = SplitViewport(frame: .zero)
+    let splitButton = NSButton(title: "Split", target: nil, action: nil)
+    private var firstPage: UInt64 = 0
+    private var secondPage: UInt64 = 0
+    private var stacked = false
+    private var mouseMonitor: Any?
     let address = NSTextField()
     let addButton = NSButton(title: "+", target: nil, action: nil)
     let extensionsButton = NSButton(title: "Extensions", target: nil, action: nil)
@@ -181,7 +244,11 @@ private struct PageUpdate {
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.title = "Boaz Chromium prototype"
-        viewport.setAccessibilityLabel("Web page")
+        viewport.setAccessibilityLabel("Web pages")
+        viewport.dividerChanged = { [weak self] ratio in self?.setDividerRatio(ratio) }
+        splitButton.target = self
+        splitButton.action = #selector(toggleSplit)
+        splitButton.setAccessibilityLabel("Toggle split view")
         address.placeholderString = "Address"
         address.setAccessibilityLabel("Address")
         address.delegate = self
@@ -196,6 +263,17 @@ private struct PageUpdate {
         extensionsButton.toolTip = "Show installed extension actions"
         window.contentView = NSHostingView(rootView: WindowContent(model: self))
         window.center()
+        mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
+            MainActor.assumeIsolated {
+                guard let self, event.window === self.window else { return }
+                for (id, pane) in [(self.firstPage, self.viewport.firstPane), (self.secondPage, self.viewport.secondPane)] {
+                    guard id != 0, id != self.active, pane.window != nil else { continue }
+                    let point = pane.convert(event.locationInWindow, from: nil)
+                    if pane.bounds.contains(point) { self.owner.queue { $0.activate_page!(id, 0) }; break }
+                }
+            }
+            return event
+        }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             let consumed = MainActor.assumeIsolated {
                 guard let self, event.window === self.window else { return false }
@@ -369,10 +447,68 @@ private struct PageUpdate {
         return false
     }
     func finishClose() {
+        if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor); self.mouseMonitor = nil }
+        viewport.dividerChanged = nil
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor); self.keyMonitor = nil }
         pages.forEach { $0.view?.removeFromSuperview(); $0.view = nil }
         allowClose = true
         window.close()
+    }
+    func refreshLayout() {
+        guard handle != 0, !allowClose, !owner.stopped else { return }
+        var layout = BoazHostWindowLayout()
+        layout.size = MemoryLayout<BoazHostWindowLayout>.size
+        guard owner.api.get_window_layout!(handle, &layout) == BOAZ_HOST_OK,
+              layout.window == handle, layout.first_ratio.isFinite else { return }
+        firstPage = layout.first
+        secondPage = layout.second
+        active = layout.active
+        stacked = layout.vertical != 0
+        splitButton.title = secondPage == 0 ? "Split" : "Unsplit"
+        for page in pages where page.id != firstPage && page.id != secondPage {
+            page.view?.removeFromSuperview()
+        }
+        viewport.configure(split: secondPage != 0, stacked: stacked, ratio: layout.first_ratio)
+        for (id, pane) in [(firstPage, viewport.firstPane), (secondPage, viewport.secondPane)] {
+            guard id != 0 else { pane.subviews.forEach { $0.removeFromSuperview() }; continue }
+            let page = pages.first(where: { $0.id == id }) ?? Page(id)
+            if !pages.contains(where: { $0.id == id }) { pages.append(page) }
+            if page.view == nil {
+                var pointer: UnsafeMutableRawPointer?
+                if owner.api.get_native_view!(id, &pointer) == BOAZ_HOST_OK, let pointer {
+                    page.view = Unmanaged<NSView>.fromOpaque(pointer).takeUnretainedValue()
+                }
+            }
+            pane.subviews.filter { $0 !== page.view }.forEach { $0.removeFromSuperview() }
+            if let view = page.view {
+                if view.superview !== pane { view.removeFromSuperview(); pane.addSubview(view) }
+                view.frame = pane.bounds
+                view.autoresizingMask = [.width, .height]
+            }
+        }
+    }
+    @objc private func toggleSplit() {
+        let windowID = handle
+        let selected = active
+        let other = pages.first { $0.id != selected && $0.view != nil }?.id
+        let clearing = secondPage != 0
+        guard clearing || (selected != 0 && other != nil) else { return }
+        owner.queue { [weak self] api in
+            let result = clearing ? api.clear_split!(windowID) : api.set_split!(windowID, selected, other!, 0, 0.5)
+            self?.refreshLayout()
+            return result
+        }
+    }
+    private func setDividerRatio(_ ratio: Double) {
+        let windowID = handle, first = firstPage, second = secondPage
+        let vertical: UInt8 = stacked ? 1 : 0
+        guard first != 0, second != 0 else { return }
+        owner.queue { [weak self] api in
+            guard let self, self.firstPage == first, self.secondPage == second else { return BOAZ_HOST_OK }
+            let result = api.set_split!(windowID, first, second, vertical, ratio)
+            self.refreshLayout()
+            return result
+        }
     }
     func detach(_ id: UInt64) {
         guard let page = pages.first(where: { $0.id == id }) else { return }
@@ -384,6 +520,7 @@ private struct PageUpdate {
             detach(state.page)
             pages.removeAll { $0.id == state.page }
             if active == state.page { active = 0 }
+            refreshLayout()
             return
         }
         let page = pages.first(where: { $0.id == state.page }) ?? Page(state.page)
@@ -401,15 +538,7 @@ private struct PageUpdate {
                 page.view = Unmanaged<NSView>.fromOpaque(pointer).takeUnretainedValue()
             }
         }
-        if state.active {
-            active = page.id
-            for other in pages where other.id != page.id { other.view?.removeFromSuperview() }
-            if let view = page.view {
-                if view.superview !== viewport { view.removeFromSuperview(); viewport.addSubview(view) }
-                view.frame = viewport.bounds
-                view.autoresizingMask = [.width, .height]
-            }
-        }
+        refreshLayout()
         objectWillChange.send()
     }
 }
@@ -430,6 +559,7 @@ private struct WindowContent: View {
                 Button("Reload", action: model.reload).disabled(model.active == 0)
                 ExistingView(view: model.address).frame(minWidth: 220, minHeight: 26)
                 ExistingView(view: model.addButton).frame(width: 32, height: 28)
+                ExistingView(view: model.splitButton).frame(width: 64, height: 28)
                 ExistingView(view: model.extensionsButton).frame(width: 100, height: 28)
                 Button("Quit") { model.owner.queue { $0.request_shutdown!() } }
             }.padding(8)
@@ -468,7 +598,8 @@ public func boazNativeUIStart(_ pointer: UnsafePointer<BoazHostAPI>?) -> BoazHos
               api.navigate != nil, api.go_back != nil, api.go_forward != nil, api.reload != nil,
               api.activate_page != nil, api.get_native_view != nil, api.close_page != nil,
               api.close_window != nil, api.request_shutdown != nil,
-              api.enumerate_extensions != nil, api.invoke_extension != nil else { return BOAZ_HOST_INVALID_ARGUMENT }
+              api.enumerate_extensions != nil, api.invoke_extension != nil,
+              api.get_window_layout != nil, api.set_split != nil, api.clear_split != nil else { return BOAZ_HOST_INVALID_ARGUMENT }
         let value = HostSession(api)
         session = value
         return value.start()
