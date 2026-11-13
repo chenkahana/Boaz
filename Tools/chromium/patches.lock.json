@@ -632,6 +632,22 @@
           "after": "f848a231ce464797ffb109bbf9ab9c11fcbb19df33833034e709e627105675a2"
         }
       ]
+    },
+    {
+      "file": "patches/native-auto-pip-preference.patch",
+      "sha256": "8089359ff39c7349d431e96527bbeb77f7c93953a1d410698c3f1b90fe5e7e86",
+      "files": [
+        {
+          "path": "chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.cc",
+          "before": "6366c3834470b113f7837d1b0d2c843f190be41f2c3ca6db13ccd321d7d01f2b",
+          "after": "f1762fbc23031fe031b7ad1538a5a860f29079473bd5eb7ed6d4cdede117be41"
+        },
+        {
+          "path": "chrome/browser/picture_in_picture/BUILD.gn",
+          "before": "478368a5601dc3f140db5119e6d3b7691b974dca5fcaf4c23ff3b351fa38d37e",
+          "after": "6a3fcc97effc3042e1e88e2edc4aff3531b6e838e9ca4c2e22d924ebc207d1a4"
+        }
+      ]
     }
   ]
 }
