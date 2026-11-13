@@ -36,7 +36,41 @@ def available(path):
             raise RuntimeError(f'Library is in use or could not be checked: {path}')
 
 
-def build(jobs, resume_run=None):
+def clone_cache(runs, source_name, destination):
+    source = runs / source_name
+    receipt = source / 'artifacts/build.json'
+    if source.resolve() != source or not source.is_dir():
+        raise RuntimeError('Cache source run is missing or redirected')
+    if receipt.resolve() != receipt or not receipt.is_file():
+        raise RuntimeError('Cache source requires a completed, unredirected build receipt')
+    metadata = json.loads(receipt.read_text())
+    command = metadata.get('command', [])
+    project = str(PROJECT / 'BoazChromiumUI.xcodeproj')
+    if not isinstance(command, list) or '-project' not in command:
+        raise RuntimeError('Cache source receipt has no project command')
+    index = command.index('-project') + 1
+    if index >= len(command) or command[index] != project:
+        raise RuntimeError('Cache source was built from another generated project')
+    for name in ('DerivedData', 'SourcePackages'):
+        directory = source / name
+        if directory.resolve() != directory or not directory.is_dir():
+            raise RuntimeError(f'Cache directory is missing or redirected: {directory}')
+        # Relative, contained framework links survive relocation. Absolute links
+        # could send incremental writes back into an immutable previous run.
+        for parent, directories, files in os.walk(directory, followlinks=False):
+            for child in directories + files:
+                path = Path(parent) / child
+                if path.is_symlink():
+                    target = Path(os.readlink(path))
+                    if target.is_absolute() or not path.resolve().is_relative_to(directory):
+                        raise RuntimeError(f'Cache link cannot be safely relocated: {path}')
+        target = destination / name
+        if target.exists() or target.is_symlink():
+            raise RuntimeError(f'Cache destination already exists: {target}')
+        subprocess.run(['/usr/bin/ditto', '--clone', str(directory), str(target)], check=True)
+
+
+def build(jobs, resume_run=None, cache_from=None):
     if Path.cwd() != ROOT.parent or os.environ.get('TMPDIR') != str(ROOT.parent / 'tmp'):
         raise RuntimeError('Build requires the verified volume guard')
     with (ROOT.parent / '.build.lock').open() as lock:
@@ -68,6 +102,10 @@ def build(jobs, resume_run=None):
             raise RuntimeError('Resume run already has a completed build receipt')
     else:
         run.mkdir(parents=True)
+    if cache_from:
+        if resume_run:
+            raise RuntimeError('Cannot combine resume and completed-run cache')
+        clone_cache(runs, cache_from, run)
     for name in ('tmp', 'cache', 'artifacts', 'DerivedData', 'SourcePackages'):
         directory = run / name
         if directory.resolve() != directory:
@@ -133,7 +171,7 @@ def build(jobs, resume_run=None):
     manifest = {'library': str(final), 'immutable_copy': str(staged),
                 'previous': str(previous) if previous else None,
                 'resources_and_frameworks': resources, 'command': command,
-                'signed': False, 'packaged': False,
+                'signed': False, 'packaged': False, 'cache_from': cache_from,
                 'remaining': 'Install resources/frameworks into the final signed app using an explicit runtime bundle lookup contract.'}
     with (run / 'artifacts/build.json').open('x') as stream:
         json.dump(manifest, stream, indent=2)
@@ -147,12 +185,16 @@ def main():
     mode.add_argument('--build', action='store_true')
     parser.add_argument('--jobs', type=int, choices=(1, 2), default=2)
     parser.add_argument('--resume-run', help='Reuse an incomplete run basename, preserving its outputs')
+    parser.add_argument('--cache-from', help='Clone DerivedData and SourcePackages from a completed run basename')
     parser.add_argument('--guarded', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
-    if args.resume_run is not None:
-        name = args.resume_run
+    if args.resume_run and args.cache_from:
+        parser.error('--resume-run and --cache-from cannot be combined')
+    for option, name in (('--resume-run', args.resume_run), ('--cache-from', args.cache_from)):
+        if name is None:
+            continue
         if not args.build or not name or name in ('.', '..') or '/' in name or '\\' in name or '\0' in name:
-            parser.error('--resume-run requires --build and a single run basename')
+            parser.error(f'{option} requires --build and a single run basename')
     if not args.build:
         if args.guarded:
             parser.error('--guarded requires --build')
@@ -160,9 +202,10 @@ def main():
     elif not args.guarded:
         subprocess.run([PYTHON, str(HERE.parent / 'cef/run-build.py'), '--', PYTHON,
                         str(Path(__file__).resolve()), '--build', '--guarded',
-                        '--jobs', str(args.jobs)] + (['--resume-run', args.resume_run] if args.resume_run else []), check=True)
+                        '--jobs', str(args.jobs)] + (['--resume-run', args.resume_run] if args.resume_run else []) +
+                       (['--cache-from', args.cache_from] if args.cache_from else []), check=True)
     else:
-        build(args.jobs, args.resume_run)
+        build(args.jobs, args.resume_run, args.cache_from)
 
 if __name__ == '__main__':
     main()
