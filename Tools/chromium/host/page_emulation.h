@@ -11,6 +11,7 @@
 #include "base/values.h"
 #include "content/public/browser/devtools_agent_host_client.h"
 #include "content/public/browser/web_contents_observer.h"
+#include "content/public/browser/weak_document_ptr.h"
 
 namespace boaz {
 class PageEmulation final : public content::WebContentsObserver,
@@ -63,6 +64,9 @@ class PageEmulation final : public content::WebContentsObserver,
   static std::optional<UserAgentDefaults> GetDefaultUserAgent();
   enum class Result { kSuccess, kInvalid, kUnavailable, kProtocolError,
                       kTimeout, kNavigation, kClosed };
+  using CaptureCompletion = base::OnceCallback<void(Result, std::vector<uint8_t>)>;
+  void CaptureFullPage(uint64_t request, CaptureCompletion completion);
+  void CancelFullPage(uint64_t request);
   using Completion = base::OnceCallback<void(Result)>;
   void ApplySensors(std::optional<Sensors> sensors, Completion completion);
   void ApplyNetwork(std::optional<Network> network, Completion completion);
@@ -78,6 +82,8 @@ class PageEmulation final : public content::WebContentsObserver,
  private:
   enum class Operation { kViewport, kUserAgent, kMedia, kNetwork, kCPU, kSensors };
   void Start(bool clear, Operation operation, Completion completion);
+  void SendCapture();
+  void FinishCapture(Result result, std::vector<uint8_t> bytes = {});
   void SendNext();
   void Fail(Result result);
   void Finish(Result result);
@@ -105,6 +111,10 @@ class PageEmulation final : public content::WebContentsObserver,
   std::string user_agent_;
   Operation operation_ = Operation::kViewport;
   Completion completion_;
+  CaptureCompletion capture_completion_;
+  content::WeakDocumentPtr capture_document_;
+  uint64_t capture_request_ = 0;
+  int capture_step_ = 0;
   base::OneShotTimer timer_;
   int next_id_ = 0;
   int pending_id_ = 0;

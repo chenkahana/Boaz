@@ -1,6 +1,7 @@
 #include "boaz/page_emulation.h"
 
 #include <cmath>
+#include "base/base64.h"
 #include <limits>
 #include <string>
 #include <utility>
@@ -38,7 +39,7 @@ void PageEmulation::Reply(Completion completion, Result result) {
 void PageEmulation::Apply(Viewport viewport, Completion completion) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   if (closed_) { Reply(std::move(completion), Result::kClosed); return; }
-  if (completion_) { Reply(std::move(completion), Result::kUnavailable); return; }
+  if (completion_ || capture_completion_) { Reply(std::move(completion), Result::kUnavailable); return; }
   if (viewport.width < 1 || viewport.width > 8192 || viewport.height < 1 ||
       viewport.height > 8192 || !std::isfinite(viewport.dpr) || viewport.dpr < 0.5 ||
       viewport.dpr > 4 || viewport.max_touch_points < 1 || viewport.max_touch_points > 10) {
@@ -90,7 +91,7 @@ std::optional<PageEmulation::UserAgentDefaults> PageEmulation::GetDefaultUserAge
 void PageEmulation::ApplyUserAgent(std::optional<std::string> user_agent, Completion completion) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   if (closed_) { Reply(std::move(completion), Result::kClosed); return; }
-  if (completion_) { Reply(std::move(completion), Result::kUnavailable); return; }
+  if (completion_ || capture_completion_) { Reply(std::move(completion), Result::kUnavailable); return; }
   if (user_agent && (user_agent->empty() || user_agent->size() > 8192 ||
       user_agent->find_first_of(std::string("\r\n\0", 3)) != std::string::npos)) {
     Reply(std::move(completion), Result::kInvalid); return;
@@ -101,7 +102,7 @@ void PageEmulation::ApplyUserAgent(std::optional<std::string> user_agent, Comple
 void PageEmulation::ApplyMedia(std::optional<Media> media, Completion completion) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   if (closed_) { Reply(std::move(completion), Result::kClosed); return; }
-  if (completion_) { Reply(std::move(completion), Result::kUnavailable); return; }
+  if (completion_ || capture_completion_) { Reply(std::move(completion), Result::kUnavailable); return; }
   auto valid_preference = [](Media::Preference value) {
     return value == Media::Preference::kDefault ||
            value == Media::Preference::kFirst || value == Media::Preference::kSecond;
@@ -121,7 +122,7 @@ void PageEmulation::ApplyMedia(std::optional<Media> media, Completion completion
 void PageEmulation::ApplyNetwork(std::optional<Network> network, Completion completion) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   if (closed_) { Reply(std::move(completion), Result::kClosed); return; }
-  if (completion_) { Reply(std::move(completion), Result::kUnavailable); return; }
+  if (completion_ || capture_completion_) { Reply(std::move(completion), Result::kUnavailable); return; }
   auto valid_throughput = [](double value) {
     return std::isfinite(value) && (value == -1 || (value >= 1 && value <= 1e9));
   };
@@ -136,7 +137,7 @@ void PageEmulation::ApplyNetwork(std::optional<Network> network, Completion comp
 void PageEmulation::ApplyCPU(double rate, Completion completion) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   if (closed_) { Reply(std::move(completion), Result::kClosed); return; }
-  if (completion_) { Reply(std::move(completion), Result::kUnavailable); return; }
+  if (completion_ || capture_completion_) { Reply(std::move(completion), Result::kUnavailable); return; }
   if (!std::isfinite(rate) || rate < 1 || rate > 20) {
     Reply(std::move(completion), Result::kInvalid); return;
   }
@@ -146,7 +147,7 @@ void PageEmulation::ApplyCPU(double rate, Completion completion) {
 void PageEmulation::ApplySensors(std::optional<Sensors> sensors, Completion completion) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   if (closed_) { Reply(std::move(completion), Result::kClosed); return; }
-  if (completion_) { Reply(std::move(completion), Result::kUnavailable); return; }
+  if (completion_ || capture_completion_) { Reply(std::move(completion), Result::kUnavailable); return; }
   auto valid_string = [](const std::string& value) {
     if (value.size() > 128) return false;
     for (unsigned char ch : value) if (ch < 32 || ch > 126) return false;
@@ -166,9 +167,73 @@ void PageEmulation::ApplySensors(std::optional<Sensors> sensors, Completion comp
   sensors_ = sensors.value_or(Sensors{});
   Start(!sensors.has_value(), Operation::kSensors, std::move(completion));
 }
+void PageEmulation::CaptureFullPage(uint64_t request, CaptureCompletion completion) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  auto reject = [&](Result result) {
+    if (completion) base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(std::move(completion), result, std::vector<uint8_t>()));
+  };
+  if (closed_) { reject(Result::kClosed); return; }
+  if (!request || !completion) { reject(Result::kInvalid); return; }
+  if (completion_ || capture_completion_ || !web_contents() ||
+      DevToolsWindow::GetInstanceForInspectedWebContents(web_contents()) ||
+      !MayAttachToRenderFrameHost(web_contents()->GetPrimaryMainFrame())) {
+    reject(Result::kUnavailable); return;
+  }
+  if (!host_) {
+    host_ = content::DevToolsAgentHost::GetOrCreateFor(web_contents());
+    if (!host_ || host_->GetWebContents() != web_contents() || !host_->AttachClient(this)) {
+      host_ = nullptr;
+      reject(Result::kUnavailable); return;
+    }
+  }
+  capture_document_ = web_contents()->GetPrimaryMainFrame()->GetWeakDocumentPtr();
+  capture_request_ = request;
+  capture_step_ = 0;
+  capture_completion_ = std::move(completion);
+  timer_.Start(FROM_HERE, base::Seconds(30), base::BindOnce(
+      &PageEmulation::FinishCapture, weak_factory_.GetWeakPtr(), Result::kTimeout,
+      std::vector<uint8_t>()));
+  SendCapture();
+}
+void PageEmulation::CancelFullPage(uint64_t request) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  if (capture_completion_ && capture_request_ == request) FinishCapture(Result::kUnavailable);
+}
+void PageEmulation::FinishCapture(Result result, std::vector<uint8_t> bytes) {
+  if (!capture_completion_) return;
+  weak_factory_.InvalidateWeakPtrs();
+  timer_.Stop();
+  pending_id_ = 0;
+  capture_request_ = 0;
+  capture_document_ = {};
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
+      base::BindOnce(std::move(capture_completion_), result, std::move(bytes)));
+}
+void PageEmulation::SendCapture() {
+  if (!capture_completion_ || !host_) return;
+  auto* frame = capture_document_.AsRenderFrameHostIfValid();
+  if (!MayAttachToRenderFrameHost(frame)) { FinishCapture(Result::kNavigation); return; }
+  if (next_id_ == std::numeric_limits<int>::max()) { FinishCapture(Result::kUnavailable); return; }
+  base::DictValue params;
+  if (capture_step_ == 1) {
+    params.Set("format", "png");
+    params.Set("fromSurface", true);
+    params.Set("captureBeyondViewport", true);
+  }
+  base::DictValue request;
+  pending_id_ = ++next_id_;
+  request.Set("id", pending_id_);
+  request.Set("method", capture_step_ == 0 ? "Page.getLayoutMetrics" : "Page.captureScreenshot");
+  request.Set("params", std::move(params));
+  std::string json;
+  if (!base::JSONWriter::Write(request, &json)) { FinishCapture(Result::kProtocolError); return; }
+  auto host = host_;
+  host->DispatchProtocolMessage(this, base::as_byte_span(json));
+}
 void PageEmulation::Start(bool clear, Operation operation, Completion completion) {
   if (closed_) { Reply(std::move(completion), Result::kClosed); return; }
-  if (!completion || completion_ || !web_contents() ||
+  if (!completion || completion_ || capture_completion_ || !web_contents() ||
       DevToolsWindow::GetInstanceForInspectedWebContents(web_contents()) ||
       !MayAttachToRenderFrameHost(web_contents()->GetPrimaryMainFrame())) {
     Reply(std::move(completion), Result::kUnavailable); return;
@@ -319,7 +384,51 @@ void PageEmulation::SendNext() {
 void PageEmulation::DispatchProtocolMessage(content::DevToolsAgentHost* host,
                                             base::span<const uint8_t> message) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  if (host != host_.get() || !completion_ || message.size() > 65536) return;
+  if (host != host_.get()) return;
+  if (capture_completion_) {
+    if (message.size() > 46u * 1024 * 1024) { FinishCapture(Result::kInvalid); return; }
+    auto reply = base::JSONReader::ReadDict(std::string_view(
+        reinterpret_cast<const char*>(message.data()), message.size()), base::JSON_PARSE_RFC);
+    if (!reply || reply->FindInt("id") != pending_id_) return;
+    pending_id_ = 0;
+    auto* result = reply->FindDict("result");
+    if (reply->contains("error") || !result) { FinishCapture(Result::kProtocolError); return; }
+    if (!MayAttachToRenderFrameHost(capture_document_.AsRenderFrameHostIfValid())) {
+      FinishCapture(Result::kNavigation); return;
+    }
+    auto valid_size = [](double width, double height) {
+      return std::isfinite(width) && std::isfinite(height) && width > 0 && height > 0 &&
+          width <= 32768 && height <= 32768 && width * height <= 32u * 1024 * 1024;
+    };
+    if (capture_step_ == 0) {
+      auto* size = result->FindDict("cssContentSize");
+      if (!size || !valid_size(size->FindDouble("width").value_or(0),
+                               size->FindDouble("height").value_or(0))) {
+        FinishCapture(Result::kInvalid); return;
+      }
+      capture_step_ = 1;
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
+          base::BindOnce(&PageEmulation::SendCapture, weak_factory_.GetWeakPtr()));
+      return;
+    }
+    const auto* data = result->FindString("data");
+    std::string decoded;
+    if (!data || data->size() > ((32u * 1024 * 1024 + 2) / 3) * 4 ||
+        !base::Base64Decode(*data, &decoded) || decoded.size() > 32u * 1024 * 1024 ||
+        decoded.size() < 33 || decoded.compare(0, 8, "\x89PNG\r\n\x1a\n", 8) != 0 ||
+        decoded.compare(8, 8, "\0\0\0\x0dIHDR", 8) != 0) {
+      FinishCapture(Result::kInvalid); return;
+    }
+    auto dimension = [&decoded](size_t offset) {
+      uint32_t value = 0;
+      for (size_t i = 0; i < 4; ++i) value = (value << 8) | static_cast<uint8_t>(decoded[offset + i]);
+      return value;
+    };
+    if (!valid_size(dimension(16), dimension(20))) { FinishCapture(Result::kInvalid); return; }
+    FinishCapture(Result::kSuccess, std::vector<uint8_t>(decoded.begin(), decoded.end()));
+    return;
+  }
+  if (!completion_ || message.size() > 65536) return;
   auto reply = base::JSONReader::ReadDict(std::string_view(
       reinterpret_cast<const char*>(message.data()), message.size()), base::JSON_PARSE_RFC);
   if (!reply || reply->FindInt("id") != pending_id_) return;
@@ -353,6 +462,7 @@ void PageEmulation::Detach() {
   if (host) host->DetachClient(this);
 }
 void PageEmulation::Cancel(Result result) {
+  FinishCapture(result);
   weak_factory_.InvalidateWeakPtrs();
   Finish(result);
   Detach();
