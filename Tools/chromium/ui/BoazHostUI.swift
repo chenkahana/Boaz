@@ -25,6 +25,10 @@ private struct PageUpdate {
     }
 }
 
+@MainActor private final class ExtensionSnapshot {
+    var actions: [(id: String, name: String)] = []
+}
+
 @MainActor private final class Page: Identifiable {
     let id: UInt64
     var title = "New tab"
@@ -157,6 +161,8 @@ private struct PageUpdate {
     let viewport = NSView()
     let address = NSTextField()
     let addButton = NSButton(title: "+", target: nil, action: nil)
+    let extensionsButton = NSButton(title: "Extensions", target: nil, action: nil)
+    private var selectedExtension: String?
     var handle: UInt64 = 0
     var engineAccepted = false
     var allowClose = false
@@ -184,6 +190,10 @@ private struct PageUpdate {
         addButton.target = self
         addButton.action = #selector(addTab)
         addButton.setAccessibilityLabel("New tab")
+        extensionsButton.target = self
+        extensionsButton.action = #selector(showExtensions)
+        extensionsButton.setAccessibilityLabel("Extensions")
+        extensionsButton.toolTip = "Show installed extension actions"
         window.contentView = NSHostingView(rootView: WindowContent(model: self))
         window.center()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -267,6 +277,64 @@ private struct PageUpdate {
             var page: UInt64 = 0
             return url.withCString { api.create_page!(id, $0, &page) }
         }
+    }
+    @objc private func showExtensions() {
+        guard !owner.stopped, handle != 0, !allowClose else { return }
+        let expectedWindow = handle
+        let expectedPage = active
+        let snapshot = ExtensionSnapshot()
+        let result = owner.api.enumerate_extensions!(expectedWindow, { context, id, name in
+            guard let context, let id, let name else { return }
+            MainActor.assumeIsolated {
+                let copied = Unmanaged<ExtensionSnapshot>.fromOpaque(context).takeUnretainedValue()
+                copied.actions.append((String(cString: id), String(cString: name)))
+            }
+        }, Unmanaged.passUnretained(snapshot).toOpaque())
+        guard result == BOAZ_HOST_OK else {
+            message = "Could not load extensions (\(result.rawValue))."
+            return
+        }
+        let menu = NSMenu(title: "Extensions")
+        menu.autoenablesItems = false
+        for action in snapshot.actions.sorted(by: { $0.name.localizedStandardCompare($1.name) == .orderedAscending }) {
+            let item = NSMenuItem(title: action.name, action: #selector(selectExtension(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = action.id
+            item.isEnabled = expectedPage != 0
+            menu.addItem(item)
+        }
+        if snapshot.actions.isEmpty {
+            let item = NSMenuItem(title: "No extensions installed", action: nil, keyEquivalent: "")
+            item.isEnabled = false
+            menu.addItem(item)
+        }
+        selectedExtension = nil
+        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: extensionsButton.bounds.maxY), in: extensionsButton)
+        guard let selected = selectedExtension else { return }
+        selectedExtension = nil
+        // NSMenu tracking has returned; never reenter the engine from menu dispatch.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !self.owner.stopped, !self.allowClose,
+                  self.handle == expectedWindow, self.active == expectedPage,
+                  self.extensionsButton.window === self.window else { return }
+            let bounds = self.extensionsButton.bounds
+            guard let x = Int32(exactly: bounds.minX.rounded(.down)),
+                  let y = Int32(exactly: bounds.minY.rounded(.down)),
+                  let width = Int32(exactly: bounds.width.rounded(.up)),
+                  let height = Int32(exactly: bounds.height.rounded(.up)),
+                  width > 0, height > 0 else {
+                self.message = "The extension button is not ready."
+                return
+            }
+            let anchor = Unmanaged.passUnretained(self.extensionsButton).toOpaque()
+            let invoked = selected.withCString {
+                self.owner.api.invoke_extension!(expectedWindow, expectedPage, $0, anchor, x, y, width, height)
+            }
+            self.message = invoked == BOAZ_HOST_OK ? "" : "Could not open extension (\(invoked.rawValue))."
+        }
+    }
+    @objc private func selectExtension(_ sender: NSMenuItem) {
+        selectedExtension = sender.representedObject as? String
     }
     @objc func addTab() { newPage("https://example.com") }
     @objc func submitAddress() {
@@ -362,6 +430,7 @@ private struct WindowContent: View {
                 Button("Reload", action: model.reload).disabled(model.active == 0)
                 ExistingView(view: model.address).frame(minWidth: 220, minHeight: 26)
                 ExistingView(view: model.addButton).frame(width: 32, height: 28)
+                ExistingView(view: model.extensionsButton).frame(width: 100, height: 28)
                 Button("Quit") { model.owner.queue { $0.request_shutdown!() } }
             }.padding(8)
             ScrollView(.horizontal) {
@@ -392,13 +461,14 @@ public func boazNativeUIStart(_ pointer: UnsafePointer<BoazHostAPI>?) -> BoazHos
     guard let pointer else { return BOAZ_HOST_INVALID_ARGUMENT }
     let api = pointer.pointee
     guard api.size >= MemoryLayout<BoazHostAPI>.size,
-          api.version == BOAZ_HOST_ABI_VERSION else { return BOAZ_HOST_INVALID_ARGUMENT }
+          api.version == BOAZ_HOST_ABI_VERSION, api.version == 4 else { return BOAZ_HOST_INVALID_ARGUMENT }
     return MainActor.assumeIsolated {
         guard session == nil else { return BOAZ_HOST_UNAVAILABLE }
         guard api.set_callbacks != nil, api.create_window != nil, api.create_page != nil,
               api.navigate != nil, api.go_back != nil, api.go_forward != nil, api.reload != nil,
               api.activate_page != nil, api.get_native_view != nil, api.close_page != nil,
-              api.close_window != nil, api.request_shutdown != nil else { return BOAZ_HOST_INVALID_ARGUMENT }
+              api.close_window != nil, api.request_shutdown != nil,
+              api.enumerate_extensions != nil, api.invoke_extension != nil else { return BOAZ_HOST_INVALID_ARGUMENT }
         let value = HostSession(api)
         session = value
         return value.start()
