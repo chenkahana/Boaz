@@ -31,6 +31,8 @@ source_set("host") {
     "native_window.mm",
     "tab_registry.h",
     "tab_registry.cc",
+    "password_submission.h",
+    "password_submission.cc",
     "trusted_execution.h",
     "trusted_execution.cc",
   ]

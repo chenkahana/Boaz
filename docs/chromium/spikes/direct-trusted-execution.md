@@ -1,6 +1,6 @@
 # Browser-side trusted execution
 
-Status: implementation packet; not an S3 pass. Requires root GN integration and the dedicated ISOLATED_WORLD_ID_BOAZ enum reservation before compilation. No renderer save-event bridge is implemented.
+Status: implementation packet; not an S3 pass. GN integration and the dedicated ISOLATED_WORLD_ID_BOAZ reservation are applied. The coordinator compiled against Chromium 157 in guarded build log `20261113T114138.892688Z.log`. No renderer save-event bridge is implemented.
 
 TrustedExecution observes one WebContents, captures only its primary main frame, and binds targets to a weak document, global frame ID, exact nonopaque browser-derived origin, browser context and local epoch. Caller must capture before authentication and pass that same target afterward; Execute revalidates it instead of capturing whichever page is now visible. Main-frame-only preserves the current password policy; subframe fill remains unsupported.
 
@@ -22,6 +22,6 @@ Pinned Chromium 157.0.8103.51:
 - mojo/public/cpp/bindings/callback_helpers.h:163–169: WrapCallbackWithDropHandler distinguishes response from callback destruction.
 - base/json/json_writer.h:40–49: serialization failure for unsupported values/depth.
 
-API/source crosscheck and diff whitespace verification only. No new tests, execution or build. Root must compile and verify hostile navigation, opaque origin, frame substitution, BFCache/crash, timeout, dropped and duplicate callbacks, callback-driven owner destruction and private-mode policy. Private fill/no-save and persistent save messages belong to the later document-bound Mojo service. Less-than-5-ms p50 is an unmeasured runtime target.
+API/source crosscheck, diff whitespace verification and compilation passed. No new tests or runtime execution. Root must compile and verify hostile navigation, opaque origin, frame substitution, BFCache/crash, timeout, dropped and duplicate callbacks, callback-driven owner destruction and private-mode policy. Private fill/no-save and persistent save messages belong to the later document-bound Mojo service. Less-than-5-ms p50 is an unmeasured runtime target.
 
-The separate `trusted-world.patch` reserves the Boaz ID inside the existing macOS-only enum section after AppleScript. Android numeric IDs remain unchanged. The official lite source archive omits the Java counterpart named by the header's lint comment; no replacement Java file is invented. This patch and the coordinator are prepared in the PR but not applied to the currently running application build. Apply through the guarded series after that build, then compile and exercise exact-document cancellation. The running source remains at the first native-host patch.
+The separate `trusted-world.patch` reserves the Boaz ID inside the existing macOS-only enum section after AppleScript. Android numeric IDs remain unchanged. The official lite source archive omits the Java counterpart named by the header's lint comment; no replacement Java file is invented. The patch and coordinator are now installed through the guarded series. Runtime isolation, exact-document cancellation and latency acceptance remain pending.
