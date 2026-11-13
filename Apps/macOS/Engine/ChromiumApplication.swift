@@ -10,6 +10,7 @@ private final class ChromiumApplication: NSObject {
     let model = MacModel.shared
     let legacyDelegate = AppDelegate()
     var windows: [ChromiumAppWindow] = []
+    var quickWindows: [ChromiumQuickWindow] = []
     var auxiliaryWindows: [NSWindow] = []
     var finished = false
     private var applicationMenu: ChromiumApplicationMenu?
@@ -21,22 +22,34 @@ private final class ChromiumApplication: NSObject {
 
     func start() throws {
         runtime.windowClosed = { [weak self] handle in
-            guard let self, let index = windows.firstIndex(where: { $0.handle == handle }) else { return }
-            let window = windows.remove(at: index)
-            window.finishClose()
-            if !windows.contains(where: { $0.profile == window.profile }) {
-                do { try runtime.releaseProfile(window.profile) }
+            guard let self else { return }
+            let profile: ChromiumProfile
+            if let index = windows.firstIndex(where: { $0.handle == handle }) {
+                let window = windows.remove(at: index)
+                profile = window.profile
+                window.finishClose()
+            } else if let index = quickWindows.firstIndex(where: { $0.handle == handle }) {
+                let window = quickWindows.remove(at: index)
+                profile = window.profile
+                window.finishClose()
+            } else { return }
+            if !windows.contains(where: { $0.profile == profile }),
+               !quickWindows.contains(where: { $0.profile == profile }) {
+                do { try runtime.releaseProfile(profile) }
                 catch { model.showToast(error.localizedDescription) }
             }
         }
         runtime.pageEvent = { [weak self] handle, event in
             self?.windows.forEach { $0.browser.chromiumPageEvent(handle, event: event) }
+            if event == BOAZ_HOST_PAGE_CLOSE_CANCELLED { self?.model.isQuitting = false }
         }
         runtime.shutdownReady = { [self] in
             finished = true
             legacyDelegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
             windows.forEach { $0.finishClose() }
             windows.removeAll()
+            quickWindows.forEach { $0.finishClose() }
+            quickWindows.removeAll()
             auxiliaryWindows.forEach { $0.close() }
             auxiliaryWindows.removeAll()
         }
@@ -66,7 +79,14 @@ private final class ChromiumApplication: NSObject {
         case "settings": present(MacSettingsView().environment(model), title: "Boaz Settings")
         case "history": present(HistoryWindow().environment(model), title: "History")
         case "archive": present(ArchiveWindow().environment(model), title: "Archive")
-        case "little": present(QuickWindow(url: url).environment(model), title: "Quick Window")
+        case "little":
+            let profileID = (model.sidebar.profiles.first(where: \.isDefault) ?? model.sidebar.profiles.first)?.id ?? "default"
+            do {
+                let profile = try await runtime.prepareProfile(.init(id: profileID, isPrivate: false))
+                guard !finished else { return }
+                let window = try ChromiumQuickWindow(runtime: runtime, profile: profile, url: url, model: model)
+                quickWindows.append(window)
+            } catch { showError(error.localizedDescription) }
         default:
             let isPrivate = id == "incognito"
             let identity = EngineProfileIdentity(
