@@ -12,8 +12,7 @@
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "content/public/browser/browser_thread.h"
-#include "content/public/browser/content_browser_client.h"
-#include "content/public/common/content_client.h"
+#include "components/embedder_support/user_agent_utils.h"
 #include "third_party/blink/public/common/user_agent/user_agent_metadata.h"
 #include "content/public/browser/devtools_agent_host.h"
 #include "content/public/browser/navigation_handle.h"
@@ -53,11 +52,9 @@ void PageEmulation::Clear(Completion completion) {
 }
 std::optional<PageEmulation::UserAgentDefaults> PageEmulation::GetDefaultUserAgent() {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  auto* browser = content::GetContentClient()->browser();
-  if (!browser) return std::nullopt;
-  const auto metadata = browser->GetUserAgentMetadata();
+  const auto metadata = embedder_support::GetUserAgentMetadata();
   UserAgentDefaults result;
-  result.user_agent = browser->GetUserAgent();
+  result.user_agent = embedder_support::GetUserAgent();
   // Blink's macOS default in core/frame/navigator_id.cc; not the CPU architecture.
   result.navigator_platform = "MacIntel";
   result.full_version = metadata.full_version;

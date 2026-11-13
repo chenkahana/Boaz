@@ -64,6 +64,7 @@ source_set("host") {
     "//chrome/browser/ui/tabs",
     "//chrome/browser/ui/tabs:features",
     "//components/download/public/common",
+    "//components/embedder_support:user_agent",
     "//components/split_tabs",
     "//components/tabs:public",
     "//components/zoom",
