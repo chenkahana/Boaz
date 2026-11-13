@@ -99,6 +99,8 @@ No account or sign-in is needed, and iCloud sync is optional during the short fi
   never uploaded or synced. Saved passwords are not imported.
 - iCloud is optional; without it Boaz works fully on one device.
 - Camera, microphone and location prompts appear only when a website asks for them.
+- The iPhone asks to add to the photo library only when you save an image or video from a website; Boaz can't
+  read the library (add-only access).
 
 ## Screenshots
 
