@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 29u
+#define BOAZ_HOST_ABI_VERSION 30u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT
@@ -38,6 +38,14 @@ typedef struct BoazHostNetwork {
   double latency_ms, download_bytes_per_second, upload_bytes_per_second;
   uint8_t offline;
 } BoazHostNetwork;
+typedef struct BoazHostSensors {
+  double latitude, longitude, accuracy;
+  uint8_t has_location;
+  const char* timezone;
+  size_t timezone_length;
+  const char* locale;
+  size_t locale_length;
+} BoazHostSensors;
 typedef enum BoazHostEmulationStatus {
   BOAZ_EMULATION_SUCCESS, BOAZ_EMULATION_INVALID, BOAZ_EMULATION_UNAVAILABLE,
   BOAZ_EMULATION_PROTOCOL_ERROR, BOAZ_EMULATION_TIMEOUT,
@@ -289,6 +297,8 @@ typedef struct BoazHostAPI {
   BoazHostResult (*apply_network)(BoazHostPage page, const BoazHostNetwork* network,
       uint64_t request, BoazHostEmulationCompletion completion, void* context);
   BoazHostResult (*apply_cpu)(BoazHostPage page, double rate,
+      uint64_t request, BoazHostEmulationCompletion completion, void* context);
+  BoazHostResult (*apply_sensors)(BoazHostPage page, const BoazHostSensors* sensors,
       uint64_t request, BoazHostEmulationCompletion completion, void* context);
 } BoazHostAPI;
 

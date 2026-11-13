@@ -592,6 +592,27 @@ BoazHostResult ApplyViewport(BoazHostPage page, const BoazHostViewport* viewport
   if (result != BOAZ_HOST_OK) --state->pending_emulations;
   return result;
 }
+BoazHostResult ApplySensors(BoazHostPage page, const BoazHostSensors* sensors,
+    uint64_t request, BoazHostEmulationCompletion completion, void* context) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (!request || !completion) return BOAZ_HOST_INVALID_ARGUMENT;
+  std::optional<PageEmulation::Sensors> value;
+  if (sensors) {
+    if (sensors->has_location > 1 || sensors->timezone_length > 128 || sensors->locale_length > 128 ||
+        (!sensors->timezone && sensors->timezone_length) || (!sensors->locale && sensors->locale_length))
+      return BOAZ_HOST_INVALID_ARGUMENT;
+    value.emplace();
+    if (sensors->has_location) value->location = PageEmulation::Geolocation{
+        sensors->latitude, sensors->longitude, sensors->accuracy};
+    if (sensors->timezone_length) value->timezone = UNSAFE_BUFFERS(std::string(sensors->timezone, sensors->timezone_length));
+    if (sensors->locale_length) value->locale = UNSAFE_BUFFERS(std::string(sensors->locale, sensors->locale_length));
+  }
+  CHECK_LT(state->pending_emulations, std::numeric_limits<uint64_t>::max());
+  ++state->pending_emulations;
+  auto result = state->tabs->ApplySensors(page, std::move(value), EmulationCompletion(page, request, completion, context));
+  if (result != BOAZ_HOST_OK) --state->pending_emulations;
+  return result;
+}
 BoazHostResult ApplyNetwork(BoazHostPage page, const BoazHostNetwork* network,
     uint64_t request, BoazHostEmulationCompletion completion, void* context) {
   if (auto result = Check(); result != BOAZ_HOST_OK) return result;
@@ -697,7 +718,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:

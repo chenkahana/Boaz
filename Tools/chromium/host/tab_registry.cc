@@ -629,6 +629,13 @@ BoazHostResult TabRegistry::GetUserAgentDefaults(BoazHostPage id,
   *output = PageEmulation::GetDefaultUserAgent();
   return output->has_value() ? BOAZ_HOST_OK : BOAZ_HOST_UNAVAILABLE;
 }
+BoazHostResult TabRegistry::ApplySensors(BoazHostPage id,
+    std::optional<PageEmulation::Sensors> sensors, PageEmulation::Completion completion) {
+  BOAZ_FIND_PAGE();
+  if (!page->emulation) page->emulation = std::make_unique<PageEmulation>(page->web_contents());
+  page->emulation->ApplySensors(std::move(sensors), std::move(completion));
+  return BOAZ_HOST_OK;
+}
 BoazHostResult TabRegistry::ApplyNetwork(BoazHostPage id,
     std::optional<PageEmulation::Network> network, PageEmulation::Completion completion) {
   BOAZ_FIND_PAGE();

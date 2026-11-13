@@ -48,6 +48,8 @@ class TabRegistry {
   BoazHostResult SetAudioMuted(BoazHostPage page, bool muted);
   BoazHostResult IsBusyForResidency(BoazHostPage page, uint8_t* busy);
   BoazHostResult GetUserAgentDefaults(BoazHostPage page, std::optional<PageEmulation::UserAgentDefaults>* output);
+  BoazHostResult ApplySensors(BoazHostPage page, std::optional<PageEmulation::Sensors> sensors,
+      PageEmulation::Completion completion);
   BoazHostResult ApplyNetwork(BoazHostPage page, std::optional<PageEmulation::Network> network,
       PageEmulation::Completion completion);
   BoazHostResult ApplyCPU(BoazHostPage page, double rate, PageEmulation::Completion completion);
