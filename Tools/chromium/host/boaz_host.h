@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 11u
+#define BOAZ_HOST_ABI_VERSION 12u
 
 typedef uint64_t BoazHostWindow;
 typedef uint64_t BoazHostPage;
@@ -114,6 +114,9 @@ typedef struct BoazHostCallbacks {
 typedef void (*BoazHostExtensionVisitor)(void* context, const char* extension_id,
                                         const char* name);
 
+typedef void (*BoazHostHistoryVisitor)(void* context, int32_t entry_id,
+    int32_t offset, const char* url, const char* title);
+
 /* All calls and callbacks use Chromium's UI thread, also the AppKit main thread.
  * Handles are never reused during a process. Callbacks must not reenter the API.
  * PAGE_CLOSING and PAGE_VIEW_WILL_CHANGE are synchronous and permit only
@@ -170,6 +173,9 @@ typedef struct BoazHostAPI {
   BoazHostResult (*set_zoom_factor)(BoazHostPage page, double factor);
   BoazHostResult (*find_text)(BoazHostPage page, const char* text, uint8_t forward);
   BoazHostResult (*stop_find)(BoazHostPage page);
+  BoazHostResult (*stop_loading)(BoazHostPage page);
+  BoazHostResult (*enumerate_history)(BoazHostPage page, BoazHostHistoryVisitor visitor, void* context);
+  BoazHostResult (*go_to_history_entry)(BoazHostPage page, int32_t entry_id);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

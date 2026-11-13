@@ -381,11 +381,29 @@ BoazHostResult StopFind(BoazHostPage page) {
   if (auto result = Check(); result != BOAZ_HOST_OK) return result;
   return state->tabs->StopFind(page);
 }
+BoazHostResult StopLoading(BoazHostPage page) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  return state->tabs->StopLoading(page);
+}
+BoazHostResult EnumerateHistory(BoazHostPage page, BoazHostHistoryVisitor visitor, void* context) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (!visitor) return BOAZ_HOST_INVALID_ARGUMENT;
+  struct Visit { BoazHostHistoryVisitor visitor; void* context; } visit{visitor, context};
+  return state->tabs->EnumerateHistory(page,
+      [](void* opaque, int32_t entry, int32_t offset, const char* url, const char* title) {
+        auto* visit = static_cast<Visit*>(opaque);
+        Notify([&] { visit->visitor(visit->context, entry, offset, url, title); });
+      }, &visit);
+}
+BoazHostResult GoToHistoryEntry(BoazHostPage page, int32_t entry) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  return state->tabs->GoToHistoryEntry(page, entry);
+}
 const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
