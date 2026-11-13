@@ -39,6 +39,9 @@ final class ChromiumRuntime {
     private var closedWindows: Set<BoazHostWindow> = []
     private var closingPages: Set<BoazHostPage> = []
     private var profileRequests: [EngineProfileIdentity: ProfileRequest] = [:]
+    private var blockingRequest: BlockingRequest?
+    private var blockingPrepared = false
+    private var blockingShutdownRequested = false
     private var cacheRequestID: UInt64 = 0
     private var clearingCacheProfiles: Set<BoazHostProfile> = []
     private var started = false
@@ -52,6 +55,7 @@ final class ChromiumRuntime {
         }
         let table = pointer.pointee
         guard table.set_callbacks != nil, table.prepare_profile != nil,
+              table.prepare_blocking_assets != nil, table.configure_profile_blocking != nil,
               table.create_profile_window != nil, table.release_profile != nil,
               table.create_page != nil, table.navigate != nil,
               table.go_back != nil, table.go_forward != nil, table.reload != nil,
@@ -265,6 +269,9 @@ final class ChromiumRuntime {
                 DispatchQueue.main.async {
                     guard !owner.stopped else { return }
                     owner.stopped = true
+                    owner.blockingPrepared = false
+                    owner.blockingRequest?.cancelAll(EnginePageError.unavailable)
+                    owner.blockingRequest = nil
                     owner.downloads.values.forEach { $0.dispose() }
                     owner.downloads.removeAll()
                     owner.activePages.removeAll()
@@ -350,6 +357,82 @@ final class ChromiumRuntime {
             let result = api.close_page!(handle)
             if result != BOAZ_HOST_OK { closingPages.remove(handle) }
             throw error
+        }
+    }
+
+    func prepareBlockingAssets() async throws {
+        try requireRunning()
+        try Task.checkCancellation()
+        guard !blockingShutdownRequested else { throw EnginePageError.unavailable }
+        if blockingPrepared { return }
+        guard let directory = Bundle.main.resourceURL?.appendingPathComponent("BoazBlocking", isDirectory: true),
+              (try? directory.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true else {
+            throw NSError(domain: "Boaz.BlockingAssets", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey: "Boaz’s bundled content-blocking resources are missing."])
+        }
+        let waiter = UUID()
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                guard !Task.isCancelled else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                if let request = blockingRequest {
+                    request.waiters[waiter] = continuation
+                    return
+                }
+                let request = BlockingRequest(owner: self)
+                request.waiters[waiter] = continuation
+                blockingRequest = request
+                let context = Unmanaged.passRetained(request).toOpaque()
+                let result = directory.path.withCString {
+                    api.prepare_blocking_assets!($0, { context, result in
+                        guard let context else { return }
+                        MainActor.assumeIsolated {
+                            let request = Unmanaged<BlockingRequest>.fromOpaque(context).takeRetainedValue()
+                            DispatchQueue.main.async { request.finish(result) }
+                        }
+                    }, context)
+                }
+                if result != BOAZ_HOST_OK {
+                    Unmanaged<BlockingRequest>.fromOpaque(context).release()
+                    request.finish(result)
+                }
+            }
+        } onCancel: {
+            Task { @MainActor [weak self] in self?.blockingRequest?.cancel(waiter) }
+        }
+        try Task.checkCancellation()
+        try requireRunning()
+        guard blockingPrepared, !blockingShutdownRequested else { throw EnginePageError.unavailable }
+    }
+
+    private final class BlockingRequest {
+        weak var owner: ChromiumRuntime?
+        var waiters: [UUID: CheckedContinuation<Void, Error>] = [:]
+        private var finished = false
+        init(owner: ChromiumRuntime) { self.owner = owner }
+        func cancel(_ id: UUID) { waiters.removeValue(forKey: id)?.resume(throwing: CancellationError()) }
+        func cancelAll(_ error: Error) {
+            finished = true
+            let pending = waiters
+            waiters.removeAll()
+            pending.values.forEach { $0.resume(throwing: error) }
+        }
+        func finish(_ result: BoazHostResult) {
+            guard !finished else { return }
+            finished = true
+            guard let owner else { cancelAll(EnginePageError.unavailable); return }
+            if owner.blockingRequest === self { owner.blockingRequest = nil }
+            do {
+                try owner.check(result)
+                try owner.requireRunning()
+                guard !owner.blockingShutdownRequested else { throw EnginePageError.unavailable }
+                owner.blockingPrepared = true
+                let pending = waiters
+                waiters.removeAll()
+                pending.values.forEach { $0.resume() }
+            } catch { cancelAll(error) }
         }
     }
 
@@ -594,6 +677,7 @@ final class ChromiumRuntime {
     func requestShutdown() throws {
         try requireRunning()
         try check(api.request_shutdown!())
+        blockingShutdownRequested = true
     }
 
     private func requireRunning() throws {

@@ -280,6 +280,8 @@ private final class ChromiumApplication: NSObject {
         case "little":
             let profileID = (model.sidebar.profiles.first(where: \.isDefault) ?? model.sidebar.profiles.first)?.id ?? "default"
             do {
+                try await runtime.prepareBlockingAssets()
+                guard !finished else { return }
                 let profile = try await runtime.prepareProfile(.init(id: profileID, isPrivate: false))
                 guard !finished else { return }
                 let window = try ChromiumQuickWindow(runtime: runtime, profile: profile, url: url, model: model)
@@ -291,6 +293,8 @@ private final class ChromiumApplication: NSObject {
                 id: isPrivate ? UUID().uuidString : (model.sidebar.spaces.first?.profileID ?? "default"),
                 isPrivate: isPrivate)
             do {
+                try await runtime.prepareBlockingAssets()
+                guard !finished else { return }
                 let profile = try await runtime.prepareProfile(identity)
                 guard !finished else { return }
                 let window = try ChromiumAppWindow(runtime: runtime, profile: profile, model: model)
