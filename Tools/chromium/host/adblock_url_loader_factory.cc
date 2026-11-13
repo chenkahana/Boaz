@@ -1,5 +1,10 @@
 #include "adblock_url_loader_factory.h"
 #include "base/check.h"
+#include "base/byte_size.h"
+#include "net/base/data_url.h"
+#include "net/http/http_response_headers.h"
+#include "mojo/public/cpp/system/data_pipe_producer.h"
+#include "mojo/public/cpp/system/string_data_source.h"
 #include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"
 #include "base/task/sequenced_task_runner.h"
@@ -36,6 +41,7 @@ class Request final : public network::mojom::URLLoader,
     std::optional<GURL> rewrite;
     const int error = Evaluate(request.url, rewrite);
     if (error != net::OK) { Complete(error); return; }
+    if (!replacement_.empty()) { ServeReplacement(); return; }
     network::ResourceRequest forwarded = request;
     if (rewrite) forwarded.url = *rewrite;
     auto client_remote = downstream_client_.BindNewPipeAndPassRemote();
@@ -46,6 +52,7 @@ class Request final : public network::mojom::URLLoader,
   }
  private:
   int Evaluate(const GURL& url, std::optional<GURL>& rewrite) {
+    replacement_.clear();
     const auto decision = decide_.Run(url, method_, destination_, resource_type_, context_);
     switch (decision.action) {
       case AdblockDecision::Action::kAllow:
@@ -66,10 +73,55 @@ class Request final : public network::mojom::URLLoader,
         return net::OK;
       }
       case AdblockDecision::Action::kResourceReplacement:
+        if (decision.rewritten_url || decision.replacement_data_url.empty() ||
+            decision.replacement_data_url.size() > 1024 * 1024 ||
+            !GURL(decision.replacement_data_url).SchemeIs("data") ||
+            (method_ != "GET" && method_ != "HEAD")) return net::ERR_NOT_IMPLEMENTED;
+        replacement_ = decision.replacement_data_url;
+        return net::OK;
       case AdblockDecision::Action::kUnsupported:
         return net::ERR_NOT_IMPLEMENTED;
     }
     return net::ERR_NOT_IMPLEMENTED;
+  }
+  void ServeReplacement() {
+    // Only pinned public resources reach here. Outer CorsURLLoader still owns
+    // origin enforcement; no response bytes or headers come from the site.
+    loader_.reset();
+    downstream_client_.reset();
+    auto response = network::mojom::URLResponseHead::New();
+    const auto result = net::DataURL::BuildResponse(GURL(replacement_), method_,
+        &response->mime_type, &response->charset, &replacement_body_, &response->headers);
+    replacement_.clear();
+    if (result != net::OK || replacement_body_.size() > 1024 * 1024) {
+      Complete(net::ERR_INVALID_RESPONSE); return;
+    }
+    const auto& mime = response->mime_type;
+    if (mime != "application/javascript" && mime != "application/json" &&
+        mime != "text/plain" && mime != "image/gif" && mime != "video/mp4") {
+      Complete(net::ERR_INVALID_RESPONSE); return;
+    }
+    response->headers->SetHeader("Cache-Control", "no-store");
+    response->content_length = replacement_body_.size();
+    mojo::ScopedDataPipeProducerHandle producer;
+    mojo::ScopedDataPipeConsumerHandle consumer;
+    if (mojo::CreateDataPipe(nullptr, producer, consumer) != MOJO_RESULT_OK) {
+      Complete(net::ERR_INSUFFICIENT_RESOURCES); return;
+    }
+    client_->OnReceiveResponse(std::move(response), std::move(consumer), std::nullopt);
+    replacement_producer_ = std::make_unique<mojo::DataPipeProducer>(std::move(producer));
+    replacement_producer_->Write(std::make_unique<mojo::StringDataSource>(replacement_body_,
+        mojo::StringDataSource::AsyncWritingMode::STRING_STAYS_VALID_UNTIL_COMPLETION),
+        base::BindOnce(&Request::ReplacementWritten, weak_.GetWeakPtr()));
+  }
+  void ReplacementWritten(MojoResult result) {
+    network::URLLoaderCompletionStatus status(result == MOJO_RESULT_OK ? net::OK : net::ERR_FAILED);
+    if (result == MOJO_RESULT_OK) {
+      status.encoded_data_length = base::ByteSize(replacement_body_.size());
+      status.encoded_body_length = base::ByteSize(replacement_body_.size());
+      status.decoded_body_length = base::ByteSize(replacement_body_.size());
+    }
+    OnComplete(status);
   }
   void Destroy() { delete this; }
   void Complete(int error) { OnComplete(network::URLLoaderCompletionStatus(error)); }
@@ -86,10 +138,15 @@ class Request final : public network::mojom::URLLoader,
       if (rewrite) forwarded_url = *rewrite;
     }
     pending_rewrite_.reset();
+    if (!replacement_.empty()) {
+      // A caller-supplied override requires downstream redirect validation.
+      if (new_url) { Complete(net::ERR_NOT_IMPLEMENTED); return; }
+      ServeReplacement(); return;
+    }
     loader_->FollowRedirect(std::move(params), forwarded_url);
   }
   void SetPriority(net::RequestPriority priority, int32_t value) override {
-    loader_->SetPriority(priority, value);
+    if (loader_) loader_->SetPriority(priority, value);
   }
   void OnReceiveEarlyHints(network::mojom::EarlyHintsPtr hints) override {
     client_->OnReceiveEarlyHints(std::move(hints));
@@ -126,6 +183,9 @@ class Request final : public network::mojom::URLLoader,
   const AdblockRequestContext context_;
   const AdblockDecider decide_;
   std::string method_;
+  std::string replacement_;
+  std::string replacement_body_;
+  std::unique_ptr<mojo::DataPipeProducer> replacement_producer_;
   std::optional<GURL> pending_rewrite_;
   const network::mojom::RequestDestination destination_;
   const int resource_type_;

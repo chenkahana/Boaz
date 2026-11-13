@@ -22,8 +22,8 @@ using AdblockDecider = base::RepeatingCallback<AdblockDecision(
     const GURL&, const std::string&, network::mojom::RequestDestination, int resource_type,
     const AdblockRequestContext&)>;
 // Callback runs only on runner, synchronously; capture immutable/thread-safe
-// rule ownership, never UI/profile objects. Resource replacement is explicitly
-// unsupported until its security-preserving loader route is implemented.
+// rule ownership, never UI/profile objects. Bind only behind CorsURLLoader;
+// replacements contain pinned public resources, never fetched response data.
 void BindAdblockURLLoaderFactory(
     mojo::PendingReceiver<network::mojom::URLLoaderFactory>,
     mojo::PendingRemote<network::mojom::URLLoaderFactory>,
