@@ -64,6 +64,7 @@ source_set("host") {
     "//content/public/browser",
     "//crypto",
     "//extensions/browser",
+    "//net",
     "//ui/base",
     "//ui/gfx",
     "//ui/native_theme",

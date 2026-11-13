@@ -55,7 +55,7 @@ final class ChromiumRuntime {
     }
 
     func startCallbacks() throws {
-        guard !started, !stopped, !inCallback, Self.callbackOwner == nil else {
+        guard !started, !stopped, !inCallback, ChromiumRuntime.callbackOwner == nil else {
             throw EnginePageError.unavailable
         }
         var callbacks = BoazHostCallbacks()
@@ -160,14 +160,14 @@ final class ChromiumRuntime {
                     owner.pages.removeAll()
                     owner.windowProfiles.removeAll()
                     owner.preparedProfiles.removeAll()
-                    Self.callbackOwner = nil
+                    ChromiumRuntime.callbackOwner = nil
                     owner.shutdownReady?()
                 }
             }
         }
         try check(api.set_callbacks!(&callbacks))
         started = true
-        Self.callbackOwner = self
+        ChromiumRuntime.callbackOwner = self
     }
 
     private func receivePage(_ event: BoazHostPageEvent, _ copied: CopiedPageState) {
