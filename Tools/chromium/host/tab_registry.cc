@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/auto_reset.h"
 #include "base/check.h"
 #include "base/feature_list.h"
 #include "chrome/browser/ui/tabs/features.h"
@@ -41,6 +42,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
@@ -458,6 +460,51 @@ BoazHostResult TabRegistry::Reload(BoazHostPage id) {
   BOAZ_FIND_PAGE();
   page->web_contents()->GetController().Reload(content::ReloadType::NORMAL, true);
   return BOAZ_HOST_OK;
+}
+BoazHostResult TabRegistry::StopLoading(BoazHostPage id) {
+  BOAZ_FIND_PAGE();
+  page->web_contents()->Stop();
+  return BOAZ_HOST_OK;
+}
+BoazHostResult TabRegistry::EnumerateHistory(BoazHostPage id,
+    BoazHostHistoryVisitor visitor, void* context) {
+  BOAZ_FIND_PAGE();
+  if (!visitor) return BOAZ_HOST_INVALID_ARGUMENT;
+  struct Entry {
+    int32_t id;
+    int32_t offset;
+    std::string url;
+    std::string title;
+  };
+  auto& navigation = page->web_contents()->GetController();
+  const int count = navigation.GetEntryCount();
+  const int current = navigation.GetCurrentEntryIndex();
+  std::vector<Entry> entries;
+  entries.reserve(count);
+  for (int index = 0; index < count; ++index) {
+    const auto* entry = navigation.GetEntryAtIndex(index);
+    if (!entry) return BOAZ_HOST_UNAVAILABLE;
+    entries.push_back({entry->GetUniqueID(), index - current,
+        entry->GetURL().spec(), base::UTF16ToUTF8(entry->GetTitle())});
+  }
+  base::AutoReset<bool> callback_guard(&impl_->in_callback, true);
+  for (const auto& entry : entries) {
+    visitor(context, entry.id, entry.offset, entry.url.c_str(), entry.title.c_str());
+  }
+  return BOAZ_HOST_OK;
+}
+BoazHostResult TabRegistry::GoToHistoryEntry(BoazHostPage id, int32_t entry_id) {
+  BOAZ_FIND_PAGE();
+  auto& navigation = page->web_contents()->GetController();
+  const int count = navigation.GetEntryCount();
+  for (int index = 0; index < count; ++index) {
+    const auto* entry = navigation.GetEntryAtIndex(index);
+    if (entry && entry->GetUniqueID() == entry_id) {
+      navigation.GoToIndex(index);
+      return BOAZ_HOST_OK;
+    }
+  }
+  return BOAZ_HOST_UNAVAILABLE;
 }
 BoazHostResult TabRegistry::SetAudioMuted(BoazHostPage id, bool muted) {
   BOAZ_FIND_PAGE();

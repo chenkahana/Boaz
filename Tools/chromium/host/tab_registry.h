@@ -29,6 +29,10 @@ class TabRegistry {
   BoazHostResult GoBack(BoazHostPage page);
   BoazHostResult GoForward(BoazHostPage page);
   BoazHostResult Reload(BoazHostPage page);
+  BoazHostResult StopLoading(BoazHostPage page);
+  BoazHostResult EnumerateHistory(BoazHostPage page,
+      BoazHostHistoryVisitor visitor, void* context);
+  BoazHostResult GoToHistoryEntry(BoazHostPage page, int32_t entry_id);
   BoazHostResult FindText(BoazHostPage page, const char* text, bool forward);
   BoazHostResult StopFind(BoazHostPage page);
   BoazHostResult SetAudioMuted(BoazHostPage page, bool muted);
