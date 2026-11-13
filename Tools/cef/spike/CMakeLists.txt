@@ -25,7 +25,15 @@ set(UI_ELEMENT false)
 configure_file(Info.plist.in "${CMAKE_BINARY_DIR}/app-Info.plist")
 set_target_properties(BoazCEFSpike PROPERTIES MACOSX_BUNDLE_INFO_PLIST "${CMAKE_BINARY_DIR}/app-Info.plist")
 set(CEF_APP "${CMAKE_BINARY_DIR}/BoazCEFSpike.app")
-COPY_MAC_FRAMEWORK(BoazCEFSpike "${CEF_BINARY_DIR}" "${CEF_APP}")
+set(SPIKE_FRAMEWORK "${CEF_APP}/Contents/Frameworks/Chromium Embedded Framework.framework")
+add_custom_command(TARGET BoazCEFSpike POST_BUILD
+  COMMAND "${CMAKE_COMMAND}" -E copy_directory
+    "${CEF_BINARY_DIR}/Chromium Embedded Framework.framework" "${SPIKE_FRAMEWORK}/Versions/A"
+  COMMAND /bin/ln -sfn "Versions/A/Chromium Embedded Framework" "${SPIKE_FRAMEWORK}/Chromium Embedded Framework"
+  COMMAND /bin/ln -sfn "Versions/A/Libraries" "${SPIKE_FRAMEWORK}/Libraries"
+  COMMAND /bin/ln -sfn "Versions/A/Resources" "${SPIKE_FRAMEWORK}/Resources"
+  COMMAND /bin/ln -sfn A "${SPIKE_FRAMEWORK}/Versions/Current"
+  VERBATIM)
 
 foreach(suffix ${CEF_HELPER_APP_SUFFIXES})
   string(REPLACE ":" ";" parts "${suffix}")
