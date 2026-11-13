@@ -46,13 +46,13 @@ class Observer final : public content::RenderFrameObserver,
     if (!style_key_.IsEmpty()) document.RemoveInsertedStyleSheet(style_key_, blink::WebCssOrigin::kUser);
     style_key_ = blink::WebString();
     if (!css.empty()) style_key_ = document.InsertStyleSheet(
-        blink::WebString::FromUTF8(css), nullptr, blink::WebCssOrigin::kUser);
+        blink::WebString::FromUtf8(css), nullptr, blink::WebCssOrigin::kUser);
     if (script_executed_) return AdblockRendererResult::kRequiresReload;
     if (script.empty()) return AdblockRendererResult::kApplied;
     script_executed_ = true;
     auto weak = weak_.GetWeakPtr();
     render_frame()->GetWebFrame()->ExecuteScript(
-        blink::WebScriptSource(blink::WebString::FromUTF8(script)));
+        blink::WebScriptSource(blink::WebString::FromUtf8(script)));
     if (!weak || !weak->Matches(token)) return AdblockRendererResult::kUnavailable;
     return AdblockRendererResult::kApplied;
   }
