@@ -16,9 +16,10 @@ within thumb reach and a layout that follows every posture of iPhone Duo. On the
 [![License](https://img.shields.io/badge/license-MPL--2.0-brightgreen)](LICENSE)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-6E4BFF)](CONTRIBUTING.md)
 
+[![Download on the App Store](https://img.shields.io/badge/App_Store-iPhone_%26_Mac-0D96F6?style=for-the-badge&logo=appstore&logoColor=white)](https://apps.apple.com/app/boaz-browser/id6832646304)
 [![Download for Mac](https://img.shields.io/badge/Download_for_Mac-Boaz.dmg-6E4BFF?style=for-the-badge&logo=apple)](https://github.com/chenkahana/Boaz/releases/latest/download/Boaz.dmg)
 
-[Features](#features) · [Screenshots](#screenshots) · [Architecture](#architecture) · [Getting started](#getting-started) · [Privacy](#privacy) · [Contributing](#contributing)
+[Website](https://chenkahana.com/boaz) · [Features](#features) · [Screenshots](#screenshots) · [Architecture](#architecture) · [Getting started](#getting-started) · [Privacy](#privacy) · [Contributing](#contributing)
 
 <img src="docs/assets/hero.png" alt="Boaz on Mac and iPhone" width="900">
 
