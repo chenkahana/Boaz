@@ -99,6 +99,17 @@ private struct SidebarTopBar: View {
                 browser.toggleSidebar()
             }
             Spacer()
+            if let engine = browser.activeEnginePage, engine.kind == .chromium {
+                HoverIconButton(symbol: "arrow.left", help: "Back", hint: keys.hint("Back", .goBack)) {
+                    browser.goBack()
+                }.disabled(!engine.state.canGoBack)
+                HoverIconButton(symbol: "arrow.right", help: "Forward", hint: keys.hint("Forward", .goForward)) {
+                    browser.goForward()
+                }.disabled(!engine.state.canGoForward)
+                HoverIconButton(symbol: "arrow.clockwise", help: "Reload", hint: keys.hint("Reload", .reload)) {
+                    browser.reload()
+                }
+            } else {
             HistoryButton(symbol: "arrow.left", help: "Back", hint: keys.hint("Back", .goBack),
                           items: (page?.backForwardList.backList ?? []).reversed(), action: browser.goBack)
             HistoryButton(symbol: "arrow.right", help: "Forward", hint: keys.hint("Forward", .goForward),
@@ -106,6 +117,7 @@ private struct SidebarTopBar: View {
             HoverIconButton(symbol: page?.isLoading == true ? "xmark" : "arrow.clockwise",
                             help: page?.isLoading == true ? "Stop" : "Reload", hint: keys.hint("Reload", .reload)) {
                 if page?.isLoading == true { page?.stopLoading() } else { browser.reload() }
+            }
             }
         }
         .frame(height: 40)

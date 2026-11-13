@@ -96,6 +96,7 @@ final class BrowserState {
     @ObservationIgnored weak var window: NSWindow?
     @ObservationIgnored private var pages: [String: WebPage] = [:]
     private var enginePages: [String: EnginePage] = [:]
+    var activeEnginePage: EnginePage? { activeTabID.flatMap { enginePages[$0] } }
     private let privateEngineProfileID = UUID().uuidString
     #if BOAZ_CHROMIUM
     @ObservationIgnored var createChromiumPage: ((SidebarItem) throws -> EnginePage)?
