@@ -18,7 +18,7 @@ final class ChromiumEnginePageAdapter: EnginePageAdapter {
     let profile: EngineProfileIdentity
     let handle: BoazHostPage
     private(set) var state = EnginePageState()
-    @ObservationIgnored private let api: BoazHostAPI
+    @ObservationIgnored let api: BoazHostAPI
     @ObservationIgnored private var closeRequested = false
     @ObservationIgnored private weak var attachedView: NSView?
     private(set) var viewGeneration = 0
@@ -104,7 +104,7 @@ final class ChromiumEnginePageAdapter: EnginePageAdapter {
     private func requireOpen() throws {
         if state.lifecycle == .closed || state.lifecycle == .closing { throw EnginePageError.closed }
     }
-    private func check(_ result: BoazHostResult) throws {
+    func check(_ result: BoazHostResult) throws {
         switch result {
         case BOAZ_HOST_OK: return
         case BOAZ_HOST_INVALID_ARGUMENT: throw ChromiumPageBridgeError.invalidArgument
