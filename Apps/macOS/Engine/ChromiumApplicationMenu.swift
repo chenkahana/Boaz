@@ -147,6 +147,13 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         add(develop, "Inspect Element", enabled: hasPage, perform: {
             Self.showDevTools(BOAZ_DEVTOOLS_INSPECT, browser: $0)
         }, key: "c", modifiers: [.command, .option])
+        develop.addItem(.separator())
+        add(develop, "Capture Visible Area…", enabled: hasPage) { browser in
+            guard let adapter = browser?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter else { return }
+            ChromiumPageCapture.exportVisible(from: adapter, window: browser?.window) {
+                MacModel.shared.showToast($0)
+            }
+        }
         let window = menu("Window")
         responder(window, "Minimize", #selector(NSWindow.performMiniaturize(_:)), key: "m")
         responder(window, "Zoom", #selector(NSWindow.performZoom(_:)))
