@@ -12,12 +12,16 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
     let addressField = NSTextField()
     private(set) var handle: BoazHostWindow = 0
     var onClosed: (() -> Void)?
+    private let model: MacModel
+    private var installed = false
     private var finished = false
     private var closing = false
     private var layoutQueued = false
     private var appliedSplit: (leading: String, trailing: String)?
 
-    init(runtime: ChromiumRuntime, profile: ChromiumProfile, model: MacModel) throws {
+    init(runtime: ChromiumRuntime, profile: ChromiumProfile, model: MacModel,
+         preparedForNativeCreation: Bool = false) throws {
+        self.model = model
         self.runtime = runtime
         self.profile = profile
         browser = BrowserState(incognito: profile.identity.isPrivate)
@@ -29,6 +33,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         window.title = profile.identity.isPrivate ? "Boaz — Private" : "Boaz"
         window.delegate = self
         window.contentView = contentContainer
+        browser.chromiumProfileIdentity = profile.identity
         browser.chromiumAddressField = addressField
         browser.activateChromiumPage = { [weak self] page in
             guard let self, let adapter = page.adapter as? ChromiumEnginePageAdapter,
@@ -46,14 +51,25 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
             return try self.runtime.createPage(window: self.handle,
                 url: tab.url ?? URL(string: "about:blank")!, profile: self.profile.identity)
         }
+        if preparedForNativeCreation { return }
         var options = makeOptions()
         do {
-            handle = try runtime.createWindow(profile: profile, options: &options)
+            let created = try runtime.createWindow(profile: profile, options: &options)
+            try adoptNativeWindow(created)
         } catch {
             window.delegate = nil
             window.close()
             throw error
         }
+    }
+
+    func adoptNativeWindow(_ handle: BoazHostWindow) throws {
+        guard !finished, handle != 0, self.handle == 0 || self.handle == handle else {
+            throw EnginePageError.invalidRequest
+        }
+        guard !installed else { return }
+        self.handle = handle
+        installed = true
         browser.chromiumExtensions = ChromiumExtensionActionsModel(api: runtime.api, window: handle,
             activePage: { [weak browser = browser] in
                 browser?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter

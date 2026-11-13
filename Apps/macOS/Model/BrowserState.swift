@@ -99,6 +99,7 @@ final class BrowserState {
     var activeEnginePage: EnginePage? { activeTabID.flatMap { enginePages[$0] } }
     private let privateEngineProfileID = UUID().uuidString
     #if BOAZ_CHROMIUM
+    var chromiumProfileIdentity: EngineProfileIdentity?
     var chromiumExtensions: ChromiumExtensionActionsModel?
     @ObservationIgnored var createChromiumPage: ((SidebarItem) throws -> EnginePage)?
     @ObservationIgnored var chromiumAddressField: NSTextField?
@@ -106,6 +107,39 @@ final class BrowserState {
     @ObservationIgnored var chromiumLayoutChanged: (() -> Void)?
     func cachedChromiumPage(for tabID: String) -> ChromiumEnginePageAdapter? {
         enginePages[tabID]?.adapter as? ChromiumEnginePageAdapter
+    }
+    func adoptChromiumPage(_ page: EnginePage, active: Bool) throws {
+        guard let adapter = page.adapter as? ChromiumEnginePageAdapter,
+              page.profile == chromiumProfileIdentity,
+              page.profile.isPrivate == isIncognito else { throw EnginePageError.invalidRequest }
+        if let existing = enginePages.first(where: {
+            ($0.value.adapter as? ChromiumEnginePageAdapter)?.handle == adapter.handle
+        }) {
+            if active, let item = tab(existing.key) { activate(item) }
+            return
+        }
+        let item: SidebarItem
+        let title = page.state.title.isEmpty ? page.state.url?.host() : page.state.title
+        if isIncognito {
+            item = SidebarItem(id: UUID().uuidString, spaceID: nil, profileID: "incognito", parentID: nil,
+                kind: .tab, title: title, url: page.state.url,
+                position: (incognitoTabs.first?.position ?? 1) - 1, lastActiveAt: .now)
+            incognitoTabs.insert(item, at: 0)
+        } else {
+            guard let space = model.sidebar.spaces.first(where: {
+                $0.id == spaceID && $0.profileID == page.profile.id
+            }) ?? model.sidebar.spaces.first(where: { $0.profileID == page.profile.id }),
+                  let box = model.sidebar.container(.unpinned, in: space.id) else {
+                throw EnginePageError.unavailable
+            }
+            item = SidebarItem(id: UUID().uuidString, spaceID: space.id, profileID: space.profileID,
+                parentID: box.id, kind: .tab, title: title, url: page.state.url,
+                position: (model.sidebar.children(of: box.id).map(\.position).min() ?? 1) - 1,
+                lastActiveAt: .now, deviceID: model.deviceID)
+            model.commit(item)
+        }
+        enginePages[item.id] = page
+        if active { activate(item) }
     }
     @ObservationIgnored private var pendingChromiumCloses: [String: SidebarItem] = [:]
     @ObservationIgnored private var pendingChromiumUnloads: Set<String> = []
