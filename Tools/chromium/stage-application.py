@@ -62,6 +62,18 @@ def assemble(base, receipt, output, native_launch=False, production_version=None
     record = json.loads(receipt.read_text())
     library = checked(record['immutable_copy'])
     native_receipt = json.loads((ROOT / 'native-built.json').read_text())
+    ui_header_sha256 = record.get('abi_header_sha256')
+    ui_library_sha256 = record.get('ui_library_sha256')
+    if not all(isinstance(value, str) and re.fullmatch(r'[0-9a-f]{64}', value)
+               for value in (ui_header_sha256, ui_library_sha256)):
+        raise RuntimeError('UI receipt lacks verified header/library provenance; rebuild the UI')
+    if ui_header_sha256 != native_receipt.get('host', {}).get('files', {}).get('boaz_host.h'):
+        raise RuntimeError('UI bridge header differs from the completed native build')
+    if not library.is_file() or library.is_symlink():
+        raise RuntimeError('UI receipt library is not a regular file')
+    with library.open('rb') as stream:
+        if hashlib.file_digest(stream, 'sha256').hexdigest() != ui_library_sha256:
+            raise RuntimeError('UI library differs from its completed build receipt')
     source_lock = json.loads((HERE / 'source.lock.json').read_text())
     framework = base / 'Contents/Frameworks/Chromium Framework.framework/Versions' / source_lock['chromium_version'] / 'Chromium Framework'
     with framework.open('rb') as stream:
@@ -150,8 +162,11 @@ def assemble(base, receipt, output, native_launch=False, production_version=None
     for name, data in verified_assets.items():
         with (blocking_destination / name).open('xb') as stream:
             stream.write(data)
+    with (frameworks / library.name).open('rb') as stream:
+        if hashlib.file_digest(stream, 'sha256').hexdigest() != ui_library_sha256:
+            raise RuntimeError('Staged UI library differs from its completed build receipt')
     manifest = {'application': str(output), 'base': str(base), 'ui_receipt': str(receipt),
-                'ui_sha256': hashlib.sha256(library.read_bytes()).hexdigest(),
+                'ui_sha256': ui_library_sha256, 'abi_header_sha256': ui_header_sha256,
                 'blocking_sha256': blocker_receipt['library_sha256'],
                 'blocking_assets': {name: hashlib.sha256(data).hexdigest() for name, data in verified_assets.items()},
                 'signed': False, 'published': False, 'production_metadata': bool(production_version),

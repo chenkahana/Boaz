@@ -3,6 +3,7 @@
 import argparse
 import datetime
 import fcntl
+import hashlib
 import json
 import os
 import plistlib
@@ -71,6 +72,8 @@ def clone_cache(runs, source_name, destination):
 
 
 def build(jobs, resume_run=None, cache_from=None):
+    abi_header = HERE / "host/boaz_host.h"
+    abi_header_sha256 = hashlib.sha256(abi_header.read_bytes()).hexdigest()
     if Path.cwd() != ROOT.parent or os.environ.get('TMPDIR') != str(ROOT.parent / 'tmp'):
         raise RuntimeError('Build requires the verified volume guard')
     with (ROOT.parent / '.build.lock').open() as lock:
@@ -130,6 +133,8 @@ def build(jobs, resume_run=None, cache_from=None):
     print(f'Application build log: {log_path}', flush=True)
     with log_path.open('x') as log:
         subprocess.run(command, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
+    if hashlib.sha256(abi_header.read_bytes()).hexdigest() != abi_header_sha256:
+        raise RuntimeError('Bridge header changed during the UI build; no completed receipt was written')
     products = run / 'DerivedData/Build/Products/Release'
     library = products / 'libBoazApplicationUI.dylib'
     if not library.is_file() or library.is_symlink():
@@ -187,6 +192,8 @@ def build(jobs, resume_run=None, cache_from=None):
     subprocess.run(['/usr/bin/iconutil', '-c', 'icns', '-o', str(icon), str(iconset)], check=True)
     resources.append({'source': str(icon_source), 'staged': str(icon)})
     manifest = {'distribution_info': distribution_info, 'cli': str(staged_cli), 'library': str(final), 'immutable_copy': str(staged),
+                'abi_header_sha256': abi_header_sha256,
+                'ui_library_sha256': hashlib.sha256(staged.read_bytes()).hexdigest(),
                 'previous': str(previous) if previous else None,
                 'resources_and_frameworks': resources, 'command': command,
                 'signed': False, 'packaged': False, 'cache_from': cache_from,
