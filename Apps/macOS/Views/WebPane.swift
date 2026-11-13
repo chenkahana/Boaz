@@ -70,6 +70,11 @@ private struct ChromiumTabPane: View {
                 }
             } else if let engine, let adapter = engine.adapter as? ChromiumEnginePageAdapter {
                 ChromiumPageView(adapter: adapter)
+                    .overlay {
+                        if adapter.state.loadFailure != nil || adapter.state.lifecycle == .crashed {
+                            ChromiumLoadFailureView(adapter: adapter)
+                        }
+                    }
                     .overlay(alignment: .top) {
                         if engine.state.isLoading { ProgressView().padding(8) }
                     }
@@ -84,7 +89,8 @@ private struct ChromiumTabPane: View {
             await ChromiumPageServices.learnFavicon(from: adapter)
         }
         .onChange(of: engine?.state, initial: true) {
-            guard let state = engine?.state, !state.isLoading, state.lifecycle == .active else { return }
+            guard let state = engine?.state, !state.isLoading, state.loadFailure == nil,
+                  state.lifecycle == .active else { return }
             browser.didNavigate(tab.id, url: state.url, title: state.title)
         }
     }
@@ -92,7 +98,8 @@ private struct ChromiumTabPane: View {
     private var faviconDocument: String? {
         guard let adapter = engine?.adapter as? ChromiumEnginePageAdapter,
               !adapter.profile.isPrivate, adapter.state.lifecycle == .active,
-              !adapter.state.isLoading, let url = adapter.state.url else { return nil }
+              !adapter.state.isLoading, adapter.state.loadFailure == nil,
+              let url = adapter.state.url else { return nil }
         return "\(adapter.handle):\(adapter.state.navigationID):\(url.absoluteString)"
     }
 
