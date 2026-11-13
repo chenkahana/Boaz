@@ -43,6 +43,17 @@ struct BrowserWindow: View {
                     .transition(reduceMotion ? .opacity : .scale(scale: 0.96, anchor: .top).combined(with: .opacity))
             }
         }
+        #if BOAZ_CHROMIUM
+        .overlay(alignment: .topTrailing) {
+            if ChromiumAutomation.shared.status?.state == .ready {
+                Label("Automation enabled", systemImage: "terminal")
+                    .font(.caption).padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(10)
+                    .accessibilityLabel("Local automation enabled for all profiles, including private windows")
+            }
+        }
+        #endif
         .overlay(alignment: .bottom) { ToastView() }
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: browser.commandMode)
         .background { AlternateShortcuts() }

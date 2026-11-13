@@ -338,6 +338,33 @@ final class ChromiumRuntime {
         throw EnginePageError.unavailable
     }
 
+    static func automationStatus() throws -> ChromiumAutomationStatus {
+        guard let owner = callbackOwner else { throw EnginePageError.unavailable }
+        try owner.requireRunning()
+        guard let read = owner.api.automation_status else { throw EnginePageError.unavailable }
+        final class Box { var value: ChromiumAutomationStatus? }
+        let box = Box()
+        let result = read({ context, state, requested, _, error in
+            guard let context else { return }
+            let copiedError = error.map { String(cString: $0) }
+            MainActor.assumeIsolated {
+                let box = Unmanaged<Box>.fromOpaque(context).takeUnretainedValue()
+                let mapped: ChromiumAutomationStatus.State
+                switch state {
+                case BOAZ_AUTOMATION_DISABLED: mapped = .disabled
+                case BOAZ_AUTOMATION_STARTING: mapped = .starting
+                case BOAZ_AUTOMATION_READY: mapped = .ready
+                default: mapped = .failed
+                }
+                box.value = ChromiumAutomationStatus(state: mapped, requestedAtStartup: requested != 0,
+                    error: copiedError.flatMap { $0.isEmpty ? nil : $0 })
+            }
+        }, Unmanaged.passUnretained(box).toOpaque())
+        try owner.check(result)
+        guard let value = box.value else { throw EnginePageError.unavailable }
+        return value
+    }
+
     static func clearCaches(for identity: EngineProfileIdentity) async throws {
         guard let owner = callbackOwner else { throw EnginePageError.unavailable }
         try await owner.clearCache(profile: identity)

@@ -110,6 +110,7 @@ private final class ChromiumApplication: NSObject {
             if event == BOAZ_HOST_PAGE_CLOSE_CANCELLED { self?.model.isQuitting = false }
         }
         runtime.shutdownReady = { [self] in
+            ChromiumAutomation.shared.stop()
             finished = true
             legacyDelegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
             windows.forEach { $0.finishClose() }
@@ -127,6 +128,7 @@ private final class ChromiumApplication: NSObject {
         }
         runtime.externalURLs = { [weak self] urls in self?.model.openExternal(urls) }
         try runtime.startCallbacks()
+        ChromiumAutomation.shared.start()
         // Chromium retains its AppController delegate and termination machinery.
         NotificationCenter.default.addObserver(self, selector: #selector(willTerminate),
             name: NSApplication.willTerminateNotification, object: nil)

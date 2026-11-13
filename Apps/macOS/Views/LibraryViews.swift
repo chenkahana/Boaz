@@ -330,6 +330,9 @@ private struct GeneralSettings: View {
                     }
                 }
             }
+            #if BOAZ_CHROMIUM
+            ChromiumAutomationSettings()
+            #endif
             AISettingsSection()
             AboutSection()
         }
