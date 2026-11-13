@@ -104,7 +104,7 @@ def main():
                        cwd=source, env=env, check=True)
     if args.build or args.host_objects:
         targets = (["obj/boaz/host/" + name + ".o" for name in
-                    ("native_view", "native_window", "tab_registry")]
+                    ("native_view", "native_window", "native_location_bar", "tab_registry")]
                    if args.host_objects else ["chrome"])
         subprocess.run([str(ninja), "-C", str(output), f"-j{args.jobs}", *targets],
                        cwd=source, env=env, check=True)

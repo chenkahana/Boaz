@@ -2,6 +2,8 @@ source_set("host") {
   sources = [
     "boaz_host.h",
     "native_view.mm",
+    "native_location_bar.h",
+    "native_location_bar.mm",
     "native_window.h",
     "native_window.mm",
     "tab_registry.h",
