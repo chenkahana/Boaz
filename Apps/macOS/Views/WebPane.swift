@@ -26,7 +26,7 @@ struct TabPane: View {
         }
         }
         #else
-        WebKitTabPane(tab: tab, inSplit: inSplit)
+        WebKitTabPane(tab: tab, inSplit: inSplit, page: browser.page(for: tab))
         #endif
     }
 }
@@ -36,18 +36,21 @@ private struct RoutedWebKitPane: View {
     @Environment(BrowserState.self) private var browser
     let tab: SidebarItem
     let inSplit: Bool
-    @State private var ready = false
+    @State private var page: WebPage?
     @State private var failed = false
     var body: some View {
         Group {
-            if ready { WebKitTabPane(tab: tab, inSplit: inSplit) }
+            if let page { WebKitTabPane(tab: tab, inSplit: inSplit, page: page) }
             else if failed {
                 ContentUnavailableView("Couldn't Open WebKit", systemImage: "exclamationmark.triangle",
                     description: Text("The selected engine could not open this page."))
             } else { ProgressView("Opening page…") }
         }.task(id: tab.id) {
-            do { ready = try browser.enginePage(for: tab).kind == .webKit; failed = !ready }
-            catch { failed = true }
+            do {
+                let engine = try browser.enginePage(for: tab)
+                guard let adapter = engine.adapter as? WebKitEnginePageAdapter else { failed = true; return }
+                page = adapter.page
+            } catch { failed = true }
         }
     }
 }
@@ -231,6 +234,7 @@ private struct WebKitTabPane: View {
     @Environment(BrowserState.self) private var browser
     let tab: SidebarItem
     let inSplit: Bool
+    let page: WebPage
     @State private var retriedOnItsOwn = false
     /// While the quiet retry is pending, the failure isn't shown.
     @State private var retrying = false
@@ -243,7 +247,6 @@ private struct WebKitTabPane: View {
     }
 
     var body: some View {
-        let page = browser.page(for: tab)
         let devTools = browser.devTools[tab.id]
         let scale = devTools.responsive?.size.map {
             max(0.1, min(1, (stage.width - 24) / $0.width, (stage.height - 24) / $0.height))

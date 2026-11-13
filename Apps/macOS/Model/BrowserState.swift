@@ -541,7 +541,10 @@ final class BrowserState {
     var activeTab: SidebarItem? { tab(activeTabID) }
     var activePage: WebPage? {
         #if BOAZ_CHROMIUM
-        if createChromiumPage != nil { return nil }
+        if createChromiumPage != nil {
+            guard activeEnginePage?.kind == .webKit, let activeTabID else { return nil }
+            return pages[activeTabID]
+        }
         #endif
         return activeTab.map(page(for:))
     }
