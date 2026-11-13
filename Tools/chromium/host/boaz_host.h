@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 5u
+#define BOAZ_HOST_ABI_VERSION 6u
 
 typedef uint64_t BoazHostWindow;
 typedef uint64_t BoazHostPage;
@@ -58,6 +58,16 @@ typedef struct BoazHostPageState {
   uint8_t can_go_forward;
   uint8_t active;
 } BoazHostPageState;
+
+typedef struct BoazHostWindowLayout {
+  size_t size;
+  BoazHostWindow window;
+  BoazHostPage first;
+  BoazHostPage second;
+  BoazHostPage active;
+  uint8_t vertical;
+  double first_ratio;
+} BoazHostWindowLayout;
 
 /* Native UI owns these objects through window_closed. Service callbacks are
  * synchronous, must not reenter the API, and may only update native UI.
@@ -131,6 +141,12 @@ typedef struct BoazHostAPI {
       const char* function_utf8, size_t function_length,
       const char* arguments_json, size_t arguments_length,
       BoazHostScriptCompletion completion, void* context);
+  /* Layout is Chromium model state. Attach the outer native views for its
+   * foreground pages; native attachment/hiding owns renderer visibility. */
+  BoazHostResult (*get_window_layout)(BoazHostWindow window, BoazHostWindowLayout* layout);
+  BoazHostResult (*set_split)(BoazHostWindow window, BoazHostPage first,
+      BoazHostPage second, uint8_t vertical, double first_ratio);
+  BoazHostResult (*clear_split)(BoazHostWindow window);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

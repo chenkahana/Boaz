@@ -37,6 +37,10 @@ class TabRegistry {
       std::u16string source, base::DictValue arguments, TrustedExecution::Completion completion);
   BoazHostResult ClosePage(BoazHostPage page);
   BoazHostResult CloseWindow(BoazHostWindow window);
+  BoazHostResult GetWindowLayout(BoazHostWindow window, BoazHostWindowLayout* layout);
+  BoazHostResult SetSplit(BoazHostWindow window, BoazHostPage first,
+      BoazHostPage second, bool vertical, double first_ratio);
+  BoazHostResult ClearSplit(BoazHostWindow window);
 
  private:
   struct Impl;
