@@ -82,6 +82,7 @@ final class BrowserState {
     private let privateEngineProfileID = UUID().uuidString
     #if BOAZ_CHROMIUM
     @ObservationIgnored var createChromiumPage: ((SidebarItem) throws -> EnginePage)?
+    @ObservationIgnored var chromiumAddressField: NSTextField?
     #endif
     @ObservationIgnored private var recency: [String] = []
     @ObservationIgnored private var isClosingIdlePages = false
