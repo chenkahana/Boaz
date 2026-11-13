@@ -6,17 +6,17 @@ Recorded 2026-11-13 against Boaz `045132d7bd3b7a191730031a018554ad1f0bcfbe`, fet
 
 | Gate | Status | Evidence or missing prerequisite |
 |---|---|---|
-| F1 native host and lifecycle | Blocked, not executed | CMake absent from PATH; no selected CEF distribution or built host |
+| F1 native host and lifecycle | In progress | CMake 4.5.0 and Ninja 1.13.2 installed; prebuilt host under construction |
 | F2 native embedding and extensions | Proposed direct route rejected by source contract; alternatives unproven | Inspected macOS CEF header forces Alloy when `parent_view` is supplied |
 | F3 trusted scripts | Blocked by unselected runtime route | No isolated-world or extension messaging implementation demonstrated |
-| F4 custom distribution | Blocked on this host | 36 GiB RAM and about 37 GiB available disk, below the plan's 64 GB RAM / 300 GB free build-host requirement |
+| F4 custom distribution | Storage ready; build not executed | Verified 500 GiB APFS image on existing SSD; use at most 12 jobs on this 36 GiB Mac |
 | F5 platform behavior | Not executed | Requires a working selected host |
 | F6 performance baseline | Not executed | No CEF host; no benchmark numbers claimed |
-| F7 external dependencies | Partly inspected; unresolved | Worker provider rejected the selected model for lack of usage credits; signing/notarization, build-host provisioning, artifact access, codecs, and Widevine remain unverified |
+| F7 external dependencies | Partly inspected; unresolved | Default-model workers now available; signing/notarization, codecs, and Widevine remain unverified |
 
-No gate has a GO verdict. No binary lockfile has been fabricated. The upstream source revision below is an inspection reference, not a selected stable distribution.
+No complete S1–S7 gate has a GO verdict. SSD filesystem acceptance passed separately. The original upstream source revision below is an inspection reference, not the selected stable distribution.
 
-## Deterministic evidence
+## Original checkpoint evidence
 
 The CEF repository is absent from Boaz, so official upstream source was needed. GitHub reported CEF master revision `e6035cfb35235e19ea5d5eae62c989b9ef0818dc` during inspection.
 
@@ -42,10 +42,14 @@ Local checks:
 
 No secrets, cookies, passwords, or signing-key material were read. No custom CEF build, application build, runtime spike, performance run, or release was attempted.
 
-## Judgment and next bounded experiment
+## Updated execution decision
 
-The approved policy stops dependent implementation when deterministic evidence contradicts the initial assumption or a required tool is missing. Building an engine seam around an unproven extension host would commit the application to an architecture that may not meet parity.
+The APFS image at `/Volumes/Chen's SSD/BoazBuild.sparsebundle` preserves the exFAT drive and its existing files. It passed permissions, executable, symlink, hard-link, ownership, and detach/reattach checks. See [storage.md](spikes/storage.md).
 
-After CMake and a usable worker provider are available, select a prebuilt macOS arm64 standard distribution and pin its version and checksum. The next architecture experiment is a Chrome-style CEF Views host with native-window integration. It must demonstrate extension access to visible tabs and pass focus, clipping, fullscreen, split view, and accessibility checks before acceptance. A separate hidden host is not an adequate substitute by assertion.
+Use the default model for workers. Build prerequisites and custom-build capacity do not block independent prebuilt experiments. CMake 4.5.0, Ninja 1.13.2, Python 3.9.6, Xcode 27.2, and macOS SDK 27.2 are available.
 
-A larger custom-build machine is needed only for F4, not to start the prebuilt host experiment. Widevine approval remains a later external release gate. Neither blocker is evidence that native hosting itself is impossible.
+Selected prebuilt: CEF `156.0.28+g57389f0+chromium-156.0.8078.88`, macosarm64 standard distribution, source commit `57389f04a61ab0e9603d9f96602843d0e08bb11c`. The 312,278,280-byte archive matched published SHA-1 `30919cc28e5cae6b82f7817e6829d4ac863454ae`; its locally computed SHA-256 is `bf6907ff9b5e019fc52a74bdcef00ab962afce99e1cc99e5a50f935b2f684583`.
+
+Run S1 with Alloy in a native parent, then S2a with a Chrome-style CEF Views window hosting native UI. `CefWindow::GetWindowHandle()` is an NSView handle on macOS; obtain its window rather than casting it to NSWindow. S2b is a bounded custom-build fallback only if S2a fails. Direct-parent Alloy behavior does not reject the Views route.
+
+Custom builds stay entirely in `/Volumes/BoazBuild/cef`, with space monitoring and at most 12 jobs initially. Widevine and production signing remain independent release gates.

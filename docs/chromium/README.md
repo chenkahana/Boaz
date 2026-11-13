@@ -4,13 +4,13 @@ The GitHub DMG is intended to move to Chromium while the Mac App Store and iPhon
 
 ## Current status
 
-Wave 0 is blocked. No Chromium engine, binary distribution, or application changes have been integrated. The source/API inspection in [feasibility.md](feasibility.md) rejects the assumed direct Chrome-style child-NSView route for the inspected CEF revision. It does not establish that all alternative architectures fail.
+Wave 0 is in progress. The external SSD now contains a verified APFS build image; CMake and Ninja are installed. Native hosting uses the prebuilt-distribution experiments before any production engine migration. See [feasibility.md](feasibility.md) and [SSD verification](spikes/storage.md).
 
 The [parity ledger](parity.md) records the existing implementation and required acceptance coverage. Source inventory is not runtime verification.
 
 ## Execution order
 
-1. Resolve the build-tool and worker-provider blockers. Select and checksum a prebuilt CEF distribution and inspect its exact headers.
+1. Use the default worker model. Select and checksum a prebuilt CEF distribution and inspect its exact headers. The external APFS image is for custom builds; prebuilt experiments remain independent.
 2. Prove native lifecycle, extensions on actual Boaz tabs, and trusted scripts. Investigate a CEF Views host only as a bounded feasibility task, including focus, clipping, accessibility, split view, and native-window behavior. A hidden extension host is not accepted without evidence that it controls the visible tabs.
 3. After those gates pass, freeze engine contracts and implement WebKit adapters without changing iPhone behavior. Use a concrete observable page facade, typed script values, origin/frame/navigation identity, single-completion callbacks, and explicit page lifecycle states.
 4. Integrate the Objective-C++ Chromium bridge, helpers, artifact retrieval, and isolated build outputs. CEF callbacks retain their documented thread contracts; UI notifications cross to MainActor.
@@ -19,7 +19,7 @@ The [parity ledger](parity.md) records the existing implementation and required 
 
 ## Worker dispatch
 
-The orchestrator owns contracts, overlapping application files, project generation, security decisions, integration, and acceptance. Use at most two workers plus the orchestrator. The selected low-cost model is `glm-5.3-flash:cloud`; provider availability must be established before dispatch. Do not substitute a costly model silently.
+The orchestrator owns contracts, overlapping application files, project generation, security decisions, integration, and acceptance. Use at most two workers plus the orchestrator. Use the default model without a separate worker-provider dependency. Keep tasks small and context bounded.
 
 Each worker gets one behavior, an exact base commit, prerequisite IDs, owned files, contracts, existing edge cases, acceptance scenarios, one bounded verification step, exclusions, and a required handoff. Handoffs distinguish deterministic evidence from judgment. Internal messages use `/caveman full` style. Return failures to the orchestrator after two unsuccessful attempts.
 
