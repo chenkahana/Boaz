@@ -214,6 +214,23 @@ public final class BoazStore: Sendable {
             }
             try createSyncTriggers(for: .device, in: db)
         }
+        migrator.registerMigration("v6-local-engine-routing") { db in
+            try db.create(table: "tabEngineChoice") { t in
+                t.column("profileID", .text).notNull()
+                t.column("tabID", .text).notNull()
+                t.column("engine", .text).notNull()
+                t.primaryKey(["profileID", "tabID"])
+            }
+            try db.create(table: "siteEngineRule") { t in
+                t.column("profileID", .text).notNull()
+                t.column("host", .text).notNull()
+                t.column("pathPrefix", .text).notNull()
+                t.column("engine", .text).notNull()
+                t.column("reason", .text).notNull()
+                t.column("createdAt", .datetime).notNull()
+                t.primaryKey(["profileID", "host", "pathPrefix", "reason"])
+            }
+        }
         return migrator
     }
 
