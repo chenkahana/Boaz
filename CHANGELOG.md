@@ -13,6 +13,8 @@ All notable changes to Boaz are recorded here. The format follows
 
 ### Fixed
 
+- iPhone: saving a photo from a website (Save to Photos, or Save Image from the share sheet) no longer closes
+  Boaz. iOS now asks for permission to add to your photo library instead.
 - iPhone: a link sent to Boaz again (tapped twice, or replayed after a cold launch) goes back to its tab instead of
   opening a duplicate.
 

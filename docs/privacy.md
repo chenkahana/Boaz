@@ -38,6 +38,9 @@ collect, see or sell any of it.
 Websites can ask to use your camera, microphone or location (for example for a video call or a map). Your device
 asks you first, and you can change the answer at any time in Settings.
 
+On iPhone, saving an image or video from a website to Photos asks for permission to add to your photo library.
+Boaz can only add to it, never read it.
+
 ## Importing from Arc and other browsers (Mac)
 
 When you choose to import, Boaz reads the files in the folder you select (such as Arc's data folder or a
