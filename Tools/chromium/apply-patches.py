@@ -139,11 +139,12 @@ def main():
                 paths.add(name)
         if paths != names or re.search(rb"^(new file mode|deleted file mode|rename |copy |old mode|new mode)", patch.read_bytes(), re.M):
             fail("Patch must modify only declared existing regular files")
-    if args.apply and not args.guarded:
+    if not args.guarded:
         return subprocess.call([lock["python"], str(HERE.parent / "cef/run-build.py"), "--",
-                                lock["python"], str(Path(__file__).resolve()), "--apply", "--guarded"])
+                                lock["python"], str(Path(__file__).resolve()),
+                                *(["--apply"] if args.apply else []), "--guarded"])
     if args.guarded:
-        if not args.apply or Path.cwd() != root.parent or os.environ.get("TMPDIR") != str(root.parent / "tmp"):
+        if Path.cwd() != root.parent or os.environ.get("TMPDIR") != str(root.parent / "tmp"):
             fail("Apply requires the verified SSD guard")
         with regular(root.parent / ".build.lock").open("r") as stream:
             try:
@@ -176,8 +177,10 @@ def main():
         if pending:
             print("Pending transaction needs guarded --apply; no files changed.")
             return 0
-        # Internal temporary staging only; never writes into SSD source/history.
-        with tempfile.TemporaryDirectory(prefix="boaz-patch-check-", dir="/tmp") as tmp:
+        # Disposable check files stay on the verified build image.
+        check_root = canonical(root / "tmp/patch-check")
+        check_root.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="check-", dir=check_root) as tmp:
             staged = Path(tmp) / "source"
             staged.mkdir()
             for entry in entries[len(applied):]:

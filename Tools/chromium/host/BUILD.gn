@@ -1,9 +1,32 @@
+import("//build/buildflag_header.gni")
+
+declare_args() {
+  boaz_widevine_enabled = false
+}
+
+buildflag_header("buildflags") {
+  header = "buildflags.h"
+  flags = [ "BOAZ_WIDEVINE_ENABLED=$boaz_widevine_enabled" ]
+}
+
+source_set("headers") {
+  public = [ "bootstrap.h", "native_permission_prompt.h" ]
+  public_deps = [
+    "//chrome/browser/ui:browser_window_deleter",
+    "//components/permissions",
+  ]
+}
+
 source_set("host") {
   sources = [
     "boaz_host.h",
+    "bootstrap.h",
+    "bootstrap.mm",
     "native_view.mm",
     "native_location_bar.h",
     "native_location_bar.mm",
+    "native_permission_prompt.h",
+    "native_permission_prompt.mm",
     "native_window.h",
     "native_window.mm",
     "tab_registry.h",

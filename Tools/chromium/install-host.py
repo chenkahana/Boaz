@@ -33,8 +33,9 @@ def main():
     root = Path(lock["storage_root"])
     destination = root / "chromium/src/boaz"
     contents = inventory(scripts / "host")
-    required = {"BUILD.gn", "boaz_host.h", "native_view.mm", "native_window.h",
+    required = {"BUILD.gn", "boaz_host.h", "bootstrap.h", "bootstrap.mm", "native_view.mm", "native_window.h",
                 "native_window.mm", "native_location_bar.h", "native_location_bar.mm",
+                "native_permission_prompt.h", "native_permission_prompt.mm",
                 "tab_registry.h", "tab_registry.cc"}
     if not required.issubset(contents):
         raise RuntimeError("Host packet is incomplete; integrate its implementation first.")

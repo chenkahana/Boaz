@@ -104,8 +104,15 @@ def main():
                        cwd=source, env=env, check=True)
     if args.build or args.host_objects:
         targets = (["obj/boaz/host/" + name + ".o" for name in
-                    ("native_view", "native_window", "native_location_bar", "tab_registry")]
+                    ("bootstrap", "native_view", "native_window", "native_location_bar", "native_permission_prompt", "tab_registry")]
                    if args.host_objects else ["chrome"])
+        if args.host_objects:
+            targets += [
+                "obj/chrome/browser/core/chrome_browser_main.o",
+                "obj/chrome/browser/ui/views/frame/browser_window_factory/browser_window_factory.o",
+                "obj/chrome/browser/ui/views/permissions/impl/permission_prompt_factory.o",
+                "obj/chrome/browser/component_updater/impl/registration.o",
+            ]
         subprocess.run([str(ninja), "-C", str(output), f"-j{args.jobs}", *targets],
                        cwd=source, env=env, check=True)
     return 0

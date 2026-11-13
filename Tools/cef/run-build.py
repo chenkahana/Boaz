@@ -3,12 +3,14 @@
 
 import datetime
 import fcntl
+import json
 import os
 from pathlib import Path
 import shutil
 import signal
 import subprocess
 import sys
+import time
 
 sys.dont_write_bytecode = True
 import volume
@@ -17,10 +19,25 @@ import volume
 def capacity():
     volume.drive_info()
     volume.mounted_info()
+    free = {}
     for path, minimum in ((volume.DRIVE, 20), (volume.MOUNT, 30)):
         available = shutil.disk_usage(path).free
+        free[str(path)] = available
         if available < minimum * volume.GIB:
             raise RuntimeError(f"{path}: {available} bytes free; need at least {minimum} GiB.")
+    return free
+
+def resident_bytes(process):
+    rows = subprocess.check_output(["ps", "-axo", "pid=,ppid=,pgid=,rss="], text=True)
+    processes = [tuple(map(int, line.split())) for line in rows.splitlines() if line.strip()]
+    owned = {pid for pid, parent, group, rss in processes if group == process.pid}
+    owned.add(process.pid)
+    while True:
+        children = {pid for pid, parent, group, rss in processes if parent in owned}
+        if children.issubset(owned):
+            break
+        owned.update(children)
+    return sum(rss * 1024 for pid, parent, group, rss in processes if pid in owned)
 
 
 def stop(process):
@@ -60,10 +77,21 @@ def main():
             process = subprocess.Popen(args, cwd=root, env=env, stdout=log, stderr=subprocess.STDOUT,
                                        start_new_session=True)
             awake = None
+            started = time.monotonic()
+            minimum_free = {}
+            initial_free = {}
+            peak_rss = 0
+            sample_count = 0
             try:
                 awake = subprocess.Popen(["caffeinate", "-dimsu", "-w", str(process.pid)])
                 while process.poll() is None:
-                    capacity()
+                    free = capacity()
+                    if not initial_free:
+                        initial_free = free.copy()
+                    for path, amount in free.items():
+                        minimum_free[path] = min(minimum_free.get(path, amount), amount)
+                    peak_rss = max(peak_rss, resident_bytes(process))
+                    sample_count += 1
                     try:
                         process.wait(timeout=10)
                     except subprocess.TimeoutExpired:
@@ -74,6 +102,20 @@ def main():
                 if awake is not None:
                     awake.terminate()
                     awake.wait()
+                metrics = {
+                    "process_exit_code": process.returncode,
+                    "duration_seconds": round(time.monotonic() - started, 3),
+                    "sample_interval_seconds": 10,
+                    "samples": sample_count,
+                    "initial_free_bytes": initial_free,
+                    "minimum_sampled_free_bytes": minimum_free,
+                    "peak_sampled_owned_rss_sum_bytes": peak_rss,
+                    "memory_note": "Sampled process-tree RSS sum, including shared pages; not physical footprint or an absolute peak.",
+                }
+                with log_path.with_suffix(".metrics.json").open("x") as output:
+                    json.dump(metrics, output, indent=2)
+                    output.flush()
+                    os.fsync(output.fileno())
 
 
 if __name__ == "__main__":

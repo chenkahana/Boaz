@@ -12,6 +12,7 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/gfx/native_ui_types.h"
+#include "ui/gfx/mac/coordinate_conversion.h"
 #include "url/origin.h"
 
 namespace boaz {
@@ -44,7 +45,8 @@ class NativePermissionPrompt final : public permissions::PermissionPrompt {
   }
   bool IsAskPrompt() const override { return true; }
   std::optional<gfx::Rect> GetViewBoundsInScreen() const override {
-    return std::nullopt;
+    if (!alert_ || !alert_.window.visible) return std::nullopt;
+    return gfx::ScreenRectFromNSRect(alert_.window.frame);
   }
   std::vector<permissions::ElementAnchoredBubbleVariant>
   GetPromptVariants() const override { return {}; }

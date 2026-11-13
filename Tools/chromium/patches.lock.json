@@ -1,0 +1,56 @@
+{
+  "chromium_version": "157.0.8103.51",
+  "patches": [
+    {
+      "file": "patches/native-host.patch",
+      "sha256": "670f4403876cdc46fb3f59e1b718a789ea33cb7536bd6f59a922daab71105c35",
+      "files": [
+        {
+          "path": "chrome/BUILD.gn",
+          "before": "9e64db4b69b1c295f49bd65d2182aa788b5143465f630694284987b5a8b1031d",
+          "after": "66c7722e64e00dd68dfc4b640b079e827ded2cd7dbe4613d16a265c97d89917b"
+        },
+        {
+          "path": "chrome/browser/BUILD.gn",
+          "before": "d933e893d446407e1d7cd9ad925615e0f2f3930ce230b69d61ecd4b148cf41ba",
+          "after": "ce2b200b82255ad21f907426c992ca4bce59c2bce919111d57934bdd79d992ba"
+        },
+        {
+          "path": "chrome/browser/chrome_browser_main.cc",
+          "before": "be5816f38ac76dca5016726c3c7cd099ad27e8e7ab151bde6c09b0701fb1f370",
+          "after": "13f3fa7c0897bfdf252a40a24f15e879fe5b6bdbbf17182bb1523c96044c7d04"
+        },
+        {
+          "path": "chrome/browser/component_updater/BUILD.gn",
+          "before": "155d6a5712ff5b90c18b58ef4d1f21fdce2b4c89762bbb064711cd26ebef3c46",
+          "after": "eb2661d8cf84cf144e1f9ea07bc5d33a48670217d0b0994b35b42f87a22dd0db"
+        },
+        {
+          "path": "chrome/browser/component_updater/registration.cc",
+          "before": "09ca87c810fe7d441f48cc1918ac036d01a57dc2ffb5fe61f8d33d32cc88fcdb",
+          "after": "97ad87cd1d229346c1b1364d09c473335819ba0aba5c8aba9f5039925ebe3d63"
+        },
+        {
+          "path": "chrome/browser/ui/views/frame/BUILD.gn",
+          "before": "3ff00320fc3ad02f5d8044946e23ed6b1d73ce7a326312a0994d7c30bfe0f5eb",
+          "after": "b1a6f983e08f5bde200af731e8892f444a5681f2d35a938fcdaf5dc3f8590f3a"
+        },
+        {
+          "path": "chrome/browser/ui/views/frame/browser_window_factory.cc",
+          "before": "48515fc4eb091e99e99aa1e945750badd41e2c654aeac551856cda861498cf76",
+          "after": "f05e1d6dbe8afab99f17d200c98869aabcfa8eafba6414a829f4f2d209a98c5b"
+        },
+        {
+          "path": "chrome/browser/ui/views/permissions/BUILD.gn",
+          "before": "9cdfc4757c9339795fa28d9aab5b10bff5279fb4c2173009026bbf9c4ea624dd",
+          "after": "cd1dbe3ddb9850fd796fda61e1f076d92a75b4b89baf94758d27b94a0ce6e26e"
+        },
+        {
+          "path": "chrome/browser/ui/views/permissions/permission_prompt_factory.cc",
+          "before": "ad517e6807976e1036531015b139071cdf88a2a17d6aa9bbe2c2d7a015d5fac9",
+          "after": "3f6fa08643ea62e4964810c8837af50f11bf19587ccecfeff09072427ca153b6"
+        }
+      ]
+    }
+  ]
+}
