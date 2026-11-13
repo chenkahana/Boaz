@@ -105,3 +105,18 @@ Continue native page operations, Quick Window/Peek, profile-aware space transiti
 - Developer ID/notarization, update/delta/rollback and distribution size require final packaged artifacts and signing access.
 - Widevine enablement requires approval; mandatory protected playback follows the approved WebKit/FairPlay route.
 - Three days of dogfooding requires the integrated candidate and elapsed use. No source check substitutes for it.
+
+
+## Implementation checkpoint — 2026-11-13, native ABI 24 in source
+
+Implementation is not parity acceptance. PR #70 remains draft; code complete has not been reached.
+
+- Integrated native profile download observation, pause/resume/cancel, a real Downloads panel, and pending-download close confirmation. Downloads retain their original Chromium requests; no URLSession refetch. Native object compilation passed at ABI 21; live authenticated-download and cancellation acceptance remain pending.
+- Integrated viewport/touch controls, actual runtime UA metadata, acknowledged custom-UA overrides/reset, cached hover/restoration previews, native Print, and bounded document-bound PDF export. Custom UA suppresses hints rather than fabricating metadata. PDF and latest UI require their queued build/runtime pass.
+- Integrated per-profile local tab engine choices/site-rule tables, Chromium/WebKit routing, explicit switch warnings, native close/cancel barriers, engine badge/menu and Settings. These preferences do not sync. Mixed-window lifetime patches preserve Chromium's idle state when WebKit tabs remain. The combined ten-live-page policy is implemented; runtime retention, split, close, and unsaved-work acceptance are pending.
+- Full native build at `5c35724` passed: `/Volumes/BoazBuild/cef/logs/20261113T164414.764923Z.log`. Focused objects, including both empty-tab lifetime hooks, passed in `20261113T164324.609012Z.log`.
+- Real application UI at `02ade75` passed in run `20261113T163510Z-247a0710f2e643df8735dd730f3d8d6e`, resumed build log `xcodebuild-20261113T163735Z-73dca4c147e34285bdbaaa4d358bb69b.log`. This predates mixed routing and PDF. Newer application compilation is queued/running separately; no concurrent heavy builds or benchmarks.
+- Earlier signed ABI 18 application reached Boaz onboarding/sidebar/command bar, then crashed in Chromium bookmark-menu construction after becoming main. `2630648` removes that Chrome-menu path for the native host. Native compilation passes; signed navigation remains unverified. Earlier prototype HTTPS rendering does not pass the real-application gate.
+- Build failures resolved: non-public content-client API replaced by the actual public embedder UA provider; inherited `LIBRARY_PATH` removed from native build subprocesses; Swift viewport rotation avoids overlapping state writes. Failed logs and outputs remain preserved.
+
+Required open dependencies include protected-media request routing and actual FairPlay playback, automatic password save/subframe workflows, extension cohort and store flows, migration, passkey/input/accessibility runtime checks, complete DevTools coverage, signed distribution/update/rollback, performance/size budgets, and three days of dogfooding. No new tests were added. Builds and source checks above do not establish those gates.
