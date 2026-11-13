@@ -281,7 +281,6 @@ private struct PageUpdate {
         }
         if state.active {
             active = page.id
-            if address.currentEditor() == nil { address.stringValue = page.url }
             for other in pages where other.id != page.id { other.view?.removeFromSuperview() }
             if let view = page.view {
                 if view.superview !== viewport { view.removeFromSuperview(); viewport.addSubview(view) }
