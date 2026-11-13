@@ -169,10 +169,10 @@ final class MacModel {
     }
 
     /// CloudKit pushes can go missing, and a Mac browser can stay frontmost for hours, so the app checks for
-    /// changes from other devices every couple of minutes while it's in use.
+    /// changes from other devices every couple of minutes while it's in use, or every ten in Low Power Mode.
     private func fetchLoop(_ sync: LibrarySync) async {
         while !Task.isCancelled {
-            try? await Task.sleep(for: .seconds(120))
+            try? await Task.sleep(for: .seconds(ProcessInfo.processInfo.isLowPowerModeEnabled ? 600 : 120))
             if NSApplication.shared.isActive { await sync.syncNow() }
         }
     }

@@ -291,12 +291,14 @@ extension View {
     func webCard(focused: Bool = false, tint: Color = .accentColor) -> some View {
         let shape = ConcentricRectangle(corners: .concentric(minimum: .fixed(MacRadius.card)), isUniform: true)
         return self
-            .background(Color(nsColor: .textBackgroundColor))
             .clipShape(shape)
             .overlay {
                 shape.stroke(focused ? tint.opacity(0.9) : .black.opacity(0.08), lineWidth: focused ? 2 : 0.5)
             }
-            .shadow(color: .black.opacity(0.16), radius: 5, y: 1)
+            // Cast by the card's shape, not by the page, so it isn't drawn again each time the page redraws.
+            .background {
+                shape.fill(Color(nsColor: .textBackgroundColor)).shadow(color: .black.opacity(0.16), radius: 5, y: 1)
+            }
     }
 }
 

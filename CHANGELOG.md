@@ -6,6 +6,11 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Mac: Boaz uses less energy. The shadow around a web page is no longer redrawn each time the page redraws, and in
+  Low Power Mode Boaz checks iCloud for changes from your other devices every 10 minutes instead of every 2.
+
 ## [0.2.6] - 2026-11-12
 
 ### Fixed
