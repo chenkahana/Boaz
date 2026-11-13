@@ -1,12 +1,12 @@
 use adblock::{
     Engine,
-    lists::{FilterSet, ParseOptions, parse_filter},
+    lists::{FilterParseError, FilterSet, ParseOptions, parse_filter},
     request::Request,
     resources::{InMemoryResourceStorage, Resource},
 };
 use serde_json::{Value, json};
 use std::{
-    collections::HashSet,
+    collections::{BTreeMap, HashSet},
     panic::{AssertUnwindSafe, catch_unwind},
     ptr, slice,
 };
@@ -119,6 +119,9 @@ pub unsafe extern "C" fn boaz_adblock_create(
         }
         let mut rejected = 0usize;
         let mut invalid = Vec::new();
+        let mut reasons = Vec::new();
+        let mut groups = BTreeMap::<String, usize>::new();
+        let mut other_groups = 0usize;
         for (index, line) in rules.lines().enumerate() {
             let line = line.trim();
             if line.is_empty()
@@ -131,10 +134,23 @@ pub unsafe extern "C" fn boaz_adblock_create(
             {
                 continue;
             }
-            if parse_filter(line, false, ParseOptions::default()).is_err() {
+            if let Err(error) = parse_filter(line, false, ParseOptions::default()) {
                 rejected += 1;
+                let (family, debug) = match &error {
+                    FilterParseError::Network(inner) => ("Network", format!("{inner:?}")),
+                    FilterParseError::Cosmetic(inner) => ("Cosmetic", format!("{inner:?}")),
+                    _ => ("Filter", format!("{error:?}")),
+                };
+                let variant = debug.split(['(', '{', ' ']).next().unwrap_or("Unknown");
+                let reason = format!("{family}::{variant}");
+                if groups.contains_key(&reason) || groups.len() < 64 {
+                    *groups.entry(reason.clone()).or_default() += 1;
+                } else {
+                    other_groups += 1;
+                }
                 if invalid.len() < 32 {
                     invalid.push(index + 1);
+                    reasons.push(json!({"line": index + 1, "reason": reason}));
                 }
             }
         }
@@ -142,7 +158,9 @@ pub unsafe extern "C" fn boaz_adblock_create(
             emit(
                 diagnostics,
                 json_bytes(json!({"rejected_rules": rejected,
-            "invalid_rule_line_numbers_sample": invalid, "rejected_resources": resource_error_count,
+            "invalid_rule_line_numbers_sample": invalid,
+            "invalid_rule_reasons_sample": reasons, "rejected_rule_groups": groups,
+            "other_rejected_rule_groups_count": other_groups, "rejected_resources": resource_error_count,
             "invalid_resource_indices_sample": resource_errors}))?,
             )?;
         }
