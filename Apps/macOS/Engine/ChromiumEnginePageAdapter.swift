@@ -133,6 +133,41 @@ final class ChromiumEnginePageAdapter: EnginePageAdapter {
         try check(set(handle, next))
     }
 
+    struct HistoryEntry: Identifiable {
+        let id: Int32
+        let offset: Int32
+        let url: String
+        let title: String
+    }
+    private final class HistorySnapshot { var entries: [HistoryEntry] = [] }
+
+    func historySnapshot() throws -> [HistoryEntry] {
+        try requireOpen()
+        guard let enumerate = api.enumerate_history else { throw EnginePageError.incompatibleBridge }
+        let snapshot = HistorySnapshot()
+        try check(enumerate(handle, { context, id, offset, url, title in
+            guard let context else { return }
+            MainActor.assumeIsolated {
+                Unmanaged<HistorySnapshot>.fromOpaque(context).takeUnretainedValue().entries.append(
+                    HistoryEntry(id: id, offset: offset, url: url.map { String(cString: $0) } ?? "",
+                                 title: title.map { String(cString: $0) } ?? ""))
+            }
+        }, Unmanaged.passUnretained(snapshot).toOpaque()))
+        return snapshot.entries
+    }
+
+    func gotoStableEntry(_ id: Int32) throws {
+        try requireOpen()
+        guard let navigate = api.go_to_history_entry else { throw EnginePageError.incompatibleBridge }
+        try check(navigate(handle, id))
+    }
+
+    func stopLoading() throws {
+        try requireOpen()
+        guard let stop = api.stop_loading else { throw EnginePageError.incompatibleBridge }
+        try check(stop(handle))
+    }
+
     func close() throws {
         guard state.lifecycle != .closed, state.lifecycle != .closing, !closeRequested else { return }
         try check(api.close_page!(handle))
