@@ -71,6 +71,11 @@ private final class ChromiumApplication: NSObject {
                 catch { model.showToast(error.localizedDescription) }
             }
         }
+        runtime.protectedMedia = { [weak self] page, navigation, profile, key in
+            self?.windows.forEach {
+                $0.browser.protectedMediaRequested(page: page, navigation: navigation, profile: profile, keySystem: key)
+            }
+        }
         runtime.pageEvent = { [weak self] handle, event in
             self?.windows.forEach { $0.browser.chromiumPageEvent(handle, event: event) }
             if event == BOAZ_HOST_PAGE_CLOSE_CANCELLED { self?.model.isQuitting = false }

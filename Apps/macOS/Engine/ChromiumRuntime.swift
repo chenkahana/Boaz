@@ -22,6 +22,7 @@ final class ChromiumRuntime {
     var pageActivated: ((BoazHostWindow, BoazHostPage) -> Void)?
     var pageCreated: ((BoazHostWindow, EnginePage, Bool) -> Void)?
     var pageEvent: ((BoazHostPage, BoazHostPageEvent) -> Void)?
+    var protectedMedia: ((BoazHostPage, UInt64, EngineProfileIdentity, ProtectedMediaService.KeySystem) -> Void)?
 
     private static weak var callbackOwner: ChromiumRuntime?
     private var downloads: [BoazHostProfile: ChromiumDownloads] = [:]
@@ -78,6 +79,24 @@ final class ChromiumRuntime {
                 DispatchQueue.main.async { [weak owner] in
                     guard let owner, !owner.stopped else { return }
                     owner.receivePage(event, copied)
+                }
+            }
+        }
+        callbacks.protected_media = { context, page, navigation, profile, system in
+            guard let context else { return }
+            let key: ProtectedMediaService.KeySystem
+            switch system {
+            case BOAZ_KEY_WIDEVINE: key = .widevine
+            case BOAZ_KEY_PLAYREADY: key = .playReady
+            default: return
+            }
+            MainActor.assumeIsolated {
+                let owner = Unmanaged<ChromiumRuntime>.fromOpaque(context).takeUnretainedValue()
+                DispatchQueue.main.async { [weak owner] in
+                    guard let owner, !owner.stopped, let identity = owner.preparedProfiles[profile]?.identity,
+                          let adapter = owner.pages[page], adapter.profile == identity,
+                          adapter.state.navigationID == navigation, adapter.state.lifecycle == .active else { return }
+                    owner.protectedMedia?(page, navigation, identity, key)
                 }
             }
         }
