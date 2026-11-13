@@ -147,12 +147,12 @@ def main():
                        cwd=source, env=env, check=True)
     if args.build or args.host_objects:
         targets = (["obj/boaz/host/" + name + ".o" for name in
-                    ("bootstrap", "native_profiles", "native_view", "native_window", "native_location_bar", "native_permission_prompt", "tab_registry", "trusted_execution", "password_submission", "trusted_script_channel", "extension_actions", "extension_popup")]
+                    ("bootstrap", "native_profiles", "visible_page_capture", "native_view", "native_window", "native_location_bar", "native_permission_prompt", "tab_registry", "trusted_execution", "password_submission", "trusted_script_channel", "extension_actions", "extension_popup")]
                    if args.host_objects else ["chrome", "chrome/installer/mac"])
         if args.host_objects:
             targets += [
                 "obj/boaz/launch/launch.o",
-                "obj/chrome/app/chrome_main_delegate/chrome_main_delegate.o",
+                "obj/chrome/chrome_dll/chrome_main_delegate.o",
                 "obj/chrome/browser/core/chrome_browser_main.o",
                 "obj/chrome/browser/ui/views/frame/browser_window_factory/browser_window_factory.o",
                 "obj/chrome/browser/ui/views/permissions/impl/permission_prompt_factory.o",

@@ -18,6 +18,7 @@ source_set("headers") {
 }
 
 source_set("host") {
+  public_deps = [ ":launch" ]
   sources = [
     "boaz_host.h",
     "extension_actions.h",
@@ -47,7 +48,6 @@ source_set("host") {
     "trusted_execution.cc",
   ]
   deps = [
-    ":launch",
     "//base",
     "//chrome/browser",
     "//chrome/browser/extensions",
