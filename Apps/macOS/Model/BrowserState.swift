@@ -136,6 +136,7 @@ final class BrowserState {
     @ObservationIgnored var updateChromiumExternalTabCount: ((UInt32) -> Bool)?
     private var engineRoutingFailures: Set<String> = []
     private var engineChoices: [String: BrowserEngineKind] = [:]
+    @ObservationIgnored private var engineRulesRevision: UInt64 = 0
     @ObservationIgnored private var cachedEngineRules: [String: [SiteEngineRule]] = [:]
     @ObservationIgnored private var pendingEngineSwitches: [String: URL?] = [:]
     @ObservationIgnored private var reservedWebKitTabs: Set<String> = []
@@ -143,6 +144,10 @@ final class BrowserState {
 
     func engineKind(for tab: SidebarItem) -> BrowserEngineKind {
         guard createChromiumPage != nil else { return .webKit }
+        if engineRulesRevision != ChromiumEnginePreferences.revision {
+            engineRulesRevision = ChromiumEnginePreferences.revision
+            cachedEngineRules.removeAll()
+        }
         if engineRoutingFailures.contains(tab.id) { return .chromium }
         if let choice = engineChoices[tab.id] { return choice }
         if let live = enginePages[tab.id] { return live.kind }
@@ -158,7 +163,7 @@ final class BrowserState {
             let stored = try store.tabEngine(tabID: tab.id, profileID: tab.profileID)
             let rule = tab.url.flatMap { SiteEngineRule.matchingRule(for: $0, profileID: tab.profileID,
                 rules: cachedEngineRules[tab.profileID] ?? []) }
-            let choice: BrowserEngineKind = (stored ?? rule?.engine) == .webkit ? .webKit : .chromium
+            let choice: BrowserEngineKind = (stored ?? rule?.engine ?? ChromiumEnginePreferences.defaultEngine(profileID: tab.profileID)) == .webkit ? .webKit : .chromium
             engineChoices[tab.id] = choice
             return choice
         } catch {
