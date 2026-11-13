@@ -157,7 +157,7 @@ def main():
                 "obj/chrome/browser/component_updater/impl/registration.o",
                 "obj/chrome/browser/extensions/extensions/extension_view_host.o",
             ]
-        subprocess.run([str(ninja), "-C", str(output), f"-j{args.jobs}", *targets],
+        subprocess.run([str(ninja), "-C", str(output), f"-j{args.jobs}", *(["-k", "0"] if args.host_objects else []), *targets],
                        cwd=source, env=env, check=True)
     return 0
 
