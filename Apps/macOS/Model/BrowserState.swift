@@ -132,6 +132,96 @@ final class BrowserState {
     @ObservationIgnored private var chromiumPeekTask: Task<Void, Never>?
     @ObservationIgnored private var queuedChromiumPeek: (url: URL, profileID: String?)?
     private(set) var chromiumPeekClosing = false
+    var hasWebKitPages: Bool { !pages.isEmpty }
+    @ObservationIgnored var updateChromiumExternalTabCount: ((UInt32) -> Bool)?
+    private var engineChoices: [String: BrowserEngineKind] = [:]
+    @ObservationIgnored private var cachedEngineRules: [String: [SiteEngineRule]] = [:]
+    @ObservationIgnored private var pendingEngineSwitches: [String: URL?] = [:]
+    @ObservationIgnored private var reservedWebKitTabs: Set<String> = []
+    @ObservationIgnored private var engineSwitchPrompt = false
+
+    func engineKind(for tab: SidebarItem) -> BrowserEngineKind {
+        guard createChromiumPage != nil else { return .webKit }
+        if let choice = engineChoices[tab.id] { return choice }
+        if let live = enginePages[tab.id] { return live.kind }
+        guard !isIncognito, let store = model.store else { return .chromium }
+        do {
+            if cachedEngineRules[tab.profileID] == nil {
+                cachedEngineRules[tab.profileID] = try store.siteEngineRules(profileID: tab.profileID)
+            }
+            let stored = try store.tabEngine(tabID: tab.id, profileID: tab.profileID)
+            let rule = tab.url.flatMap { SiteEngineRule.matchingRule(for: $0, profileID: tab.profileID,
+                rules: cachedEngineRules[tab.profileID] ?? []) }
+            let choice: BrowserEngineKind = (stored ?? rule?.engine) == .webkit ? .webKit : .chromium
+            engineChoices[tab.id] = choice
+            return choice
+        } catch { return .chromium }
+    }
+
+    private func reportExternalTabs() -> Bool {
+        guard createChromiumPage != nil else { return true }
+        let ids = Set(pages.keys).union(reservedWebKitTabs).union(pendingEngineSwitches.keys)
+        guard ids.count <= Int(UInt32.max) else { return false }
+        return updateChromiumExternalTabCount?(UInt32(ids.count)) == true
+    }
+
+    func switchActiveEngine(to kind: BrowserEngineKind) async {
+        guard let tab = activeTab else { return }
+        await switchEngine(of: tab, to: kind)
+    }
+
+    func switchEngine(of tab: SidebarItem, to kind: BrowserEngineKind) async {
+        guard createChromiumPage != nil, !engineSwitchPrompt, pendingEngineSwitches[tab.id] == nil,
+              engineKind(for: tab) != kind, let window else { return }
+        let original = enginePages[tab.id]
+        guard original?.state.lifecycle != .closing, original?.state.lifecycle != .closed else { return }
+        let url = original?.state.url ?? tab.url
+        let navigation = original?.state.navigationID
+        engineSwitchPrompt = true
+        let alert = NSAlert()
+        alert.messageText = "Change Browser Engine?"
+        alert.informativeText = "Changing engines reloads this page and loses unsaved changes."
+        alert.addButton(withTitle: "Change Engine")
+        alert.addButton(withTitle: "Cancel")
+        let answer = await alert.beginSheetModal(for: window)
+        engineSwitchPrompt = false
+        guard answer == .alertFirstButtonReturn, self.tab(tab.id) != nil,
+              enginePages[tab.id] === original,
+              (original?.state.url ?? self.tab(tab.id)?.url) == url,
+              original?.state.navigationID == navigation else { return }
+        if kind == .webKit {
+            reservedWebKitTabs.insert(tab.id)
+            guard reportExternalTabs() else {
+                reservedWebKitTabs.remove(tab.id)
+                model.showToast("The window could not reserve this WebKit tab. The engine was not changed.")
+                return
+            }
+        }
+        if let original, original.kind == .chromium {
+            pendingEngineSwitches.updateValue(url, forKey: tab.id)
+            requestChromiumClose(tab.id, engine: original)
+        } else {
+            do {
+                try original?.close()
+                finishUnload(tab.id)
+                commitEngineSwitch(tab.id, to: kind, url: url)
+            } catch { model.showToast("The page could not switch engines.") }
+        }
+    }
+
+    private func commitEngineSwitch(_ id: String, to kind: BrowserEngineKind, url: URL?) {
+        guard var item = tab(id) else { return }
+        engineChoices[id] = kind
+        if !isIncognito {
+            do { try model.store?.setTabEngine(kind == .chromium ? .chromium : .webkit,
+                                               tabID: id, profileID: item.profileID) }
+            catch { model.showToast("Engine changed, but the choice could not be saved.") }
+        }
+        if let url { item.url = url }
+        do { _ = try enginePage(for: item) }
+        catch { model.showToast("The selected browser engine could not open this page.") }
+    }
+
     var chromiumProfileIdentity: EngineProfileIdentity?
     var chromiumExtensions: ChromiumExtensionActionsModel?
     @ObservationIgnored var createChromiumPage: ((SidebarItem) throws -> EnginePage)?
@@ -468,7 +558,7 @@ final class BrowserState {
             return engine
         }
         #if BOAZ_CHROMIUM
-        if let createChromiumPage {
+        if engineKind(for: tab) == .chromium, let createChromiumPage {
             let engine = try createChromiumPage(tab)
             enginePages[tab.id] = engine
             recency.removeAll { $0 == tab.id }
@@ -478,6 +568,13 @@ final class BrowserState {
             chromiumLayoutChanged?()
             closeIdlePages()
             return engine
+        }
+        if createChromiumPage != nil {
+            reservedWebKitTabs.insert(tab.id)
+            guard reportExternalTabs() else {
+                reservedWebKitTabs.remove(tab.id)
+                throw EnginePageError.unavailable
+            }
         }
         #endif
         let page = page(for: tab)
@@ -555,6 +652,8 @@ final class BrowserState {
         pages[tabID] = nil
         enginePages[tabID] = nil
         #if BOAZ_CHROMIUM
+        reservedWebKitTabs.remove(tabID)
+        _ = reportExternalTabs()
         chromiumScrollTasks.removeValue(forKey: tabID)?.cancel()
         chromiumScrollDocuments[tabID] = nil
         pendingRestores[tabID] = nil
@@ -899,6 +998,9 @@ final class BrowserState {
             } catch {
                 pendingChromiumUnloads.remove(tabID)
                 pendingChromiumCloses[tabID] = nil
+                pendingEngineSwitches.removeValue(forKey: tabID)
+                reservedWebKitTabs.remove(tabID)
+                _ = reportExternalTabs()
                 model.showToast("Could not close page: \(error.localizedDescription)")
             }
         }
@@ -937,10 +1039,19 @@ final class BrowserState {
         if event == BOAZ_HOST_PAGE_CLOSE_CANCELLED {
             pendingChromiumUnloads.remove(id)
             pendingChromiumCloses[id] = nil
+            pendingEngineSwitches.removeValue(forKey: id)
+            reservedWebKitTabs.remove(id)
+            _ = reportExternalTabs()
         } else if event == BOAZ_HOST_PAGE_CLOSED {
             let closingTab = pendingChromiumCloses.removeValue(forKey: id)
             pendingChromiumUnloads.remove(id)
-            if let closingTab { finishClose(closingTab) } else { finishUnload(id) }
+            if let destination = pendingEngineSwitches[id] {
+                // Keep the reservation until the replacement page has been created.
+                finishUnload(id)
+                commitEngineSwitch(id, to: .webKit, url: destination)
+                pendingEngineSwitches.removeValue(forKey: id)
+                _ = reportExternalTabs()
+            } else if let closingTab { finishClose(closingTab) } else { finishUnload(id) }
         }
     }
     #endif

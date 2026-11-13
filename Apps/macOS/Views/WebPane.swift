@@ -11,10 +11,10 @@ struct TabPane: View {
 
     var body: some View {
         #if BOAZ_CHROMIUM
-        if browser.createChromiumPage != nil {
-            ChromiumTabPane(tab: tab, inSplit: inSplit).id(tab.id)
+        if browser.engineKind(for: tab) == .chromium {
+            ChromiumTabPane(tab: tab, inSplit: inSplit).id(tab.id + ":chromium")
         } else {
-            WebKitTabPane(tab: tab, inSplit: inSplit)
+            RoutedWebKitPane(tab: tab, inSplit: inSplit).id(tab.id + ":webkit")
         }
         #else
         WebKitTabPane(tab: tab, inSplit: inSplit)
@@ -23,6 +23,26 @@ struct TabPane: View {
 }
 
 #if BOAZ_CHROMIUM
+private struct RoutedWebKitPane: View {
+    @Environment(BrowserState.self) private var browser
+    let tab: SidebarItem
+    let inSplit: Bool
+    @State private var ready = false
+    @State private var failed = false
+    var body: some View {
+        Group {
+            if ready { WebKitTabPane(tab: tab, inSplit: inSplit) }
+            else if failed {
+                ContentUnavailableView("Couldn't Open WebKit", systemImage: "exclamationmark.triangle",
+                    description: Text("The selected engine could not open this page."))
+            } else { ProgressView("Opening page…") }
+        }.task(id: tab.id) {
+            do { ready = try browser.enginePage(for: tab).kind == .webKit; failed = !ready }
+            catch { failed = true }
+        }
+    }
+}
+
 private struct ChromiumTabPane: View {
     @Environment(BrowserState.self) private var browser
     let tab: SidebarItem
