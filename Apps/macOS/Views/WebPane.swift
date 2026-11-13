@@ -37,6 +37,8 @@ private struct ChromiumTabPane: View {
     }
     @State private var recoveryDocument: OfflineFailure?
     @State private var attemptedOfflineURLs: Set<URL?> = []
+    @State private var capturedSurface: String?
+
 
     var body: some View {
         VStack(spacing: 0) {
@@ -78,6 +80,20 @@ private struct ChromiumTabPane: View {
             } else if let engine, let adapter = engine.adapter as? ChromiumEnginePageAdapter {
                 ChromiumPageView(adapter: adapter)
                     .overlay {
+                        if surfaceDocument == nil || capturedSurface != surfaceDocument,
+                           let preview = browser.chromiumPreview(for: tab.id, url: engine.state.url ?? tab.url) {
+                            GeometryReader { geometry in
+                                Image(nsImage: preview).resizable().scaledToFit()
+                                    .frame(width: geometry.size.width, height: geometry.size.height)
+                                    .background(.background)
+                                    .overlay(alignment: .bottomTrailing) {
+                                        Text("Saved preview").font(.caption).padding(6).background(.regularMaterial)
+                                    }
+                            }
+                            .allowsHitTesting(false).accessibilityHidden(true)
+                        }
+                    }
+                    .overlay {
                         if adapter.state.loadFailure != nil || adapter.state.lifecycle == .crashed {
                             ChromiumLoadFailureView(adapter: adapter)
                         }
@@ -113,6 +129,22 @@ private struct ChromiumTabPane: View {
                 return
             }
         }
+        .task(id: surfaceDocument) {
+            guard let expected = surfaceDocument,
+                  let adapter = engine?.adapter as? ChromiumEnginePageAdapter,
+                  let url = adapter.state.url else { return }
+            let navigation = adapter.state.navigationID
+            do {
+                let data = try await adapter.captureVisible()
+                guard !Task.isCancelled, surfaceDocument == expected else { return }
+                if browser.cacheChromiumPreview(data, tabID: tab.id, adapter: adapter,
+                                                url: url, navigation: navigation) {
+                    capturedSurface = expected
+                }
+            } catch {
+                // Cached feedback remains explicitly labeled until a capture succeeds.
+            }
+        }
         .task(id: faviconDocument) {
             guard faviconDocument != nil,
                   let adapter = engine?.adapter as? ChromiumEnginePageAdapter else { return }
@@ -130,6 +162,13 @@ private struct ChromiumTabPane: View {
               adapter.state.lifecycle == .active, !adapter.state.isLoading,
               let failure = adapter.state.loadFailure, failure.code == -106 else { return nil }
         return OfflineFailure(page: adapter.handle, navigation: adapter.state.navigationID, url: failure.url)
+    }
+
+    private var surfaceDocument: String? {
+        guard let adapter = engine?.adapter as? ChromiumEnginePageAdapter,
+              adapter.state.lifecycle == .active, !adapter.state.isLoading,
+              adapter.state.loadFailure == nil, let url = adapter.state.url else { return nil }
+        return "\(adapter.handle):\(adapter.state.navigationID):\(adapter.viewGeneration):\(url.absoluteString)"
     }
 
     private var faviconDocument: String? {

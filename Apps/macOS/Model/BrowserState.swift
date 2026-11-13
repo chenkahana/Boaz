@@ -99,6 +99,31 @@ final class BrowserState {
     var activeEnginePage: EnginePage? { activeTabID.flatMap { enginePages[$0] } }
     private let privateEngineProfileID = UUID().uuidString
     #if BOAZ_CHROMIUM
+    struct ChromiumPreview {
+        let url: URL
+        let navigation: UInt64
+        let image: NSImage
+        let capturedAt: Date
+    }
+    private var chromiumPreviews: [String: ChromiumPreview] = [:]
+    func chromiumPreview(for tabID: String, url: URL?) -> NSImage? {
+        guard let preview = chromiumPreviews[tabID], preview.url == url else { return nil }
+        return preview.image
+    }
+    func cacheChromiumPreview(_ data: Data, tabID: String, adapter: ChromiumEnginePageAdapter,
+                              url: URL, navigation: UInt64) -> Bool {
+        guard cachedChromiumPage(for: tabID) === adapter, adapter.state.lifecycle == .active,
+              adapter.state.navigationID == navigation, adapter.state.url == url,
+              !adapter.state.isLoading, adapter.state.loadFailure == nil,
+              window?.isVisible == true, let image = NSImage(data: data) else { return false }
+        chromiumPreviews[tabID] = ChromiumPreview(url: url, navigation: navigation,
+                                                image: image, capturedAt: Date())
+        if chromiumPreviews.count > 20,
+           let oldest = chromiumPreviews.min(by: { $0.value.capturedAt < $1.value.capturedAt })?.key {
+            chromiumPreviews[oldest] = nil
+        }
+        return true
+    }
     var chromiumProfileIdentity: EngineProfileIdentity?
     var chromiumExtensions: ChromiumExtensionActionsModel?
     @ObservationIgnored var createChromiumPage: ((SidebarItem) throws -> EnginePage)?
@@ -217,6 +242,9 @@ final class BrowserState {
                                                                queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
+                #if BOAZ_CHROMIUM
+                self.chromiumPreviews.removeAll()
+                #endif
                 self.windowWillCloseForPictureInPicture()
                 self.model.windowWillClose(self)
                 Extensions.shared.didCloseWindow(self)
@@ -788,6 +816,9 @@ final class BrowserState {
     }
 
     private func finishClose(_ tab: SidebarItem) {
+        #if BOAZ_CHROMIUM
+        chromiumPreviews[tab.id] = nil
+        #endif
         let next = neighbor(of: tab)
         if let split, split.contains(tab.id) {
             self.split = nil
@@ -896,6 +927,9 @@ final class BrowserState {
     }
 
     func removePinned(_ tab: SidebarItem) {
+        #if BOAZ_CHROMIUM
+        chromiumPreviews[tab.id] = nil
+        #endif
         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { model.archive(tab) }
     }
 
