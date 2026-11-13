@@ -6,7 +6,7 @@ Recorded 2026-11-13 against Boaz `045132d7bd3b7a191730031a018554ad1f0bcfbe`, fet
 
 | Gate | Status | Evidence or missing prerequisite |
 |---|---|---|
-| F1 native host and lifecycle | In progress | Host compiles and renders local content; pasted Unicode and resize verified. After rendering, shutdown watchdog still terminates the process; investigation in progress |
+| F1 native host and lifecycle | In progress | Host compiles, renders local/HTTPS content, accepts pasted Unicode, resizes, and exits cleanly. Signing, IME, accessibility and performance remain pending |
 | F2 native embedding and extensions | Proposed direct route rejected by source contract; alternatives unproven | Inspected macOS CEF header forces Alloy when `parent_view` is supplied |
 | F3 trusted scripts | Blocked by unselected runtime route | No isolated-world or extension messaging implementation demonstrated |
 | F4 custom distribution | Storage ready; build not executed | Verified 500 GiB APFS image on existing SSD; use at most 12 jobs on this 36 GiB Mac |
