@@ -12,7 +12,7 @@ Everything needed to submit Boaz for iPhone and Mac. Facts here match the code a
 | SKU | `boaz` |
 | Primary / secondary category | Productivity / Utilities |
 | Minimum OS | iOS 27.1, macOS 26.0 |
-| Version / build | 1.0.1 / 4 (iPhone 1.0 is approved; Mac 1.0 (4) is uploaded) (`MARKETING_VERSION`, `CURRENT_PROJECT_VERSION` in `project.yml`) |
+| Version / build | 1.0.1 / 5 (iPhone 1.0 is approved; Mac 1.0 (4) is uploaded) (`MARKETING_VERSION`, `CURRENT_PROJECT_VERSION` in `project.yml`) |
 | Price | Free |
 | Support URL | https://github.com/chenkahana/Boaz/issues |
 | Privacy Policy URL | https://github.com/chenkahana/Boaz/blob/master/docs/privacy.md |
