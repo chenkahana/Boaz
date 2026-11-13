@@ -245,7 +245,7 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
             add(vision, mode.title, enabled: hasWebKitPage, checked: { state($0).vision == mode }) { $0?.setVision(mode) }
             if mode == .none { vision.addItem(.separator()) }
         }
-        add(develop, "Disable JavaScript (WebKit)", enabled: hasWebKitPage,
+        add(develop, "Disable JavaScript", enabled: { $0?.activeEnginePage?.state.lifecycle == .active },
             checked: { state($0).javaScriptDisabled }) { $0?.toggleJavaScript() }
 
         let window = menu("Window")

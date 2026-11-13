@@ -56,7 +56,8 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
                 throw EnginePageError.invalidRequest
             }
             return try self.runtime.createPage(window: self.handle,
-                url: tab.url ?? URL(string: "about:blank")!, profile: self.profile.identity)
+                url: tab.url ?? URL(string: "about:blank")!, profile: self.profile.identity,
+                javaScriptDisabled: self.browser.devTools[tab.id].javaScriptDisabled)
         }
         browser.createChromiumPeekPage = { [weak self] url in
             guard let self, !finished, handle != 0 else { throw EnginePageError.closed }

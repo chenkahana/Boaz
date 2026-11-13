@@ -18,6 +18,7 @@ final class ChromiumEnginePageAdapter: EnginePageAdapter {
     let profile: EngineProfileIdentity
     let handle: BoazHostPage
     private(set) var state = EnginePageState()
+    var javaScriptDisabled = false
     var responsiveVisible = false
     var appliedMedia: ChromiumMedia?
     var appliedSensors: ChromiumSensors?
@@ -206,6 +207,13 @@ final class ChromiumEnginePageAdapter: EnginePageAdapter {
         guard state.lifecycle != .closed, state.lifecycle != .closing, !closeRequested else { return }
         try check(api.close_page!(handle))
         closeRequested = true
+    }
+
+    func setJavaScriptDisabled(_ disabled: Bool) throws {
+        try requireOpen()
+        guard let set = api.set_javascript_disabled else { throw EnginePageError.incompatibleBridge }
+        try check(set(handle, disabled ? 1 : 0))
+        javaScriptDisabled = disabled
     }
 
     private func requireOpen() throws {

@@ -245,16 +245,30 @@ final class ChromiumRuntime {
         }
     }
 
-    func createPage(window: BoazHostWindow, url: URL, profile: EngineProfileIdentity) throws -> EnginePage {
+    func createPage(window: BoazHostWindow, url: URL, profile: EngineProfileIdentity, javaScriptDisabled: Bool = false) throws -> EnginePage {
         try requireRunning()
         guard let verified = windowProfiles[window], verified.identity == profile,
               preparedProfiles[verified.handle] == verified else { throw EnginePageError.invalidRequest }
         var handle: BoazHostPage = 0
-        try url.absoluteString.withCString { try check(api.create_page!(window, $0, &handle)) }
+        let initialURL = javaScriptDisabled ? "about:blank" : url.absoluteString
+        try initialURL.withCString { try check(api.create_page!(window, $0, &handle)) }
         guard handle != 0, pages[handle] == nil else { throw EnginePageError.invalidRequest }
-        let adapter = try ChromiumEnginePageAdapter(api: api, handle: handle, profile: profile)
-        pages[handle] = adapter
-        return EnginePage(adapter: adapter)
+        do {
+            if javaScriptDisabled {
+                guard let set = api.set_javascript_disabled else { throw EnginePageError.incompatibleBridge }
+                try check(set(handle, 1))
+                try url.absoluteString.withCString { try check(api.navigate!(handle, $0)) }
+            }
+            let adapter = try ChromiumEnginePageAdapter(api: api, handle: handle, profile: profile)
+            adapter.javaScriptDisabled = javaScriptDisabled
+            pages[handle] = adapter
+            return EnginePage(adapter: adapter)
+        } catch {
+            closingPages.insert(handle)
+            let result = api.close_page!(handle)
+            if result != BOAZ_HOST_OK { closingPages.remove(handle) }
+            throw error
+        }
     }
 
     func prepareProfile(_ identity: EngineProfileIdentity) async throws -> ChromiumProfile {
