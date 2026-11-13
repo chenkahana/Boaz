@@ -9,6 +9,7 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         let enabled: (BrowserState?) -> Bool
         let perform: (BrowserState?) -> Void
         let title: ((BrowserState?) -> String)?
+        let checked: ((BrowserState?) -> Bool)?
     }
     private let activeBrowser: () -> BrowserState?
     private let openScene: (String) -> Void
@@ -195,6 +196,46 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         add(develop, "View Page Source (WebKit)", command: .viewSource, enabled: hasWebKitPage) { $0?.viewPageSource() }
         add(develop, "Show Storage (WebKit)…", enabled: hasWebKitPage) { $0?.showStorage() }
         add(develop, "Empty Caches (WebKit)", command: .emptyCaches, enabled: hasWebKitPage) { $0?.emptyCaches() }
+        develop.addItem(.separator())
+        func webKitSubmenu(_ title: String) -> NSMenu {
+            add(develop, title, enabled: hasWebKitPage) { _ in }
+            let submenu = NSMenu(title: title)
+            develop.items.last?.submenu = submenu
+            return submenu
+        }
+        func state(_ browser: BrowserState?) -> DevTools.TabState {
+            browser?.devTools[browser?.activeTabID] ?? DevTools.TabState()
+        }
+        let agents = webKitSubmenu("WebKit User Agent")
+        add(agents, "Default", enabled: hasWebKitPage,
+            checked: { (state($0).effectiveUserAgent ?? .default) == .default }) { $0?.setUserAgent(.default) }
+        agents.addItem(.separator())
+        for agent in UserAgent.presets {
+            add(agents, agent.title, enabled: hasWebKitPage,
+                checked: { state($0).effectiveUserAgent == agent }) { $0?.setUserAgent(agent) }
+        }
+        agents.addItem(.separator())
+        add(agents, "Other…", enabled: hasWebKitPage, checked: {
+            if case .custom = state($0).effectiveUserAgent { return true }
+            return false
+        }) { browser in
+            if let id = browser?.activeTabID { browser?.devTools.sheet = .userAgent(tabID: id) }
+        }
+        let media = webKitSubmenu("WebKit Emulate Media")
+        add(media, "Screen", enabled: hasWebKitPage, checked: { state($0).media != .print }) { $0?.setMediaType(nil) }
+        add(media, "Print", enabled: hasWebKitPage, checked: { state($0).media == .print }) { $0?.setMediaType(.print) }
+        media.addItem(.separator())
+        add(media, "Light Appearance", enabled: hasWebKitPage, checked: { state($0).appearance == .light }) { $0?.setAppearance(.light) }
+        add(media, "Dark Appearance", enabled: hasWebKitPage, checked: { state($0).appearance == .dark }) { $0?.setAppearance(.dark) }
+        add(media, "System Appearance", enabled: hasWebKitPage, checked: { state($0).appearance == nil }) { $0?.setAppearance(nil) }
+        let vision = webKitSubmenu("WebKit Vision Simulator")
+        for mode in Vision.allCases {
+            add(vision, mode.title, enabled: hasWebKitPage, checked: { state($0).vision == mode }) { $0?.setVision(mode) }
+            if mode == .none { vision.addItem(.separator()) }
+        }
+        add(develop, "Disable JavaScript (WebKit)", enabled: hasWebKitPage,
+            checked: { state($0).javaScriptDisabled }) { $0?.toggleJavaScript() }
+
         let window = menu("Window")
         responder(window, "Minimize", #selector(NSWindow.performMiniaturize(_:)), key: "m")
         responder(window, "Zoom", #selector(NSWindow.performZoom(_:)))
@@ -212,13 +253,14 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
     private func add(_ menu: NSMenu, _ title: String, command: BrowserCommand? = nil,
                      enabled: @escaping (BrowserState?) -> Bool = { $0 != nil },
                      title dynamicTitle: ((BrowserState?) -> String)? = nil,
+                     checked: ((BrowserState?) -> Bool)? = nil,
                      perform: @escaping (BrowserState?) -> Void,
                      key: String = "", modifiers: NSEvent.ModifierFlags = .command) {
         let item = NSMenuItem(title: title, action: #selector(invoke(_:)), keyEquivalent: key)
         item.target = self
         item.tag = entries.count + 1
         item.keyEquivalentModifierMask = modifiers
-        entries[item.tag] = Entry(command: command, enabled: enabled, perform: perform, title: dynamicTitle)
+        entries[item.tag] = Entry(command: command, enabled: enabled, perform: perform, title: dynamicTitle, checked: checked)
         menu.addItem(item)
         _ = validateMenuItem(item)
     }
@@ -232,6 +274,7 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         guard let entry = entries[item.tag] else { return false }
         let browser = activeBrowser()
         if let title = entry.title { item.title = title(browser) }
+        item.state = entry.checked?(browser) == true ? .on : .off
         if let command = entry.command {
             let shortcut = MacModel.shared.keyBindings.shortcut(command)
             item.keyEquivalent = shortcut.map { String($0.key.character) } ?? ""
