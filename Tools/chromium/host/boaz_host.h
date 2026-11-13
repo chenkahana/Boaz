@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 35u
+#define BOAZ_HOST_ABI_VERSION 36u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT,
@@ -193,6 +193,12 @@ typedef struct BoazHostCallbacks {
   /* Untrusted intent; identities are derived from the current primary document. */
   void (*protected_media)(void* context, BoazHostPage page, uint64_t navigation,
       BoazHostProfile profile, BoazHostKeySystem key_system);
+  /* Browser-validated focused document; receiver owns nonzero token and releases
+   * it after leaving this callback. Zero document dismisses the prior offer.
+   * Origin is borrowed; screen bounds are presentation data, never authority. */
+  void (*password_focus)(void* context, BoazHostPage page, uint64_t sequence,
+      BoazHostDocument document, const char* origin,
+      double screen_x, double screen_y, double width, double height);
 } BoazHostCallbacks;
 
 /* Enumeration values are borrowed for the visitor call. Visitors must copy

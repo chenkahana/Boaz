@@ -214,6 +214,13 @@ BoazHostResult SetCallbacks(const BoazHostCallbacks* callbacks) {
   proxy.page_event = [](void*, BoazHostPageEvent event, const BoazHostPageState* page) {
     Notify([&] { state->callbacks.page_event(state->callbacks.context, event, page); });
   };
+  if (callbacks->password_focus) {
+    proxy.password_focus = [](void*, BoazHostPage page, uint64_t sequence,
+        BoazHostDocument document, const char* origin, double x, double y, double width, double height) {
+      Notify([&] { state->callbacks.password_focus(state->callbacks.context,
+          page, sequence, document, origin, x, y, width, height); });
+    };
+  }
   proxy.window_closed = [](void*, BoazHostWindow window) {
     Notify([&] { state->callbacks.window_closed(state->callbacks.context, window); });
     state->windows.erase(window);
