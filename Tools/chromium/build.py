@@ -3,12 +3,43 @@
 
 import argparse
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import uuid
+
+
+def verify_host_inputs(scripts, root, source, ui_only=False):
+    receipt = json.loads((root / "host-installed.json").read_text())
+    expected = receipt["files"]
+    paths = ["boaz_host.h"] if ui_only else sorted(expected)
+    if not ui_only:
+        local = {str(p.relative_to(scripts / "host")) for p in
+                 (scripts / "host").rglob("*") if p.is_file()}
+        if local != set(expected):
+            raise RuntimeError("Host inputs changed; apply pinned patches and install host sources first.")
+    for name in paths:
+        for path in (scripts / "host" / name, source / "boaz" / name):
+            if path.resolve() != path or hashlib.sha256(path.read_bytes()).hexdigest() != expected[name]:
+                raise RuntimeError(f"Host input differs from installed receipt: {path}")
+    if ui_only:
+        return
+    manifest = json.loads((scripts / "patches.lock.json").read_text())
+    applied = json.loads((root / "patches-applied.json").read_text())
+    if applied["pending"] or applied["applied"] != manifest["patches"]:
+        raise RuntimeError("Pinned patch series is not fully applied; use apply-patches.py first.")
+    files = {}
+    for patch in manifest["patches"]:
+        if hashlib.sha256((scripts / patch["file"]).read_bytes()).hexdigest() != patch["sha256"]:
+            raise RuntimeError("Pinned patch checksum changed.")
+        files.update({entry["path"]: entry["after"] for entry in patch["files"]})
+    for name, digest in files.items():
+        path = source / name
+        if path.resolve() != path or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
+            raise RuntimeError(f"Patched Chromium input changed: {name}")
 
 
 def main():
@@ -58,6 +89,7 @@ def main():
     version = dict(line.split("=", 1) for line in (source / "chrome/VERSION").read_text().splitlines())
     if ".".join(version[key] for key in ("MAJOR", "MINOR", "BUILD", "PATCH")) != source_lock["chromium_version"]:
         raise RuntimeError("Source version differs from the lock.")
+    verify_host_inputs(scripts, root, source, ui_only=args.native_ui)
     for tool in (gn, ninja):
         if not tool.is_file():
             raise RuntimeError(f"Required build tool is missing: {tool}")
