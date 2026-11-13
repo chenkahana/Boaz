@@ -4,6 +4,7 @@
 #include <utility>
 #include <variant>
 #include "base/check.h"
+#include "base/containers/span.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/memory/ref_counted_memory.h"
@@ -84,7 +85,7 @@ BoazHostResult PagePDF::Capture(uint64_t request, Completion completion) {
           if (data->size() > 32 * 1024 * 1024) outcome.status = Status::kTooLarge;
           else if (data->size() > 0) {
             outcome.status = Status::kSuccess;
-            const auto bytes = data->AsSpan();
+            const auto bytes = base::span<const uint8_t>(*data);
             outcome.bytes.assign(bytes.begin(), bytes.end());
           }
         }
