@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import plistlib
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -20,7 +21,7 @@ def checked(path):
     return path
 
 
-def assemble(base, receipt, output, native_launch=False):
+def assemble(base, receipt, output, native_launch=False, production_version=None, production_build=None):
     base, receipt, output = map(checked, (base, receipt, output))
     if output.exists() or output.is_symlink():
         raise RuntimeError('Refusing to overwrite an existing application artifact')
@@ -30,6 +31,11 @@ def assemble(base, receipt, output, native_launch=False):
     if not cli.is_file() or not os.access(cli, os.X_OK):
         raise RuntimeError('Completed UI build must include the executable CLI')
     resources = [checked(item['staged']) for item in record['resources_and_frameworks']]
+    distribution = record.get('distribution_info')
+    if not isinstance(distribution, dict) or not distribution.get('SUPublicEDKey'):
+        raise RuntimeError('Build receipt requires resolved Boaz distribution metadata')
+    if not any(item.name == 'Boaz.icns' and item.is_file() for item in resources):
+        raise RuntimeError('Build receipt requires the Boaz application icon')
     bundle = next((p for p in resources if p.name == 'BoazResources.bundle'), None)
     sparkle = next((p for p in resources if p.name == 'Sparkle.framework'), None)
     if bundle is None or sparkle is None or not library.is_file():
@@ -49,6 +55,17 @@ def assemble(base, receipt, output, native_launch=False):
                          'CFBundleName': 'Boaz Development', 'CFBundleDisplayName': 'Boaz Development',
                          'BoazNativeApplication': True, 'BoazDistributionChannel': 'development',
                          'CrProductDirName': 'Boaz Chromium Development'})
+        metadata['CFBundleIconFile'] = 'Boaz.icns'
+        metadata.pop('CFBundleIconName', None)
+        if production_version:
+            metadata.update({key: value for key, value in distribution.items() if key.startswith('SU')})
+            metadata.update({'CFBundleIdentifier': 'com.chenkahana.boaz', 'CFBundleName': 'Boaz',
+                             'CFBundleDisplayName': 'Boaz', 'BoazDistributionChannel': 'production',
+                             'CrProductDirName': 'Boaz/Chromium',
+                             'CFBundleShortVersionString': production_version, 'CFBundleVersion': production_build})
+        else:
+            metadata['SUEnableAutomaticChecks'] = False
+            metadata.pop('SUFeedURL', None)
         url_types = metadata.setdefault('CFBundleURLTypes', [])
         url_types.append({'CFBundleURLName': 'Boaz commands', 'CFBundleTypeRole': 'Viewer',
                           'CFBundleURLSchemes': ['boaz']})
@@ -72,7 +89,7 @@ def assemble(base, receipt, output, native_launch=False):
             shutil.copy2(item, target)
     manifest = {'application': str(output), 'base': str(base), 'ui_receipt': str(receipt),
                 'ui_sha256': hashlib.sha256(library.read_bytes()).hexdigest(),
-                'signed': False, 'published': False,
+                'signed': False, 'published': False, 'production_metadata': bool(production_version),
                 'remaining': 'Development signing, launch acceptance, Boaz distribution branding and release gates.'}
     with output.with_suffix('.assembly.json').open('x') as stream:
         json.dump(manifest, stream, indent=2)
@@ -85,16 +102,26 @@ def main():
     parser.add_argument('--ui-receipt', required=True)
     parser.add_argument('--output', required=True)
     parser.add_argument('--native-launch', action='store_true', help='Requires packaged-launch-capable host; uses isolated development identity')
+    parser.add_argument('--production-version')
+    parser.add_argument('--production-build')
     parser.add_argument('--guarded', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if bool(args.production_version) != bool(args.production_build):
+        parser.error('Production version and build must be supplied together')
+    if args.production_version and (not args.native_launch or
+            not re.fullmatch(r'[0-9]+(?:\.[0-9]+){1,3}', args.production_version) or
+            not re.fullmatch(r'[0-9]+(?:\.[0-9]+){0,3}', args.production_build)):
+        parser.error('Production metadata requires native launch and numeric version/build values')
     if not args.guarded:
         command = ['/opt/homebrew/bin/python3.12', str(HERE.parent / 'cef/run-build.py'), '--',
                    '/opt/homebrew/bin/python3.12', str(Path(__file__).resolve()), '--guarded',
                    '--base-app', args.base_app, '--ui-receipt', args.ui_receipt, '--output', args.output] + (['--native-launch'] if args.native_launch else [])
+        if args.production_version:
+            command += ['--production-version', args.production_version, '--production-build', args.production_build]
         return subprocess.call(command)
     if Path.cwd() != ROOT.parent or os.environ.get('TMPDIR') != str(ROOT.parent / 'tmp'):
         raise RuntimeError('Assembly requires the verified SSD guard')
-    assemble(args.base_app, args.ui_receipt, args.output, args.native_launch)
+    assemble(args.base_app, args.ui_receipt, args.output, args.native_launch, args.production_version, args.production_build)
     return 0
 
 

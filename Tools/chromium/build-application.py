@@ -173,7 +173,20 @@ def build(jobs, resume_run=None, cache_from=None):
         previous = APP / f'libBoazApplicationUI.previous-{stamp}.dylib'
         final.rename(previous)
     os.link(staged, final)
-    manifest = {'cli': str(staged_cli), 'library': str(final), 'immutable_copy': str(staged),
+    distribution = json.loads(subprocess.check_output(
+        ['xcodegen', 'dump', '--spec', str(REPO / 'project-dmg.yml'), '--type', 'json'], cwd=REPO))
+    distribution_info = distribution['targets']['Boaz-macOS']['info']['properties']
+    iconset = artifacts / 'Boaz.iconset'
+    iconset.mkdir()
+    icon_source = REPO / 'Apps/Shared/Resources/Assets.xcassets/AppIcon.appiconset'
+    for size in (16, 32, 128, 256, 512):
+        for scale in (1, 2):
+            filename = f'icon_{size}x{size}' + ('@2x' if scale == 2 else '') + '.png'
+            shutil.copy2(icon_source / f'mac-{size * scale}.png', iconset / filename)
+    icon = artifacts / 'Boaz.icns'
+    subprocess.run(['/usr/bin/iconutil', '-c', 'icns', '-o', str(icon), str(iconset)], check=True)
+    resources.append({'source': str(icon_source), 'staged': str(icon)})
+    manifest = {'distribution_info': distribution_info, 'cli': str(staged_cli), 'library': str(final), 'immutable_copy': str(staged),
                 'previous': str(previous) if previous else None,
                 'resources_and_frameworks': resources, 'command': command,
                 'signed': False, 'packaged': False, 'cache_from': cache_from,
