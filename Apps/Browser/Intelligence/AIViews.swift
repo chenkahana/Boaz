@@ -143,7 +143,7 @@ struct PageAssistantView: View {
     }
 
     init(title: String, host: String, mode: Mode,
-         extractText: @escaping @MainActor () async -> PageText?) {
+         extractText: @escaping @MainActor () async throws -> PageText?) {
         _assistant = State(initialValue: PageAssistant(title: title, host: host, extractText: extractText))
         _mode = State(initialValue: mode)
     }

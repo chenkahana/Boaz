@@ -46,7 +46,7 @@ private struct ChromiumPageAssistantSheet: View {
             if let adapter {
                 PageAssistantView(title: adapter.state.title,
                     host: adapter.state.url?.host() ?? "", mode: mode,
-                    extractText: { await PageText.extract(from: adapter) })
+                    extractText: { try await PageText.extractThrowing(from: adapter) })
             } else if let failure {
                 ContentUnavailableView("Couldn't Read This Page", systemImage: "doc.text.magnifyingglass",
                                        description: Text(failure))
