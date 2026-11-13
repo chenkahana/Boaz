@@ -10,6 +10,8 @@ private final class ChromiumApplication: NSObject {
     let model = MacModel.shared
     let legacyDelegate = AppDelegate()
     var windows: [ChromiumAppWindow] = []
+    var devToolsWindows: [ChromiumDevToolsWindow] = []
+    private var pendingDevToolsWindows: [UInt: ChromiumDevToolsWindow] = [:]
     var quickWindows: [ChromiumQuickWindow] = []
     private var pendingNativeWindows: [UInt: ChromiumAppWindow] = [:]
     var auxiliaryWindows: [NSWindow] = []
@@ -24,6 +26,14 @@ private final class ChromiumApplication: NSObject {
     func start() throws {
         runtime.prepareWindow = { [weak self] profile, role in
             guard let self, !finished else { return nil }
+            if role == BOAZ_WINDOW_DEVTOOLS {
+                let window = ChromiumDevToolsWindow(runtime: runtime, profile: profile)
+                let options = window.makeOptions()
+                guard let context = options.context else { return nil }
+                pendingDevToolsWindows[UInt(bitPattern: context)] = window
+                return options
+            }
+            guard role == BOAZ_WINDOW_BROWSING else { return nil }
             do {
                 let window = try ChromiumAppWindow(runtime: runtime, profile: profile, model: model,
                     preparedForNativeCreation: true)
@@ -34,8 +44,14 @@ private final class ChromiumApplication: NSObject {
             } catch { return nil }
         }
         runtime.windowCreated = { [weak self] handle, context in
-            guard let self, let context,
-                  let window = pendingNativeWindows.removeValue(forKey: UInt(bitPattern: context)) else { return }
+            guard let self, let context else { return }
+            if let inspector = pendingDevToolsWindows.removeValue(forKey: UInt(bitPattern: context)) {
+                devToolsWindows.append(inspector)
+                do { try inspector.adoptNativeWindow(handle) }
+                catch { model.showToast(error.localizedDescription); _ = runtime.api.close_window?(handle) }
+                return
+            }
+            guard let window = pendingNativeWindows.removeValue(forKey: UInt(bitPattern: context)) else { return }
             windows.append(window)
             do { try window.adoptNativeWindow(handle) }
             catch {
@@ -49,7 +65,13 @@ private final class ChromiumApplication: NSObject {
             owner.browser.activateChromiumPageFromEngine(page)
         }
         runtime.pageCreated = { [weak self] window, page, active in
-            guard let self, let owner = windows.first(where: { $0.handle == window }) else { return }
+            guard let self else { return }
+            if let inspector = devToolsWindows.first(where: { $0.handle == window }) {
+                do { try inspector.adoptPage(page) }
+                catch { model.showToast(error.localizedDescription) }
+                return
+            }
+            guard let owner = windows.first(where: { $0.handle == window }) else { return }
             do { try owner.browser.adoptChromiumPage(page, active: active) }
             catch { model.showToast(error.localizedDescription) }
         }
@@ -64,9 +86,16 @@ private final class ChromiumApplication: NSObject {
                 let window = quickWindows.remove(at: index)
                 profile = window.profile
                 window.finishClose()
+            } else if let index = devToolsWindows.firstIndex(where: { $0.handle == handle }) {
+                let window = devToolsWindows.remove(at: index)
+                profile = window.profile
+                window.finishClose()
             } else { return }
             if !windows.contains(where: { $0.profile == profile }),
-               !quickWindows.contains(where: { $0.profile == profile }) {
+               !quickWindows.contains(where: { $0.profile == profile }),
+               !devToolsWindows.contains(where: { $0.profile == profile }),
+               !pendingDevToolsWindows.values.contains(where: { $0.profile == profile }),
+               !pendingNativeWindows.values.contains(where: { $0.profile == profile }) {
                 do { try runtime.releaseProfile(profile) }
                 catch { model.showToast(error.localizedDescription) }
             }
@@ -87,6 +116,10 @@ private final class ChromiumApplication: NSObject {
             windows.removeAll()
             quickWindows.forEach { $0.finishClose() }
             quickWindows.removeAll()
+            devToolsWindows.forEach { $0.finishClose() }
+            devToolsWindows.removeAll()
+            pendingDevToolsWindows.values.forEach { $0.finishClose() }
+            pendingDevToolsWindows.removeAll()
             pendingNativeWindows.values.forEach { $0.finishClose() }
             pendingNativeWindows.removeAll()
             auxiliaryWindows.forEach { $0.close() }
