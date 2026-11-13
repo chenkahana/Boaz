@@ -528,6 +528,40 @@ BoazHostResult CaptureVisible(BoazHostPage page, uint64_t request, int32_t width
   if (result != BOAZ_HOST_OK) --state->pending_captures;
   return result;
 }
+BoazHostResult CaptureFullPage(BoazHostPage page, uint64_t request,
+    BoazHostCaptureCompletion completion, void* context) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (!completion || !request) return BOAZ_HOST_INVALID_ARGUMENT;
+  CHECK_LT(state->pending_captures, std::numeric_limits<uint64_t>::max());
+  ++state->pending_captures;
+  auto result = state->tabs->CaptureFullPage(page, request,
+      base::BindOnce([](BoazHostPage page, uint64_t request,
+                       BoazHostCaptureCompletion completion, void* context,
+                       PageEmulation::Result result, std::vector<uint8_t> bytes) {
+        CHECK(state);
+        BoazHostCaptureStatus status;
+        switch (result) {
+          case PageEmulation::Result::kSuccess: status = BOAZ_CAPTURE_SUCCESS; break;
+          case PageEmulation::Result::kInvalid: status = BOAZ_CAPTURE_INVALID_TARGET; break;
+          case PageEmulation::Result::kUnavailable: status = BOAZ_CAPTURE_BUSY; break;
+          case PageEmulation::Result::kProtocolError: status = BOAZ_CAPTURE_FAILED; break;
+          case PageEmulation::Result::kTimeout: status = BOAZ_CAPTURE_TIMEOUT; break;
+          case PageEmulation::Result::kNavigation: status = BOAZ_CAPTURE_NAVIGATION; break;
+          case PageEmulation::Result::kClosed: status = BOAZ_CAPTURE_CLOSED; break;
+        }
+        Notify([&] { completion(context, page, request, status,
+            bytes.empty() ? nullptr : bytes.data(), bytes.size()); });
+        CHECK_GT(state->pending_captures, 0u);
+        --state->pending_captures;
+        FinishIfDrained();
+      }, page, request, completion, context));
+  if (result != BOAZ_HOST_OK) --state->pending_captures;
+  return result;
+}
+BoazHostResult CancelFullPage(BoazHostPage page, uint64_t request) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  return state->tabs->CancelFullPage(page, request);
+}
 BoazHostResult CapturePDF(BoazHostPage page, uint64_t request,
     BoazHostCaptureCompletion completion, void* context) {
   if (auto result = Check(); result != BOAZ_HOST_OK) return result;
@@ -739,7 +773,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:

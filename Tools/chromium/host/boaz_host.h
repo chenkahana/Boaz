@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 32u
+#define BOAZ_HOST_ABI_VERSION 33u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT
@@ -308,6 +308,11 @@ typedef struct BoazHostAPI {
   BoazHostResult (*set_javascript_disabled)(BoazHostPage page, uint8_t disabled);
   /* No credentials are exposed by this synchronous status visitor. */
   BoazHostResult (*automation_status)(BoazHostAutomationVisitor visitor, void* context);
+  /* Full currently laid-out document, PNG, <=32 MiB and <=32 Mi pixels.
+   * Accepted failure/timeout detaches emulation; BUSY rejection preserves it. */
+  BoazHostResult (*capture_full_page)(BoazHostPage page, uint64_t request,
+      BoazHostCaptureCompletion completion, void* context);
+  BoazHostResult (*cancel_full_page)(BoazHostPage page, uint64_t request);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

@@ -753,6 +753,21 @@ BoazHostResult TabRegistry::CaptureVisible(BoazHostPage id, uint64_t request,
   if (!page->capture) page->capture = std::make_unique<VisiblePageCapture>(page->web_contents());
   return page->capture->Capture(request, width, height, std::move(completion));
 }
+BoazHostResult TabRegistry::CaptureFullPage(BoazHostPage id, uint64_t request,
+    PageEmulation::CaptureCompletion completion) {
+  BOAZ_FIND_PAGE();
+  if (!request || !completion) return BOAZ_HOST_INVALID_ARGUMENT;
+  if (!page->view_available) return BOAZ_HOST_UNAVAILABLE;
+  if (!page->emulation) page->emulation = std::make_unique<PageEmulation>(page->web_contents());
+  page->emulation->CaptureFullPage(request, std::move(completion));
+  return BOAZ_HOST_OK;
+}
+BoazHostResult TabRegistry::CancelFullPage(BoazHostPage id, uint64_t request) {
+  BOAZ_FIND_PAGE();
+  if (!request || !page->emulation) return BOAZ_HOST_INVALID_ARGUMENT;
+  page->emulation->CancelFullPage(request);
+  return BOAZ_HOST_OK;
+}
 BoazHostResult TabRegistry::CancelCapture(BoazHostPage id, uint64_t request) {
   BOAZ_FIND_PAGE();
   return page->capture ? page->capture->Cancel(request) : BOAZ_HOST_INVALID_ARGUMENT;

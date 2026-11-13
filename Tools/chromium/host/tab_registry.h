@@ -68,6 +68,9 @@ class TabRegistry {
   BoazHostResult CaptureDocumentOrigin(BoazHostPage page, BoazHostDocument* document, char* origin, size_t capacity);
   BoazHostResult CaptureVisible(BoazHostPage page, uint64_t request, int width, int height,
                                 VisiblePageCapture::Completion completion);
+  BoazHostResult CaptureFullPage(BoazHostPage page, uint64_t request,
+      PageEmulation::CaptureCompletion completion);
+  BoazHostResult CancelFullPage(BoazHostPage page, uint64_t request);
   BoazHostResult CancelCapture(BoazHostPage page, uint64_t request);
   BoazHostResult CaptureDocument(BoazHostPage page, BoazHostDocument* document);
   BoazHostResult ReleaseDocument(BoazHostPage page, BoazHostDocument document);
