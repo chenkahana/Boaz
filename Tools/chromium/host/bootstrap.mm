@@ -13,6 +13,7 @@
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"
+#include "base/memory/raw_ptr.h"
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/chrome_browser_main_extra_parts.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
@@ -20,6 +21,7 @@
 #include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
 #include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/create_browser_window.h"
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/unload_controller.h"
 #include "components/input/native_web_keyboard_event.h"
@@ -37,17 +39,18 @@ struct Window {
   base::CallbackListSubscription cancelled;
 };
 struct State {
-  Profile* profile = nullptr;
+  raw_ptr<Profile> profile = nullptr;
   base::FilePath profile_path;
   std::unique_ptr<ScopedProfileKeepAlive> profile_keep_alive;
   std::unique_ptr<ScopedKeepAlive> process_keep_alive;
   std::unique_ptr<TabRegistry> tabs;
   BoazHostCallbacks callbacks{};
-  const BoazHostWindowOptions* pending = nullptr;
+  raw_ptr<const BoazHostWindowOptions> pending = nullptr;
   std::map<BoazHostWindow, Window> windows;
   bool in_callback = false;
   bool exit_requested = false;
   bool finished = false;
+  bool cleanup_pending = false;
 };
 State* state = nullptr;
 BoazHostResult Check() {
@@ -78,7 +81,11 @@ void FinishIfDrained() {
   state->finished = true;
   Notify([] { state->callbacks.shutdown_ready(state->callbacks.context); });
   // Swift queues its cleanup on this same main dispatch queue first.
+  state->cleanup_pending = true;
   dispatch_async(dispatch_get_main_queue(), ^{
+    CHECK(state);
+    state->cleanup_pending = false;
+    state->profile = nullptr;
     state->profile_keep_alive.reset();
     state->process_keep_alive.reset();
   });
@@ -103,16 +110,17 @@ BoazHostResult SetCallbacks(const BoazHostCallbacks* callbacks) {
   return state->tabs->SetCallbacks(&proxy);
 }
 BoazHostResult CreateWindow(const BoazHostWindowOptions* options, BoazHostWindow* output) {
+  if (output) *output = 0;
   if (auto r = Check(); r != BOAZ_HOST_OK) return r;
   if (!output || !ValidOptions(options)) return BOAZ_HOST_INVALID_ARGUMENT;
-  *output = 0;
   if (state->pending || !state->callbacks.page_event || state->exit_requested)
     return BOAZ_HOST_UNAVAILABLE;
-  base::AutoReset<const BoazHostWindowOptions*> pending(&state->pending, options);
-  BrowserWindowCreateParams params(state->profile, true);
+  base::AutoReset<raw_ptr<const BoazHostWindowOptions>> pending(
+      &state->pending, raw_ptr<const BoazHostWindowOptions>(options));
+  BrowserWindowCreateParams params(state->profile.get(), true);
   params.omit_from_session_restore = true;
   params.should_trigger_session_restore = false;
-  Browser* browser = Browser::Create(std::move(params));
+  BrowserWindowInterface* browser = ::CreateBrowserWindow(std::move(params));
   CHECK(browser);
   for (const auto& [id, window] : state->windows) {
     if (window.browser.get() == browser) { *output = id; return BOAZ_HOST_OK; }
@@ -138,13 +146,21 @@ BoazHostResult Shutdown() {
     if (auto r = Check(); r != BOAZ_HOST_OK) return r; \
     return state->tabs->call; \
   }
-FORWARD(CreatePage, (BoazHostWindow w, const char* u, BoazHostPage* p), CreatePage(w,u,p))
+BoazHostResult CreatePage(BoazHostWindow w, const char* u, BoazHostPage* p) {
+  if (p) *p = 0;
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  return state->tabs->CreatePage(w, u, p);
+}
 FORWARD(Navigate, (BoazHostPage p, const char* u), Navigate(p,u))
 FORWARD(Back, (BoazHostPage p), GoBack(p))
 FORWARD(Forward, (BoazHostPage p), GoForward(p))
 FORWARD(Reload, (BoazHostPage p), Reload(p))
 FORWARD(Activate, (BoazHostPage p, uint8_t f), ActivatePage(p,f != 0))
-FORWARD(NativeView, (BoazHostPage p, void** v), GetNativeView(p,v))
+BoazHostResult NativeView(BoazHostPage p, void** v) {
+  if (v) *v = nullptr;
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  return state->tabs->GetNativeView(p, v);
+}
 FORWARD(ClosePage, (BoazHostPage p), ClosePage(p))
 #undef FORWARD
 const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
@@ -155,7 +171,7 @@ class MainParts final : public ChromeBrowserMainExtraParts {
  public:
   void PreEarlyInitialization() override {
     CHECK(!state);
-    state = new State;  // Process lifetime, including Swift callbacks during quit.
+    state = new State;
     auto* command = base::CommandLine::ForCurrentProcess();
     CHECK(command->HasSwitch("no-startup-window"));
     CHECK(command->HasSwitch("no-first-run"));
@@ -182,6 +198,17 @@ class MainParts final : public ChromeBrowserMainExtraParts {
     CHECK(state->profile_keep_alive);
     state->process_keep_alive = std::make_unique<ScopedKeepAlive>(
         KeepAliveOrigin::APP_CONTROLLER, KeepAliveRestartOption::DISABLED);
+  }
+  void PostMainMessageLoopRun() override {
+    CHECK(state);
+    CHECK(state->finished);
+    CHECK(state->windows.empty());
+    CHECK(!state->cleanup_pending);
+    CHECK(!state->profile);
+    CHECK(!state->profile_keep_alive);
+    CHECK(!state->process_keep_alive);
+    state->tabs.reset();
+    delete std::exchange(state, nullptr);
   }
   void PostBrowserStart() override {
     CHECK(state->profile);
