@@ -9,6 +9,10 @@
 #include "base/strings/sys_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/common/pref_names.h"
+#include "components/prefs/pref_service.h"
+#include "extensions/browser/extension_registry.h"
+#include "extensions/common/extension.h"
 #include "chrome/browser/profiles/profile_observer.h"
 #include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
 #include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
@@ -70,6 +74,15 @@ struct Operation : ProfileObserver, std::enable_shared_from_this<Operation> {
     UI();
     if (!completion || loading) return;
     if (!parent || !parent.isVisible) { Cancel(); return; }
+    auto* prefs = profile->GetPrefs();
+    if (!prefs->GetBoolean(prefs::kExtensionsUIDeveloperMode)) {
+      if (!prefs->IsUserModifiablePreference(prefs::kExtensionsUIDeveloperMode)) {
+        Finish(ExtensionInstallResult::kFailed);
+        return;
+      }
+      prefs->SetBoolean(prefs::kExtensionsUIDeveloperMode, true);
+    }
+    if (!completion || !profile) return;
     loading = true;
     installer = extensions::UnpackedInstaller::Create(profile);
     installer->set_allow_file_access(false);
@@ -79,9 +92,13 @@ struct Operation : ProfileObserver, std::enable_shared_from_this<Operation> {
     installer->set_completion_callback(base::BindOnce(
         [](std::weak_ptr<Operation> weak, const extensions::Extension* extension,
            const base::FilePath&, const std::u16string& error) {
-          if (auto operation = weak.lock())
-            operation->Finish(extension && error.empty()
-                ? ExtensionInstallResult::kInstalled : ExtensionInstallResult::kFailed);
+          if (auto operation = weak.lock()) {
+            auto* registry = operation->profile
+                ? extensions::ExtensionRegistry::Get(operation->profile) : nullptr;
+            const bool enabled = extension && error.empty() && registry &&
+                registry->enabled_extensions().Contains(extension->id());
+            operation->Finish(enabled ? ExtensionInstallResult::kInstalled : ExtensionInstallResult::kFailed);
+          }
         }, weak));
     installer->Load(path);
   }
@@ -93,7 +110,7 @@ struct Operation : ProfileObserver, std::enable_shared_from_this<Operation> {
     alert.alertStyle = NSAlertStyleWarning;
     alert.messageText = @"Load developer extension?";
     alert.informativeText = [NSString stringWithFormat:
-        @"Only load a folder from a developer you trust. The extension will run with its requested permissions and may read or change your browsing data. Future changes to this folder are also trusted. This is not a permission-by-permission review. File URL and private browsing access remain disabled.\n\n%@",
+        @"Only load a folder from a developer you trust. This turns on developer extensions for this profile and may re-enable other installed developer extensions. The extension will run with its requested permissions and may read or change your browsing data. Future changes to this folder are also trusted. This is not a permission-by-permission review. File URL and private browsing access remain disabled.\n\n%@",
         base::SysUTF8ToNSString(path.value())];
     [alert addButtonWithTitle:@"Cancel"];
     [alert addButtonWithTitle:@"Load Extension"];
