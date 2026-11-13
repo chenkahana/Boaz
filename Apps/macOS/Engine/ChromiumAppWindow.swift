@@ -40,7 +40,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         browser.chromiumLayoutChanged = { [weak self] in self?.queueLayout() }
         browser.createChromiumPage = { [weak self] tab in
             guard let self, !self.finished, self.handle != 0 else { throw EnginePageError.closed }
-            guard self.profile.identity.isPrivate || (tab.profileID ?? "default") == self.profile.identity.id else {
+            guard self.profile.identity.isPrivate || tab.profileID == self.profile.identity.id else {
                 throw EnginePageError.invalidRequest
             }
             return try self.runtime.createPage(window: self.handle,
@@ -69,18 +69,20 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         options.native_nswindow = Unmanaged.passUnretained(window).toOpaque()
         options.context = Unmanaged.passUnretained(self).toOpaque()
         options.content_view = { context in
-            MainActor.assumeIsolated {
+            let bits: UInt? = MainActor.assumeIsolated {
                 guard let context else { return nil }
                 let owner = Unmanaged<ChromiumAppWindow>.fromOpaque(context).takeUnretainedValue()
-                return Unmanaged.passUnretained(owner.contentContainer).toOpaque()
+                return UInt(bitPattern: Unmanaged.passUnretained(owner.contentContainer).toOpaque())
             }
+            return bits.flatMap { UnsafeMutableRawPointer(bitPattern: $0) }
         }
         options.address_field = { context in
-            MainActor.assumeIsolated {
+            let bits: UInt? = MainActor.assumeIsolated {
                 guard let context else { return nil }
                 let owner = Unmanaged<ChromiumAppWindow>.fromOpaque(context).takeUnretainedValue()
-                return Unmanaged.passUnretained(owner.addressField).toOpaque()
+                return UInt(bitPattern: Unmanaged.passUnretained(owner.addressField).toOpaque())
             }
+            return bits.flatMap { UnsafeMutableRawPointer(bitPattern: $0) }
         }
         options.focus_address = { context in
             MainActor.assumeIsolated {
