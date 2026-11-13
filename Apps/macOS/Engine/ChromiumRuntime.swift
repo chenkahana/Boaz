@@ -40,6 +40,11 @@ final class ChromiumRuntime {
     private var closingPages: Set<BoazHostPage> = []
     private var profileRequests: [EngineProfileIdentity: ProfileRequest] = [:]
     private var blockingRequest: BlockingRequest?
+    private struct BlockingConfiguration: Equatable {
+        let enabled: Bool
+        let exceptionSites: [String]
+    }
+    private var blockingConfigurations: [BoazHostProfile: BlockingConfiguration] = [:]
     private var blockingPrepared = false
     private var blockingShutdownRequested = false
     private var cacheRequestID: UInt64 = 0
@@ -221,6 +226,7 @@ final class ChromiumRuntime {
                 owner.inCallback = true
                 defer { owner.inCallback = false }
                 guard let profile = owner.preparedProfiles[profileHandle],
+                      owner.blockingConfigurations[profileHandle] != nil,
                       let options = owner.prepareWindow?(profile, role) else { return BOAZ_HOST_UNAVAILABLE }
                 guard let nativeContext = options.context else { return BOAZ_HOST_INVALID_ARGUMENT }
                 let bits = UInt(bitPattern: nativeContext)
@@ -285,6 +291,7 @@ final class ChromiumRuntime {
                     owner.pages.removeAll()
                     owner.windowProfiles.removeAll()
                     owner.preparedProfiles.removeAll()
+                    owner.blockingConfigurations.removeAll()
                     ChromiumRuntime.callbackOwner = nil
                     owner.shutdownReady?()
                 }
@@ -443,7 +450,12 @@ final class ChromiumRuntime {
         try requireRunning()
         try Task.checkCancellation()
         guard !identity.id.isEmpty, !identity.id.contains("\0") else { throw EnginePageError.invalidRequest }
-        if let existing = preparedProfiles.values.first(where: { $0.identity == identity }) { return existing }
+        if let existing = preparedProfiles.values.first(where: { $0.identity == identity }) {
+            if blockingConfigurations[existing.handle] == nil {
+                try configureBlocking(profile: existing, enabled: Preferences.blockTrackers, exceptionSites: [])
+            }
+            return existing
+        }
         let waiter = UUID()
         let profile: ChromiumProfile = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
@@ -485,7 +497,8 @@ final class ChromiumRuntime {
 
     func createWindow(profile: ChromiumProfile, options: inout BoazHostWindowOptions) throws -> BoazHostWindow {
         try requireRunning()
-        guard preparedProfiles[profile.handle] == profile else { throw EnginePageError.invalidRequest }
+        guard preparedProfiles[profile.handle] == profile,
+              blockingConfigurations[profile.handle] != nil else { throw EnginePageError.invalidRequest }
         guard let context = options.context else { throw EnginePageError.invalidRequest }
         let bits = UInt(bitPattern: context)
         guard preparedWindowContexts[bits] == nil else { throw EnginePageError.invalidRequest }
@@ -611,12 +624,41 @@ final class ChromiumRuntime {
         return model
     }
 
+    func configureBlocking(profile: ChromiumProfile, enabled: Bool, exceptionSites: [String]) throws {
+        try requireRunning()
+        guard blockingPrepared, !blockingShutdownRequested,
+              preparedProfiles[profile.handle] == profile else { throw EnginePageError.invalidRequest }
+        guard exceptionSites.count <= 10_000,
+              exceptionSites.allSatisfy({ !$0.isEmpty && !$0.contains("\0") && $0.utf8.count <= 2048 }) else {
+            throw EnginePageError.invalidRequest
+        }
+        let config = BlockingConfiguration(enabled: enabled, exceptionSites: exceptionSites)
+        if blockingConfigurations[profile.handle] == config { return }
+        let data = try JSONSerialization.data(withJSONObject: exceptionSites)
+        guard let json = String(data: data, encoding: .utf8) else { throw EnginePageError.invalidRequest }
+        try json.withCString { try check(api.configure_profile_blocking!(profile.handle, enabled ? 1 : 0, $0)) }
+        blockingConfigurations[profile.handle] = config
+    }
+
+    func applyBlockingPreference(_ enabled: Bool) throws {
+        try requireRunning()
+        var firstFailure: Error?
+        for profile in preparedProfiles.values.sorted(by: { $0.handle < $1.handle }) {
+            do {
+                try configureBlocking(profile: profile, enabled: enabled,
+                                      exceptionSites: blockingConfigurations[profile.handle]?.exceptionSites ?? [])
+            } catch { if firstFailure == nil { firstFailure = error } }
+        }
+        if let firstFailure { throw firstFailure }
+    }
+
     func releaseProfile(_ profile: ChromiumProfile) throws {
         try requireRunning()
         guard preparedProfiles[profile.handle] == profile else { throw EnginePageError.invalidRequest }
         guard !windowProfiles.values.contains(profile) else { throw EnginePageError.unavailable }
         try check(api.release_profile!(profile.handle))
         preparedProfiles.removeValue(forKey: profile.handle)
+        blockingConfigurations.removeValue(forKey: profile.handle)
         downloads.removeValue(forKey: profile.handle)?.dispose()
     }
 
@@ -656,6 +698,15 @@ final class ChromiumRuntime {
                 }
                 // Runtime owns prepared profiles; cancellation never releases a shared handle.
                 owner.preparedProfiles[handle] = profile
+                if owner.blockingConfigurations[handle] == nil {
+                    do {
+                        try owner.configureBlocking(profile: profile, enabled: Preferences.blockTrackers, exceptionSites: [])
+                    } catch {
+                        // Failed cleanup stays owned but cannot create windows without a published policy.
+                        try? owner.releaseProfile(profile)
+                        throw error
+                    }
+                }
                 let pending = waiters
                 waiters.removeAll()
                 pending.values.forEach { $0.resume(returning: profile) }

@@ -343,6 +343,8 @@ private final class ChromiumApplication: NSObject {
         guard !finished else { return }
         do { try applyAutomaticPiPPreference() }
         catch { model.showToast("The automatic Picture in Picture preference could not be applied.") }
+        do { try runtime.applyBlockingPreference(Preferences.blockTrackers) }
+        catch { model.showToast("The tracker-blocking preference could not be applied to every profile.") }
     }
     @objc private func willTerminate() {
         guard !finished else { return }
