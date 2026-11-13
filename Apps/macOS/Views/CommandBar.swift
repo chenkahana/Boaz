@@ -37,6 +37,14 @@ struct CommandBar: View {
             VStack(spacing: 0) {
                 HStack(spacing: 12) {
                     Image(systemName: icon).font(.system(size: 17, weight: .medium)).foregroundStyle(tint)
+                    #if BOAZ_CHROMIUM
+                    if let field = browser.chromiumAddressField {
+                        ChromiumAddressField(field: field, text: $text, placeholder: placeholder,
+                            moveUp: { selection = max(selection - 1, 0) },
+                            moveDown: { selection = min(selection + 1, max(suggestions.count - 1, 0)) },
+                            submit: { run(suggestions.indices.contains(selection) ? suggestions[selection] : nil) },
+                            cancel: { browser.commandMode = nil })
+                    } else {
                     TextField(placeholder, text: $text)
                         .textFieldStyle(.plain)
                         .font(.system(size: 19))
@@ -45,6 +53,17 @@ struct CommandBar: View {
                         .onKeyPress(.downArrow) { selection = min(selection + 1, max(suggestions.count - 1, 0)); return .handled }
                         .onKeyPress(.upArrow) { selection = max(selection - 1, 0); return .handled }
                         .onKeyPress(.escape) { browser.commandMode = nil; return .handled }
+                    }
+                    #else
+                    TextField(placeholder, text: $text)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 19))
+                        .focused($focused)
+                        .onSubmit { run(suggestions.indices.contains(selection) ? suggestions[selection] : nil) }
+                        .onKeyPress(.downArrow) { selection = min(selection + 1, max(suggestions.count - 1, 0)); return .handled }
+                        .onKeyPress(.upArrow) { selection = max(selection - 1, 0); return .handled }
+                        .onKeyPress(.escape) { browser.commandMode = nil; return .handled }
+                    #endif
                 }
                 .padding(.horizontal, 18).frame(height: 56)
                 if !suggestions.isEmpty {
@@ -83,6 +102,15 @@ struct CommandBar: View {
             defer { if browser.commandSession == session { takeTypeAhead() } }
             for _ in 0..<10 {
                 if browser.commandSession != session || fieldHasKeyboard(besides: otherField) { return }
+                #if BOAZ_CHROMIUM
+                if let field = browser.chromiumAddressField {
+                    if field.window === browser.window, field.window?.makeFirstResponder(field) == true {
+                        field.selectText(nil)
+                    }
+                    do { try await Task.sleep(for: .milliseconds(50)) } catch { return }
+                    continue
+                }
+                #endif
                 if focused {
                     // Asking again only takes effect once SwiftUI has seen the field unfocused.
                     focused = false
@@ -92,7 +120,15 @@ struct CommandBar: View {
                 }
                 do { try await Task.sleep(for: .milliseconds(50)) } catch { return }
             }
-            if browser.commandSession == session, !fieldHasKeyboard(besides: otherField) { focused = true }
+            if browser.commandSession == session, !fieldHasKeyboard(besides: otherField) {
+                #if BOAZ_CHROMIUM
+                if let field = browser.chromiumAddressField {
+                    if field.window === browser.window { field.window?.makeFirstResponder(field) }
+                } else { focused = true }
+                #else
+                focused = true
+                #endif
+            }
         }
         .onChange(of: text) { selection = 0 }
         // History is looked up once typing pauses, off the main thread.
@@ -112,6 +148,14 @@ struct CommandBar: View {
         let (typed, clear, submit) = browser.endTypeAhead()
         // ⌘L's address is selected on focus, so typing (or Delete) replaces it.
         if mode == .currentTab, clear || !typed.isEmpty { text = typed } else { text += typed }
+        #if BOAZ_CHROMIUM
+        if clear || !typed.isEmpty, let field = browser.chromiumAddressField,
+           let editor = field.currentEditor() as? NSTextView, !editor.hasMarkedText() {
+            editor.string = text
+            field.stringValue = text
+            editor.setSelectedRange(NSRange(location: (text as NSString).length, length: 0))
+        }
+        #endif
         // With nothing typed, Return only means something for ⌘L's address.
         if submit, !text.isEmpty { run(suggestions.first) }
     }
@@ -119,6 +163,9 @@ struct CommandBar: View {
     /// Whether typing reaches the field: AppKit's first responder is a text field's editor, not the web view, and
     /// not `otherField`'s.
     private func fieldHasKeyboard(besides otherField: NSTextField?) -> Bool {
+        #if BOAZ_CHROMIUM
+        if let field = browser.chromiumAddressField { return fieldEditorOwner === field }
+        #endif
         guard focused, let owner = fieldEditorOwner else { return false }
         return owner !== otherField
     }
