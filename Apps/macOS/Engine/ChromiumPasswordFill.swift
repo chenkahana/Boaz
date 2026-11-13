@@ -17,23 +17,27 @@ enum ChromiumPasswordFill {
         func unchanged() -> Bool {
             page.state.lifecycle == .active && page.state.navigationID == navigation && page.state.url == url
         }
-        defer {
-            Task { @MainActor in
-                guard unchanged() else { return }
-                _ = try? await page.executeTrusted(function:
-                    "({key}) => { delete window.__boazManualPasswordFills?.[key]; return null; }",
-                    arguments: ["key": .string(key)])
-            }
-        }
         do {
-            let prepared = try await page.executeTrusted(function: Self.prepare, arguments: ["key": .string(key)])
+            let target = try page.captureTrustedDocument(focused: true)
+            defer { target.release() }
+            let preparation = try target.clone()
+            defer { preparation.release() }
+            let cleanup = try target.clone()
+            defer {
+                Task { @MainActor in
+                    defer { cleanup.release() }
+                    _ = try? await page.executeTrusted(on: cleanup, function:
+                        "({key}) => { delete window.__boazManualPasswordFills?.[key]; return null; }",
+                        arguments: ["key": .string(key)])
+                }
+            }
+            let prepared = try await page.executeTrusted(on: preparation,
+                function: Self.prepare, arguments: ["key": .string(key)])
             try Task.checkCancellation()
             guard unchanged(), prepared == .bool(true) else {
                 report("Select a sign-in field on this page, then choose Fill Saved Password again.")
                 return
             }
-            let target = try page.captureTrustedDocument()
-            defer { target.release() }
             guard unchanged(), let scheme = target.origin.scheme?.lowercased(),
                   scheme == "https" || scheme == "http" else {
                 report("Passwords can only be filled on HTTP or HTTPS pages.")

@@ -35,6 +35,15 @@ final class ChromiumCapturedDocument {
         return token
     }
 
+    func clone() throws -> ChromiumCapturedDocument {
+        let original = try validatedToken(for: owner)
+        guard let clone = owner.api.clone_document else { throw EnginePageError.incompatibleBridge }
+        var copied: BoazHostDocument = 0
+        try owner.check(clone(page, original, &copied))
+        guard copied != 0 else { throw ChromiumTrustedScriptError.invalidTarget }
+        return ChromiumCapturedDocument(owner: owner, origin: origin, token: copied)
+    }
+
     func consumed() { token = nil }
 }
 #endif

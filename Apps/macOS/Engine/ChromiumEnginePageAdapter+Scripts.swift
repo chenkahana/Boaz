@@ -25,9 +25,10 @@ extension ChromiumEnginePageAdapter {
             function: function, arguments: arguments, accepted: { accepted = true })
     }
 
-    func captureTrustedDocument() throws -> ChromiumCapturedDocument {
+    func captureTrustedDocument(focused: Bool = false) throws -> ChromiumCapturedDocument {
         guard state.lifecycle == .active else { throw EnginePageError.closed }
-        guard let capture = api.capture_document_origin, let release = api.release_document else {
+        guard let capture = focused ? api.capture_focused_document_origin : api.capture_document_origin,
+              let release = api.release_document else {
             throw EnginePageError.incompatibleBridge
         }
         var document: BoazHostDocument = 0
