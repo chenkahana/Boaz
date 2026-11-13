@@ -26,7 +26,7 @@ class Request final : public network::mojom::URLLoader,
           const network::ResourceRequest& request)
       : receiver_(this, std::move(receiver)), client_(std::move(client)),
         context_(std::move(context)), decide_(std::move(decide)),
-        method_(request.method), destination_(request.destination) {
+        method_(request.method), destination_(request.destination), resource_type_(request.resource_type) {
     receiver_.set_disconnect_handler(base::BindOnce(&Request::Destroy, weak_.GetWeakPtr()));
     client_.set_disconnect_handler(base::BindOnce(&Request::Destroy, weak_.GetWeakPtr()));
   }
@@ -46,7 +46,7 @@ class Request final : public network::mojom::URLLoader,
   }
  private:
   int Evaluate(const GURL& url, std::optional<GURL>& rewrite) {
-    const auto decision = decide_.Run(url, method_, destination_, context_);
+    const auto decision = decide_.Run(url, method_, destination_, resource_type_, context_);
     switch (decision.action) {
       case AdblockDecision::Action::kAllow:
         return decision.rewritten_url || !decision.replacement_data_url.empty() ? net::ERR_NOT_IMPLEMENTED : net::OK;
@@ -128,6 +128,7 @@ class Request final : public network::mojom::URLLoader,
   std::string method_;
   std::optional<GURL> pending_rewrite_;
   const network::mojom::RequestDestination destination_;
+  const int resource_type_;
   base::WeakPtrFactory<Request> weak_{this};
 };
 class Factory final : public network::mojom::URLLoaderFactory {

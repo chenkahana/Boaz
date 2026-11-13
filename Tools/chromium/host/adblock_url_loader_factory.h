@@ -19,7 +19,7 @@ struct AdblockDecision {
   std::string replacement_data_url;
 };
 using AdblockDecider = base::RepeatingCallback<AdblockDecision(
-    const GURL&, const std::string&, network::mojom::RequestDestination,
+    const GURL&, const std::string&, network::mojom::RequestDestination, int resource_type,
     const AdblockRequestContext&)>;
 // Callback runs only on runner, synchronously; capture immutable/thread-safe
 // rule ownership, never UI/profile objects. Resource replacement is explicitly
