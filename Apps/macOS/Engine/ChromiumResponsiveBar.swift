@@ -51,6 +51,7 @@ struct ChromiumResponsiveBar: View {
                 Text(adapter.appliedUserAgent == nil ? "Native user agent." : "Custom user agent; Client Hints suppressed.")
                 if adapter.emulationPending { ProgressView().controlSize(.small) }
             }.font(.caption).foregroundStyle(.secondary)
+            ChromiumMediaControls(adapter: adapter)
             DisclosureGroup("User Agent") {
                 VStack(alignment: .leading, spacing: 6) {
                     if let defaults = adapter.userAgentDefaults {
@@ -120,6 +121,7 @@ struct ChromiumResponsiveBar: View {
             do {
                 try await adapter.applyViewport(nil)
                 try await adapter.applyUserAgent(nil)
+                try await adapter.applyMedia(nil)
                 adapter.responsiveVisible = false
             } catch { }
         }
