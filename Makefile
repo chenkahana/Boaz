@@ -8,7 +8,7 @@ UNSIGNED := CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
 XCB      := xcodebuild -project $(PROJECT) -derivedDataPath $(DERIVED) -quiet
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap project kit ios mac mac-dmg build device archive dmg clean
+.PHONY: help bootstrap project kit ios mac mac-dmg mac-webkit-dmg build device archive dmg clean
 
 help: ## List the available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "  %-10s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -30,13 +30,14 @@ ios: project ## Build the iPhone app and extensions (unsigned)
 mac: project ## Build the Mac app (unsigned)
 	$(XCB) -scheme Boaz-macOS -configuration Debug -destination 'generic/platform=macOS' $(UNSIGNED) build
 
-mac-dmg: ## Build the DMG variant of the Mac app, with Sparkle (unsigned; project-dmg.yml)
-	@# One shell, so the App Store project comes back however the build ends. Seeded with BoazKit's pins, so Xcode
-	@# records Sparkle's here and not in BoazKit's Package.resolved.
-	xcodegen generate --quiet --spec project-dmg.yml && trap 'xcodegen generate --quiet' EXIT && \
-	mkdir -p $(PROJECT)/project.xcworkspace/xcshareddata/swiftpm && \
-	cp Packages/BoazKit/Package.resolved $(PROJECT)/project.xcworkspace/xcshareddata/swiftpm/ && \
-	$(XCB) -scheme Boaz-macOS -configuration Debug -destination 'generic/platform=macOS' $(UNSIGNED) build
+mac-dmg: ## Build Chromium host and matching Release Boaz UI for DMG assembly
+	/opt/homebrew/bin/python3.12 Tools/chromium/build.py --build
+	/opt/homebrew/bin/python3.12 Tools/chromium/build-application.py --build
+
+mac-webkit-dmg: ## Build the preserved WebKit DMG configuration (unsigned)
+	Tools/generate-webkit-project.sh dmg
+	xcodebuild -project build/webkit-dmg/Boaz.xcodeproj -scheme Boaz-macOS -configuration Release \
+		-destination 'generic/platform=macOS' -derivedDataPath build/webkit-dmg/DerivedData $(UNSIGNED) build
 
 build: kit ios mac ## Build BoazKit and both apps (what CI runs)
 
@@ -51,8 +52,8 @@ archive: project ## Signed Release archives for App Store Connect, in build/arch
 	xcodebuild archive -project $(PROJECT) -scheme Boaz-macOS -configuration Release \
 		-destination 'generic/platform=macOS' -archivePath $(ARCHIVES)/Boaz-macOS.xcarchive -allowProvisioningUpdates
 
-dmg: ## Notarized DMG on GitHub Releases for tag vVERSION: make dmg VERSION=0.2.0 (docs/release.md)
-	Tools/release-mac.sh $(VERSION)
+dmg: ## Prepare an unpublished Chromium DMG: VERSION and RELEASE_ARGS required (docs/release.md)
+	Tools/release-mac.sh $(VERSION) $(RELEASE_ARGS)
 
 clean: ## Remove build output (keeps release archives)
 	rm -rf "$(DERIVED)" Packages/BoazKit/.build
