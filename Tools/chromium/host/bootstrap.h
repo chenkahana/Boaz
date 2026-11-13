@@ -10,6 +10,8 @@ class BrowserWindow;
 class BrowserWindowInterface;
 class ChromeBrowserMainExtraParts;
 namespace boaz {
+class AdblockProfileState;
+std::shared_ptr<AdblockProfileState> NativeBlockingState(Profile*);
 void ReportNativePasswordSubmission(content::WebContents*, std::string origin, std::string username, std::string password);
 void ReportProtectedMediaRequest(content::RenderFrameHost* frame, const std::string& key);
 bool NativeHostEnabled();

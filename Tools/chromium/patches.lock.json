@@ -691,6 +691,17 @@
           "after": "c017c275d572af8e9de10b6fd57fcb59c2d7fab6f69cad55f7829a8ed1d6d8ad"
         }
       ]
+    },
+    {
+      "file": "patches/native-blocking-request-factory.patch",
+      "sha256": "748537f69143ecf8707123a54d49f7c87d8ca4d529dd2e0e84b9e30f65802ab4",
+      "files": [
+        {
+          "path": "chrome/browser/chrome_content_browser_client.cc",
+          "before": "465358c1aa545340cdfa172740870c2076df189491e78d6f4e75d5f800e621b4",
+          "after": "3f8b37bd336a6f5d7182d192f46405e8bb0b2b4ad0b88f2dd4aa78125b6940a5"
+        }
+      ]
     }
   ]
 }

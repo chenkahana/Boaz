@@ -1180,6 +1180,11 @@ bool RouteExternalURLs(std::vector<std::string> urls) {
   }
   return true;
 }
+std::shared_ptr<AdblockProfileState> NativeBlockingState(Profile* profile) {
+  CHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  if (!state || !state->profiles) return nullptr;
+  return state->profiles->Blocking(state->profiles->HandleFor(profile));
+}
 bool IsNativeExtensionPromptContext(Profile* profile, void* native_window) {
   if (!state || state->exit_requested || state->finished || !state->profiles || !profile ||
       profile->IsOffTheRecord() || !state->profiles->Owns(profile)) return false;
