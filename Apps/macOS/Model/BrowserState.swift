@@ -140,8 +140,13 @@ final class BrowserState {
             model.commit(item)
         }
         enginePages[item.id] = page
+        recency.removeAll { $0 == item.id }
+        recency.append(item.id)
         if active { activate(item) }
+        closeIdlePages()
     }
+    @ObservationIgnored private var chromiumScrollDocuments: [String: UInt64] = [:]
+    @ObservationIgnored private var chromiumScrollTasks: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var pendingChromiumCloses: [String: SidebarItem] = [:]
     @ObservationIgnored private var pendingChromiumUnloads: Set<String> = []
     #endif
@@ -321,6 +326,21 @@ final class BrowserState {
     /// Over the limit, the least recently used pages close, except those in view and those playing, recording or in
     /// full screen: music in a background tab keeps playing however many tabs open after it.
     private func closeIdlePages() {
+        #if BOAZ_CHROMIUM
+        if createChromiumPage != nil {
+            let live = enginePages.values.filter { $0.kind == .chromium && $0.state.lifecycle != .closed }.count
+            var excess = live - pendingChromiumUnloads.count - maxLivePages
+            for id in recency where excess > 0 {
+                guard !pagesInView.contains(id), !pendingChromiumUnloads.contains(id),
+                      let engine = enginePages[id],
+                      let page = engine.adapter as? ChromiumEnginePageAdapter,
+                      !page.isBusyForResidency else { continue }
+                requestChromiumClose(id, engine: engine, automatic: true)
+                excess -= 1
+            }
+            return
+        }
+        #endif
         guard pages.count > maxLivePages, !isClosingIdlePages else { return }
         isClosingIdlePages = true
         Task {
@@ -348,6 +368,18 @@ final class BrowserState {
     private func pagesInViewChanged(from previous: Set<String>) {
         guard windowIsVisible else { return }
         let now = pagesInView
+        #if BOAZ_CHROMIUM
+        for id in previous.subtracting(now) {
+            Task { await rememberChromiumPageState(id) }
+        }
+        for id in now.subtracting(previous) {
+            if let page = cachedChromiumPage(for: id) {
+                recency.removeAll { $0 == id }
+                recency.append(id)
+                Task { try? await PageState.returnToPlace(page) }
+            }
+        }
+        #endif
         for id in previous.subtracting(now) { pictureInPicture(id)?.floatOnLeaving() }
         for id in now.subtracting(previous) { pictureInPicture(id)?.returnFromLeaving() }
     }
@@ -392,13 +424,21 @@ final class BrowserState {
     func existingPage(for tabID: String) -> WebPage? { pages[tabID] }
 
     func enginePage(for tab: SidebarItem) throws -> EnginePage {
-        if let engine = enginePages[tab.id] { return engine }
+        if let engine = enginePages[tab.id] {
+            recency.removeAll { $0 == tab.id }
+            recency.append(tab.id)
+            return engine
+        }
         #if BOAZ_CHROMIUM
         if let createChromiumPage {
             let engine = try createChromiumPage(tab)
             enginePages[tab.id] = engine
+            recency.removeAll { $0 == tab.id }
+            recency.append(tab.id)
+            if let saved = pageStates[tab.id], saved.url == tab.url { pendingRestores[tab.id] = saved }
             if !applyingChromiumActivation, activeTabID == tab.id { activateChromiumPage?(engine) }
             chromiumLayoutChanged?()
+            closeIdlePages()
             return engine
         }
         #endif
@@ -477,6 +517,9 @@ final class BrowserState {
         pages[tabID] = nil
         enginePages[tabID] = nil
         #if BOAZ_CHROMIUM
+        chromiumScrollTasks.removeValue(forKey: tabID)?.cancel()
+        chromiumScrollDocuments[tabID] = nil
+        pendingRestores[tabID] = nil
         chromiumLayoutChanged?()
         #endif
         loadFailures[tabID] = nil
@@ -711,6 +754,12 @@ final class BrowserState {
     /// Reads and keeps where a page in view is, as Boaz goes to the background. A page only scrolls in view, so its last
     /// report there already says where it is.
     private func rememberPageState(_ tabID: String) async {
+        #if BOAZ_CHROMIUM
+        if cachedChromiumPage(for: tabID) != nil {
+            await rememberChromiumPageState(tabID)
+            return
+        }
+        #endif
         guard pendingRestores[tabID] == nil, pagesInView.contains(tabID), let page = pages[tabID], !page.isLoading,
               let state = await PageState.read(page), pendingRestores[tabID] == nil, tab(tabID) != nil else { return }
         pageStates.set(state, for: tabID)
@@ -759,15 +808,58 @@ final class BrowserState {
     }
 
     #if BOAZ_CHROMIUM
-    private func requestChromiumClose(_ tabID: String, engine: EnginePage) {
+    private func rememberChromiumPageState(_ id: String) async {
+        guard let page = cachedChromiumPage(for: id),
+              chromiumScrollTasks[id] == nil,
+              let state = await ChromiumPageServices.captureScroll(from: page),
+              cachedChromiumPage(for: id) === page, tab(id) != nil else { return }
+        pageStates.set(state, for: id)
+    }
+
+    private func prepareChromiumScroll(_ id: String, page: ChromiumEnginePageAdapter) {
+        guard page.state.lifecycle == .active, !page.state.isLoading,
+              page.state.loadFailure == nil,
+              chromiumScrollDocuments[id] != page.state.navigationID else { return }
+        chromiumScrollTasks[id]?.cancel()
+        let navigation = page.state.navigationID
+        chromiumScrollDocuments[id] = navigation
+        let saved = pendingRestores[id]
+        chromiumScrollTasks[id] = Task { [weak self, weak page] in
+            guard let self, let page else { return }
+            do {
+                try await ChromiumPageServices.prepareScroll(on: page, restoring: saved)
+                guard !Task.isCancelled, cachedChromiumPage(for: id) === page,
+                      page.state.navigationID == navigation else { return }
+                pendingRestores[id] = nil
+            } catch {
+                guard !Task.isCancelled, chromiumScrollDocuments[id] == navigation else { return }
+                chromiumScrollDocuments[id] = nil
+            }
+            chromiumScrollTasks[id] = nil
+        }
+    }
+
+    private func requestChromiumClose(_ tabID: String, engine: EnginePage, automatic: Bool = false) {
         guard !pendingChromiumUnloads.contains(tabID) else { return }
         pendingChromiumUnloads.insert(tabID)
-        do {
-            try engine.close()
-        } catch {
-            pendingChromiumUnloads.remove(tabID)
-            pendingChromiumCloses[tabID] = nil
-            model.showToast("Could not close page: \(error.localizedDescription)")
+        Task {
+            await rememberChromiumPageState(tabID)
+            guard enginePages[tabID] === engine else { return }
+            if automatic {
+                guard !pagesInView.contains(tabID),
+                      let page = engine.adapter as? ChromiumEnginePageAdapter,
+                      !page.isBusyForResidency else {
+                    pendingChromiumUnloads.remove(tabID)
+                    return
+                }
+            }
+            do {
+                try engine.close()
+            } catch {
+                pendingChromiumUnloads.remove(tabID)
+                pendingChromiumCloses[tabID] = nil
+                model.showToast("Could not close page: \(error.localizedDescription)")
+            }
         }
     }
 
@@ -776,6 +868,15 @@ final class BrowserState {
             ($0.value.adapter as? ChromiumEnginePageAdapter)?.handle == handle
         }) else { return }
         let id = entry.key
+        if let page = entry.value.adapter as? ChromiumEnginePageAdapter {
+            if page.state.lifecycle == .crashed {
+                pendingRestores[id] = pageStates[id]
+                chromiumScrollTasks.removeValue(forKey: id)?.cancel()
+                chromiumScrollDocuments[id] = nil
+            } else {
+                prepareChromiumScroll(id, page: page)
+            }
+        }
         if event == BOAZ_HOST_PAGE_CLOSE_CANCELLED {
             pendingChromiumUnloads.remove(id)
             pendingChromiumCloses[id] = nil
