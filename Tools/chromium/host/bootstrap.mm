@@ -1,3 +1,4 @@
+#include "extension_management.h"
 #import <AppKit/AppKit.h>
 #include <dlfcn.h>
 #include <map>
@@ -373,6 +374,26 @@ BoazHostResult NativeView(BoazHostPage p, void** v) {
 }
 FORWARD(ClosePage, (BoazHostPage p), ClosePage(p))
 #undef FORWARD
+BoazHostResult EnumerateManagedExtensions(BoazHostProfile handle,
+    BoazHostManagedExtensionVisitor visitor, void* context) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  if (!visitor) return BOAZ_HOST_INVALID_ARGUMENT;
+  auto* profile = state->profiles ? state->profiles->Resolve(handle) : nullptr;
+  if (!profile) return BOAZ_HOST_INVALID_HANDLE;
+  if (profile->IsOffTheRecord()) return BOAZ_HOST_UNAVAILABLE;
+  for (const auto& extension : ListManagedExtensions(profile)) {
+    Notify([&] { visitor(context, extension.id.c_str(), extension.name.c_str(),
+        extension.version.c_str(), extension.enabled, extension.can_disable); });
+  }
+  return BOAZ_HOST_OK;
+}
+BoazHostResult DisableExtension(BoazHostProfile handle, const char* id) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  if (!id || strlen(id) != 32) return BOAZ_HOST_INVALID_ARGUMENT;
+  auto* profile = state->profiles ? state->profiles->Resolve(handle) : nullptr;
+  if (!profile) return BOAZ_HOST_INVALID_HANDLE;
+  return DisableManagedExtension(profile, id);
+}
 BoazHostResult EnumerateExtensions(BoazHostWindow id,
     BoazHostExtensionVisitor visitor, void* context) {
   if (auto r = Check(); r != BOAZ_HOST_OK) return r;
@@ -823,7 +844,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:

@@ -36,6 +36,8 @@ source_set("host") {
     "page_print.cc",
     "page_emulation.h",
     "page_emulation.cc",
+    "extension_management.h",
+    "extension_management.cc",
     "extension_actions.h",
     "extension_actions.mm",
     "extension_popup.h",

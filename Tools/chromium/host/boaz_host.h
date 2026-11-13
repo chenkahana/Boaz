@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 37u
+#define BOAZ_HOST_ABI_VERSION 38u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT,
@@ -217,6 +217,10 @@ typedef void (*BoazHostHistoryVisitor)(void* context, int32_t entry_id,
  * Handles are never reused during a process. Callbacks must not reenter the API.
  * PAGE_CLOSING and PAGE_VIEW_WILL_CHANGE are synchronous and permit only
  * native-view detachment. Other events wait until model mutation unwinds. */
+/* Borrowed installed-extension metadata; copy before returning, no API reentry. */
+typedef void (*BoazHostManagedExtensionVisitor)(void* context, const char* id,
+    const char* name, const char* version, uint8_t enabled, uint8_t can_disable);
+
 typedef struct BoazHostAPI {
   size_t size;
   uint32_t version;
@@ -331,6 +335,9 @@ typedef struct BoazHostAPI {
   BoazHostResult (*clone_document)(BoazHostPage page, BoazHostDocument document, BoazHostDocument* clone);
   BoazHostResult (*set_devtools_dock_preferences)(BoazHostWindow window,
       int32_t current, int32_t last);
+  BoazHostResult (*enumerate_managed_extensions)(BoazHostProfile profile,
+      BoazHostManagedExtensionVisitor visitor, void* context);
+  BoazHostResult (*disable_extension)(BoazHostProfile profile, const char* id);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

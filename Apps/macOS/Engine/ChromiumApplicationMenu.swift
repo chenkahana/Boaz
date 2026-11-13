@@ -37,6 +37,9 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         let app = menu("Boaz")
         responder(app, "About Boaz", #selector(NSApplication.orderFrontStandardAboutPanel(_:)))
         add(app, "Settings…", enabled: { _ in true }, perform: { [weak self] _ in self?.openScene("settings") }, key: ",")
+        add(app, "Manage Chromium Extensions…", enabled: {
+            $0?.isIncognito == false && $0?.manageChromiumExtensions != nil
+        }) { $0?.manageChromiumExtensions?() }
         app.addItem(.separator())
         let services = NSMenu(title: "Services")
         let servicesItem = NSMenuItem(title: "Services", action: nil, keyEquivalent: "")
