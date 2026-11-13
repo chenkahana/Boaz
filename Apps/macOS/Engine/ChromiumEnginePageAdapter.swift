@@ -175,6 +175,12 @@ final class ChromiumEnginePageAdapter: EnginePageAdapter {
         try check(stop(handle))
     }
 
+    func showDevTools(_ action: BoazHostDevToolsAction) throws {
+        try requireOpen()
+        guard let show = api.show_devtools else { throw EnginePageError.incompatibleBridge }
+        try check(show(handle, action))
+    }
+
     func close() throws {
         guard state.lifecycle != .closed, state.lifecycle != .closing, !closeRequested else { return }
         try check(api.close_page!(handle))

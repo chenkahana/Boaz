@@ -1,4 +1,6 @@
 #include "tab_registry.h"
+#include "chrome/browser/devtools/devtools_window.h"
+#include "chrome/browser/devtools/devtools_toggle_action.h"
 #include "content/public/browser/media_session.h"
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "chrome/browser/media/webrtc/media_stream_capture_indicator.h"
@@ -480,6 +482,30 @@ BoazHostResult TabRegistry::GoForward(BoazHostPage id) {
 BoazHostResult TabRegistry::Reload(BoazHostPage id) {
   BOAZ_FIND_PAGE();
   page->web_contents()->GetController().Reload(content::ReloadType::NORMAL, true);
+  return BOAZ_HOST_OK;
+}
+BoazHostResult TabRegistry::ShowDevTools(BoazHostPage id, BoazHostDevToolsAction action) {
+  BOAZ_FIND_PAGE();
+  auto* contents = page->web_contents();
+  if (!DevToolsWindow::AllowDevToolsFor(
+          Profile::FromBrowserContext(contents->GetBrowserContext()), contents))
+    return BOAZ_HOST_UNAVAILABLE;
+  switch (action) {
+    case BOAZ_DEVTOOLS_SHOW:
+      DevToolsWindow::OpenDevToolsWindow(contents, DevToolsToggleAction::Show(),
+          DevToolsOpenedByAction::kMainMenuOrMainShortcut);
+      break;
+    case BOAZ_DEVTOOLS_CONSOLE:
+      DevToolsWindow::OpenDevToolsWindow(contents, DevToolsToggleAction::ShowConsolePanel(),
+          DevToolsOpenedByAction::kConsoleShortcut);
+      break;
+    case BOAZ_DEVTOOLS_INSPECT:
+      DevToolsWindow::OpenDevToolsWindow(contents, DevToolsToggleAction::Inspect(),
+          DevToolsOpenedByAction::kInspectorModeShortcut);
+      break;
+    default:
+      return BOAZ_HOST_INVALID_ARGUMENT;
+  }
   return BOAZ_HOST_OK;
 }
 BoazHostResult TabRegistry::StopLoading(BoazHostPage id) {

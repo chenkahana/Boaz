@@ -8,8 +8,11 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 15u
+#define BOAZ_HOST_ABI_VERSION 16u
 
+typedef enum BoazHostDevToolsAction {
+  BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT
+} BoazHostDevToolsAction;
 typedef uint64_t BoazHostWindow;
 typedef uint64_t BoazHostPage;
 typedef uint64_t BoazHostDocument;
@@ -179,6 +182,7 @@ typedef struct BoazHostAPI {
   BoazHostResult (*enumerate_history)(BoazHostPage page, BoazHostHistoryVisitor visitor, void* context);
   BoazHostResult (*go_to_history_entry)(BoazHostPage page, int32_t entry_id);
   BoazHostResult (*is_busy_for_residency)(BoazHostPage page, uint8_t* busy);
+  BoazHostResult (*show_devtools)(BoazHostPage page, BoazHostDevToolsAction action);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

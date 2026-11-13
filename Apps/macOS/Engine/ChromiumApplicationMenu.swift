@@ -120,12 +120,31 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
                 }, perform: { $0?.selectSpace(number) }, key: String(number), modifiers: .control)
         }
         add(spaces, "New Space", command: .newSpace) { $0?.newSpace() }
+        let develop = menu("Develop")
+        let hasPage: (BrowserState?) -> Bool = {
+            $0?.activeEnginePage?.adapter is ChromiumEnginePageAdapter
+        }
+        add(develop, "Show Developer Tools", enabled: hasPage, perform: {
+            Self.showDevTools(BOAZ_DEVTOOLS_SHOW, browser: $0)
+        }, key: "i", modifiers: [.command, .option])
+        add(develop, "Show JavaScript Console", command: .javaScriptConsole, enabled: hasPage) {
+            Self.showDevTools(BOAZ_DEVTOOLS_CONSOLE, browser: $0)
+        }
+        add(develop, "Inspect Element", enabled: hasPage, perform: {
+            Self.showDevTools(BOAZ_DEVTOOLS_INSPECT, browser: $0)
+        }, key: "c", modifiers: [.command, .option])
         let window = menu("Window")
         responder(window, "Minimize", #selector(NSWindow.performMiniaturize(_:)), key: "m")
         responder(window, "Zoom", #selector(NSWindow.performZoom(_:)))
         responder(window, "Bring All to Front", #selector(NSApplication.arrangeInFront(_:)))
         NSApp.windowsMenu = window
         NSApp.mainMenu = bar
+    }
+
+    private static func showDevTools(_ action: BoazHostDevToolsAction, browser: BrowserState?) {
+        guard let adapter = browser?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter else { return }
+        do { try adapter.showDevTools(action) }
+        catch { MacModel.shared.showToast(error.localizedDescription) }
     }
 
     private func add(_ menu: NSMenu, _ title: String, command: BrowserCommand? = nil,

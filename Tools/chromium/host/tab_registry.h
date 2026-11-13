@@ -29,6 +29,7 @@ class TabRegistry {
   BoazHostResult GoBack(BoazHostPage page);
   BoazHostResult GoForward(BoazHostPage page);
   BoazHostResult Reload(BoazHostPage page);
+  BoazHostResult ShowDevTools(BoazHostPage page, BoazHostDevToolsAction action);
   BoazHostResult StopLoading(BoazHostPage page);
   BoazHostResult EnumerateHistory(BoazHostPage page,
       BoazHostHistoryVisitor visitor, void* context);

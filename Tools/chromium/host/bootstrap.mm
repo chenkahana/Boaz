@@ -29,6 +29,7 @@
 #include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"
 #include "base/memory/raw_ptr.h"
+#include "base/no_destructor.h"
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/chrome_browser_main_extra_parts.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
@@ -73,7 +74,10 @@ struct State {
   bool cleanup_pending = false;
 };
 State* state = nullptr;
-std::vector<std::vector<std::string>> pending_external_urls;
+auto& PendingExternalURLs() {
+  static base::NoDestructor<std::vector<std::vector<std::string>>> urls;
+  return *urls;
+}
 BoazHostResult Check() {
   if (!content::BrowserThread::CurrentlyOn(content::BrowserThread::UI))
     return BOAZ_HOST_WRONG_THREAD;
@@ -87,7 +91,7 @@ template <typename F> auto Notify(F callback) {
 }
 void DeliverExternalURLs() {
   if (!state || state->finished || !state->callbacks.external_urls) return;
-  auto batches = std::exchange(pending_external_urls, {});
+  auto batches = std::exchange(PendingExternalURLs(), {});
   for (const auto& batch : batches) {
     std::vector<const char*> values;
     values.reserve(batch.size());
@@ -392,7 +396,7 @@ BoazHostResult StopLoading(BoazHostPage page) {
 BoazHostResult EnumerateHistory(BoazHostPage page, BoazHostHistoryVisitor visitor, void* context) {
   if (auto result = Check(); result != BOAZ_HOST_OK) return result;
   if (!visitor) return BOAZ_HOST_INVALID_ARGUMENT;
-  struct Visit { BoazHostHistoryVisitor visitor; void* context; } visit{visitor, context};
+  struct Visit { BoazHostHistoryVisitor visitor; raw_ptr<void> context; } visit{visitor, context};
   return state->tabs->EnumerateHistory(page,
       [](void* opaque, int32_t entry, int32_t offset, const char* url, const char* title) {
         auto* visit = static_cast<Visit*>(opaque);
@@ -403,11 +407,15 @@ BoazHostResult GoToHistoryEntry(BoazHostPage page, int32_t entry) {
   if (auto result = Check(); result != BOAZ_HOST_OK) return result;
   return state->tabs->GoToHistoryEntry(page, entry);
 }
+BoazHostResult ShowDevTools(BoazHostPage page, BoazHostDevToolsAction action) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  return state->tabs->ShowDevTools(page, action);
+}
 const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
@@ -478,7 +486,7 @@ class MainParts final : public ChromeBrowserMainExtraParts {
 bool RouteExternalURLs(std::vector<std::string> urls) {
   if (!NativeHostEnabled() ||
       !base::CommandLine::ForCurrentProcess()->HasSwitch("boaz-app-ui")) return false;
-  if (!urls.empty()) pending_external_urls.push_back(std::move(urls));
+  if (!urls.empty()) PendingExternalURLs().push_back(std::move(urls));
   if (state && state->callbacks.external_urls) {
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(&DeliverExternalURLs));
