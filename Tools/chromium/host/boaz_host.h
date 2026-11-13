@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 20u
+#define BOAZ_HOST_ABI_VERSION 21u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT
@@ -125,6 +125,24 @@ typedef struct BoazHostWindowOptions {
                                   uint8_t visible);
 } BoazHostWindowOptions;
 
+typedef enum BoazHostDownloadState {
+  BOAZ_DOWNLOAD_PROGRESS, BOAZ_DOWNLOAD_COMPLETE, BOAZ_DOWNLOAD_CANCELLED, BOAZ_DOWNLOAD_INTERRUPTED
+} BoazHostDownloadState;
+typedef enum BoazHostDownloadAction {
+  BOAZ_DOWNLOAD_PAUSE, BOAZ_DOWNLOAD_RESUME, BOAZ_DOWNLOAD_CANCEL
+} BoazHostDownloadAction;
+typedef struct BoazHostDownload {
+  uint64_t id;
+  const char* filename;
+  int64_t received, total;
+  BoazHostDownloadState state;
+  int32_t interrupt_reason, danger_type;
+  uint8_t paused, can_resume, dangerous, removed;
+} BoazHostDownload;
+/* Borrowed snapshot; copy before returning. Never reenter the host. */
+typedef void (*BoazHostDownloadVisitor)(void* context, BoazHostProfile profile,
+    const BoazHostDownload* download);
+
 typedef struct BoazHostCallbacks {
   size_t size;
   void* context;
@@ -137,6 +155,7 @@ typedef struct BoazHostCallbacks {
   void (*shutdown_ready)(void* context);
   /* Borrowed ordered URL batch, copied before callback returns. */
   void (*external_urls)(void* context, const char* const* urls, size_t count);
+  BoazHostDownloadVisitor download_changed;
 } BoazHostCallbacks;
 
 /* Enumeration values are borrowed for the visitor call. Visitors must copy
@@ -225,6 +244,9 @@ typedef struct BoazHostAPI {
   /* Null user_agent resets defaults. Custom values suppress Client Hints. */
   BoazHostResult (*apply_user_agent)(BoazHostPage page, const char* user_agent, size_t length,
       uint64_t request, BoazHostEmulationCompletion completion, void* context);
+  BoazHostResult (*enumerate_downloads)(BoazHostProfile profile, BoazHostDownloadVisitor visitor, void* context);
+  /* Actions require explicit user activation; no dangerous-download override. */
+  BoazHostResult (*download_action)(BoazHostProfile profile, uint64_t download, BoazHostDownloadAction action);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

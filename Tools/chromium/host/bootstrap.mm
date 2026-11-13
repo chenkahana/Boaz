@@ -134,6 +134,41 @@ void FinishIfDrained() {
     state->process_keep_alive.reset();
   });
 }
+void VisitDownload(BoazHostProfile profile, const NativeDownloads::Snapshot& item,
+    BoazHostDownloadVisitor visitor, void* context) {
+  BoazHostDownloadState status;
+  switch (item.state) {
+    case NativeDownloads::State::kInProgress: status = BOAZ_DOWNLOAD_PROGRESS; break;
+    case NativeDownloads::State::kComplete: status = BOAZ_DOWNLOAD_COMPLETE; break;
+    case NativeDownloads::State::kCancelled: status = BOAZ_DOWNLOAD_CANCELLED; break;
+    case NativeDownloads::State::kInterrupted: status = BOAZ_DOWNLOAD_INTERRUPTED; break;
+  }
+  const BoazHostDownload snapshot{item.id, item.filename.c_str(), item.received, item.total,
+      status, item.interrupt_reason, item.danger_type, item.paused, item.can_resume, item.dangerous, item.removed};
+  Notify([&] { visitor(context, profile, &snapshot); });
+}
+BoazHostResult EnumerateDownloads(BoazHostProfile profile, BoazHostDownloadVisitor visitor, void* context) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (!visitor) return BOAZ_HOST_INVALID_ARGUMENT;
+  auto* downloads = state->profiles ? state->profiles->Downloads(profile) : nullptr;
+  if (!downloads) return BOAZ_HOST_INVALID_HANDLE;
+  const auto snapshots = downloads->Snapshots();
+  for (const auto& item : snapshots) VisitDownload(profile, item, visitor, context);
+  return BOAZ_HOST_OK;
+}
+BoazHostResult DownloadAction(BoazHostProfile profile, uint64_t id, BoazHostDownloadAction action) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  auto* downloads = state->profiles ? state->profiles->Downloads(profile) : nullptr;
+  if (!downloads) return BOAZ_HOST_INVALID_HANDLE;
+  NativeDownloads::Action value;
+  switch (action) {
+    case BOAZ_DOWNLOAD_PAUSE: value = NativeDownloads::Action::kPause; break;
+    case BOAZ_DOWNLOAD_RESUME: value = NativeDownloads::Action::kResume; break;
+    case BOAZ_DOWNLOAD_CANCEL: value = NativeDownloads::Action::kCancel; break;
+    default: return BOAZ_HOST_INVALID_ARGUMENT;
+  }
+  return downloads->Perform(id, value);
+}
 BoazHostResult SetCallbacks(const BoazHostCallbacks* callbacks) {
   if (auto r = Check(); r != BOAZ_HOST_OK) return r;
   if (state->callbacks.page_event) return BOAZ_HOST_UNAVAILABLE;
@@ -141,6 +176,11 @@ BoazHostResult SetCallbacks(const BoazHostCallbacks* callbacks) {
       !callbacks->prepare_window || !callbacks->window_created ||
       !callbacks->window_closed || !callbacks->shutdown_ready) return BOAZ_HOST_INVALID_ARGUMENT;
   state->callbacks = *callbacks;
+  state->profiles->SetDownloadObserver(base::BindRepeating(
+      [](BoazHostProfile profile, NativeDownloads::Snapshot item) {
+        if (state && state->callbacks.download_changed)
+          VisitDownload(profile, item, state->callbacks.download_changed, state->callbacks.context);
+      }));
   BoazHostCallbacks proxy = *callbacks;
   proxy.context = state;
   proxy.page_event = [](void*, BoazHostPageEvent event, const BoazHostPageState* page) {
@@ -538,7 +578,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
