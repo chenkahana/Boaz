@@ -14,6 +14,7 @@ scripts = Path(sys.argv[1])
 parser = argparse.ArgumentParser(description="Build pinned arm64 CEF on the verified APFS image.")
 parser.add_argument("--dry-run", action="store_true", help="Print configuration without downloads, writes, or mounting")
 parser.add_argument("--smoke", action="store_true", help="Build cefsimple only; do not package a distribution")
+parser.add_argument("--forked", action="store_true", help="Preserve and verify applied Boaz patches; never update source")
 parser.add_argument("--jobs", type=int, default=12, help="Local Ninja concurrency, from 1 to 12 (default: 12)")
 args = parser.parse_args(sys.argv[2:])
 if not 1 <= args.jobs <= 12:
@@ -36,6 +37,8 @@ command = [sys.executable, str(automate),
            "--chromium-checkout=" + config["chromium_checkout"],
            "--arm64-build", "--no-debug-build", "--no-chromium-history",
            "--force-config", "--force-build", "--build-log-file"]
+if args.forked:
+    command += ["--no-update"]
 if args.smoke:
     command += ["--build-target=cefsimple", "--no-distrib"]
 else:
@@ -67,6 +70,7 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+import subprocess
 import urllib.parse
 import urllib.request
 
@@ -75,6 +79,32 @@ command = json.loads(sys.argv[2])
 root = Path("/Volumes/BoazBuild/cef")
 if Path.cwd() != root or root.is_symlink():
     sys.exit("Build stage is not running inside the expected verified volume.")
+receipt = root / "fork.json"
+forked = sys.argv[3] == "forked"
+if receipt.exists() and not forked:
+    sys.exit("Boaz patches are installed; use --forked to preserve the source.")
+if forked:
+    if not receipt.is_file() or receipt.is_symlink():
+        sys.exit("Fork build requires an applied-patch receipt.")
+    record = json.loads(receipt.read_text())
+    source = root / "chromium_git/chromium/src/cef"
+    revision = subprocess.check_output(["git", "-C", str(source), "rev-parse", "HEAD"], text=True).strip()
+    if revision != config["cef_commit"] or record["cef_revision"] != revision:
+        sys.exit("Fork source revision differs from the configured pin.")
+    chromium_revision = subprocess.check_output(
+        ["git", "-C", str(source.parent), "rev-parse", "HEAD"], text=True).strip()
+    if chromium_revision != config["chromium_commit"]:
+        sys.exit("Chromium source differs from the configured fork base.")
+    patch_dir = Path(sys.argv[4]) / "patches"
+    if not record["patches"]:
+        sys.exit("Fork receipt contains no patches.")
+    for name, checksum in record["patches"].items():
+        if Path(name).name != name:
+            sys.exit("Invalid patch name in fork receipt.")
+        patch = patch_dir / name
+        if hashlib.sha256(patch.read_bytes()).hexdigest() != checksum:
+            sys.exit("Applied patch changed: " + name)
+        subprocess.run(["git", "-C", str(source), "apply", "--reverse", "--check", str(patch)], check=True)
 for relative in ("chromium_git", "depot_tools", "cache", "cache/cipd", "cache/vpython"):
     path = root / relative
     if path.is_symlink():
@@ -118,5 +148,6 @@ if not script.exists():
 os.execve(command[0], command, os.environ)
 '''
 sys.exit(subprocess.call([sys.executable, str(runner), "--", sys.executable, "-c", stage,
-                          json.dumps(config), json.dumps(command)], env=env))
+                          json.dumps(config), json.dumps(command),
+                          "forked" if args.forked else "upstream", str(scripts)], env=env))
 PY
