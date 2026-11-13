@@ -571,6 +571,30 @@ BoazHostResult ApplyViewport(BoazHostPage page, const BoazHostViewport* viewport
   if (result != BOAZ_HOST_OK) --state->pending_emulations;
   return result;
 }
+BoazHostResult ApplyMedia(BoazHostPage page, const BoazHostMedia* media,
+    uint64_t request, BoazHostEmulationCompletion completion, void* context) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (!request || !completion) return BOAZ_HOST_INVALID_ARGUMENT;
+  std::optional<PageEmulation::Media> value;
+  if (media) {
+    if (media->type < 0 || media->type > 1 || media->color_scheme < 0 || media->color_scheme > 2 ||
+        media->reduced_motion < 0 || media->reduced_motion > 2 || media->contrast < 0 ||
+        media->contrast > 2 || media->vision < 0 || media->vision > 6 || media->forced_colors > 1)
+      return BOAZ_HOST_INVALID_ARGUMENT;
+    value.emplace();
+    value->type = static_cast<PageEmulation::Media::MediaType>(media->type);
+    value->color_scheme = static_cast<PageEmulation::Media::Preference>(media->color_scheme);
+    value->reduced_motion = static_cast<PageEmulation::Media::Preference>(media->reduced_motion);
+    value->contrast = static_cast<PageEmulation::Media::Preference>(media->contrast);
+    value->vision = static_cast<PageEmulation::Media::Vision>(media->vision);
+    value->forced_colors = media->forced_colors != 0;
+  }
+  CHECK_LT(state->pending_emulations, std::numeric_limits<uint64_t>::max());
+  ++state->pending_emulations;
+  auto result = state->tabs->ApplyMedia(page, std::move(value), EmulationCompletion(page, request, completion, context));
+  if (result != BOAZ_HOST_OK) --state->pending_emulations;
+  return result;
+}
 BoazHostResult GetUserAgentDefaults(BoazHostPage page, BoazHostUserAgentVisitor visitor, void* context) {
   if (auto result = Check(); result != BOAZ_HOST_OK) return result;
   if (!visitor) return BOAZ_HOST_INVALID_ARGUMENT;
@@ -629,7 +653,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:

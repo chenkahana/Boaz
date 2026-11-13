@@ -130,6 +130,7 @@ extension ChromiumEnginePageAdapter {
                 (error as? ChromiumEmulationError)?.resetsOverride == true {
                 appliedUserAgent = nil
                 appliedViewport = nil
+                appliedMedia = nil
             }
             emulationError = (error as? LocalizedError)?.errorDescription ?? "The user agent could not be changed. Close Developer Tools and try again."
             throw error
@@ -189,8 +190,57 @@ extension ChromiumEnginePageAdapter {
             if state.navigationID == navigation, state.lifecycle == .active, !state.isLoading,
                (error as? ChromiumEmulationError)?.resetsOverride != true {
                 appliedViewport = previous
-            } else { appliedViewport = nil; appliedUserAgent = nil }
+            } else { appliedViewport = nil; appliedUserAgent = nil; appliedMedia = nil }
             emulationError = (error as? LocalizedError)?.errorDescription ?? "The viewport could not be changed. Close Developer Tools and try again."
+            throw error
+        }
+    }
+
+    func applyMedia(_ media: ChromiumMedia?) async throws {
+        guard !emulationPending, state.lifecycle == .active, !state.isLoading,
+              let apply = api.apply_media else {
+            emulationError = "Wait for this page to finish loading before changing its media."
+            throw EnginePageError.unavailable
+        }
+        guard emulationRequest < UInt64.max else { throw EnginePageError.unavailable }
+        emulationRequest += 1
+        let request = emulationRequest
+        let navigation = state.navigationID
+        let previous = appliedMedia
+        emulationPending = true
+        emulationError = nil
+        defer { emulationPending = false }
+        do {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                let box = EmulationRequest(page: handle, id: request, continuation: continuation)
+                let context = Unmanaged.passRetained(box).toOpaque()
+                let callback: BoazHostEmulationCompletion = { context, page, request, status in
+                    guard let context else { return }
+                    MainActor.assumeIsolated {
+                        let box = Unmanaged<EmulationRequest>.fromOpaque(context).takeRetainedValue()
+                        DispatchQueue.main.async { box.complete(page: page, id: request, status: status) }
+                    }
+                }
+                let result: BoazHostResult
+                if let media {
+                    var native = media.native
+                    result = apply(handle, &native, request, callback, context)
+                } else { result = apply(handle, nil, request, callback, context) }
+                if result != BOAZ_HOST_OK {
+                    Unmanaged<EmulationRequest>.fromOpaque(context).release()
+                    do { try check(result) } catch { continuation.resume(throwing: error) }
+                }
+            }
+            guard state.lifecycle == .active, state.navigationID == navigation, !state.isLoading else {
+                throw ChromiumEmulationError(message: "The page changed. Apply the media again after loading.")
+            }
+            appliedMedia = media
+        } catch {
+            if state.navigationID == navigation, state.lifecycle == .active, !state.isLoading,
+               (error as? ChromiumEmulationError)?.resetsOverride != true {
+                appliedMedia = previous
+            } else { appliedMedia = nil; appliedUserAgent = nil; appliedViewport = nil }
+            emulationError = (error as? LocalizedError)?.errorDescription ?? "The media could not be changed. Close Developer Tools and try again."
             throw error
         }
     }

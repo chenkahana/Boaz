@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 26u
+#define BOAZ_HOST_ABI_VERSION 27u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT
@@ -26,6 +26,14 @@ typedef struct BoazHostViewport {
   uint8_t mobile, touch, landscape;
   int32_t max_touch_points;
 } BoazHostViewport;
+/* Media: 0 screen, 1 print. Preferences: 0 system, 1 first, 2 second.
+ * First/second: light/dark, no-preference/reduce, no-preference/more.
+ * Vision: none, blurredVision, reducedContrast, achromatopsia,
+ * deuteranopia, protanopia, tritanopia (0...6). */
+typedef struct BoazHostMedia {
+  int32_t type, color_scheme, reduced_motion, contrast, vision;
+  uint8_t forced_colors;
+} BoazHostMedia;
 typedef enum BoazHostEmulationStatus {
   BOAZ_EMULATION_SUCCESS, BOAZ_EMULATION_INVALID, BOAZ_EMULATION_UNAVAILABLE,
   BOAZ_EMULATION_PROTOCOL_ERROR, BOAZ_EMULATION_TIMEOUT,
@@ -263,6 +271,9 @@ typedef struct BoazHostAPI {
   BoazHostResult (*capture_pdf)(BoazHostPage page, uint64_t request,
       BoazHostCaptureCompletion completion, void* context);
   BoazHostResult (*cancel_pdf)(BoazHostPage page, uint64_t request);
+  /* Null media resets all media and vision overrides. */
+  BoazHostResult (*apply_media)(BoazHostPage page, const BoazHostMedia* media,
+      uint64_t request, BoazHostEmulationCompletion completion, void* context);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.
