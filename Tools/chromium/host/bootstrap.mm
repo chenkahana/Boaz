@@ -16,6 +16,10 @@
 #include <string_view>
 #include <utility>
 #include "bootstrap.h"
+#include "adblock_engine.h"
+#include "adblock_profile_state.h"
+#include "base/task/thread_pool.h"
+#include <cstring>
 #include "launch.h"
 #include "base/path_service.h"
 #include "chrome/common/chrome_paths.h"
@@ -77,6 +81,11 @@ struct Window {
   uint32_t external_tab_count = 0;
   bool explicit_close = false;
 };
+struct BlockingPreparation {
+  uint64_t id;
+  BoazHostBlockingCompletion completion;
+  void* context;
+};
 struct State {
   raw_ptr<Profile> profile = nullptr;
   base::FilePath profile_path;
@@ -86,6 +95,9 @@ struct State {
   BoazHostCallbacks callbacks{};
   raw_ptr<const BoazHostWindowOptions> pending = nullptr;
   std::map<BoazHostWindow, Window> windows;
+  std::shared_ptr<const AdblockEngine> blocking_engine;
+  std::optional<BlockingPreparation> blocking_preparation;
+  uint64_t blocking_request_id = 0;
   uint64_t pending_scripts = 0;
   uint64_t pending_captures = 0;
   std::unique_ptr<NativeAutomation> automation;
@@ -367,6 +379,8 @@ BoazHostResult Shutdown() {
   }
   LOG(INFO) << "Boaz shutdown accepted";
   state->exit_requested = true;
+  if (auto pending = std::exchange(state->blocking_preparation, std::nullopt))
+    Notify([&] { pending->completion(pending->context, BOAZ_HOST_CLOSING); });
   CancelNativeExtensionInstalls();
   CancelNativeUnpackedExtensionInstalls();
   CancelNativeOptionalPermissionPrompts();
@@ -1008,11 +1022,68 @@ BoazHostResult AutomationStatus(BoazHostAutomationVisitor visitor, void* context
       snapshot.port, snapshot.error.c_str()); });
   return BOAZ_HOST_OK;
 }
+BoazHostResult PrepareBlockingAssets(const char* directory,
+    BoazHostBlockingCompletion completion, void* context) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (state->exit_requested) return BOAZ_HOST_CLOSING;
+  if (!directory || !completion) return BOAZ_HOST_INVALID_ARGUMENT;
+  const size_t length = strnlen(directory, 4097);
+  if (!length || length > 4096) return BOAZ_HOST_INVALID_ARGUMENT;
+  const base::FilePath path(std::string(directory, length));
+  if (!path.IsAbsolute() || path.ReferencesParent()) return BOAZ_HOST_INVALID_ARGUMENT;
+  if (state->blocking_preparation || state->blocking_engine) return BOAZ_HOST_UNAVAILABLE;
+  const auto id = ++state->blocking_request_id;
+  state->blocking_preparation = BlockingPreparation{id, completion, context};
+  const bool posted = base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE,
+                  base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
+      base::BindOnce(&AdblockEngine::LoadPackaged, path),
+      base::BindOnce([](uint64_t id,
+          base::expected<std::shared_ptr<const AdblockEngine>, std::string> engine) {
+        if (!state || !state->blocking_preparation ||
+            state->blocking_preparation->id != id) return;
+        auto pending = std::exchange(state->blocking_preparation, std::nullopt);
+        BoazHostResult result = BOAZ_HOST_UNAVAILABLE;
+        if (state->exit_requested || state->finished) result = BOAZ_HOST_CLOSING;
+        else if (engine.has_value()) {
+          state->blocking_engine = std::move(*engine);
+          result = BOAZ_HOST_OK;
+        }
+        Notify([&] { pending->completion(pending->context, result); });
+      }, id));
+  if (!posted) {
+    state->blocking_preparation.reset();
+    return BOAZ_HOST_UNAVAILABLE;
+  }
+  return BOAZ_HOST_OK;
+}
+BoazHostResult ConfigureProfileBlocking(BoazHostProfile profile, uint8_t enabled,
+    const char* exception_sites_json) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (state->exit_requested) return BOAZ_HOST_CLOSING;
+  if (enabled > 1 || !exception_sites_json) return BOAZ_HOST_INVALID_ARGUMENT;
+  const size_t length = strnlen(exception_sites_json, 1024 * 1024 + 1);
+  if (length > 1024 * 1024) return BOAZ_HOST_INVALID_ARGUMENT;
+  auto sites = base::JSONReader::ReadList(
+      std::string_view(exception_sites_json, length), base::JSON_PARSE_RFC);
+  if (!sites || sites->size() > 10000) return BOAZ_HOST_INVALID_ARGUMENT;
+  auto target = state->profiles ? state->profiles->Blocking(profile) : nullptr;
+  if (!target) return BOAZ_HOST_INVALID_HANDLE;
+  if (enabled && !state->blocking_engine) return BOAZ_HOST_UNAVAILABLE;
+  AdblockProfileState::Config config;
+  config.enabled = enabled != 0;
+  config.engine = state->blocking_engine;
+  for (const auto& site : *sites) {
+    if (!site.is_string()) return BOAZ_HOST_INVALID_ARGUMENT;
+    config.exception_sites.insert(site.GetString());
+  }
+  return target->Publish(std::move(config)) ? BOAZ_HOST_OK : BOAZ_HOST_INVALID_ARGUMENT;
+}
 const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension, InstallExtension, InstallUnpackedExtension, UninstallExtension, ExtensionMetadata, ReviewExtensionPermissions, TogglePictureInPicture, EnumerateSitePermissions, ResetSitePermission, SetAutomaticPictureInPictureEnabled};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension, InstallExtension, InstallUnpackedExtension, UninstallExtension, ExtensionMetadata, ReviewExtensionPermissions, TogglePictureInPicture, EnumerateSitePermissions, ResetSitePermission, SetAutomaticPictureInPictureEnabled, PrepareBlockingAssets, ConfigureProfileBlocking};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
@@ -1057,6 +1128,7 @@ class MainParts final : public ChromeBrowserMainExtraParts {
     CHECK(state);
     CHECK(state->finished);
     CHECK(state->windows.empty());
+    CHECK(!state->blocking_preparation);
     CHECK_EQ(state->pending_scripts, 0u);
     CHECK_EQ(state->pending_captures, 0u);
     CHECK_EQ(state->pending_emulations, 0u);
