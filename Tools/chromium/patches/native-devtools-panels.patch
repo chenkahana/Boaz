@@ -1,0 +1,79 @@
+--- a/chrome/browser/devtools/devtools_toggle_action.h
++++ b/chrome/browser/devtools/devtools_toggle_action.h
+@@ -21,7 +21,10 @@
+     kInspect,
+     kToggle,
+     kReveal,
+-    kNoOp
++    kNoOp,
++    kShowApplicationPanel,
++    kShowPerformancePanel,
++    kShowLighthousePanel,
+   };
+ 
+   struct RevealParams {
+@@ -40,6 +43,10 @@
+   ~DevToolsToggleAction();
+ 
+   static DevToolsToggleAction Show();
++  static DevToolsToggleAction ShowApplicationPanel();
++  static DevToolsToggleAction ShowPerformancePanel();
++  static DevToolsToggleAction ShowLighthousePanel();
++
+   static DevToolsToggleAction ShowConsolePanel();
+   static DevToolsToggleAction ShowElementsPanel();
+   static DevToolsToggleAction PauseInDebugger();
+--- a/chrome/browser/devtools/devtools_toggle_action.cc
++++ b/chrome/browser/devtools/devtools_toggle_action.cc
+@@ -74,3 +74,16 @@
+ DevToolsToggleAction DevToolsToggleAction::NoOp() {
+   return DevToolsToggleAction(kNoOp);
+ }
++
++DevToolsToggleAction DevToolsToggleAction::ShowApplicationPanel() {
++  return DevToolsToggleAction(kShowApplicationPanel);
++}
++
++DevToolsToggleAction DevToolsToggleAction::ShowPerformancePanel() {
++  return DevToolsToggleAction(kShowPerformancePanel);
++}
++
++DevToolsToggleAction DevToolsToggleAction::ShowLighthousePanel() {
++  return DevToolsToggleAction(kShowLighthousePanel);
++}
++
+--- a/chrome/browser/devtools/devtools_window.cc
++++ b/chrome/browser/devtools/devtools_window.cc
+@@ -895,6 +895,15 @@
+       case DevToolsToggleAction::kPauseInDebugger:
+         panel = "sources";
+         break;
++      case DevToolsToggleAction::kShowApplicationPanel:
++        panel = "resources";
++        break;
++      case DevToolsToggleAction::kShowPerformancePanel:
++        panel = "timeline";
++        break;
++      case DevToolsToggleAction::kShowLighthousePanel:
++        panel = "lighthouse";
++        break;
+       case DevToolsToggleAction::kShow:
+         if (devtools_options.panel_id.has_value()) {
+           panel = devtools_options.panel_id.value();
+@@ -2116,6 +2125,16 @@
+ 
+ void DevToolsWindow::DoAction(const DevToolsToggleAction& action) {
+   switch (action.type()) {
++    case DevToolsToggleAction::kShowApplicationPanel:
++      bindings_->CallClientMethod("DevToolsAPI", "showPanel", base::Value("resources"));
++      break;
++    case DevToolsToggleAction::kShowPerformancePanel:
++      bindings_->CallClientMethod("DevToolsAPI", "showPanel", base::Value("timeline"));
++      break;
++    case DevToolsToggleAction::kShowLighthousePanel:
++      bindings_->CallClientMethod("DevToolsAPI", "showPanel", base::Value("lighthouse"));
++      break;
++
+     case DevToolsToggleAction::kInspect:
+       bindings_->CallClientMethod("DevToolsAPI", "enterInspectElementMode");
+       break;
