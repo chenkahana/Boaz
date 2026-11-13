@@ -17,6 +17,7 @@
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/url_loader_completion_status.h"
 #include "services/network/public/mojom/early_hints.mojom.h"
+#include "services/network/public/mojom/fetch_api.mojom-shared.h"
 #include "services/network/public/mojom/url_response_head.mojom.h"
 #include "services/network/public/mojom/url_loader.mojom.h"
 #include "services/network/public/mojom/url_loader_factory.mojom.h"
@@ -31,6 +32,7 @@ class Request final : public network::mojom::URLLoader,
           const network::ResourceRequest& request)
       : receiver_(this, std::move(receiver)), client_(std::move(client)),
         context_(std::move(context)), decide_(std::move(decide)),
+        mode_(request.mode), original_url_(request.url),
         method_(request.method), destination_(request.destination), resource_type_(request.resource_type) {
     receiver_.set_disconnect_handler(base::BindOnce(&Request::Destroy, weak_.GetWeakPtr()));
     client_.set_disconnect_handler(base::BindOnce(&Request::Destroy, weak_.GetWeakPtr()));
@@ -53,6 +55,8 @@ class Request final : public network::mojom::URLLoader,
  private:
   int Evaluate(const GURL& url, std::optional<GURL>& rewrite) {
     replacement_.clear();
+    rewrite.reset();
+    current_url_ = url;
     const auto decision = decide_.Run(url, method_, destination_, resource_type_, context_);
     switch (decision.action) {
       case AdblockDecision::Action::kAllow:
@@ -85,8 +89,15 @@ class Request final : public network::mojom::URLLoader,
     return net::ERR_NOT_IMPLEMENTED;
   }
   void ServeReplacement() {
-    // Only pinned public resources reach here. Outer CorsURLLoader still owns
-    // origin enforcement; no response bytes or headers come from the site.
+    // Synthetic bodies bypass NetworkService CORP/ORB; restrict no-cors replacement to same-origin.
+    if (mode_ == network::mojom::RequestMode::kNoCors &&
+        (context_.status != AdblockRequestContext::Status::kAuthoritative ||
+         !context_.source_origin || context_.source_origin->opaque() ||
+         !context_.source_origin->IsSameOriginWith(url::Origin::Create(original_url_)) ||
+         !context_.source_origin->IsSameOriginWith(url::Origin::Create(current_url_)))) {
+      Complete(net::ERR_BLOCKED_BY_RESPONSE);
+      return;
+    }
     loader_.reset();
     downstream_client_.reset();
     auto response = network::mojom::URLResponseHead::New();
@@ -127,17 +138,14 @@ class Request final : public network::mojom::URLLoader,
   void Complete(int error) { OnComplete(network::URLLoaderCompletionStatus(error)); }
   void FollowRedirect(network::HttpRequestHeadersUpdateParams params,
                       const std::optional<GURL>& new_url) override {
-    std::optional<GURL> forwarded_url = pending_rewrite_;
-    if (new_url) {
-      // Evaluate a client override once. The downstream loader still validates
-      // it against the original server redirect, including same-origin checks.
-      forwarded_url = new_url;
-      std::optional<GURL> rewrite;
-      const int error = Evaluate(*new_url, rewrite);
-      if (error != net::OK) { Complete(error); return; }
-      if (rewrite) forwarded_url = *rewrite;
-    }
-    pending_rewrite_.reset();
+    if (!pending_redirect_url_ || !loader_) { Complete(net::ERR_UNEXPECTED); return; }
+    const GURL target = new_url.value_or(*pending_redirect_url_);
+    pending_redirect_url_.reset();
+    std::optional<GURL> rewrite;
+    const int error = Evaluate(target, rewrite);
+    if (error != net::OK) { Complete(error); return; }
+    // Preserve downstream validation for every caller override.
+    std::optional<GURL> forwarded_url = rewrite ? rewrite : new_url;
     if (!replacement_.empty()) {
       // A caller-supplied override requires downstream redirect validation.
       if (new_url) { Complete(net::ERR_NOT_IMPLEMENTED); return; }
@@ -159,8 +167,9 @@ class Request final : public network::mojom::URLLoader,
   void OnReceiveRedirect(const net::RedirectInfo& info,
                          network::mojom::URLResponseHeadPtr head) override {
     method_ = info.new_method;
-    pending_rewrite_.reset();
-    const int error = Evaluate(info.new_url, pending_rewrite_);
+    pending_redirect_url_ = info.new_url;
+    std::optional<GURL> rewrite;
+    const int error = Evaluate(info.new_url, rewrite);
     if (error != net::OK) { Complete(error); return; }
     client_->OnReceiveRedirect(info, std::move(head));
   }
@@ -182,11 +191,14 @@ class Request final : public network::mojom::URLLoader,
   mojo::Receiver<network::mojom::URLLoaderClient> downstream_client_{this};
   const AdblockRequestContext context_;
   const AdblockDecider decide_;
+  const network::mojom::RequestMode mode_;
+  const GURL original_url_;
+  GURL current_url_;
   std::string method_;
   std::string replacement_;
   std::string replacement_body_;
   std::unique_ptr<mojo::DataPipeProducer> replacement_producer_;
-  std::optional<GURL> pending_rewrite_;
+  std::optional<GURL> pending_redirect_url_;
   const network::mojom::RequestDestination destination_;
   const int resource_type_;
   base::WeakPtrFactory<Request> weak_{this};
