@@ -78,14 +78,20 @@ private struct ChromiumDownloadsView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(item.filename).font(.headline).lineLimit(2)
                         if item.dangerous {
-                            Label("This download was flagged as unsafe. It cannot be opened or kept here.", systemImage: "exclamationmark.shield")
+                            Label("This download needs a safety or policy check. It cannot be opened or kept here.", systemImage: "exclamationmark.shield")
                                 .foregroundStyle(.orange)
                         }
                         Text(status(item)).font(.caption).foregroundStyle(.secondary)
                         if item.state == BOAZ_DOWNLOAD_PROGRESS {
                             if item.total > 0 {
                                 ProgressView(value: Double(max(0, item.received)), total: Double(max(item.total, item.received)))
-                            } else { ProgressView().controlSize(.small) }
+                                    .accessibilityLabel("Download progress for \(item.filename)")
+                                    .accessibilityValue(status(item))
+                            } else {
+                                ProgressView().controlSize(.small)
+                                    .accessibilityLabel("Download progress for \(item.filename)")
+                                    .accessibilityValue(status(item))
+                            }
                         }
                         HStack {
                             if !item.dangerous, item.state == BOAZ_DOWNLOAD_PROGRESS, !item.paused {
@@ -103,11 +109,45 @@ private struct ChromiumDownloadsView: View {
             }
         }.frame(minWidth: 360, minHeight: 240)
     }
+    private func interruption(_ reason: Int32) -> String {
+        switch reason {
+        case 1: "The file could not be saved."
+        case 2: "Permission to save this file was denied."
+        case 3: "There is not enough disk space."
+        case 5: "The file name or folder path is too long."
+        case 6: "The file is too large for this disk."
+        case 7: "A virus was detected in this file."
+        case 10: "A temporary problem interrupted the download."
+        case 11, 51: "This download was blocked by a policy."
+        case 12: "The download's safety check could not be completed."
+        case 13, 14: "The partial download could not be verified."
+        case 15: "The destination is the same as the source file."
+        case 20: "A network error interrupted the download."
+        case 21: "The download timed out."
+        case 22: "The network connection was lost."
+        case 23: "The download server is unavailable."
+        case 24: "The download request could not be accepted."
+        case 30: "The server could not complete the download."
+        case 31: "The server cannot resume this download."
+        case 33: "The server could not provide this file."
+        case 34: "The server requires authorization."
+        case 35: "The server's security certificate could not be verified."
+        case 36: "The server denied access to this file."
+        case 37: "The server returned an unexpected response."
+        case 38: "The server sent an incomplete file."
+        case 39: "The download redirected unexpectedly to another site."
+        case 40: "The download was cancelled."
+        case 41: "The browser closed before the download finished."
+        case 50: "The browser stopped unexpectedly during the download."
+        default: "The download was interrupted."
+        }
+    }
+
     private func status(_ item: ChromiumDownload) -> String {
         switch item.state {
         case BOAZ_DOWNLOAD_COMPLETE: return "Completed"
         case BOAZ_DOWNLOAD_CANCELLED: return "Cancelled"
-        case BOAZ_DOWNLOAD_INTERRUPTED: return "Interrupted (code \(item.interruptReason))"
+        case BOAZ_DOWNLOAD_INTERRUPTED: return interruption(item.interruptReason)
         default:
             let received = ByteCountFormatter.string(fromByteCount: max(0, item.received), countStyle: .file)
             let total = item.total > 0 ? " of " + ByteCountFormatter.string(fromByteCount: item.total, countStyle: .file) : " — total size unknown"
