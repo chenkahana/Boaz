@@ -39,3 +39,15 @@ The worker and popup files exist. The popup queries the active tab in the curren
 5. Relaunch with the same isolated profile and artifact path; verify settings and active rulesets persist.
 
 These checks do not establish CRX installation, Chrome Web Store installation, native messaging, or the remaining seven required extensions. Each remains a separate acceptance row.
+
+## Runtime evidence, 2026-11-13
+
+The pinned Chrome Views host loaded this artifact with `--load-extension`. The extension manager displayed it enabled, with a service-worker inspector that opened `background.js` in DevTools. Removing the command-line flag on relaunch removed that command-line installation. This loader is not a persistent installation API.
+
+Installing the same artifact through the extension manager's Load unpacked directory chooser succeeded. A subsequent launch without the flag showed the extension still enabled and its worker inactive until needed. This proves unpacked installation persistence, not ruleset or settings persistence.
+
+The activation shortcut was assigned and visibly saved in `chrome://extensions/shortcuts`. Invoking it on the focused HTTPS Example Domain page with `CEF_CTT_NONE` produced no popup. A source-supported candidate is the absent Chrome toolbar: [CEF creates no toolbar for NONE](https://github.com/chromiumembedded/cef/blob/57389f04a61ab0e9603d9f96602843d0e08bb11c/libcef/browser/chrome/views/chrome_browser_view.cc#L85-L109), and [Chromium's action API requires a visible toolbar](https://chromium.googlesource.com/chromium/src/+/refs/tags/156.0.8078.88/chrome/browser/extensions/api/extension_action/extension_action_api.cc#137). This is not yet a confirmed runtime cause. Diagnostic normal-toolbar placement remains under investigation.
+
+No public CEF extension-action-by-ID API was found. `ExecuteChromeCommand` handles Chromium command IDs, while `GetChromeToolbar` supplies a view that must be added after `OnWindowChanged`. Loading an extension's popup URL as an ordinary page would not prove real action semantics or active-tab grants.
+
+Verdict: partial. Unpacked installation, worker inspection, and installation persistence have evidence. Action popups, actual visible-tab identity, content scripts, filtering, store/CRX installation, profile isolation, and the remaining extension cohort are unresolved.
