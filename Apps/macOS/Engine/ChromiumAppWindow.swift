@@ -33,6 +33,8 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         window.title = profile.identity.isPrivate ? "Boaz — Private" : "Boaz"
         window.delegate = self
         window.contentView = contentContainer
+        addressField.isHidden = true
+        contentContainer.addSubview(addressField)
         browser.chromiumProfileIdentity = profile.identity
         browser.chromiumAddressField = addressField
         browser.activateChromiumPage = { [weak self] page in

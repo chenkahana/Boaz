@@ -32,6 +32,8 @@ final class ChromiumQuickWindow: NSObject, ObservableObject, NSWindowDelegate {
         window.title = "Boaz Quick Window"
         window.delegate = self
         window.contentView = contentContainer
+        addressField.isHidden = true
+        contentContainer.addSubview(addressField)
         addressField.setAccessibilityLabel("Search or enter address")
         let hosting = NSHostingView(rootView: Content(owner: self).environment(model))
         hosting.frame = contentContainer.bounds

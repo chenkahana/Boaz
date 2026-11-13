@@ -13,7 +13,23 @@ struct ChromiumAddressField: NSViewRepresentable {
     let cancel: () -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
-    func makeNSView(context: Context) -> NSTextField {
+    final class Container: NSView {
+        let field: NSTextField
+        weak var parkingView: NSView?
+        init(field: NSTextField) {
+            self.field = field
+            parkingView = field.superview
+            super.init(frame: .zero)
+            addSubview(field)
+        }
+        required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    }
+
+    func makeNSView(context: Context) -> Container {
+        let container = Container(field: field)
+        field.isHidden = false
+        field.frame = container.bounds
+        field.autoresizingMask = [.width, .height]
         field.isBordered = false
         field.drawsBackground = false
         field.isEditable = true
@@ -21,10 +37,11 @@ struct ChromiumAddressField: NSViewRepresentable {
         field.font = .systemFont(ofSize: 19)
         field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         field.delegate = context.coordinator
-        updateNSView(field, context: context)
-        return field
+        updateNSView(container, context: context)
+        return container
     }
-    func updateNSView(_ field: NSTextField, context: Context) {
+    func updateNSView(_ container: Container, context: Context) {
+        let field = container.field
         context.coordinator.parent = self
         field.placeholderString = placeholder
         field.setAccessibilityLabel(placeholder)
@@ -43,8 +60,12 @@ struct ChromiumAddressField: NSViewRepresentable {
         }
         field.stringValue = text
     }
-    static func dismantleNSView(_ field: NSTextField, coordinator: Coordinator) {
+    static func dismantleNSView(_ container: Container, coordinator: Coordinator) {
+        let field = container.field
         if field.delegate === coordinator { field.delegate = nil }
+        field.isHidden = true
+        field.frame = .zero
+        if let parkingView = container.parkingView { parkingView.addSubview(field) }
     }
 
     @MainActor final class Coordinator: NSObject, NSTextFieldDelegate {
