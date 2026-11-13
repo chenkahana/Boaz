@@ -66,6 +66,7 @@ def main():
     receipt = {'inputs': inputs, 'command': command, 'source': str(stage),
                'toolchain_lock_sha256': hashlib.sha256(
                    (scripts / 'toolchains.lock.json').read_bytes()).hexdigest(),
+               'header_sha256': hashlib.sha256((scripts / 'host/boaz_adblock.h').read_bytes()).hexdigest(),
                'rustc': subprocess.check_output([str(toolchain / 'rustc'), '-Vv'], text=True)}
     print(f'Content-blocking run: {run}', flush=True)
     result = subprocess.run(command, cwd=stage, env=env)
@@ -78,7 +79,12 @@ def main():
         shutil.copy2(library, run / library.name)
         receipt['library_sha256'] = hashlib.sha256(library.read_bytes()).hexdigest()
         receipt['library'] = str(run / library.name)
-    (run / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
+    encoded = json.dumps(receipt, indent=2) + '\n'
+    (run / 'receipt.json').write_text(encoded)
+    if result.returncode == 0 and not args.resolve_lock:
+        temporary = run / 'published-receipt.json'
+        temporary.write_text(encoded)
+        temporary.replace(root / 'adblock-built.json')
     return result.returncode
 
 

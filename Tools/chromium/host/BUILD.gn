@@ -8,6 +8,7 @@ mojom("protected_media_mojom") {
 
 declare_args() {
   boaz_widevine_enabled = false
+  boaz_adblock_library = ""
 }
 
 buildflag_header("buildflags") {
@@ -30,6 +31,9 @@ source_set("host") {
   public_deps = [ ":launch", ":protected_media_mojom" ]
   sources = [
     "boaz_host.h",
+    "adblock_engine.h",
+    "adblock_engine.cc",
+    "boaz_adblock.h",
     "adblock_request_context.h",
     "adblock_request_context.cc",
     "adblock_url_loader_factory.h",
@@ -133,7 +137,9 @@ source_set("host") {
     "//skia",
     "//ui/native_theme",
   ]
-  frameworks = [ "AppKit.framework" ]
+  assert(boaz_adblock_library != "", "Build the pinned content-blocking library first.")
+  libs = [ boaz_adblock_library ]
+  frameworks = [ "AppKit.framework", "Security.framework", "SystemConfiguration.framework" ]
 }
 
 source_set("launch") {

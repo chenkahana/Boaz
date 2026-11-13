@@ -42,6 +42,27 @@ def verify_host_inputs(scripts, root, source, ui_only=False):
             raise RuntimeError(f"Patched Chromium input changed: {name}")
 
 
+def verified_adblock_library(scripts, root):
+    receipt = json.loads((root / "adblock-built.json").read_text())
+    if receipt["exit_code"] != 0:
+        raise RuntimeError("Content-blocking library did not build successfully.")
+    crate = scripts / "adblock"
+    names = {"Cargo.toml", "Cargo.lock"} | {
+        str(p.relative_to(crate)) for p in (crate / "src").rglob("*.rs")}
+    for name in names:
+        if hashlib.sha256((crate / name).read_bytes()).hexdigest() != receipt["inputs"].get(name):
+            raise RuntimeError(f"Content-blocking source changed: {name}; rebuild library.")
+    for name, key in (("toolchains.lock.json", "toolchain_lock_sha256"),
+                      ("host/boaz_adblock.h", "header_sha256")):
+        if hashlib.sha256((scripts / name).read_bytes()).hexdigest() != receipt.get(key):
+            raise RuntimeError(f"Content-blocking build input changed: {name}.")
+    library = Path(receipt["library"])
+    if (library.resolve() != library or not library.is_relative_to(root / "adblock") or
+            hashlib.sha256(library.read_bytes()).hexdigest() != receipt["library_sha256"]):
+        raise RuntimeError("Content-blocking library is redirected or its checksum changed.")
+    return str(library)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     modes = parser.add_mutually_exclusive_group()
@@ -130,7 +151,8 @@ def main():
             library.rename(ui_output / ("libBoazNativeUI.previous-" + uuid.uuid4().hex + ".dylib"))
         staged_library.rename(library)
         return 0
-    values = config["gn_args"]
+    values = dict(config["gn_args"])
+    values["boaz_adblock_library"] = verified_adblock_library(scripts, root)
     contents = "".join(f"{key} = {json.dumps(value)}\n" for key, value in sorted(values.items()))
     output.mkdir(parents=True, exist_ok=True)
     settings = output / "args.gn"
