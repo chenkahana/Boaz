@@ -29,3 +29,9 @@ The native UI also provides a stable, attached NSTextField through `address_fiel
 Chromium may create a Browser for popups, extension requests or commands without a preceding UI `create_window` call. The bootstrap factory must not fall back to a Chrome window. It calls `prepare_window` synchronously on main to obtain an attached native hierarchy and complete options. This callback creates and retains native UI only, never calls the engine API. After construction unwinds, `window_created` supplies the real handle and the options' context so the UI can bind them. Explicit `create_window` uses its supplied options and also emits this deferred event. No synthetic extension window IDs or hidden substitute Browser are permitted.
 
 A failed preparation fails the prototype's window-creation gate explicitly; it must not silently reveal Chrome UI. The native factory and bootstrap must be complete before this ABI is exercised. Profile selection and popup feature/size/opener behavior remain later explicit contracts, not claimed by this initial generic-window callback.
+
+## ABI 4 native extension actions (prepared)
+
+`enumerate_extensions` visits enabled actions for the requested browser profile synchronously. The visitor copies borrowed UTF-8 ID/name values and cannot reenter the API. `invoke_extension` is reserved for genuine native user activation. It validates the expected live page against the browser's actual active WebContents and the anchor against that browser's NSWindow. Anchor bounds use local view coordinates. An OK result means dispatch, not confirmed popup visibility. Unsupported actions return unavailable.
+
+The browser close-scheduled notification destroys the action controller before Browser destruction; delayed window UI cleanup does not own extension lifetime. This ABI and its implementation are queued behind the active ABI 3 build and have not yet compiled or passed runtime acceptance.

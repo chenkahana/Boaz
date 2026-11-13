@@ -5,6 +5,13 @@
 #include "bootstrap.h"
 #include "boaz_host.h"
 #include "native_window.h"
+#include "extension_actions.h"
+#include "extensions/browser/extension_registry.h"
+#include "extensions/browser/extension_action_manager.h"
+#include "extensions/common/extension.h"
+#include "components/tabs/public/tab_interface.h"
+#include "content/public/browser/web_contents.h"
+#include "ui/gfx/geometry/rect.h"
 #include "tab_registry.h"
 #include "base/auto_reset.h"
 #include "base/check.h"
@@ -37,6 +44,8 @@ struct Window {
   base::WeakPtr<BrowserWindowInterface> browser;
   BoazHostWindowOptions options;
   base::CallbackListSubscription cancelled;
+  std::unique_ptr<NativeExtensionActions> actions;
+  base::CallbackListSubscription closing;
 };
 struct State {
   raw_ptr<Profile> profile = nullptr;
@@ -163,9 +172,57 @@ BoazHostResult NativeView(BoazHostPage p, void** v) {
 }
 FORWARD(ClosePage, (BoazHostPage p), ClosePage(p))
 #undef FORWARD
+BoazHostResult EnumerateExtensions(BoazHostWindow id,
+    BoazHostExtensionVisitor visitor, void* context) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  if (!visitor) return BOAZ_HOST_INVALID_ARGUMENT;
+  auto it = state->windows.find(id);
+  if (it == state->windows.end() || !it->second.browser)
+    return BOAZ_HOST_INVALID_HANDLE;
+  auto* browser = it->second.browser.get();
+  if (browser->IsDeleteScheduled()) return BOAZ_HOST_CLOSING;
+  auto* registry = extensions::ExtensionRegistry::Get(browser->GetProfile());
+  auto* manager = extensions::ExtensionActionManager::Get(browser->GetProfile());
+  if (!registry || !manager) return BOAZ_HOST_UNAVAILABLE;
+  for (const auto& extension : registry->enabled_extensions()) {
+    if (!manager->GetExtensionAction(*extension)) continue;
+    Notify([&] { visitor(context, extension->id().c_str(), extension->name().c_str()); });
+  }
+  return BOAZ_HOST_OK;
+}
+BoazHostResult InvokeExtension(BoazHostWindow id, BoazHostPage page,
+    const char* extension_id, void* anchor, int32_t x, int32_t y,
+    int32_t width, int32_t height) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  if (!extension_id || !anchor || width <= 0 || height <= 0)
+    return BOAZ_HOST_INVALID_ARGUMENT;
+  auto it = state->windows.find(id);
+  if (it == state->windows.end() || !it->second.browser)
+    return BOAZ_HOST_INVALID_HANDLE;
+  auto* browser = it->second.browser.get();
+  if (browser->IsDeleteScheduled()) return BOAZ_HOST_CLOSING;
+  auto* active = browser->GetActiveTabInterface();
+  void* expected_view = nullptr;
+  auto result = state->tabs->GetNativeView(page, &expected_view);
+  if (result != BOAZ_HOST_OK) return result;
+  if (!active || !expected_view ||
+      expected_view != NativeViewForContents(active->GetContents()))
+    return BOAZ_HOST_INVALID_HANDLE;
+  if (!it->second.actions)
+    it->second.actions = std::make_unique<NativeExtensionActions>(browser);
+  switch (it->second.actions->Invoke(active->GetContents(), extension_id,
+                                     anchor, gfx::Rect(x, y, width, height))) {
+    case NativeExtensionActions::Result::kOk: return BOAZ_HOST_OK;
+    case NativeExtensionActions::Result::kInvalidTarget: return BOAZ_HOST_INVALID_HANDLE;
+    case NativeExtensionActions::Result::kInvalidAnchor: return BOAZ_HOST_INVALID_ARGUMENT;
+    case NativeExtensionActions::Result::kUnavailable:
+    case NativeExtensionActions::Result::kUnsupported: return BOAZ_HOST_UNAVAILABLE;
+  }
+}
 const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
-  Activate, NativeView, ClosePage, CloseWindow, Shutdown};
+  Activate, NativeView, ClosePage, CloseWindow, Shutdown,
+  EnumerateExtensions, InvokeExtension};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
@@ -287,7 +344,12 @@ CreateNativeHostBrowserWindow(BrowserWindowInterface* browser) {
   Window record{weak, options, browser->RegisterBrowserCloseCancelled(base::BindRepeating(
       [](BrowserWindowInterface*, BrowserWindowInterface::ClosingStatus) {
         state->exit_requested = false;
-      }))};
+      })), nullptr, {}};
+  record.closing = browser->RegisterBrowserDidClose(base::BindRepeating(
+      [](BoazHostWindow id, BrowserWindowInterface*) {
+        auto it = state->windows.find(id);
+        if (it != state->windows.end()) it->second.actions.reset();
+      }, id));
   CHECK(state->windows.emplace(id, std::move(record)).second);
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
       base::BindOnce([](BoazHostWindow id) {
