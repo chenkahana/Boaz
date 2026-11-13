@@ -23,6 +23,24 @@ extension ChromiumEnginePageAdapter {
             }
     }
 
+    func captureFullPage() async throws -> Data {
+        try Task.checkCancellation()
+        guard state.lifecycle == .active else { throw ChromiumCaptureError.closed }
+        guard let capture = api.capture_full_page, let cancel = api.cancel_full_page else {
+            throw EnginePageError.incompatibleBridge
+        }
+        return try await captureData(maxBytes: 32 * 1024 * 1024,
+            signature: [137, 80, 78, 71, 13, 10, 26, 10], cancel: cancel,
+            observeStatus: { [weak self] status in
+                if [BOAZ_CAPTURE_FAILED, BOAZ_CAPTURE_TIMEOUT, BOAZ_CAPTURE_NAVIGATION,
+                    BOAZ_CAPTURE_CLOSED, BOAZ_CAPTURE_RENDERER_FAILED, BOAZ_CAPTURE_CANCELLED].contains(status) {
+                    self?.invalidateEmulationState()
+                }
+            }) { request, completion, context in
+                capture(handle, request, completion, context)
+            }
+    }
+
     func capturePDF() async throws -> Data {
         try Task.checkCancellation()
         guard state.lifecycle == .active else { throw ChromiumCaptureError.closed }
@@ -37,9 +55,10 @@ extension ChromiumEnginePageAdapter {
 
     private func captureData(maxBytes: Int, signature: [UInt8],
         cancel: @escaping @convention(c) (BoazHostPage, UInt64) -> BoazHostResult,
+        observeStatus: (@MainActor (BoazHostCaptureStatus) -> Void)? = nil,
         start: (UInt64, BoazHostCaptureCompletion, UnsafeMutableRawPointer) -> BoazHostResult) async throws -> Data {
         let navigation = state.navigationID
-        let request = ChromiumCaptureRequest(page: handle, maxBytes: maxBytes, signature: signature, cancel: cancel)
+        let request = ChromiumCaptureRequest(page: handle, maxBytes: maxBytes, signature: signature, cancel: cancel, observeStatus: observeStatus)
         let data = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 request.continuation = continuation
@@ -81,11 +100,12 @@ extension ChromiumEnginePageAdapter {
     let maxBytes: Int
     let signature: [UInt8]
     let cancelOperation: @convention(c) (BoazHostPage, UInt64) -> BoazHostResult
+    let observeStatus: (@MainActor (BoazHostCaptureStatus) -> Void)?
     var continuation: CheckedContinuation<Data, Error>?
     var accepted = false
     private(set) var cancelled = false
 
-    init(page: BoazHostPage, maxBytes: Int, signature: [UInt8], cancel: @escaping @convention(c) (BoazHostPage, UInt64) -> BoazHostResult) {
+    init(page: BoazHostPage, maxBytes: Int, signature: [UInt8], cancel: @escaping @convention(c) (BoazHostPage, UInt64) -> BoazHostResult, observeStatus: (@MainActor (BoazHostCaptureStatus) -> Void)?) {
         precondition(Self.nextID < UInt64.max)
         id = Self.nextID
         Self.nextID += 1
@@ -93,6 +113,7 @@ extension ChromiumEnginePageAdapter {
         self.maxBytes = maxBytes
         self.signature = signature
         cancelOperation = cancel
+        self.observeStatus = observeStatus
     }
     func cancel() {
         cancelled = true
@@ -106,8 +127,9 @@ extension ChromiumEnginePageAdapter {
     }
     func finish(page: BoazHostPage, id: UInt64, status: BoazHostCaptureStatus, data: Data?, oversized: Bool) {
         guard continuation != nil else { return }
-        if cancelled { finishCancellation(); return }
         guard page == self.page, id == self.id else { fail(ChromiumCaptureError.identityMismatch); return }
+        observeStatus?(status)
+        if cancelled { finishCancellation(); return }
         let error: Error?
         switch status {
         case BOAZ_CAPTURE_SUCCESS: error = nil
