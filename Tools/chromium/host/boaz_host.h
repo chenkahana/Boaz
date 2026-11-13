@@ -281,6 +281,7 @@ typedef struct BoazHostAPI {
   /* Profile resource caches only; cookies and Cache Storage remain intact. */
   BoazHostResult (*clear_cache)(BoazHostProfile profile, uint64_t request,
       BoazHostCacheCompletion completion, void* context);
+  BoazHostResult (*reload_from_origin)(BoazHostPage page);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

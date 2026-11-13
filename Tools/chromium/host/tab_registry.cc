@@ -488,6 +488,11 @@ BoazHostResult TabRegistry::GoForward(BoazHostPage id) {
   navigation.GoForward();
   return BOAZ_HOST_OK;
 }
+BoazHostResult TabRegistry::ReloadFromOrigin(BoazHostPage id) {
+  BOAZ_FIND_PAGE();
+  page->web_contents()->GetController().Reload(content::ReloadType::BYPASSING_CACHE, true);
+  return BOAZ_HOST_OK;
+}
 BoazHostResult TabRegistry::Reload(BoazHostPage id) {
   BOAZ_FIND_PAGE();
   page->web_contents()->GetController().Reload(content::ReloadType::NORMAL, true);

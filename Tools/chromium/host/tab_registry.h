@@ -33,6 +33,7 @@ class TabRegistry {
   BoazHostResult GoBack(BoazHostPage page);
   BoazHostResult GoForward(BoazHostPage page);
   BoazHostResult Reload(BoazHostPage page);
+  BoazHostResult ReloadFromOrigin(BoazHostPage page);
   BoazHostResult CapturePDF(BoazHostPage page, uint64_t request, PagePDF::Completion completion);
   BoazHostResult CancelPDF(BoazHostPage page, uint64_t request);
   bool TakeProtectedMediaRequest(content::RenderFrameHost* frame, BoazHostPage* page, uint64_t* navigation);

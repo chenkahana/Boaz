@@ -318,6 +318,7 @@ FORWARD(Navigate, (BoazHostPage p, const char* u), Navigate(p,u))
 FORWARD(Back, (BoazHostPage p), GoBack(p))
 FORWARD(Forward, (BoazHostPage p), GoForward(p))
 FORWARD(Reload, (BoazHostPage p), Reload(p))
+FORWARD(ReloadFromOrigin, (BoazHostPage p), ReloadFromOrigin(p))
 FORWARD(Activate, (BoazHostPage p, uint8_t f), ActivatePage(p,f != 0))
 BoazHostResult NativeView(BoazHostPage p, void** v) {
   if (v) *v = nullptr;
@@ -673,7 +674,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
