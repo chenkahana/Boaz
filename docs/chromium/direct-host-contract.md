@@ -1,0 +1,17 @@
+# First direct-host implementation contract
+
+`Tools/chromium/host/boaz_host.h` is an independently authored prototype ABI. It is not implemented yet and is not the production engine interface. Its bounded objective is one native Boaz-style window with retained Chromium tabs, correct extension identities and explicit close/shutdown behavior. Profile selection, private contexts, extension controls, scripts and split commands follow in separately reviewed contracts before their packets begin.
+
+The executable retains Chromium's normal process/bootstrap and sandbox behavior. A gated native-host startup path uses an explicit isolated user-data directory, initializes one regular test profile, then invokes the native UI entry point with the function table. The prototype must refuse the normal Boaz profile. SwiftUI owns the visible native window and controls; Chromium owns Browser, TabStripModel, WebContents and their renderer lifecycle.
+
+All functions and callbacks run on Chromium's UI thread, which must be the AppKit main thread. Wrong-thread calls return an error before touching browser state. The implementation copies the callback table and checks table size/version. Callbacks are delivered after internal model mutation unwinds; clients queue new commands rather than reentering the model. Output handles are zeroed on failure. URLs must be valid before navigation is requested.
+
+Window/page handles are process-unique and never reused. Extension IDs come from Chromium, not from these handles. A native window belongs to one test profile in this first proof. The host retains the native window until `window_closed`; the UI must not release or destroy its content hierarchy before that callback. Later multi-profile/window transfer semantics require an explicit contract.
+
+`create_page` returns an accepted page handle; `PAGE_CREATED` means the corresponding WebContents and native view exist. Page callbacks carry a monotonic document generation for committed primary-document changes. This is navigation bookkeeping, not a substitute for authoritative frame/document identity in the later password API.
+
+Closing is asynchronous and honors before-unload. A cancelled close emits `PAGE_CLOSE_CANCELLED` and leaves the live native view intact. Emit `PAGE_CLOSING` only after close is committed and while the native view is still valid, so the UI can detach it synchronously. Emit `PAGE_CLOSED` once after browser ownership is released. Closing one tab must not destroy its window while other tabs remain. Window close and application quit wait for the corresponding page-close outcomes; no successful shutdown callback while pages or pending continuations remain.
+
+`get_native_view` returns a borrowed NSView, not WebContents ownership. Its renderer content remains owned by Chromium. The UI detaches it on `PAGE_CLOSING` and must not use it afterward. Renderer failure emits an explicit event; it does not invent a successful close or navigation. Initially, capability gaps return `BOAZ_HOST_UNAVAILABLE` and block the relevant acceptance, rather than silently returning success.
+
+Acceptance: two pages retain DOM state across activation; their actual extension tab IDs share the intended window identity; closing either page leaves the other functional; cancelled before-unload leaves the page/view alive; native/page accessibility and focus work together; rapid close, renderer failure and application shutdown leave no helpers behind. No runtime result is claimed by this header.
