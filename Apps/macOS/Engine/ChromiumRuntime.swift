@@ -18,6 +18,7 @@ final class ChromiumRuntime {
     var windowCreated: ((BoazHostWindow, UnsafeMutableRawPointer?) -> Void)?
     var windowClosed: ((BoazHostWindow) -> Void)?
     var shutdownReady: (() -> Void)?
+    var pageEvent: ((BoazHostPage, BoazHostPageEvent) -> Void)?
 
     private static weak var callbackOwner: ChromiumRuntime?
     private var pages: [BoazHostPage: ChromiumEnginePageAdapter] = [:]
@@ -66,6 +67,7 @@ final class ChromiumRuntime {
                 DispatchQueue.main.async { [weak owner] in
                     guard let owner, !owner.stopped, let adapter = owner.pages[copied.page] else { return }
                     adapter.apply(event: event, snapshot: copied.snapshot)
+                    owner.pageEvent?(copied.page, event)
                     if event == BOAZ_HOST_PAGE_CLOSED { owner.pages.removeValue(forKey: copied.page) }
                 }
             }
