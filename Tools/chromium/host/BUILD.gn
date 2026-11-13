@@ -31,6 +31,8 @@ source_set("host") {
   public_deps = [ ":launch", ":protected_media_mojom" ]
   sources = [
     "boaz_host.h",
+    "adblock_popup.h",
+    "adblock_popup.cc",
     "adblock_profile_state.h",
     "adblock_profile_state.cc",
     "adblock_engine.h",
