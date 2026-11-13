@@ -576,7 +576,7 @@
       ]
     },
     {
-      "file": "native-extension-disabled-ui.patch",
+      "file": "patches/native-extension-disabled-ui.patch",
       "sha256": "2c881324a08aa10c23c45a5efec585f6a2da2920e4956d9ae9e0f3cee7e62158",
       "files": [
         {
