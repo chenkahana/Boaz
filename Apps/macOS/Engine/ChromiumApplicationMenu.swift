@@ -12,11 +12,14 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
     }
     private let activeBrowser: () -> BrowserState?
     private let openScene: (String) -> Void
+    private let quit: () -> Void
     private var entries: [Int: Entry] = [:]
 
-    init(activeBrowser: @escaping () -> BrowserState?, openScene: @escaping (String) -> Void) {
+    init(activeBrowser: @escaping () -> BrowserState?, openScene: @escaping (String) -> Void,
+         quit: @escaping () -> Void) {
         self.activeBrowser = activeBrowser
         self.openScene = openScene
+        self.quit = quit
         super.init()
     }
 
@@ -43,7 +46,7 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         responder(app, "Hide Others", #selector(NSApplication.hideOtherApplications(_:)), key: "h", modifiers: [.command, .option])
         responder(app, "Show All", #selector(NSApplication.unhideAllApplications(_:)))
         app.addItem(.separator())
-        responder(app, "Quit Boaz", #selector(NSApplication.terminate(_:)), key: "q")
+        add(app, "Quit Boaz", enabled: { _ in true }, perform: { [weak self] _ in self?.quit() }, key: "q")
 
         let file = menu("File")
         add(file, "New Tab", command: .newTab) { $0?.commandMode = .newTab }
@@ -78,6 +81,7 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         let view = menu("View")
         add(view, "Hide Sidebar", command: .toggleSidebar,
             title: { $0?.sidebarVisible == false ? "Show Sidebar" : "Hide Sidebar" }) { $0?.toggleSidebar() }
+        add(view, "Reload Page", command: .reload, enabled: { $0?.activeTab != nil }) { $0?.reload() }
         add(view, "Back", command: .goBack, enabled: { $0?.activeTab != nil }) { $0?.goBack() }
         add(view, "Forward", command: .goForward, enabled: { $0?.activeTab != nil }) { $0?.goForward() }
         add(view, "Add Split View", command: .addSplitView, enabled: { $0?.activeTab != nil },
