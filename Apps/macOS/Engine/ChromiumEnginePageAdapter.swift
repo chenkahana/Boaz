@@ -20,6 +20,8 @@ final class ChromiumEnginePageAdapter: EnginePageAdapter {
     private(set) var state = EnginePageState()
     var responsiveVisible = false
     var appliedMedia: ChromiumMedia?
+    var appliedNetwork: ChromiumNetwork?
+    var appliedCPURate = 1.0
     var appliedViewport: ChromiumViewport?
     var appliedUserAgent: String?
     var userAgentDefaults: ChromiumUserAgentDefaults?
@@ -55,9 +57,7 @@ final class ChromiumEnginePageAdapter: EnginePageAdapter {
         let previousLifecycle = state.lifecycle
         if state.navigationID != snapshot.navigationID || snapshot.isLoading && !state.isLoading ||
             event == BOAZ_HOST_PAGE_RENDERER_FAILED || event == BOAZ_HOST_PAGE_CLOSED {
-            appliedViewport = nil
-            appliedUserAgent = nil
-            appliedMedia = nil
+            invalidateEmulationState()
         }
         state = snapshot
         if event == BOAZ_HOST_PAGE_VIEW_CHANGED { viewGeneration += 1 }

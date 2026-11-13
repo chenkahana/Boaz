@@ -128,9 +128,7 @@ extension ChromiumEnginePageAdapter {
         } catch {
             if state.navigationID != navigation || state.lifecycle != .active || state.isLoading ||
                 (error as? ChromiumEmulationError)?.resetsOverride == true {
-                appliedUserAgent = nil
-                appliedViewport = nil
-                appliedMedia = nil
+                invalidateEmulationState()
             }
             emulationError = (error as? LocalizedError)?.errorDescription ?? "The user agent could not be changed. Close Developer Tools and try again."
             throw error
@@ -190,7 +188,7 @@ extension ChromiumEnginePageAdapter {
             if state.navigationID == navigation, state.lifecycle == .active, !state.isLoading,
                (error as? ChromiumEmulationError)?.resetsOverride != true {
                 appliedViewport = previous
-            } else { appliedViewport = nil; appliedUserAgent = nil; appliedMedia = nil }
+            } else { invalidateEmulationState() }
             emulationError = (error as? LocalizedError)?.errorDescription ?? "The viewport could not be changed. Close Developer Tools and try again."
             throw error
         }
@@ -239,10 +237,88 @@ extension ChromiumEnginePageAdapter {
             if state.navigationID == navigation, state.lifecycle == .active, !state.isLoading,
                (error as? ChromiumEmulationError)?.resetsOverride != true {
                 appliedMedia = previous
-            } else { appliedMedia = nil; appliedUserAgent = nil; appliedViewport = nil }
+            } else { invalidateEmulationState() }
             emulationError = (error as? LocalizedError)?.errorDescription ?? "The media could not be changed. Close Developer Tools and try again."
             throw error
         }
     }
+    func invalidateEmulationState() {
+        appliedViewport = nil
+        appliedUserAgent = nil
+        appliedMedia = nil
+        appliedNetwork = nil
+        appliedCPURate = 1
+    }
+
+    func applyNetwork(_ network: ChromiumNetwork?) async throws {
+        guard network?.isValid != false else {
+            emulationError = "Use latency from 0–10000 ms and bandwidth from 1–1000000000 bytes/sec, or -1 for unlimited."
+            throw EnginePageError.invalidRequest
+        }
+        guard let apply = api.apply_network else { throw EnginePageError.incompatibleBridge }
+        try await performThrottling { request, callback, context in
+            if let network {
+                var native = network.native
+                return apply(self.handle, &native, request, callback, context)
+            }
+            return apply(self.handle, nil, request, callback, context)
+        }
+        appliedNetwork = network
+    }
+
+    func applyCPU(_ rate: Double) async throws {
+        guard rate.isFinite, (1...20).contains(rate) else {
+            emulationError = "Use a CPU slowdown from 1–20. A value of 1 restores normal speed."
+            throw EnginePageError.invalidRequest
+        }
+        guard let apply = api.apply_cpu else { throw EnginePageError.incompatibleBridge }
+        try await performThrottling { request, callback, context in
+            apply(self.handle, rate, request, callback, context)
+        }
+        appliedCPURate = rate
+    }
+
+    private func performThrottling(_ dispatch: (UInt64, BoazHostEmulationCompletion, UnsafeMutableRawPointer) -> BoazHostResult) async throws {
+        guard !emulationPending, state.lifecycle == .active, !state.isLoading,
+              emulationRequest < UInt64.max else {
+            emulationError = "Wait for this page to finish loading before changing throttling."
+            throw EnginePageError.unavailable
+        }
+        emulationRequest += 1
+        let request = emulationRequest
+        let navigation = state.navigationID
+        emulationPending = true
+        emulationError = nil
+        defer { emulationPending = false }
+        do {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                let box = EmulationRequest(page: handle, id: request, continuation: continuation)
+                let context = Unmanaged.passRetained(box).toOpaque()
+                let callback: BoazHostEmulationCompletion = { context, page, request, status in
+                    guard let context else { return }
+                    MainActor.assumeIsolated {
+                        let box = Unmanaged<EmulationRequest>.fromOpaque(context).takeRetainedValue()
+                        DispatchQueue.main.async { box.complete(page: page, id: request, status: status) }
+                    }
+                }
+                let result = dispatch(request, callback, context)
+                if result != BOAZ_HOST_OK {
+                    Unmanaged<EmulationRequest>.fromOpaque(context).release()
+                    do { try check(result) } catch { continuation.resume(throwing: error) }
+                }
+            }
+            guard state.lifecycle == .active, state.navigationID == navigation, !state.isLoading else {
+                throw ChromiumEmulationError(message: "The page changed. Apply throttling again after loading.")
+            }
+        } catch {
+            if state.navigationID != navigation || state.lifecycle != .active || state.isLoading ||
+                (error as? ChromiumEmulationError)?.resetsOverride == true {
+                invalidateEmulationState()
+            }
+            emulationError = (error as? LocalizedError)?.errorDescription ?? "Throttling could not be changed. Close Developer Tools and try again."
+            throw error
+        }
+    }
+
 }
 #endif
