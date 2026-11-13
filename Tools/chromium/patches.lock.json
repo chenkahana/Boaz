@@ -137,6 +137,17 @@
           "after": "8458ad3b29eb3e765ebc7ff680ffebe6143d536b25e8ad8ea26aaa3dff9caedd"
         }
       ]
+    },
+    {
+      "file": "patches/native-menu-ownership.patch",
+      "sha256": "761f36f95fead846a8ce8e39dd24928ae98485daaad7bfa8489a79851c797a7a",
+      "files": [
+        {
+          "path": "chrome/browser/app_controller_mac.mm",
+          "before": "3fa6ba6c0dd9ee35ac5d825683b3967c454bede82efdfd518eed2698fbb600c0",
+          "after": "d95189b0ba039b20a3e553d1f9d6d18b523c6c05bcc9dcca180c46167076796c"
+        }
+      ]
     }
   ]
 }

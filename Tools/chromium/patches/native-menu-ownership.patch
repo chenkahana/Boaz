@@ -1,0 +1,42 @@
+--- a/chrome/browser/app_controller_mac.mm
++++ b/chrome/browser/app_controller_mac.mm
+@@ -1130,6 +1130,12 @@
+   if (!browser)
+     return;
+ 
++  if (boaz::NativeHostEnabled()) {
++    _lastActiveBrowser = browser->GetWeakPtr();
++    [self setLastProfile:browser->GetProfile()];
++    return;
++  }
++
+   // Since we may have different windows with different profiles, we clear the
+   // subscription each time a window becomes the main.
+   _verticalTabSubscription = {};
+@@ -2225,6 +2231,26 @@
+   // for the zero-profile state.
+   _tabRestoreWasEnabled = profile == nullptr && [self canRestoreTab];
+ 
++  if (boaz::NativeHostEnabled()) {
++    _verticalTabSubscription = {};
++    _tabMenuBridge.reset();
++    _historyMenuBridge.reset();
++    _bookmarkMenuBridge = nullptr;
++    _profileBookmarkMenuBridgeMap.clear();
++    _profilePrefRegistrar.reset();
++    _lastProfile = profile;
++    if (profile && _menuState) {
++      chrome::BrowserCommandController::UpdateSharedCommandsForIncognitoAvailability(
++          _menuState.get(), profile);
++      _profilePrefRegistrar = std::make_unique<PrefChangeRegistrar>();
++      _profilePrefRegistrar->Init(profile->GetPrefs());
++      _profilePrefRegistrar->Add(policy::policy_prefs::kIncognitoModeAvailability,
++          base::BindRepeating(&chrome::BrowserCommandController::UpdateSharedCommandsForIncognitoAvailability,
++              _menuState.get(), profile));
++    }
++    return;
++  }
++
+   // Before tearing down the menu controller bridges, return the history menu to
+   // its initial state.
+   if (profile != nullptr) {
