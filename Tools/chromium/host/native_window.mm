@@ -10,6 +10,8 @@
 #include "base/check.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
+#include "base/location.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/memory/weak_ptr.h"
 #include "base/memory/raw_ptr.h"
 #include "base/observer_list.h"
@@ -91,7 +93,8 @@ class NativeWindow final : public BrowserWindow,
     for (NSString* name in @[NSWindowDidResizeNotification, NSWindowDidMoveNotification,
                             NSWindowDidEnterFullScreenNotification, NSWindowDidExitFullScreenNotification,
                             NSWindowDidResignKeyNotification, NSWindowWillEnterFullScreenNotification,
-                            NSWindowWillMiniaturizeNotification, NSWindowDidDeminiaturizeNotification]) {
+                            NSWindowWillMiniaturizeNotification, NSWindowDidDeminiaturizeNotification,
+                            NSWindowWillCloseNotification]) {
       id token = [[NSNotificationCenter defaultCenter] addObserverForName:name object:window_
           queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification* notification) {
         if (weak) weak->OnWindowEvent(notification.name);
@@ -102,6 +105,7 @@ class NativeWindow final : public BrowserWindow,
   ~NativeWindow() override {
     Main();
     weak_factory_.InvalidateWeakPtrs();
+    FinishDownloadPrompt(false);
     if (attention_) [NSApp cancelUserAttentionRequest:attention_];
     for (id token in observers_) [[NSNotificationCenter defaultCenter] removeObserver:token];
     notice_.reset();
@@ -211,8 +215,27 @@ class NativeWindow final : public BrowserWindow,
     return ShowTranslateBubbleResult::kBrowserWindowNotValid;
   }
   DownloadBubbleUIController* GetDownloadBubbleUIController() override { return nullptr; }
-  void ConfirmBrowserCloseWithPendingDownloads(int, DownloadCloseType, base::OnceCallback<void(bool)> callback) override {
-    Main(); std::move(callback).Run(false);
+  void ConfirmBrowserCloseWithPendingDownloads(int count, DownloadCloseType,
+      base::OnceCallback<void(bool)> callback) override {
+    Main();
+    if (!callback) return;
+    if (download_close_callback_ || !window_.visible || window_.attachedSheet || count <= 0) {
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE, base::BindOnce(std::move(callback), false));
+      return;
+    }
+    download_close_callback_ = std::move(callback);
+    download_close_alert_ = [[NSAlert alloc] init];
+    download_close_alert_.alertStyle = NSAlertStyleWarning;
+    download_close_alert_.messageText = @"Close and cancel downloads?";
+    download_close_alert_.informativeText = [NSString stringWithFormat:
+        @"Closing this window will cancel %d unfinished download%@.", count, count == 1 ? @"" : @"s"];
+    [download_close_alert_ addButtonWithTitle:@"Keep Downloading"];
+    [download_close_alert_ addButtonWithTitle:@"Cancel Downloads and Close"];
+    const auto weak = weak_factory_.GetWeakPtr();
+    [download_close_alert_ beginSheetModalForWindow:window_ completionHandler:^(NSModalResponse response) {
+      if (weak) weak->FinishDownloadPrompt(response == NSAlertSecondButtonReturn);
+    }];
   }
   void ShowAppMenu() override { Unsupported("app menu"); }
   void PreHandleDragUpdate(const content::DropData&, const gfx::PointF&) override {}
@@ -289,6 +312,17 @@ class NativeWindow final : public BrowserWindow,
   void RemoveObserver(web_modal::ModalDialogHostObserver* observer) override { Main(); modal_observers_.RemoveObserver(observer); }
   void NotifyPositionRequiresUpdate() override { Main(); for (auto& observer : modal_observers_) observer.OnPositionRequiresUpdate(); }
  private:
+  void FinishDownloadPrompt(bool cancel_downloads) {
+    Main();
+    auto callback = std::move(download_close_callback_);
+    NSAlert* alert = download_close_alert_;
+    download_close_alert_ = nil;
+    if (alert.window.sheetParent)
+      [alert.window.sheetParent endSheet:alert.window returnCode:NSModalResponseCancel];
+    if (callback)
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE, base::BindOnce(std::move(callback), cancel_downloads));
+  }
   NSView* Content() const {
     NSView* view = (__bridge NSView*)services_.content_view.Run();
     CHECK(view && view.window == window_); return view;
@@ -297,6 +331,10 @@ class NativeWindow final : public BrowserWindow,
     auto* tab = browser_->GetActiveTabInterface(); return tab ? tab->GetContents() : nullptr;
   }
   void OnWindowEvent(NSString* name) {
+    if ([name isEqualToString:NSWindowWillCloseNotification]) {
+      FinishDownloadPrompt(false);
+      return;
+    }
     Main();
     if ([name isEqualToString:NSWindowWillEnterFullScreenNotification] ||
         [name isEqualToString:NSWindowWillMiniaturizeNotification]) {
@@ -317,6 +355,8 @@ class NativeWindow final : public BrowserWindow,
   gfx::Rect restored_;
   ui::mojom::WindowShowState restored_state_ = ui::mojom::WindowShowState::kNormal;
   NSInteger attention_ = 0;
+  NSAlert* __strong download_close_alert_ = nil;
+  base::OnceCallback<void(bool)> download_close_callback_;
   std::unique_ptr<NativeNotice> notice_;
   NativeLocationBarPtr location_bar_;
   base::ObserverList<web_modal::ModalDialogHostObserver> modal_observers_;
