@@ -64,6 +64,35 @@ public struct SiteEngineRule: Codable, Equatable, Sendable {
 }
 
 extension BoazStore {
+    /// Seeds local protected-media routing once per persistent profile. Deleting a rule is permanent.
+    public func seedProtectedMediaRules(profileID: String) throws {
+        let sites: [(String, String?)] = [
+            ("netflix.com", nil), ("disneyplus.com", nil), ("max.com", nil),
+            ("primevideo.com", nil), ("amazon.com", "/gp/video"), ("tv.apple.com", nil),
+            ("open.spotify.com", nil), ("hulu.com", nil), ("peacocktv.com", nil),
+            ("paramountplus.com", nil),
+        ]
+        let created = Date.now
+        let rules = try sites.map { host, path in
+            try SiteEngineRule(profileID: profileID, host: host, pathPrefix: path,
+                engine: .webkit, reason: .protectedMedia, createdAt: created)
+        }
+        try writer.write { db in
+            let completed = try Bool.fetchOne(db,
+                sql: "SELECT EXISTS(SELECT 1 FROM protectedEngineSeed WHERE profileID = ?)", arguments: [profileID])
+            if completed == true { return }
+            for rule in rules {
+                try db.execute(sql: """
+                    INSERT OR IGNORE INTO siteEngineRule
+                        (profileID, host, pathPrefix, engine, reason, createdAt) VALUES (?, ?, ?, ?, ?, ?)
+                    """, arguments: [rule.profileID, rule.host, rule.pathPrefix ?? "", rule.engine.rawValue,
+                                      rule.reason.rawValue, rule.createdAt])
+            }
+            try db.execute(sql: "INSERT INTO protectedEngineSeed (profileID, completedAt) VALUES (?, ?)",
+                           arguments: [profileID, created])
+        }
+    }
+
     public func tabEngine(tabID: String, profileID: String) throws -> StoredBrowserEngine? {
         try writer.read { db in
             try String.fetchOne(db, sql: "SELECT engine FROM tabEngineChoice WHERE profileID = ? AND tabID = ?",

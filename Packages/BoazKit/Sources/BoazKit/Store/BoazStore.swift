@@ -231,6 +231,12 @@ public final class BoazStore: Sendable {
                 t.primaryKey(["profileID", "host", "pathPrefix", "reason"])
             }
         }
+        migrator.registerMigration("v7-protected-engine-seeds") { db in
+            try db.create(table: "protectedEngineSeed") { t in
+                t.primaryKey("profileID", .text)
+                t.column("completedAt", .datetime).notNull()
+            }
+        }
         return migrator
     }
 
