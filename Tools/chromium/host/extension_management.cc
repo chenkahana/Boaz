@@ -47,6 +47,20 @@ bool ValidID(const std::string& id) {
   return id.size() == 32 && std::ranges::all_of(id, [](char c) { return c >= 'a' && c <= 'p'; });
 }
 }
+bool NeedsExtensionPermissionReview(Profile* profile, const std::string& id) {
+  CHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  if (!profile || profile->IsOffTheRecord() || profile->ShutdownStarted() || !ValidID(id)) return false;
+  auto* registry = extensions::ExtensionRegistry::Get(profile);
+  auto* prefs = extensions::ExtensionPrefs::Get(profile);
+  auto* system = extensions::ExtensionSystem::Get(profile);
+  auto* policy = system ? system->management_policy() : nullptr;
+  const auto* extension = registry ? registry->disabled_extensions().GetByID(id) : nullptr;
+  return extension && prefs && policy &&
+      !extensions::Manifest::IsComponentLocation(extension->location()) &&
+      prefs->HasOnlyDisableReason(id, extensions::disable_reason::DISABLE_PERMISSIONS_INCREASE) &&
+      policy->UserMayModifySettings(extension, nullptr) &&
+      !policy->MustRemainDisabled(extension, nullptr);
+}
 std::vector<ManagedExtension> ListManagedExtensions(Profile* profile) {
   CHECK_CURRENTLY_ON(content::BrowserThread::UI);
   std::vector<ManagedExtension> result;
@@ -55,10 +69,10 @@ std::vector<ManagedExtension> ListManagedExtensions(Profile* profile) {
   if (!registry) return result;
   for (const auto& extension : registry->enabled_extensions()) {
     result.push_back({extension->id(), extension->name(), extension->version().GetString(),
-                      true, CanDisable(profile, *extension), false, CanUninstall(profile, *extension)});
+                      true, CanDisable(profile, *extension), false, CanUninstall(profile, *extension), false});
   }
   for (const auto& extension : registry->disabled_extensions()) {
-    result.push_back({extension->id(), extension->name(), extension->version().GetString(), false, false, CanEnable(profile, *extension), CanUninstall(profile, *extension)});
+    result.push_back({extension->id(), extension->name(), extension->version().GetString(), false, false, CanEnable(profile, *extension), CanUninstall(profile, *extension), NeedsExtensionPermissionReview(profile, extension->id())});
   }
   std::ranges::sort(result, {}, &ManagedExtension::id);
   return result;
