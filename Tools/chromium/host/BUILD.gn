@@ -58,6 +58,7 @@ source_set("host") {
     "//components/split_tabs",
     "//components/tabs:public",
     "//components/zoom",
+    "//components/find_in_page",
     "//third_party/blink/public/common",
     "//components/web_modal",
     "//content/public/browser",

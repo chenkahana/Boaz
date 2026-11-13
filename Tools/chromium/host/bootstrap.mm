@@ -372,11 +372,20 @@ BoazHostResult SetZoomFactor(BoazHostPage page, double factor) {
   if (auto result = Check(); result != BOAZ_HOST_OK) return result;
   return state->tabs->SetZoomFactor(page, factor);
 }
+BoazHostResult FindText(BoazHostPage page, const char* text, uint8_t forward) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (!text || forward > 1) return BOAZ_HOST_INVALID_ARGUMENT;
+  return state->tabs->FindText(page, text, forward != 0);
+}
+BoazHostResult StopFind(BoazHostPage page) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  return state->tabs->StopFind(page);
+}
 const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:

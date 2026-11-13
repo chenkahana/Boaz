@@ -30,6 +30,9 @@ struct EnginePageState: Equatable, Sendable {
     var navigationID: UInt64 = 0
     var isAudible = false
     var isMuted = false
+    var findMatchCount = -1
+    var findActiveMatch = -1
+    var findFinal = false
 }
 
 enum EnginePageError: Error, LocalizedError {

@@ -312,7 +312,9 @@ private struct CopiedPageState {
             title: value.title.map { String(cString: $0) } ?? "",
             isLoading: value.loading != 0, canGoBack: value.can_go_back != 0,
             canGoForward: value.can_go_forward != 0, navigationID: value.document_generation,
-            isAudible: value.audible != 0, isMuted: value.muted != 0)
+            isAudible: value.audible != 0, isMuted: value.muted != 0,
+            findMatchCount: Int(value.find_match_count), findActiveMatch: Int(value.find_active_match),
+            findFinal: value.find_final != 0)
     }
 }
 #endif
