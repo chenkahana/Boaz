@@ -1,6 +1,6 @@
 # Retained-tab native UI prototype
 
-`Tools/chromium/ui/BoazHostUI.swift` exports `BoazNativeUIStart` for the frozen prototype C ABI 2. Compile with `boaz_host.h` as the bridging header after root adds the agreed `BoazHostWindowOptions.address_field` callback. This file consumes that field; it does not modify the shared header.
+`Tools/chromium/ui/BoazHostUI.swift` exports `BoazNativeUIStart` for the prototype C ABI 3. Compile with the root-owned ABI 3 `boaz_host.h` as the bridging header. This packet does not modify the shared header.
 
 The entry validates table size/version and required function pointers, copies the table, registers callbacks, and creates one retained NSWindow with two requested pages. Chromium remains responsible for the application run loop. The UI never calls `NSApplication.run` or terminates the process directly.
 
@@ -16,3 +16,7 @@ Verification in this packet is source-contract inspection only. Root owns the co
 
 Root build entry: `Tools/chromium/build.py --native-ui` compiles the prototype as an arm64 Swift 6 dylib with ABI bridging, using the existing SSD guard and keeping module cache/output on the build image. It does not load the library into Chromium, sign a distribution, or establish runtime acceptance. Run after the currently owned build finishes; the guard refuses concurrent stages.
 Swift 6 callback correction: the local event monitor returns only its consumed Bool from `MainActor.assumeIsolated`, then returns the original NSEvent outside that closure. Native view providers return a UInt pointer representation and reconstruct the borrowed pointer immediately in the same synchronous callback. `assumeIsolated` asserts the existing main-actor context; it does not dispatch or transfer AppKit objects between threads. No unchecked Sendable conformance is introduced. Root recompilation remains required.
+
+ABI 3 window preparation creates and retains a native hierarchy synchronously, lays it out, and fills the same complete options table used by explicit creation. It makes no engine calls. The deferred window-created handler finds the retained object by opaque-context equality before binding its real handle and showing it. Unknown contexts are ignored without dereferencing them; zero handles, conflicting handles, and rebinding to another handle are rejected without releasing either window. Duplicate delivery for the same binding is idempotent. Only the explicit initial creation requests the two example pages. Chromium-created windows receive no synthetic tabs, leaving popup contents to Chromium.
+
+Evidence: inspected ABI 3 callback signatures and the browser-created-window contract at root commit 8d662b4; reviewed both creation paths and callback capture types. `git diff --check` passed. No compiler or runtime check ran in this packet. Root must verify compilation, popup binding, event ordering, and window-creation failure cleanup. The current ABI has no preparation-canceled callback, so a hierarchy prepared successfully but never given a handle remains retained until shutdown; this is an explicit lifecycle gap for the bootstrap to resolve.

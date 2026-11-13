@@ -63,6 +63,32 @@ private struct PageUpdate {
                 }
             }
         }
+        callbacks.prepare_window = { context, options in
+            guard Thread.isMainThread, let context, let options else { return BOAZ_HOST_INVALID_ARGUMENT }
+            return MainActor.assumeIsolated {
+                guard let owner = session, !owner.stopped,
+                      Unmanaged.passUnretained(owner).toOpaque() == context else { return BOAZ_HOST_INVALID_ARGUMENT }
+                let window = HostWindow(owner)
+                owner.windows.append(window)
+                options.pointee = window.makeOptions()
+                return BOAZ_HOST_OK
+            }
+        }
+        callbacks.window_created = { context, handle, windowContext in
+            guard let context, let windowContext else { return }
+            MainActor.assumeIsolated {
+                guard let owner = session, !owner.stopped,
+                      Unmanaged.passUnretained(owner).toOpaque() == context else { return }
+                let contextBits = UInt(bitPattern: windowContext)
+                DispatchQueue.main.async { [weak owner] in
+                    guard let owner, !owner.stopped,
+                          let window = owner.windows.first(where: {
+                              UInt(bitPattern: Unmanaged.passUnretained($0).toOpaque()) == contextBits
+                          }) else { return }
+                    _ = owner.bind(window, to: handle)
+                }
+            }
+        }
         callbacks.window_closed = { context, handle in
             guard let context else { return }
             MainActor.assumeIsolated {
@@ -87,8 +113,25 @@ private struct PageUpdate {
         let window = HostWindow(self)
         windows.append(window)
         let created = window.create()
-        if created != BOAZ_HOST_OK { windows.removeAll { $0 === window } }
+        if created != BOAZ_HOST_OK && !window.engineAccepted {
+            window.finishClose()
+            windows.removeAll { $0 === window }
+        }
         return created
+    }
+
+    func bind(_ window: HostWindow, to handle: UInt64) -> Bool {
+        guard handle != 0, windows.contains(where: { $0 === window }),
+              window.handle == 0 || window.handle == handle,
+              !windows.contains(where: { $0 !== window && $0.handle == handle }) else {
+            window.message = "Invalid browser window binding."
+            return false
+        }
+        if window.handle == handle { return true }
+        window.engineAccepted = true
+        window.handle = handle
+        window.window.makeKeyAndOrderFront(nil)
+        return true
     }
 
     func didClose(_ handle: UInt64) {
@@ -115,6 +158,7 @@ private struct PageUpdate {
     let address = NSTextField()
     let addButton = NSButton(title: "+", target: nil, action: nil)
     var handle: UInt64 = 0
+    var engineAccepted = false
     var allowClose = false
     var keyMonitor: Any?
     @Published var pages: [Page] = []
@@ -151,7 +195,7 @@ private struct PageUpdate {
         }
     }
 
-    func create() -> BoazHostResult {
+    func makeOptions() -> BoazHostWindowOptions {
         window.contentView?.layoutSubtreeIfNeeded()
         var options = BoazHostWindowOptions()
         options.size = MemoryLayout<BoazHostWindowOptions>.size
@@ -202,9 +246,16 @@ private struct PageUpdate {
                 model.window.contentView?.layoutSubtreeIfNeeded()
             }
         }
-        let result = owner.api.create_window!(&options, &handle)
+        return options
+    }
+
+    func create() -> BoazHostResult {
+        var options = makeOptions()
+        var createdHandle: UInt64 = 0
+        let result = owner.api.create_window!(&options, &createdHandle)
         guard result == BOAZ_HOST_OK else { return result }
-        window.makeKeyAndOrderFront(nil)
+        engineAccepted = true
+        guard owner.bind(self, to: createdHandle) else { return BOAZ_HOST_INVALID_HANDLE }
         newPage("https://example.com")
         newPage("https://example.org")
         return result
