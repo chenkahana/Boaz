@@ -52,6 +52,9 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         let hasEnginePage: (BrowserState?) -> Bool = {
             $0?.activeEnginePage?.state.lifecycle == .active
         }
+        let hasChromiumPage: (BrowserState?) -> Bool = {
+            $0?.activeEnginePage?.adapter is ChromiumEnginePageAdapter
+        }
         let hasWebKitPage: (BrowserState?) -> Bool = {
             $0?.activeEnginePage?.kind == .webKit && $0?.activeEnginePage?.state.lifecycle == .active
         }
@@ -205,7 +208,16 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
                 ChromiumPageSource.show(in: browser)
             } else if hasWebKitPage(browser) { browser.viewPageSource() }
         }
-        add(develop, "Show Storage (WebKit)…", enabled: hasWebKitPage) { $0?.showStorage() }
+        add(develop, "Show Storage…", enabled: hasEnginePage) { browser in
+            if hasWebKitPage(browser) { browser?.showStorage() }
+            else { Self.showDevTools(BOAZ_DEVTOOLS_STORAGE, browser: browser) }
+        }
+        add(develop, "Show Performance", enabled: hasChromiumPage) {
+            Self.showDevTools(BOAZ_DEVTOOLS_PERFORMANCE, browser: $0)
+        }
+        add(develop, "Show Lighthouse", enabled: hasChromiumPage) {
+            Self.showDevTools(BOAZ_DEVTOOLS_LIGHTHOUSE, browser: $0)
+        }
         add(develop, "Empty Caches", command: .emptyCaches, enabled: { browser in
             hasEnginePage(browser) && !ChromiumCache.isPending(for: browser?.activeEnginePage?.profile)
         }) { browser in

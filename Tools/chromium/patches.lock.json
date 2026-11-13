@@ -322,6 +322,27 @@
           "after": "85ca51b6470804b6d554c8999e5fa500c3903784f968a7bfd7327b6a98da2c9b"
         }
       ]
+    },
+    {
+      "file": "patches/native-devtools-panels.patch",
+      "sha256": "23140f7cca4d1e5071583f9aefc4e35a4d16b348a203b840ad30c74473eab474",
+      "files": [
+        {
+          "path": "chrome/browser/devtools/devtools_toggle_action.h",
+          "before": "cb0a4e2a97258229b0422fc5112cd4601c4ae7de6546a530dedde40c92922e04",
+          "after": "e93a106d8711925c899ed89d56dafb2c42a37700b8247ef60c92171e51e5e6ae"
+        },
+        {
+          "path": "chrome/browser/devtools/devtools_toggle_action.cc",
+          "before": "0e72a64c970430ce8de29e674bb32b0576433d7b04d1ac329a2efc186e0499ac",
+          "after": "1913398a6222fea9b1eb8b30e2c70067058c5279a39d199b3e95fa4a5a4c9fe9"
+        },
+        {
+          "path": "chrome/browser/devtools/devtools_window.cc",
+          "before": "0ec97f462fab727d46f778d7ce87e0b100488a68f8456f6f1a2c6139a321aa8f",
+          "after": "0d074e6f0a7a3ce59dbb182d08e06e71e30e1f64580848326f320a2213127adf"
+        }
+      ]
     }
   ]
 }

@@ -558,6 +558,18 @@ BoazHostResult TabRegistry::ShowDevTools(BoazHostPage id, BoazHostDevToolsAction
       DevToolsWindow::OpenDevToolsWindow(contents, DevToolsToggleAction::Inspect(),
           DevToolsOpenedByAction::kInspectorModeShortcut);
       break;
+    case BOAZ_DEVTOOLS_STORAGE:
+      DevToolsWindow::OpenDevToolsWindow(contents, DevToolsToggleAction::ShowApplicationPanel(),
+          DevToolsOpenedByAction::kMainMenuOrMainShortcut);
+      break;
+    case BOAZ_DEVTOOLS_PERFORMANCE:
+      DevToolsWindow::OpenDevToolsWindow(contents, DevToolsToggleAction::ShowPerformancePanel(),
+          DevToolsOpenedByAction::kMainMenuOrMainShortcut);
+      break;
+    case BOAZ_DEVTOOLS_LIGHTHOUSE:
+      DevToolsWindow::OpenDevToolsWindow(contents, DevToolsToggleAction::ShowLighthousePanel(),
+          DevToolsOpenedByAction::kMainMenuOrMainShortcut);
+      break;
     default:
       return BOAZ_HOST_INVALID_ARGUMENT;
   }
