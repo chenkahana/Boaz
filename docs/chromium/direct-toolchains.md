@@ -27,3 +27,9 @@ Known limitations at handoff:
 - Package instance resolution, downloaded archive layouts, installation receipts, and client/network compatibility have not been exercised. No toolchain download or install was executed for this commit.
 
 Verification is Python syntax plus one read-only dry run. No new tests were added. The four compressed GCS downloads total about 354 MiB; expanded storage and linker memory remain unmeasured.
+
+## Execution corrections
+
+The pinned CIPD client returns a grouped result containing a `pin` object, not a top-level instance ID. All six immutable instances have now been resolved and committed in `Tools/chromium/toolchains.resolved.json`; preparation uses those exact instances instead of resolving mutable tags again.
+
+The official source archive contains some Linux toolchain payloads, including `lib/libclang.so`, where the Mac package supplies `lib/libclang.dylib`. When a verified Mac payload differs, preparation preserves the entire original destination and a hash inventory under `toolchains/<id>.source-backup`, then promotes the verified stage. It refuses an existing backup instead of overwriting it. No source payload or user file is deleted.

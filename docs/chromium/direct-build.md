@@ -14,6 +14,20 @@ The archive lives at `/Volumes/BoazBuild/cef/direct/downloads/chromium-157.0.810
 
 Extraction refuses an existing source or staging directory. It accepts only the expected archive root, regular files/directories and confined relative links. It rejects path traversal, duplicate entries, absolute/escaping links, device nodes, and hard links whose verified target has not appeared. Python 3.12's `data` extraction filter adds per-entry traversal/link protections. Legitimate internal relative symlinks remain symlinks. It verifies `chrome/VERSION` before promoting the staged source. A failed or interrupted extraction remains at `src.extracting`; no source or user files are automatically removed.
 
-The expected top-level archive directory is `chromium-157.0.8103.51`, matching the official archive naming convention; this packet has not downloaded the archive to verify its member layout. A different root or forward hard-link ordering fails safely and requires inspection, not loosening path protections. The 8 GiB ceiling is a safety bound, not a measured archive size. Storage fit and extraction throughput remain unmeasured.
+The expected top-level archive directory is `chromium-157.0.8103.51`, matching the official archive naming convention; the executed extraction below verified that member layout. A different root or forward hard-link ordering fails safely and requires inspection, not loosening path protections. The 8 GiB ceiling is a safety bound, not a measured archive size. Peak build storage and build throughput remain unmeasured.
 
-Verification for this packet is Python syntax and one `--dry-run`. No download, source extraction, toolchain installation, or build was executed. The earlier unfinished CEF patch remains preserved on its own branch and is not applied here. Do not copy Crest's source-directory deletion policy; old data requires an explicit ownership/recovery decision.
+Initial packet verification was Python syntax and one `--dry-run`; subsequent execution evidence follows below. The earlier unfinished CEF patch remains preserved on its own branch and is not applied here. Do not copy Crest's source-directory deletion policy; old data requires an explicit ownership/recovery decision.
+
+## Executed source preparation, 2026-11-13
+
+The official archive endpoint reported 2,079,590,576 bytes. Google's published SHA-256 matched the pinned value; the downloaded archive matched it too. Guarded extraction completed with exit 0 and verified `chrome/VERSION` as 157.0.8103.51. The previous CEF source/output tree remains intact. Log: `/Volumes/BoazBuild/cef/logs/20261113T101222.775449Z.log`.
+
+Apple's Metal Toolchain 27B47 was downloaded/exported under the volume guard. `xcrun metal --version` now reports Apple metal 32023.922. The system-managed component is installed by Xcode; the exported bundle is retained under the direct workspace.
+
+The initial native-host build uses `Tools/chromium/development.json` and `build.py --configure` or `--build`. It is non-component arm64 with symbols, expensive checks, PGO and ThinLTO disabled; it is not the performance/release configuration. Source/toolchain preparation and GN generation must pass before compilation.
+
+## Native host compilation
+
+`install-host.py --install` stages only independently authored `Tools/chromium/host` files into `src/boaz`, under the same volume guard. It records hashes and preserves the previous installation on updates. The development GN argument `root_extra_deps` includes this source set without modifying upstream build files. `build.py --host-objects` compiles the three adapter translation units with four jobs by default; a complete Chrome build is a separate `--build` operation.
+
+GN generation with the host passed on 2026-11-13: 36,671 targets from 5,049 files. Log: `/Volumes/BoazBuild/cef/logs/20261113T104434.291401Z.log`. The first attempt found a duplicate ARC setting, removed because Chromium enables ARC by default. This proves build graph generation only, not compilation, linking, startup, or product acceptance. The browser startup hook and native UI entry remain unimplemented.

@@ -136,22 +136,18 @@ def prepare(lock):
         raise ValueError("Installed CIPD binary differs from pin")
     resolved_path = state / "resolved.json"
     recipe_hash = sha(LOCK)
+    resolved = json.loads((HERE / "toolchains.resolved.json").read_text())
+    if resolved["recipe_sha256"] != recipe_hash:
+        raise ValueError("Pinned package instances belong to another recipe")
+    if set(resolved["instances"]) != {entry["id"] for entry in lock["cipd"]}:
+        raise ValueError("Pinned package instance set differs from the recipe")
+    if not all(re.fullmatch(r"[A-Za-z0-9_-]{40,64}", value)
+               for value in resolved["instances"].values()):
+        raise ValueError("Invalid pinned CIPD instance")
     if resolved_path.exists():
-        resolved = json.loads(resolved_path.read_text())
-        if resolved["recipe_sha256"] != recipe_hash:
-            raise ValueError("Existing resolution belongs to another recipe")
+        if json.loads(resolved_path.read_text()) != resolved:
+            raise ValueError("Stored package resolution differs from the committed pin")
     else:
-        resolved = {"recipe_sha256": recipe_hash, "instances": {}}
-        for entry in lock["cipd"]:
-            output = state / (entry["id"] + ".resolve.json")
-            if output.exists():
-                raise ValueError(f"Uncommitted resolution exists: {output}")
-            run([cipd, "resolve", entry["package"], "-version", entry["version"], "-json-output", str(output)], env)
-            result = json.loads(output.read_text())["result"]
-            instance = result["instance_id"]
-            if result.get("package", result.get("package_name")) != entry["package"] or not re.fullmatch(r"[A-Za-z0-9_-]{40,64}", instance):
-                raise ValueError("Unexpected CIPD resolution result")
-            resolved["instances"][entry["id"]] = instance
         write_new(resolved_path, resolved)
     for entry in lock["gcs"] + lock["cipd"]:
         rel = PurePosixPath(entry["destination"])
@@ -184,7 +180,14 @@ def prepare(lock):
             raise ValueError("Empty package stage")
         if destination.exists():
             if tree(destination) != contents:
-                raise ValueError(f"Existing destination differs; preserving both: {destination}")
+                backup = state / (entry["id"] + ".source-backup")
+                if os.path.lexists(backup):
+                    raise ValueError(f"Existing source backup requires inspection: {backup}")
+                write_new(state / (entry["id"] + ".source-backup.json"),
+                          {"source": str(destination), "tree": tree(destination)})
+                destination.rename(backup)
+                stage.rename(destination)
+                print(f"Preserved source-provided package: {backup}", flush=True)
         else:
             destination.parent.mkdir(parents=True, exist_ok=True)
             stage.rename(destination)

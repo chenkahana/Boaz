@@ -1,0 +1,23 @@
+source_set("host") {
+  sources = [
+    "boaz_host.h",
+    "native_view.mm",
+    "native_window.h",
+    "native_window.mm",
+    "tab_registry.h",
+    "tab_registry.cc",
+  ]
+  deps = [
+    "//base",
+    "//chrome/browser",
+    "//chrome/browser/ui:browser_commands",
+    "//chrome/browser/ui:browser_window_header",
+    "//components/web_modal",
+    "//content/public/browser",
+    "//extensions/browser",
+    "//ui/base",
+    "//ui/gfx",
+    "//ui/native_theme",
+  ]
+  frameworks = [ "AppKit.framework" ]
+}
