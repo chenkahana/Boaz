@@ -5,6 +5,8 @@ import SwiftUI
 struct ChromiumResponsiveBar: View {
     let adapter: ChromiumEnginePageAdapter
     @State private var draft = ChromiumViewport()
+    @State private var customUserAgent = ""
+    @State private var defaultsError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -29,14 +31,38 @@ struct ChromiumResponsiveBar: View {
             .controlSize(.small)
             HStack {
                 Text(adapter.appliedViewport == nil ? "No viewport override applied." : "Viewport override active.")
-                Text("User agent is unchanged.")
+                Text(adapter.appliedUserAgent == nil ? "Native user agent." : "Custom user agent; Client Hints suppressed.")
                 if adapter.emulationPending { ProgressView().controlSize(.small) }
             }.font(.caption).foregroundStyle(.secondary)
+            DisclosureGroup("User Agent") {
+                VStack(alignment: .leading, spacing: 6) {
+                    if let defaults = adapter.userAgentDefaults {
+                        Text("Native: \(defaults.userAgent)").textSelection(.enabled)
+                        Text("Platform: \(defaults.navigatorPlatform) · \(defaults.metadata.platform) \(defaults.metadata.platformVersion) · \(defaults.metadata.architecture)")
+                        Text("Model: \(defaults.metadata.model) · Bitness: \(defaults.metadata.bitness) · Mobile: \(defaults.metadata.mobile ? "yes" : "no") · WOW64: \(defaults.metadata.wow64 ? "yes" : "no")")
+                        Text("Form factors: " + defaults.metadata.formFactors.joined(separator: ", "))
+                        Text("Brands: " + defaults.metadata.fullVersionList.map { "\($0.brand) \($0.version)" }.joined(separator: ", "))
+                    }
+                    if let defaultsError { Text(defaultsError).foregroundStyle(.red) }
+                    TextField("Custom user agent", text: $customUserAgent).accessibilityLabel("Custom user agent")
+                    HStack {
+                        Button("Apply Custom") { Task { try? await adapter.applyUserAgent(customUserAgent) } }
+                        Button("Use Native Defaults") { Task { try? await adapter.applyUserAgent(nil) } }
+                        Text("Custom overrides suppress Client Hints; they do not change the rendering engine.")
+                    }
+                    .disabled(adapter.emulationPending || adapter.state.isLoading || adapter.state.lifecycle != .active)
+                }.font(.caption)
+            }
             if let error = adapter.emulationError { Text(error).font(.caption).foregroundStyle(.red) }
         }
         .padding(8)
         .background(.bar)
-        .onAppear { if let applied = adapter.appliedViewport { draft = applied } }
+        .onAppear {
+            if let applied = adapter.appliedViewport { draft = applied }
+            customUserAgent = adapter.appliedUserAgent ?? ""
+            do { try adapter.readUserAgentDefaults() }
+            catch { defaultsError = "Native user-agent details are unavailable." }
+        }
     }
 
     private func change(_ value: ChromiumViewport?) {
@@ -46,6 +72,7 @@ struct ChromiumResponsiveBar: View {
         Task {
             do {
                 try await adapter.applyViewport(nil)
+                try await adapter.applyUserAgent(nil)
                 adapter.responsiveVisible = false
             } catch { }
         }
