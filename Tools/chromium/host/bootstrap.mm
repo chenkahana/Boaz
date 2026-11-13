@@ -93,6 +93,7 @@ struct State {
   uint64_t pending_emulations = 0;
   uint64_t pending_cache_clears = 0;
   uint64_t pending_profiles = 0;
+  bool automatic_picture_in_picture_enabled = false;
   uint64_t pending_extension_installs = 0;
   std::set<Profile*> extension_install_profiles;
   bool exit_started = false;
@@ -676,6 +677,12 @@ BoazHostResult ResetSitePermission(BoazHostPage page, uint64_t navigation, int32
   if (auto r = Check(); r != BOAZ_HOST_OK) return r;
   return state->tabs->ResetSitePermission(page, navigation, kind);
 }
+BoazHostResult SetAutomaticPictureInPictureEnabled(uint8_t enabled) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  if (enabled > 1) return BOAZ_HOST_INVALID_ARGUMENT;
+  state->automatic_picture_in_picture_enabled = enabled != 0;
+  return BOAZ_HOST_OK;
+}
 BoazHostResult TogglePictureInPicture(BoazHostPage page) {
   if (auto r = Check(); r != BOAZ_HOST_OK) return r;
   return state->tabs->TogglePictureInPicture(page);
@@ -1005,7 +1012,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension, InstallExtension, InstallUnpackedExtension, UninstallExtension, ExtensionMetadata, ReviewExtensionPermissions, TogglePictureInPicture, EnumerateSitePermissions, ResetSitePermission};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension, InstallExtension, InstallUnpackedExtension, UninstallExtension, ExtensionMetadata, ReviewExtensionPermissions, TogglePictureInPicture, EnumerateSitePermissions, ResetSitePermission, SetAutomaticPictureInPictureEnabled};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
@@ -1138,6 +1145,10 @@ bool ShouldRetainEmptyBrowser(BrowserWindowInterface* browser) {
     if (window.browser.get() == browser)
       return window.external_tab_count > 0 && !window.explicit_close;
   return false;
+}
+bool AutomaticPictureInPictureEnabled() {
+  CHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  return state && !state->exit_requested && state->automatic_picture_in_picture_enabled;
 }
 bool NativeHostEnabled() {
   return base::CommandLine::ForCurrentProcess()->HasSwitch("boaz-native-host");

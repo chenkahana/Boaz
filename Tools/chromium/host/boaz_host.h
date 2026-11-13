@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 44u
+#define BOAZ_HOST_ABI_VERSION 45u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT,
@@ -372,6 +372,7 @@ typedef struct BoazHostAPI {
   BoazHostResult (*enumerate_site_permissions)(BoazHostPage page, uint64_t navigation,
       BoazHostSitePermissionVisitor visitor, void* context);
   BoazHostResult (*reset_site_permission)(BoazHostPage page, uint64_t navigation, int32_t kind);
+  BoazHostResult (*set_automatic_picture_in_picture_enabled)(uint8_t enabled);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

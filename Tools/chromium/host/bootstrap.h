@@ -13,6 +13,7 @@ namespace boaz {
 void ReportNativePasswordSubmission(content::WebContents*, std::string origin, std::string username, std::string password);
 void ReportProtectedMediaRequest(content::RenderFrameHost* frame, const std::string& key);
 bool NativeHostEnabled();
+bool AutomaticPictureInPictureEnabled();
 bool IsNativeExtensionPromptContext(Profile*, void* native_window);
 void NativeExtensionPromptsChanged();
 bool ShouldDisableJavaScript(content::WebContents* contents);

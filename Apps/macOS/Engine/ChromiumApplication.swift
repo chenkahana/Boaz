@@ -17,6 +17,8 @@ private final class ChromiumApplication: NSObject {
     var auxiliaryWindows: [NSWindow] = []
     var finished = false
     private var startupWindow: Task<ChromiumAppWindow?, Never>?
+    private var defaultsObserver: NSObjectProtocol?
+    private var appliedAutomaticPiP: Bool?
     private var applicationMenu: ChromiumApplicationMenu?
 
     init(runtime: ChromiumRuntime) {
@@ -158,6 +160,8 @@ private final class ChromiumApplication: NSObject {
             ChromiumPasswordSave.shared.dismiss()
             ChromiumAutomation.shared.stop()
             finished = true
+            if let defaultsObserver { NotificationCenter.default.removeObserver(defaultsObserver) }
+            defaultsObserver = nil
             legacyDelegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
             windows.forEach { $0.finishClose() }
             windows.removeAll()
@@ -178,6 +182,11 @@ private final class ChromiumApplication: NSObject {
             drainExternalURLs()
         }
         try runtime.startCallbacks()
+        try applyAutomaticPiPPreference()
+        defaultsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
+            object: UserDefaults.standard, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.defaultsChanged() }
+            }
         ChromiumAutomation.shared.start()
         // Chromium retains its AppController delegate and termination machinery.
         NotificationCenter.default.addObserver(self, selector: #selector(willTerminate),
@@ -319,6 +328,18 @@ private final class ChromiumApplication: NSObject {
         menu.install()
     }
 
+    private func applyAutomaticPiPPreference() throws {
+        let enabled = PictureInPicture.floatsWhenLeaving
+        guard appliedAutomaticPiP != enabled else { return }
+        guard let update = runtime.api.set_automatic_picture_in_picture_enabled,
+              update(enabled ? 1 : 0) == BOAZ_HOST_OK else { throw EnginePageError.unavailable }
+        appliedAutomaticPiP = enabled
+    }
+    private func defaultsChanged() {
+        guard !finished else { return }
+        do { try applyAutomaticPiPPreference() }
+        catch { model.showToast("The automatic Picture in Picture preference could not be applied.") }
+    }
     @objc private func willTerminate() {
         guard !finished else { return }
         legacyDelegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
