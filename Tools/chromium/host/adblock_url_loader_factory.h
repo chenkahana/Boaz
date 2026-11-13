@@ -1,6 +1,7 @@
 #ifndef BOAZ_ADBLOCK_URL_LOADER_FACTORY_H_
 #define BOAZ_ADBLOCK_URL_LOADER_FACTORY_H_
 #include <string>
+#include <optional>
 #include "adblock_request_context.h"
 #include "base/functional/callback.h"
 #include "base/memory/scoped_refptr.h"
@@ -11,12 +12,18 @@
 #include "url/gurl.h"
 namespace base { class SequencedTaskRunner; }
 namespace boaz {
-enum class AdblockDecision { kAllow, kBlock };
+struct AdblockDecision {
+  enum class Action { kAllow, kBlock, kRewrite, kResourceReplacement, kUnsupported };
+  Action action;
+  std::optional<GURL> rewritten_url;
+  std::string replacement_data_url;
+};
 using AdblockDecider = base::RepeatingCallback<AdblockDecision(
     const GURL&, const std::string&, network::mojom::RequestDestination,
     const AdblockRequestContext&)>;
 // Callback runs only on runner, synchronously; capture immutable/thread-safe
-// rule ownership, never UI/profile objects. No rewrite/redirect decision exists.
+// rule ownership, never UI/profile objects. Resource replacement is explicitly
+// unsupported until its security-preserving loader route is implemented.
 void BindAdblockURLLoaderFactory(
     mojo::PendingReceiver<network::mojom::URLLoaderFactory>,
     mojo::PendingRemote<network::mojom::URLLoaderFactory>,

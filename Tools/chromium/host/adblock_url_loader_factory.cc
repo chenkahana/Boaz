@@ -8,6 +8,7 @@
 #include "mojo/public/cpp/bindings/remote.h"
 #include "net/base/net_errors.h"
 #include "net/url_request/redirect_info.h"
+#include "url/origin.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/url_loader_completion_status.h"
 #include "services/network/public/mojom/url_loader.mojom.h"
@@ -30,23 +31,59 @@ class Request final : public network::mojom::URLLoader,
   void Start(network::mojom::URLLoaderFactory* factory, int32_t id, uint32_t options,
              const network::ResourceRequest& request,
              const net::MutableNetworkTrafficAnnotationTag& annotation) {
-    if (Blocked(request.url)) { Complete(net::ERR_BLOCKED_BY_CLIENT); return; }
+    std::optional<GURL> rewrite;
+    const int error = Evaluate(request.url, rewrite);
+    if (error != net::OK) { Complete(error); return; }
+    network::ResourceRequest forwarded = request;
+    if (rewrite) forwarded.url = *rewrite;
     auto client_remote = downstream_client_.BindNewPipeAndPassRemote();
     downstream_client_.set_disconnect_handler(base::BindOnce(
         &Request::Complete, weak_.GetWeakPtr(), net::ERR_FAILED));
     factory->CreateLoaderAndStart(loader_.BindNewPipeAndPassReceiver(), id, options,
-                                  request, std::move(client_remote), annotation);
+                                  forwarded, std::move(client_remote), annotation);
   }
  private:
-  bool Blocked(const GURL& url) {
-    return decide_.Run(url, method_, destination_, context_) != AdblockDecision::kAllow;
+  int Evaluate(const GURL& url, std::optional<GURL>& rewrite) {
+    const auto decision = decide_.Run(url, method_, destination_, context_);
+    switch (decision.action) {
+      case AdblockDecision::Action::kAllow:
+        return decision.rewritten_url || !decision.replacement_data_url.empty() ? net::ERR_NOT_IMPLEMENTED : net::OK;
+      case AdblockDecision::Action::kBlock:
+        return net::ERR_BLOCKED_BY_CLIENT;
+      case AdblockDecision::Action::kRewrite: {
+        if (!decision.rewritten_url || !decision.replacement_data_url.empty()) return net::ERR_NOT_IMPLEMENTED;
+        const GURL& target = *decision.rewritten_url;
+        if (!url.is_valid() || !target.is_valid() || !url.SchemeIsHTTPOrHTTPS() ||
+            !target.SchemeIsHTTPOrHTTPS() ||
+            !url::Origin::Create(url).IsSameOriginWith(url::Origin::Create(target)) ||
+            url.path_piece() != target.path_piece() || url.username_piece() != target.username_piece() ||
+            url.password_piece() != target.password_piece() || url.ref_piece() != target.ref_piece() ||
+            url.has_ref() != target.has_ref()) return net::ERR_NOT_IMPLEMENTED;
+        rewrite = target;
+        return net::OK;
+      }
+      case AdblockDecision::Action::kResourceReplacement:
+      case AdblockDecision::Action::kUnsupported:
+        return net::ERR_NOT_IMPLEMENTED;
+    }
+    return net::ERR_NOT_IMPLEMENTED;
   }
   void Destroy() { delete this; }
   void Complete(int error) { OnComplete(network::URLLoaderCompletionStatus(error)); }
   void FollowRedirect(network::HttpRequestHeadersUpdateParams params,
                       const std::optional<GURL>& new_url) override {
-    if (new_url && Blocked(*new_url)) { Complete(net::ERR_BLOCKED_BY_CLIENT); return; }
-    loader_->FollowRedirect(std::move(params), new_url);
+    std::optional<GURL> forwarded_url = pending_rewrite_;
+    if (new_url) {
+      // Evaluate a client override once. The downstream loader still validates
+      // it against the original server redirect, including same-origin checks.
+      forwarded_url = new_url;
+      std::optional<GURL> rewrite;
+      const int error = Evaluate(*new_url, rewrite);
+      if (error != net::OK) { Complete(error); return; }
+      if (rewrite) forwarded_url = *rewrite;
+    }
+    pending_rewrite_.reset();
+    loader_->FollowRedirect(std::move(params), forwarded_url);
   }
   void SetPriority(net::RequestPriority priority, int32_t value) override {
     loader_->SetPriority(priority, value);
@@ -62,7 +99,9 @@ class Request final : public network::mojom::URLLoader,
   void OnReceiveRedirect(const net::RedirectInfo& info,
                          network::mojom::URLResponseHeadPtr head) override {
     method_ = info.new_method;
-    if (Blocked(info.new_url)) { Complete(net::ERR_BLOCKED_BY_CLIENT); return; }
+    pending_rewrite_.reset();
+    const int error = Evaluate(info.new_url, pending_rewrite_);
+    if (error != net::OK) { Complete(error); return; }
     client_->OnReceiveRedirect(info, std::move(head));
   }
   void OnUploadProgress(int64_t current, int64_t total,
@@ -84,6 +123,7 @@ class Request final : public network::mojom::URLLoader,
   const AdblockRequestContext context_;
   const AdblockDecider decide_;
   std::string method_;
+  std::optional<GURL> pending_rewrite_;
   const network::mojom::RequestDestination destination_;
   base::WeakPtrFactory<Request> weak_{this};
 };
