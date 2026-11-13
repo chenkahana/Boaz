@@ -21,6 +21,7 @@
 #include "chrome/browser/themes/theme_service.h"
 #include "chrome/browser/themes/theme_service_factory.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_context.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_bubble.h"
@@ -104,6 +105,7 @@ class NativeWindow final : public BrowserWindow,
   }
   ~NativeWindow() override {
     Main();
+    browser_->GetFeatures().TearDownPreBrowserWindowDestruction();
     weak_factory_.InvalidateWeakPtrs();
     FinishDownloadPrompt(false);
     if (attention_) [NSApp cancelUserAttentionRequest:attention_];
