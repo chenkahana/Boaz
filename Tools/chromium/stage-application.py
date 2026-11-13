@@ -48,7 +48,7 @@ def assemble(base, receipt, output, native_launch=False):
                          'CrProductDirName': 'Boaz Chromium Development'})
         with info.open('wb') as stream:
             plistlib.dump(metadata, stream)
-    frameworks, destination = output / 'Contents/Frameworks', output / 'Contents/Resources' 
+    frameworks, destination = output / 'Contents/Frameworks', output / 'Contents/Resources'
     for item in [library, *resources]:
         if item.name == 'Assets.car':
             continue  # The catalog belongs to BoazResources.bundle.
