@@ -6,6 +6,8 @@ import UniformTypeIdentifiers
 @MainActor
 @Observable
 final class ChromiumExtensionManagement {
+    static let installedExtensionsChanged = Notification.Name("BoazChromiumInstalledExtensionsChanged")
+
     struct Installed: Identifiable {
         let id: String
         let name: String
@@ -42,6 +44,7 @@ final class ChromiumExtensionManagement {
         weak var window: NSWindow?
         init(window: NSWindow) { self.window = window }
         func finish(_ result: BoazHostExtensionInstallResult) {
+            NotificationCenter.default.post(name: ChromiumExtensionManagement.installedExtensionsChanged, object: nil)
             guard window?.isVisible == true else { return }
             switch result {
             case BOAZ_EXTENSION_INSTALLED: MacModel.shared.showToast("Extension installed.")
@@ -109,6 +112,7 @@ final class ChromiumExtensionManagement {
               let disable = api.disable_extension else { return }
         let result = extensionID.withCString { disable(profile, $0) }
         refresh()
+        NotificationCenter.default.post(name: Self.installedExtensionsChanged, object: nil)
         if result != BOAZ_HOST_OK {
             error = "This extension could not be disabled. It may be required by a policy or the profile may have closed."
         }
@@ -119,6 +123,7 @@ final class ChromiumExtensionManagement {
               let enable = api.enable_extension else { return }
         let result = extensionID.withCString { enable(profile, $0) }
         refresh()
+        NotificationCenter.default.post(name: Self.installedExtensionsChanged, object: nil)
         if result != BOAZ_HOST_OK {
             error = "This extension could not be enabled. It may need additional permission approval or be restricted by a policy."
         }
@@ -132,6 +137,7 @@ final class ChromiumExtensionManagement {
         }
         let result = extensionID.withCString { uninstall(profile, $0) }
         refresh()
+        NotificationCenter.default.post(name: Self.installedExtensionsChanged, object: nil)
         if result != BOAZ_HOST_OK {
             error = "This extension could not be removed. It may be required by a policy or the profile may have closed."
         }
