@@ -28,6 +28,12 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         window.delegate = self
         window.contentView = contentContainer
         browser.chromiumAddressField = addressField
+        browser.activateChromiumPage = { [weak self] page in
+            guard let self, let adapter = page.adapter as? ChromiumEnginePageAdapter,
+                  let activate = runtime.api.activate_page else { return }
+            let result = activate(adapter.handle, 1)
+            if result != BOAZ_HOST_OK { window.subtitle = "Could not activate page (\(result.rawValue))." }
+        }
         addressField.setAccessibilityLabel("Address")
         browser.createChromiumPage = { [weak self] tab in
             guard let self, !self.finished, self.handle != 0 else { throw EnginePageError.closed }
@@ -139,6 +145,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         guard !finished else { return }
         finished = true
         browser.createChromiumPage = nil
+        browser.activateChromiumPage = nil
         browser.chromiumAddressField = nil
         window.delegate = nil
         window.orderOut(nil)
