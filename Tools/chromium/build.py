@@ -77,14 +77,25 @@ def main():
             if path.resolve() != path:
                 raise RuntimeError(f"UI build path is redirected: {path}")
             path.mkdir(parents=True, exist_ok=True)
+        library = ui_output / "libBoazNativeUI.dylib"
+        if library.exists():
+            users = subprocess.run(["/usr/sbin/lsof", "-t", "--", str(library)],
+                                   text=True, stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE)
+            if users.returncode not in (0, 1) or users.stdout.strip():
+                raise RuntimeError("Native UI library is in use; close its prototype before rebuilding.")
+        staged_library = ui_output / ("libBoazNativeUI.staged-" + uuid.uuid4().hex + ".dylib")
         subprocess.run([
             "xcrun", "swiftc", "-emit-library", "-module-name", "BoazNativeUI",
             "-swift-version", "6", "-target", "arm64-apple-macos14.0",
             "-sdk", sdk, "-module-cache-path", str(ui_cache),
             "-import-objc-header", str(scripts / "host/boaz_host.h"),
             "-Xlinker", "-install_name", "-Xlinker", "@rpath/libBoazNativeUI.dylib",
-            "-o", str(ui_output / "libBoazNativeUI.dylib"),
+            "-o", str(staged_library),
             str(scripts / "ui/BoazHostUI.swift")], cwd=scripts, env=env, check=True)
+        if library.exists():
+            library.rename(ui_output / ("libBoazNativeUI.previous-" + uuid.uuid4().hex + ".dylib"))
+        staged_library.rename(library)
         return 0
     values = config["gn_args"]
     contents = "".join(f"{key} = {json.dumps(value)}\n" for key, value in sorted(values.items()))

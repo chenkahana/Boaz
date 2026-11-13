@@ -126,8 +126,8 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except (RuntimeError, OSError, subprocess.SubprocessError) as error:
-        print(f"CEF build stopped: {error}", file=sys.stderr)
+        print(f"Build stopped: {error}", file=sys.stderr)
         sys.exit(1)
     except KeyboardInterrupt:
-        print("CEF build interrupted; owned processes stopped.", file=sys.stderr)
+        print("Build interrupted; owned processes stopped.", file=sys.stderr)
         sys.exit(130)
