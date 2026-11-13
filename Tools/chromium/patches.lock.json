@@ -548,6 +548,32 @@
           "after": "67126ade1a5f7c6d1b918a942978494abd54f147964812f7425380c69e7c8fa3"
         }
       ]
+    },
+    {
+      "file": "patches/native-extension-parent-approval.patch",
+      "sha256": "f259e1511ab0362553b0969d6713af2f4ed53cec18c68ae0aca36038253ebd9c",
+      "files": [
+        {
+          "path": "extensions/browser/api/webstore_private/webstore_private_api_delegate.h",
+          "before": "6ca60b3e7708931449b668cd50fccf97a3bf1757e80651557a8751a85a4215b3",
+          "after": "99730e5c8fb5cf1764a7cb217cc48508c83b60df7277d5823ba1c1de5d594001"
+        },
+        {
+          "path": "chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.h",
+          "before": "f220e3e8b81ff517b296230f57bbde9dee58a0e290205546c662f3c561ecb935",
+          "after": "1a37f2079771ab9522c79d798a18a20ea60331537e326a0a3c229355dd5a35c0"
+        },
+        {
+          "path": "chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.cc",
+          "before": "5c6023f44dd7e33f9d6b88d62893c717a2b5e90aee72bc5dc90e19c86edc152e",
+          "after": "9c32b19c8844e7fd76401c98172e49cd8efcd7e6707b6210ad3b69b858124783"
+        },
+        {
+          "path": "extensions/browser/api/webstore_private/webstore_private_api.cc",
+          "before": "80d9e2667db465594a3a26ca3c099ee09402f0138a34f4abe7dd0ff0690c1bc6",
+          "after": "d7895e42f95caf6221fee4e928e8cafeb1156f93f528bb33fcce8be9668c969b"
+        }
+      ]
     }
   ]
 }
