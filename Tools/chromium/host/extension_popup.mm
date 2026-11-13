@@ -7,6 +7,8 @@
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/time/time.h"
+#include "base/timer/timer.h"
 #include "chrome/browser/extensions/extension_view.h"
 #include "chrome/browser/extensions/extension_view_host.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -115,8 +117,13 @@ class NativeExtensionPopup::Impl final
     host_.reset();
   }
   void Start() {
+    load_timeout_.Start(FROM_HERE, base::Seconds(10),
+        base::BindOnce(&Impl::Close, weak_.GetWeakPtr()));
+    auto weak = weak_.GetWeakPtr();
     host_->host_contents()->WasHidden();
+    if (!weak || !CanPresent()) return;
     host_->CreateRendererSoon();
+    if (!weak || !CanPresent()) return;
     if (host_->has_loaded_once()) OnLoaded();
   }
   void Complete() {
@@ -131,6 +138,7 @@ class NativeExtensionPopup::Impl final
     CheckUI();
     if (closed_) return;
     closed_ = true;
+    load_timeout_.Stop();
     showing_ = false;
     Complete();
     for (id token in notifications_) [[NSNotificationCenter defaultCenter] removeObserver:token];
@@ -187,20 +195,32 @@ class NativeExtensionPopup::Impl final
   void DidStartNavigation(content::NavigationHandle* navigation) override {
     if (showing_ && navigation->IsInPrimaryMainFrame()) Close();
   }
+  bool CanPresent() {
+    if (closed_) return false;
+    if (!host_ || !browser_ || !parent_) { Close(); return false; }
+    return true;
+  }
   void OnLoaded() override {
-    if (closed_ || showing_) return;
+    if (!CanPresent() || showing_) return;
+    load_timeout_.Stop();
     if (!browser_ || parent_.attachedSheet || NSApp.modalWindow ||
         javascript_dialogs::AppModalDialogQueue::GetInstance()->HasActiveDialog() ||
         extensions::SecurityDialogTracker::GetInstance()->BrowserHasVisibleSecurityDialogs(browser_.get())) {
       Close(); return;
     }
+    auto weak = weak_.GetWeakPtr();
     ResizeDueToAutoResize(nullptr, gfx::Size(panel_.contentView.bounds.size.width,
                                             panel_.contentView.bounds.size.height));
+    if (!weak || !CanPresent()) return;
     [parent_ addChildWindow:panel_ ordered:NSWindowAbove];
-    [panel_ makeKeyAndOrderFront:nil];
+    if (!weak || !CanPresent()) return;
     showing_ = true;
+    [panel_ makeKeyAndOrderFront:nil];
+    if (!weak || !CanPresent()) return;
     host_->host_contents()->WasShown();
+    if (!weak || !CanPresent()) return;
     host_->host_contents()->Focus();
+    if (!weak || !CanPresent()) return;
     Complete();
   }
   void PrimaryMainFrameRenderProcessGone(base::TerminationStatus) override { Close(); }
@@ -210,6 +230,10 @@ class NativeExtensionPopup::Impl final
     if (extension->id() == extension_id_) Close();
   }
   void OnSecurityDialogAdded(views::Widget*) override { Close(); }
+  void OnShutdown(extensions::ExtensionRegistry*) override {
+    registry_.Reset();
+    Close();
+  }
  private:
   std::unique_ptr<extensions::ExtensionViewHost> host_;
   base::WeakPtr<BrowserWindowInterface> browser_;
@@ -226,6 +250,7 @@ class NativeExtensionPopup::Impl final
   base::CallbackListSubscription browser_closed_;
   base::ScopedObservation<extensions::ExtensionRegistry, extensions::ExtensionRegistryObserver> registry_{this};
   base::ScopedObservation<extensions::SecurityDialogTracker, extensions::SecurityDialogTracker::Observer> security_{this};
+  base::OneShotTimer load_timeout_;
   base::WeakPtrFactory<Impl> weak_{this};
 };
 
