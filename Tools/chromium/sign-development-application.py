@@ -51,6 +51,9 @@ def main():
     targets += sorted((p for p in framework.rglob('*') if p.suffix in ('.app', '.xpc') and not p.is_symlink()),
                       key=lambda p: len(p.parts), reverse=True)
     targets += [framework, app / 'Contents/Frameworks/libBoazApplicationUI.dylib']
+    cli = app / 'Contents/MacOS/boaz'
+    if cli.is_file():
+        targets.append(cli)
     with (output / 'sign.log').open('x') as log:
         for target in targets:
             subprocess.run(['/usr/bin/codesign', '--force', '--sign', args.identity, '--timestamp',

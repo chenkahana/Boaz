@@ -26,6 +26,9 @@ def assemble(base, receipt, output, native_launch=False):
         raise RuntimeError('Refusing to overwrite an existing application artifact')
     record = json.loads(receipt.read_text())
     library = checked(record['immutable_copy'])
+    cli = checked(record['cli'])
+    if not cli.is_file() or not os.access(cli, os.X_OK):
+        raise RuntimeError('Completed UI build must include the executable CLI')
     resources = [checked(item['staged']) for item in record['resources_and_frameworks']]
     bundle = next((p for p in resources if p.name == 'BoazResources.bundle'), None)
     sparkle = next((p for p in resources if p.name == 'Sparkle.framework'), None)
@@ -46,8 +49,15 @@ def assemble(base, receipt, output, native_launch=False):
                          'CFBundleName': 'Boaz Development', 'CFBundleDisplayName': 'Boaz Development',
                          'BoazNativeApplication': True, 'BoazDistributionChannel': 'development',
                          'CrProductDirName': 'Boaz Chromium Development'})
+        url_types = metadata.setdefault('CFBundleURLTypes', [])
+        url_types.append({'CFBundleURLName': 'Boaz commands', 'CFBundleTypeRole': 'Viewer',
+                          'CFBundleURLSchemes': ['boaz']})
         with info.open('wb') as stream:
             plistlib.dump(metadata, stream)
+    cli_target = output / 'Contents/MacOS/boaz'
+    if cli_target.exists() or cli_target.is_symlink():
+        raise RuntimeError('CLI conflicts with base application')
+    shutil.copy2(cli, cli_target)
     frameworks, destination = output / 'Contents/Frameworks', output / 'Contents/Resources'
     for item in [library, *resources]:
         if item.name == 'Assets.car':

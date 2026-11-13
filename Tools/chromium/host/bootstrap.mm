@@ -800,7 +800,8 @@ class MainParts final : public ChromeBrowserMainExtraParts {
     CHECK(state->profile);
     state->tabs = std::make_unique<TabRegistry>();
     state->profiles = std::make_unique<NativeProfiles>(state->profile_path.DirName(), state->profile.get());
-    state->automation = std::make_unique<NativeAutomation>(state->profile_path.DirName());
+    state->automation = std::make_unique<NativeAutomation>(state->profile_path.DirName(),
+        g_browser_process->local_state());
     state->automation_requested = base::CommandLine::ForCurrentProcess()->HasSwitch("boaz-automation") ||
         [[NSUserDefaults standardUserDefaults] boolForKey:@"boaz.chromium.automation.enabled"];
     state->automation->Start(state->automation_requested,

@@ -126,7 +126,11 @@ private final class ChromiumApplication: NSObject {
             auxiliaryWindows.forEach { $0.close() }
             auxiliaryWindows.removeAll()
         }
-        runtime.externalURLs = { [weak self] urls in self?.model.openExternal(urls) }
+        runtime.externalURLs = { [weak self] urls in
+            guard let self else { return }
+            externalURLBatches.append(urls)
+            drainExternalURLs()
+        }
         try runtime.startCallbacks()
         ChromiumAutomation.shared.start()
         // Chromium retains its AppController delegate and termination machinery.
@@ -138,6 +142,58 @@ private final class ChromiumApplication: NSObject {
         }
         legacyDelegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
         Task { @MainActor in await openScene("main", url: nil) }
+    }
+
+    private var externalURLBatches: [[URL]] = []
+    private var routingExternalURLs = false
+
+    private func drainExternalURLs() {
+        guard !routingExternalURLs else { return }
+        routingExternalURLs = true
+        Task { @MainActor in
+            defer { routingExternalURLs = false }
+            while !externalURLBatches.isEmpty && !finished {
+                let urls = externalURLBatches.removeFirst()
+                for url in urls {
+                    guard url.scheme?.lowercased() == "boaz" else {
+                        model.openExternal([url])
+                        continue
+                    }
+                    guard let command = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                          command.host == "devtools", command.user == nil, command.password == nil,
+                          command.port == nil, command.path.isEmpty, command.fragment == nil else { continue }
+                    let items = command.queryItems ?? []
+                    guard items.count <= 1, items.allSatisfy({ $0.name == "url" }) else { continue }
+                    var target: URL?
+                    if let item = items.first {
+                        guard let value = item.value, let parsed = URL(string: value),
+                              ["http", "https"].contains(parsed.scheme?.lowercased() ?? ""),
+                              parsed.host?.isEmpty == false else { continue }
+                        target = parsed
+                    }
+                    var owner = windows.first(where: { $0.window.isKeyWindow }) ?? windows.first
+                    if owner == nil {
+                        await openScene("main", url: nil)
+                        owner = windows.last
+                    }
+                    guard let owner, !finished else { continue }
+                    if let target { owner.browser.openTab(target) }
+                    guard let tab = owner.browser.activeTab else {
+                        model.showToast("Open a page before opening Developer Tools.")
+                        continue
+                    }
+                    do {
+                        let page = try owner.browser.enginePage(for: tab)
+                        if let adapter = page.adapter as? ChromiumEnginePageAdapter {
+                            try adapter.showDevTools(BOAZ_DEVTOOLS_SHOW)
+                        } else {
+                            model.showToast("Use the page's Inspect Element action for this WebKit page.")
+                        }
+                    } catch { model.showToast(error.localizedDescription) }
+                    owner.window.makeKeyAndOrderFront(nil)
+                }
+            }
+        }
     }
 
     func openScene(_ id: String, url: URL?) async {

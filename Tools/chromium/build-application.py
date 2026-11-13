@@ -136,6 +136,11 @@ def build(jobs, resume_run=None, cache_from=None):
         raise RuntimeError('Expected dynamic library was not produced')
     staged = artifacts / 'libBoazApplicationUI.dylib'
     shutil.copy2(library, staged)
+    cli = products / 'boaz'
+    if not cli.is_file() or cli.is_symlink() or not os.access(cli, os.X_OK):
+        raise RuntimeError('Expected bundled CLI was not produced')
+    staged_cli = artifacts / 'boaz'
+    shutil.copy2(cli, staged_cli)
     resources = []
     for item in sorted(products.iterdir()):
         if item.suffix not in ('.bundle', '.car', '.metallib', '.framework'):
@@ -168,7 +173,7 @@ def build(jobs, resume_run=None, cache_from=None):
         previous = APP / f'libBoazApplicationUI.previous-{stamp}.dylib'
         final.rename(previous)
     os.link(staged, final)
-    manifest = {'library': str(final), 'immutable_copy': str(staged),
+    manifest = {'cli': str(staged_cli), 'library': str(final), 'immutable_copy': str(staged),
                 'previous': str(previous) if previous else None,
                 'resources_and_frameworks': resources, 'command': command,
                 'signed': False, 'packaged': False, 'cache_from': cache_from,
