@@ -1,10 +1,18 @@
+# Dependency updates, grouped into one pull request per ecosystem each week. They merge on their own once CI is
+# green (.github/workflows/dependabot-auto-merge.yml).
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: monthly
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
   - package-ecosystem: swift
     directory: /Packages/BoazKit
     schedule:
-      interval: monthly
+      interval: weekly
+    groups:
+      swift:
+        patterns: ["*"]
