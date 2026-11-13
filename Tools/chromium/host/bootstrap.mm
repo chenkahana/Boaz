@@ -117,6 +117,7 @@ struct State {
   std::optional<std::array<uint64_t, 9>> shutdown_diagnostic;
 };
 State* state = nullptr;
+bool pending_native_reopen = false;
 auto& PendingExternalURLs() {
   static base::NoDestructor<std::vector<std::vector<std::string>>> urls;
   return *urls;
@@ -131,6 +132,11 @@ BoazHostResult Check() {
 template <typename F> auto Notify(F callback) {
   base::AutoReset<bool> guard(&state->in_callback, true);
   return callback();
+}
+void DeliverNativeReopen() {
+  if (!state || !state->callbacks.reopen_requested) return;
+  if (!std::exchange(pending_native_reopen, false) || state->finished || state->exit_requested) return;
+  Notify([&] { state->callbacks.reopen_requested(state->callbacks.context); });
 }
 void DeliverExternalURLs() {
   if (!state || state->finished || !state->callbacks.external_urls) return;
@@ -273,6 +279,8 @@ BoazHostResult SetCallbacks(const BoazHostCallbacks* callbacks) {
   if (result == BOAZ_HOST_OK) {
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(&DeliverExternalURLs));
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(&DeliverNativeReopen));
   }
   return result;
 }
@@ -1170,6 +1178,16 @@ class MainParts final : public ChromeBrowserMainExtraParts {
 };
 }  // namespace
 
+bool RouteNativeReopen() {
+  if (!NativeHostEnabled() ||
+      !base::CommandLine::ForCurrentProcess()->HasSwitch("boaz-app-ui")) return false;
+  pending_native_reopen = true;
+  if (state && state->callbacks.reopen_requested) {
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(&DeliverNativeReopen));
+  }
+  return true;
+}
 bool RouteExternalURLs(std::vector<std::string> urls) {
   if (!NativeHostEnabled() ||
       !base::CommandLine::ForCurrentProcess()->HasSwitch("boaz-app-ui")) return false;

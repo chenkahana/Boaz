@@ -176,6 +176,9 @@ private final class ChromiumApplication: NSObject {
             auxiliaryWindows.forEach { $0.close() }
             auxiliaryWindows.removeAll()
         }
+        runtime.reopenRequested = { [weak self] in
+            Task { @MainActor in await self?.reopen() }
+        }
         runtime.externalURLs = { [weak self] urls in
             guard let self else { return }
             externalURLBatches.append(urls)
@@ -199,6 +202,21 @@ private final class ChromiumApplication: NSObject {
         })
         legacyDelegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
         Task { @MainActor in _ = await ensureMainWindow() }
+    }
+
+    private func reopen() async {
+        guard !finished, !model.isQuitting else { return }
+        let candidates = windows.map(\.window) + quickWindows.map(\.window)
+        let existing = NSApp.orderedWindows.first { candidate in
+            candidates.contains { $0 === candidate }
+        } ?? candidates.last
+        let window: NSWindow?
+        if let existing { window = existing }
+        else { window = await ensureMainWindow()?.window }
+        guard !finished, !model.isQuitting, let window else { return }
+        if window.isMiniaturized { window.deminiaturize(nil) }
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate()
     }
 
     private func ensureMainWindow() async -> ChromiumAppWindow? {

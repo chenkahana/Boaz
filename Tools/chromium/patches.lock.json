@@ -734,6 +734,17 @@
           "after": "c32e82b6ffd8717b6021de00415f7bdb36c92573ba6429be48913fa8481cd8e5"
         }
       ]
+    },
+    {
+      "file": "patches/native-application-reopen.patch",
+      "sha256": "4503b19109a9fbe9b07c61ca5ac35754636ad931615ce1be2128093827a956cf",
+      "files": [
+        {
+          "path": "chrome/browser/app_controller_mac.mm",
+          "before": "d95189b0ba039b20a3e553d1f9d6d18b523c6c05bcc9dcca180c46167076796c",
+          "after": "50391598030409a9fcc1bd38682acb048ffcbd4deaa804a8c28963ac78172586"
+        }
+      ]
     }
   ]
 }

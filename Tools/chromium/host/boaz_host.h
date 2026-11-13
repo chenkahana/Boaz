@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 46u
+#define BOAZ_HOST_ABI_VERSION 47u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT,
@@ -211,6 +211,8 @@ typedef struct BoazHostCallbacks {
       const char* source_origin, const char* document_origin,
       const char* username, size_t username_length, const char* password, size_t password_length);
   void (*extensions_changed)(void* context, BoazHostWindow window);
+  /* macOS reopen intent, coalesced during startup. UI notification; no API reentry. */
+  void (*reopen_requested)(void* context);
 } BoazHostCallbacks;
 
 /* Enumeration values are borrowed for the visitor call. Visitors must copy

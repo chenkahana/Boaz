@@ -19,6 +19,7 @@ final class ChromiumRuntime {
     var windowClosed: ((BoazHostWindow) -> Void)?
     var shutdownReady: (() -> Void)?
     var externalURLs: (([URL]) -> Void)?
+    var reopenRequested: (() -> Void)?
     var pageActivated: ((BoazHostWindow, BoazHostPage) -> Void)?
     var pageCreated: ((BoazHostWindow, EnginePage, Bool) -> Void)?
     var pageEvent: ((BoazHostPage, BoazHostPageEvent) -> Void)?
@@ -201,6 +202,16 @@ final class ChromiumRuntime {
                 DispatchQueue.main.async { [weak owner] in
                     guard let owner, !owner.stopped, owner.preparedProfiles[profile] != nil else { return }
                     owner.downloadModel(profile).update(copied)
+                }
+            }
+        }
+        callbacks.reopen_requested = { context in
+            guard let context else { return }
+            MainActor.assumeIsolated {
+                let owner = Unmanaged<ChromiumRuntime>.fromOpaque(context).takeUnretainedValue()
+                DispatchQueue.main.async { [weak owner] in
+                    guard let owner, !owner.stopped else { return }
+                    owner.reopenRequested?()
                 }
             }
         }

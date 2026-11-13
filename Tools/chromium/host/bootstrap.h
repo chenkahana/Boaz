@@ -21,6 +21,7 @@ void NativeExtensionPromptsChanged();
 bool ShouldDisableJavaScript(content::WebContents* contents);
 bool ShouldRetainEmptyBrowser(BrowserWindowInterface* browser);
 bool RouteExternalURLs(std::vector<std::string> urls);
+bool RouteNativeReopen();
 std::unique_ptr<ChromeBrowserMainExtraParts> CreateNativeHostMainParts();
 std::unique_ptr<BrowserWindow, BrowserWindowDeleter>
 CreateNativeHostBrowserWindow(BrowserWindowInterface* browser);
