@@ -97,6 +97,26 @@ void PageEmulation::ApplyUserAgent(std::optional<std::string> user_agent, Comple
   user_agent_ = user_agent.value_or(std::string());
   Start(!user_agent.has_value(), Operation::kUserAgent, std::move(completion));
 }
+void PageEmulation::ApplyMedia(std::optional<Media> media, Completion completion) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  if (closed_) { Reply(std::move(completion), Result::kClosed); return; }
+  if (completion_) { Reply(std::move(completion), Result::kUnavailable); return; }
+  auto valid_preference = [](Media::Preference value) {
+    return value == Media::Preference::kDefault ||
+           value == Media::Preference::kFirst || value == Media::Preference::kSecond;
+  };
+  if (media && ((media->type != Media::MediaType::kScreen &&
+                 media->type != Media::MediaType::kPrint) ||
+                !valid_preference(media->color_scheme) ||
+                !valid_preference(media->reduced_motion) ||
+                !valid_preference(media->contrast) ||
+                media->vision < Media::Vision::kNone ||
+                media->vision > Media::Vision::kTritanopia)) {
+    Reply(std::move(completion), Result::kInvalid); return;
+  }
+  media_ = media.value_or(Media{});
+  Start(!media.has_value(), Operation::kMedia, std::move(completion));
+}
 void PageEmulation::Start(bool clear, Operation operation, Completion completion) {
   if (closed_) { Reply(std::move(completion), Result::kClosed); return; }
   if (!completion || completion_ || !web_contents() ||
@@ -133,6 +153,46 @@ void PageEmulation::SendNext() {
   if (operation_ == Operation::kUserAgent) {
     method = "Emulation.setUserAgentOverride";
     params.Set("userAgent", clearing_ ? std::string() : user_agent_);
+  } else if (operation_ == Operation::kMedia) {
+    if (step_ == 0) {
+      method = "Emulation.setEmulatedMedia";
+      params.Set("media", clearing_ ? "" :
+          (media_.type == Media::MediaType::kPrint ? "print" : "screen"));
+      base::ListValue features;
+      auto add = [&features](const char* name, const char* value) {
+        base::DictValue feature;
+        feature.Set("name", name);
+        feature.Set("value", value);
+        features.Append(std::move(feature));
+      };
+      auto preference = [&add](const char* name, Media::Preference value,
+                              const char* first, const char* second) {
+        if (value != Media::Preference::kDefault)
+          add(name, value == Media::Preference::kFirst ? first : second);
+      };
+      if (!clearing_) {
+        preference("prefers-color-scheme", media_.color_scheme, "light", "dark");
+        preference("prefers-reduced-motion", media_.reduced_motion, "no-preference", "reduce");
+        preference("prefers-contrast", media_.contrast, "no-preference", "more");
+        add("forced-colors", media_.forced_colors ? "active" : "none");
+      }
+      params.Set("features", std::move(features));
+    } else {
+      method = "Emulation.setEmulatedVisionDeficiency";
+      const char* vision = "none";
+      if (!clearing_) {
+        switch (media_.vision) {
+          case Media::Vision::kNone: break;
+          case Media::Vision::kBlurred: vision = "blurredVision"; break;
+          case Media::Vision::kReducedContrast: vision = "reducedContrast"; break;
+          case Media::Vision::kAchromatopsia: vision = "achromatopsia"; break;
+          case Media::Vision::kDeuteranopia: vision = "deuteranopia"; break;
+          case Media::Vision::kProtanopia: vision = "protanopia"; break;
+          case Media::Vision::kTritanopia: vision = "tritanopia"; break;
+        }
+      }
+      params.Set("type", vision);
+    }
   } else if (step_ == 0) {
     method = clearing_ ? "Emulation.clearDeviceMetricsOverride" : "Emulation.setDeviceMetricsOverride";
     if (!clearing_) {

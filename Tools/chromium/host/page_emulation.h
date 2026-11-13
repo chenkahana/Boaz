@@ -25,6 +25,18 @@ class PageEmulation final : public content::WebContentsObserver,
     int max_touch_points;
     bool landscape;
   };
+  struct Media {
+    enum class MediaType { kScreen, kPrint };
+    enum class Preference { kDefault, kFirst, kSecond };
+    enum class Vision { kNone, kBlurred, kReducedContrast, kAchromatopsia,
+                        kDeuteranopia, kProtanopia, kTritanopia };
+    MediaType type = MediaType::kScreen;
+    Preference color_scheme = Preference::kDefault;
+    Preference reduced_motion = Preference::kDefault;
+    Preference contrast = Preference::kDefault;
+    bool forced_colors = false;
+    Vision vision = Vision::kNone;
+  };
   struct BrandVersion { std::string brand; std::string version; };
   struct UserAgentDefaults {
     std::string user_agent;
@@ -40,6 +52,7 @@ class PageEmulation final : public content::WebContentsObserver,
   enum class Result { kSuccess, kInvalid, kUnavailable, kProtocolError,
                       kTimeout, kNavigation, kClosed };
   using Completion = base::OnceCallback<void(Result)>;
+  void ApplyMedia(std::optional<Media> media, Completion completion);
   void ApplyUserAgent(std::optional<std::string> user_agent, Completion completion);
   explicit PageEmulation(content::WebContents* contents);
   ~PageEmulation() override;
@@ -48,7 +61,7 @@ class PageEmulation final : public content::WebContentsObserver,
   void Close();
 
  private:
-  enum class Operation { kViewport, kUserAgent };
+  enum class Operation { kViewport, kUserAgent, kMedia };
   void Start(bool clear, Operation operation, Completion completion);
   void SendNext();
   void Fail(Result result);
@@ -70,6 +83,7 @@ class PageEmulation final : public content::WebContentsObserver,
 
   scoped_refptr<content::DevToolsAgentHost> host_;
   Viewport viewport_{};
+  Media media_{};
   std::string user_agent_;
   Operation operation_ = Operation::kViewport;
   Completion completion_;
