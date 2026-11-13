@@ -61,6 +61,7 @@ private final class ChromiumApplication: NSObject {
             }
         }
         runtime.pageActivated = { [weak self] window, page in
+            ChromiumPasswordSuggestions.shared.dismiss()
             guard let owner = self?.windows.first(where: { $0.handle == window }),
                   owner.browser.peek?.nativePage == nil else { return }
             owner.browser.activateChromiumPageFromEngine(page)
@@ -77,6 +78,7 @@ private final class ChromiumApplication: NSObject {
             catch { model.showToast(error.localizedDescription) }
         }
         runtime.windowClosed = { [weak self] handle in
+            ChromiumPasswordSuggestions.shared.dismiss()
             guard let self else { return }
             let profile: ChromiumProfile
             if let index = windows.firstIndex(where: { $0.handle == handle }) {
@@ -101,16 +103,33 @@ private final class ChromiumApplication: NSObject {
                 catch { model.showToast(error.localizedDescription) }
             }
         }
+        runtime.passwordFocus = { [weak self] page, sequence, target, bounds in
+            guard let owner = self?.windows.first(where: {
+                ($0.browser.activeEnginePage?.adapter as? ChromiumEnginePageAdapter)?.handle == page.handle
+                    && $0.window.isKeyWindow
+            }) else {
+                target?.release()
+                ChromiumPasswordSuggestions.shared.dismiss(page: page.handle)
+                return
+            }
+            ChromiumPasswordSuggestions.shared.focus(page: page, sequence: sequence,
+                target: target, screenBounds: bounds, window: owner.window)
+        }
         runtime.protectedMedia = { [weak self] page, navigation, profile, key in
             self?.windows.forEach {
                 $0.browser.protectedMediaRequested(page: page, navigation: navigation, profile: profile, keySystem: key)
             }
         }
         runtime.pageEvent = { [weak self] handle, event in
+            if event == BOAZ_HOST_PAGE_CLOSING || event == BOAZ_HOST_PAGE_CLOSED ||
+                event == BOAZ_HOST_PAGE_RENDERER_FAILED || event == BOAZ_HOST_PAGE_VIEW_WILL_CHANGE {
+                ChromiumPasswordSuggestions.shared.dismiss(page: handle)
+            }
             self?.windows.forEach { $0.browser.chromiumPageEvent(handle, event: event) }
             if event == BOAZ_HOST_PAGE_CLOSE_CANCELLED { self?.model.isQuitting = false }
         }
         runtime.shutdownReady = { [self] in
+            ChromiumPasswordSuggestions.shared.dismiss()
             ChromiumAutomation.shared.stop()
             finished = true
             legacyDelegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))

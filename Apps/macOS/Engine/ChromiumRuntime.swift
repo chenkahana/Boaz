@@ -22,6 +22,7 @@ final class ChromiumRuntime {
     var pageActivated: ((BoazHostWindow, BoazHostPage) -> Void)?
     var pageCreated: ((BoazHostWindow, EnginePage, Bool) -> Void)?
     var pageEvent: ((BoazHostPage, BoazHostPageEvent) -> Void)?
+    var passwordFocus: ((ChromiumEnginePageAdapter, UInt64, ChromiumCapturedDocument?, CGRect) -> Void)?
     var protectedMedia: ((BoazHostPage, UInt64, EngineProfileIdentity, ProtectedMediaService.KeySystem) -> Void)?
 
     private static weak var callbackOwner: ChromiumRuntime?
@@ -81,6 +82,31 @@ final class ChromiumRuntime {
                 DispatchQueue.main.async { [weak owner] in
                     guard let owner, !owner.stopped else { return }
                     owner.receivePage(event, copied)
+                }
+            }
+        }
+        callbacks.password_focus = { context, page, sequence, token, origin, x, y, width, height in
+            guard let context else { return }
+            let copiedOrigin = origin.map { String(cString: $0) }
+            MainActor.assumeIsolated {
+                let owner = Unmanaged<ChromiumRuntime>.fromOpaque(context).takeUnretainedValue()
+                DispatchQueue.main.async {
+                    guard !owner.stopped, !owner.closingPages.contains(page),
+                          let adapter = owner.pages[page], let handler = owner.passwordFocus else {
+                        if token != 0 { _ = owner.api.release_document?(page, token) }
+                        return
+                    }
+                    var target: ChromiumCapturedDocument?
+                    if token != 0 {
+                        guard let copiedOrigin, let url = URL(string: copiedOrigin),
+                              ["https", "http"].contains(url.scheme?.lowercased() ?? ""),
+                              url.host != nil else {
+                            _ = owner.api.release_document?(page, token)
+                            return
+                        }
+                        target = ChromiumCapturedDocument(owner: adapter, origin: url, token: token)
+                    }
+                    handler(adapter, sequence, target, CGRect(x: x, y: y, width: width, height: height))
                 }
             }
         }
