@@ -285,6 +285,32 @@
           "after": "465358c1aa545340cdfa172740870c2076df189491e78d6f4e75d5f800e621b4"
         }
       ]
+    },
+    {
+      "file": "patches/authenticated-automation.patch",
+      "sha256": "8e7e5e2b11eaeb164f86da85cd3aa74bdcc7325c86ff448a0766901dc0864d53",
+      "files": [
+        {
+          "path": "content/public/browser/devtools_agent_host.h",
+          "before": "83db13503dabd20ac879cd9ef1a990fa0855a5de094f4f9ab95bc6eb93013409",
+          "after": "01aad6a7e09eb32d554926777750e42a9289c48a550657ef037438b7b5f15d84"
+        },
+        {
+          "path": "content/browser/devtools/devtools_agent_host_impl.cc",
+          "before": "108ffb6c3660072d42ef10d1fa6a7d16edc623cbf083bde8d8f4a45c2e4602bc",
+          "after": "ddf523acc275b4bae35fc0c974411271b28d3990493561b643ed97043dd1a43c"
+        },
+        {
+          "path": "content/browser/devtools/devtools_http_handler.h",
+          "before": "dc107a3653e66005cd72a0f40207cc0e90a8a8f1e3757ecdd0c6f9724e4ad554",
+          "after": "918dfb2e51dc5f14e49180fcd2dc1e14715cb66e13b4bc19fd7beeee9176e44e"
+        },
+        {
+          "path": "content/browser/devtools/devtools_http_handler.cc",
+          "before": "c9b306d5c2aeac078d50c6ebbfb44727c301ae11e5309a87da6a596f7d105680",
+          "after": "c51c747dc5321658f5cf1535e58f12ab4114d122f1e6400b6f064702b67c8201"
+        }
+      ]
     }
   ]
 }
