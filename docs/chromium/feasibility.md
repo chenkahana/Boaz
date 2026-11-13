@@ -7,12 +7,12 @@ Recorded 2026-11-13 against Boaz `045132d7bd3b7a191730031a018554ad1f0bcfbe`, fet
 | Gate | Status | Evidence or missing prerequisite |
 |---|---|---|
 | F1 native host and lifecycle | Partial; signed fresh-profile relaunch passes | Development signatures verify; two signed-profile runs load HTTPS and exit 0. Earlier ad-hoc profile still stalls. Notarization, IME, accessibility and performance remain pending |
-| F2 native embedding and extensions | Partial; native action and window gates unresolved | Real MV3 install persists. Diagnostic Chrome toolbar opens popup targeting visible page and content script works. Toolbar-free actions and fullscreen-exit shortcuts fail; see [S2](spikes/S2.md) |
+| F2 native embedding and extensions | S2a public API route blocked; S2b scope review required | Native fullscreen shortcut now passes. Toolbar-free extension actions lack a public API; a complete Mac native-parent/action patch within 300 libcef lines is not established. See [actions](spikes/S2-actions.md) and [native parent](spikes/S2-native-parent.md) |
 | F3 trusted scripts | Blocked by unselected runtime route | No isolated-world or extension messaging implementation demonstrated |
-| F4 custom distribution | Storage ready; build not executed | Verified 500 GiB APFS image on existing SSD; use at most 12 jobs on this 36 GiB Mac |
+| F4 custom distribution | Build started; source checkout in progress | Guarded history-free pinned checkout on verified SSD image; 12-job cap. No custom artifact or codec pass yet |
 | F5 platform behavior | Not executed | Requires a working selected host |
 | F6 performance baseline | Not executed | Host now available; no benchmark numbers claimed |
-| F7 external dependencies | Partly inspected; unresolved | Default-model workers now available; signing/notarization, codecs, and Widevine remain unverified |
+| F7 external dependencies | Partly inspected; unresolved | Widevine eligibility inquiry submitted with authorization; no agreement or approval. Developer ID/notarization and codec distribution remain unverified; see [dependencies](spikes/distribution-dependencies.md) |
 
 No complete S1–S7 gate has a GO verdict. SSD filesystem acceptance passed separately. The original upstream source revision below is an inspection reference, not the selected stable distribution.
 

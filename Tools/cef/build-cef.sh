@@ -34,7 +34,8 @@ command = [sys.executable, str(automate),
            "--branch=" + config["cef_branch"],
            "--checkout=" + config["cef_commit"],
            "--chromium-checkout=" + config["chromium_checkout"],
-           "--arm64-build", "--no-debug-build", "--force-build", "--build-log-file"]
+           "--arm64-build", "--no-debug-build", "--no-chromium-history",
+           "--force-config", "--force-build", "--build-log-file"]
 if args.smoke:
     command += ["--build-target=cefsimple", "--no-distrib"]
 else:
