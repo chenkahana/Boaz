@@ -30,6 +30,13 @@ private struct ChromiumTabPane: View {
     @State private var engine: EnginePage?
     @State private var failure: String?
     @State private var hovering = false
+    private struct OfflineFailure: Equatable {
+        let page: BoazHostPage
+        let navigation: UInt64
+        let url: URL?
+    }
+    @State private var recoveryDocument: OfflineFailure?
+    @State private var attemptedOfflineURLs: Set<URL?> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -83,6 +90,29 @@ private struct ChromiumTabPane: View {
             }
         }
         .task(id: tab.id) { open() }
+        .task(id: offlineFailure) {
+            guard let expected = offlineFailure,
+                  let adapter = engine?.adapter as? ChromiumEnginePageAdapter else { return }
+            if recoveryDocument?.page != expected.page || recoveryDocument?.navigation != expected.navigation {
+                attemptedOfflineURLs.removeAll()
+                recoveryDocument = expected
+            }
+            guard !attemptedOfflineURLs.contains(expected.url) else { return }
+            for await path in NWPathMonitor() {
+                guard !Task.isCancelled, offlineFailure == expected,
+                      adapter.state.lifecycle == .active else { return }
+                guard path.status == .satisfied else { continue }
+                guard !attemptedOfflineURLs.contains(expected.url) else { return }
+                attemptedOfflineURLs.insert(expected.url)
+                do {
+                    if let url = expected.url { try adapter.navigate(to: url) }
+                    else { try adapter.reload() }
+                } catch {
+                    // Keep the failure overlay and its manual retry available.
+                }
+                return
+            }
+        }
         .task(id: faviconDocument) {
             guard faviconDocument != nil,
                   let adapter = engine?.adapter as? ChromiumEnginePageAdapter else { return }
@@ -93,6 +123,13 @@ private struct ChromiumTabPane: View {
                   state.lifecycle == .active else { return }
             browser.didNavigate(tab.id, url: state.url, title: state.title)
         }
+    }
+
+    private var offlineFailure: OfflineFailure? {
+        guard let adapter = engine?.adapter as? ChromiumEnginePageAdapter,
+              adapter.state.lifecycle == .active, !adapter.state.isLoading,
+              let failure = adapter.state.loadFailure, failure.code == -106 else { return nil }
+        return OfflineFailure(page: adapter.handle, navigation: adapter.state.navigationID, url: failure.url)
     }
 
     private var faviconDocument: String? {
