@@ -20,6 +20,7 @@ final class ChromiumEnginePageAdapter: EnginePageAdapter {
     private(set) var state = EnginePageState()
     var responsiveVisible = false
     var appliedMedia: ChromiumMedia?
+    var appliedSensors: ChromiumSensors?
     var appliedNetwork: ChromiumNetwork?
     var appliedCPURate = 1.0
     var appliedViewport: ChromiumViewport?

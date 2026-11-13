@@ -246,6 +246,7 @@ extension ChromiumEnginePageAdapter {
         appliedViewport = nil
         appliedUserAgent = nil
         appliedMedia = nil
+        appliedSensors = nil
         appliedNetwork = nil
         appliedCPURate = 1
     }
@@ -256,7 +257,7 @@ extension ChromiumEnginePageAdapter {
             throw EnginePageError.invalidRequest
         }
         guard let apply = api.apply_network else { throw EnginePageError.incompatibleBridge }
-        try await performThrottling { request, callback, context in
+        try await performEmulation { request, callback, context in
             if let network {
                 var native = network.native
                 return apply(self.handle, &native, request, callback, context)
@@ -272,16 +273,42 @@ extension ChromiumEnginePageAdapter {
             throw EnginePageError.invalidRequest
         }
         guard let apply = api.apply_cpu else { throw EnginePageError.incompatibleBridge }
-        try await performThrottling { request, callback, context in
+        try await performEmulation { request, callback, context in
             apply(self.handle, rate, request, callback, context)
         }
         appliedCPURate = rate
     }
 
-    private func performThrottling(_ dispatch: (UInt64, BoazHostEmulationCompletion, UnsafeMutableRawPointer) -> BoazHostResult) async throws {
+    func applySensors(_ sensors: ChromiumSensors?) async throws {
+        guard sensors?.isValid != false else {
+            emulationError = "Use valid coordinates and ASCII timezone/locale identifiers of at most 128 bytes."
+            throw EnginePageError.invalidRequest
+        }
+        guard let apply = api.apply_sensors else { throw EnginePageError.incompatibleBridge }
+        try await performEmulation { request, callback, context in
+            guard let sensors else { return apply(self.handle, nil, request, callback, context) }
+            return sensors.timezone.withCString { timezone in
+                sensors.locale.withCString { locale in
+                    var native = BoazHostSensors()
+                    native.has_location = sensors.location == nil ? 0 : 1
+                    native.latitude = sensors.location?.latitude ?? 0
+                    native.longitude = sensors.location?.longitude ?? 0
+                    native.accuracy = sensors.location?.accuracy ?? 0
+                    native.timezone = timezone
+                    native.timezone_length = sensors.timezone.utf8.count
+                    native.locale = locale
+                    native.locale_length = sensors.locale.utf8.count
+                    return apply(self.handle, &native, request, callback, context)
+                }
+            }
+        }
+        appliedSensors = sensors
+    }
+
+    private func performEmulation(_ dispatch: (UInt64, BoazHostEmulationCompletion, UnsafeMutableRawPointer) -> BoazHostResult) async throws {
         guard !emulationPending, state.lifecycle == .active, !state.isLoading,
               emulationRequest < UInt64.max else {
-            emulationError = "Wait for this page to finish loading before changing throttling."
+            emulationError = "Wait for this page to finish loading before changing emulation."
             throw EnginePageError.unavailable
         }
         emulationRequest += 1
@@ -308,14 +335,14 @@ extension ChromiumEnginePageAdapter {
                 }
             }
             guard state.lifecycle == .active, state.navigationID == navigation, !state.isLoading else {
-                throw ChromiumEmulationError(message: "The page changed. Apply throttling again after loading.")
+                throw ChromiumEmulationError(message: "The page changed. Apply emulation again after loading.")
             }
         } catch {
             if state.navigationID != navigation || state.lifecycle != .active || state.isLoading ||
                 (error as? ChromiumEmulationError)?.resetsOverride == true {
                 invalidateEmulationState()
             }
-            emulationError = (error as? LocalizedError)?.errorDescription ?? "Throttling could not be changed. Close Developer Tools and try again."
+            emulationError = (error as? LocalizedError)?.errorDescription ?? "Emulation could not be changed. Close Developer Tools and try again."
             throw error
         }
     }
