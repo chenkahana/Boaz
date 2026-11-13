@@ -282,7 +282,10 @@ private struct WebsiteEngineSettings: View {
         guard !profileID.isEmpty else { return }
         selectedEngine = ChromiumEnginePreferences.defaultEngine(profileID: profileID)
         guard let store = model.store else { error = "Website rules are unavailable. Try refreshing after the library loads."; return }
-        do { rules = try store.siteEngineRules(profileID: profileID) }
+        do {
+            try store.seedProtectedMediaRules(profileID: profileID)
+            rules = try store.siteEngineRules(profileID: profileID)
+        }
         catch { self.error = "Website rules could not be read. Try refreshing." }
     }
     private func remove(_ rule: SiteEngineRule) {

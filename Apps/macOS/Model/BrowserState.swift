@@ -158,6 +158,7 @@ final class BrowserState {
         }
         do {
             if cachedEngineRules[tab.profileID] == nil {
+                try store.seedProtectedMediaRules(profileID: tab.profileID)
                 cachedEngineRules[tab.profileID] = try store.siteEngineRules(profileID: tab.profileID)
             }
             let stored = try store.tabEngine(tabID: tab.id, profileID: tab.profileID)
