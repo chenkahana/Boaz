@@ -189,6 +189,7 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver, find_in_page::Fin
   BoazHostPage id = NextHandle();
   BoazHostWindow window;
   uint64_t generation = 0;
+  std::optional<uint64_t> protected_media_generation;
   uint64_t view_revision = 0;
   int extension_window_id = -1;
   int64_t latest_navigation = -1;
@@ -500,6 +501,21 @@ BoazHostResult TabRegistry::CapturePDF(BoazHostPage id, uint64_t request, PagePD
 BoazHostResult TabRegistry::CancelPDF(BoazHostPage id, uint64_t request) {
   BOAZ_FIND_PAGE();
   return page->pdf ? page->pdf->Cancel(request) : BOAZ_HOST_INVALID_ARGUMENT;
+}
+bool TabRegistry::TakeProtectedMediaRequest(content::RenderFrameHost* frame,
+    BoazHostPage* output, uint64_t* navigation) {
+  if (!output || !navigation || impl_->Check() != BOAZ_HOST_OK || !frame) return false;
+  auto* contents = content::WebContents::FromRenderFrameHost(frame);
+  auto* page = contents ? impl_->FindContents(contents) : nullptr;
+  if (!page || page->closing || page->destroyed || contents->GetPrimaryMainFrame() != frame ||
+      contents->GetController().GetPendingEntry() ||
+      !frame->IsActive() || !frame->IsRenderFrameLive() ||
+      !frame->GetLastCommittedURL().SchemeIsHTTPOrHTTPS() || frame->GetLastCommittedOrigin().opaque() ||
+      page->protected_media_generation == page->generation) return false;
+  page->protected_media_generation = page->generation;
+  *output = page->id;
+  *navigation = page->generation;
+  return true;
 }
 BoazHostResult TabRegistry::Print(BoazHostPage id) {
   BOAZ_FIND_PAGE();

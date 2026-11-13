@@ -48,6 +48,7 @@
 #include "components/keep_alive_registry/keep_alive_types.h"
 #include "components/keep_alive_registry/scoped_keep_alive.h"
 #include "content/public/browser/browser_thread.h"
+#include "content/public/browser/render_frame_host.h"
 
 namespace boaz {
 namespace {
@@ -714,6 +715,17 @@ bool RouteExternalURLs(std::vector<std::string> urls) {
         FROM_HERE, base::BindOnce(&DeliverExternalURLs));
   }
   return true;
+}
+void ReportProtectedMediaRequest(content::RenderFrameHost* frame, const std::string& key) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  if (!state || state->exit_requested || !state->tabs || !state->profiles ||
+      !state->callbacks.protected_media || !frame) return;
+  BoazHostPage page = 0;
+  uint64_t navigation = 0;
+  auto profile = state->profiles->HandleFor(Profile::FromBrowserContext(frame->GetBrowserContext()));
+  if (!profile || !state->tabs->TakeProtectedMediaRequest(frame, &page, &navigation)) return;
+  const auto system = key == "com.widevine.alpha" ? BOAZ_KEY_WIDEVINE : BOAZ_KEY_PLAYREADY;
+  Notify([&] { state->callbacks.protected_media(state->callbacks.context, page, navigation, profile, system); });
 }
 bool ShouldRetainEmptyBrowser(BrowserWindowInterface* browser) {
   if (!NativeHostEnabled() || !state || state->exit_requested || !browser || browser->IsDeleteScheduled()) return false;

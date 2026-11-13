@@ -10,7 +10,7 @@
 #include "trusted_execution.h"
 
 class Browser;
-namespace content { class WebContents; }
+namespace content { class WebContents; class RenderFrameHost; }
 
 namespace boaz {
 
@@ -35,6 +35,7 @@ class TabRegistry {
   BoazHostResult Reload(BoazHostPage page);
   BoazHostResult CapturePDF(BoazHostPage page, uint64_t request, PagePDF::Completion completion);
   BoazHostResult CancelPDF(BoazHostPage page, uint64_t request);
+  bool TakeProtectedMediaRequest(content::RenderFrameHost* frame, BoazHostPage* page, uint64_t* navigation);
   BoazHostResult Print(BoazHostPage page);
   BoazHostResult ShowDevTools(BoazHostPage page, BoazHostDevToolsAction action);
   BoazHostResult StopLoading(BoazHostPage page);

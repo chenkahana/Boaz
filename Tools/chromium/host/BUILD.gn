@@ -1,4 +1,10 @@
 import("//build/buildflag_header.gni")
+import("//mojo/public/tools/bindings/mojom.gni")
+
+mojom("protected_media_mojom") {
+  sources = [ "protected_media.mojom" ]
+}
+
 
 declare_args() {
   boaz_widevine_enabled = false
@@ -10,17 +16,20 @@ buildflag_header("buildflags") {
 }
 
 source_set("headers") {
-  public = [ "bootstrap.h", "native_permission_prompt.h" ]
+  public = [ "bootstrap.h", "native_permission_prompt.h", "protected_media.h" ]
   public_deps = [
+    ":protected_media_mojom",
     "//chrome/browser/ui:browser_window_deleter",
     "//components/permissions",
   ]
 }
 
 source_set("host") {
-  public_deps = [ ":launch" ]
+  public_deps = [ ":launch", ":protected_media_mojom" ]
   sources = [
     "boaz_host.h",
+    "protected_media.h",
+    "protected_media.cc",
     "page_pdf.h",
     "page_pdf.cc",
     "page_print.h",
@@ -99,4 +108,10 @@ source_set("launch") {
   public = [ "launch.h" ]
   deps = [ "//base" ]
   frameworks = [ "Foundation.framework" ]
+}
+
+source_set("renderer") {
+  sources = [ "protected_media_renderer.h", "protected_media_renderer.cc" ]
+  public_deps = [ ":protected_media_mojom" ]
+  deps = [ "//base", "//content/public/renderer", "//third_party/blink/public:blink_headers" ]
 }

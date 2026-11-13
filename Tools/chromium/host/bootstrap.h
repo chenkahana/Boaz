@@ -4,10 +4,12 @@
 #include <string>
 #include <vector>
 #include "chrome/browser/ui/browser_window_deleter.h"
+namespace content { class RenderFrameHost; }
 class BrowserWindow;
 class BrowserWindowInterface;
 class ChromeBrowserMainExtraParts;
 namespace boaz {
+void ReportProtectedMediaRequest(content::RenderFrameHost* frame, const std::string& key);
 bool NativeHostEnabled();
 bool ShouldRetainEmptyBrowser(BrowserWindowInterface* browser);
 bool RouteExternalURLs(std::vector<std::string> urls);

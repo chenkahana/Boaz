@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 24u
+#define BOAZ_HOST_ABI_VERSION 25u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT
@@ -143,6 +143,7 @@ typedef struct BoazHostDownload {
 typedef void (*BoazHostDownloadVisitor)(void* context, BoazHostProfile profile,
     const BoazHostDownload* download);
 
+typedef enum BoazHostKeySystem { BOAZ_KEY_WIDEVINE, BOAZ_KEY_PLAYREADY } BoazHostKeySystem;
 typedef struct BoazHostCallbacks {
   size_t size;
   void* context;
@@ -156,6 +157,9 @@ typedef struct BoazHostCallbacks {
   /* Borrowed ordered URL batch, copied before callback returns. */
   void (*external_urls)(void* context, const char* const* urls, size_t count);
   BoazHostDownloadVisitor download_changed;
+  /* Untrusted intent; identities are derived from the current primary document. */
+  void (*protected_media)(void* context, BoazHostPage page, uint64_t navigation,
+      BoazHostProfile profile, BoazHostKeySystem key_system);
 } BoazHostCallbacks;
 
 /* Enumeration values are borrowed for the visitor call. Visitors must copy
