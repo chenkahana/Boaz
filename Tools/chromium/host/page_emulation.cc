@@ -202,13 +202,19 @@ void PageEmulation::CancelFullPage(uint64_t request) {
 }
 void PageEmulation::FinishCapture(Result result, std::vector<uint8_t> bytes) {
   if (!capture_completion_) return;
+  auto completion = std::move(capture_completion_);
   weak_factory_.InvalidateWeakPtrs();
   timer_.Stop();
   pending_id_ = 0;
   capture_request_ = 0;
   capture_document_ = {};
+  if (result != Result::kSuccess) {
+    if (result != Result::kTimeout && result != Result::kNavigation && result != Result::kClosed)
+      result = Result::kProtocolError;
+    Detach();
+  }
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
-      base::BindOnce(std::move(capture_completion_), result, std::move(bytes)));
+      base::BindOnce(std::move(completion), result, std::move(bytes)));
 }
 void PageEmulation::SendCapture() {
   if (!capture_completion_ || !host_) return;
