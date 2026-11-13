@@ -58,9 +58,10 @@ class Request final : public network::mojom::URLLoader,
         if (!url.is_valid() || !target.is_valid() || !url.SchemeIsHTTPOrHTTPS() ||
             !target.SchemeIsHTTPOrHTTPS() ||
             !url::Origin::Create(url).IsSameOriginWith(url::Origin::Create(target)) ||
-            url.path_piece() != target.path_piece() || url.username_piece() != target.username_piece() ||
-            url.password_piece() != target.password_piece() || url.ref_piece() != target.ref_piece() ||
-            url.has_ref() != target.has_ref()) return net::ERR_NOT_IMPLEMENTED;
+            url.path() != target.path() || url.username() != target.username() ||
+            url.password() != target.password() || url.ref() != target.ref() ||
+            url.has_ref() != target.has_ref() ||
+            url.has_username() != target.has_username() || url.has_password() != target.has_password()) return net::ERR_NOT_IMPLEMENTED;
         rewrite = target;
         return net::OK;
       }
