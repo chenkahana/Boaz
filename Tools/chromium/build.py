@@ -96,6 +96,7 @@ def main():
     env = dict(os.environ, DEPOT_TOOLS_UPDATE="0", PYTHONDONTWRITEBYTECODE="1",
                CIPD_CACHE_DIR=str(root / "cache/cipd"),
                VPYTHON_VIRTUALENV_ROOT=str(root / "cache/vpython"))
+    env.pop("LIBRARY_PATH", None)
     developer = subprocess.check_output(["xcode-select", "-p"], text=True).strip()
     env["DEVELOPER_DIR"] = developer
     subprocess.run(["xcrun", "metal", "--version"], check=True, env=env)
