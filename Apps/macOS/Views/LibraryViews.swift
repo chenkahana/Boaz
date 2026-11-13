@@ -332,6 +332,7 @@ private struct GeneralSettings: View {
             }
             #if BOAZ_CHROMIUM
             ChromiumAutomationSettings()
+            BoazCLISettings()
             #endif
             AISettingsSection()
             AboutSection()
@@ -479,3 +480,32 @@ private struct ShortcutsSettings: View {
         }
     }
 }
+
+#if BOAZ_CHROMIUM
+private struct BoazCLISettings: View {
+    @State private var message: String?
+    @State private var failed = false
+
+    var body: some View {
+        Section("Command Line") {
+            Button("Install boaz Command") {
+                do {
+                    try BoazCLIInstaller.install()
+                    failed = false
+                    message = "Installed at ~/.local/bin/boaz."
+                } catch {
+                    failed = true
+                    message = error.localizedDescription
+                }
+            }
+            Text("Creates a link to this copy of Boaz in ~/.local/bin. Add that directory to your shell’s PATH, or run ~/.local/bin/boaz directly. Moving this app may require updating the link.")
+                .font(.caption).foregroundStyle(.secondary)
+            if let message {
+                Text(message).font(.caption)
+                    .foregroundStyle(failed ? Color.red : Color.secondary)
+                    .accessibilityLabel(message)
+            }
+        }
+    }
+}
+#endif
