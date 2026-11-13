@@ -221,6 +221,11 @@ BoazHostResult SetCallbacks(const BoazHostCallbacks* callbacks) {
           page, sequence, document, origin, x, y, width, height); });
     };
   }
+  if (callbacks->devtools_dock_changed) {
+    proxy.devtools_dock_changed = [](void*, BoazHostWindow window, int32_t current, int32_t last) {
+      Notify([&] { state->callbacks.devtools_dock_changed(state->callbacks.context, window, current, last); });
+    };
+  }
   proxy.window_closed = [](void*, BoazHostWindow window) {
     Notify([&] { state->callbacks.window_closed(state->callbacks.context, window); });
     state->windows.erase(window);
@@ -484,6 +489,10 @@ BoazHostResult SetSplit(BoazHostWindow window, BoazHostPage first,
   if (auto r = Check(); r != BOAZ_HOST_OK) return r;
   if (vertical > 1) return BOAZ_HOST_INVALID_ARGUMENT;
   return state->tabs->SetSplit(window, first, second, vertical != 0, ratio);
+}
+BoazHostResult SetDevToolsDockPreferences(BoazHostWindow window, int32_t current, int32_t last) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  return state->tabs->SetDevToolsDockPreferences(window, current, last);
 }
 BoazHostResult ClearSplit(BoazHostWindow window) {
   if (auto r = Check(); r != BOAZ_HOST_OK) return r;
@@ -814,7 +823,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
@@ -996,7 +1005,9 @@ CreateNativeHostBrowserWindow(BrowserWindowInterface* browser) {
   auto id = state->tabs->RegisterWindow(static_cast<Browser*>(browser), options.native_nswindow);
   CHECK(id);
   Window record{weak, options, browser->RegisterBrowserCloseCancelled(base::BindRepeating(
-      [](BrowserWindowInterface* browser, BrowserWindowInterface::ClosingStatus) {
+      [](BrowserWindowInterface* browser, BrowserWindowInterface::ClosingStatus status) {
+        if (status != BrowserWindowInterface::ClosingStatus::kDeniedByUser &&
+            status != BrowserWindowInterface::ClosingStatus::kDeniedByPolicy) return;
         state->exit_requested = false;
         for (auto& [window_id, entry] : state->windows)
           if (entry.browser.get() == browser) entry.explicit_close = false;

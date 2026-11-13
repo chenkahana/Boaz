@@ -103,6 +103,12 @@ private final class ChromiumApplication: NSObject {
                 catch { model.showToast(error.localizedDescription) }
             }
         }
+        runtime.devToolsDockChanged = { [weak self] handle, current, last in
+            guard let self, let owner = windows.first(where: { $0.handle == handle }) else { return }
+            owner.browser.devToolsDockSide = current
+            owner.browser.devToolsLastDockSide = last
+            if !owner.browser.isIncognito { model.saveOpenWindows() }
+        }
         runtime.passwordFocus = { [weak self] page, sequence, target, bounds in
             guard let owner = self?.windows.first(where: {
                 ($0.browser.activeEnginePage?.adapter as? ChromiumEnginePageAdapter)?.handle == page.handle

@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 36u
+#define BOAZ_HOST_ABI_VERSION 37u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT,
@@ -199,6 +199,10 @@ typedef struct BoazHostCallbacks {
   void (*password_focus)(void* context, BoazHostPage page, uint64_t sequence,
       BoazHostDocument document, const char* origin,
       double screen_x, double screen_y, double width, double height);
+  /* Per-window docking: 0 right, 1 bottom, 2 left, 3 undocked.
+   * Last dock side excludes undocked. UI notification; no API reentry. */
+  void (*devtools_dock_changed)(void* context, BoazHostWindow window,
+      int32_t current, int32_t last);
 } BoazHostCallbacks;
 
 /* Enumeration values are borrowed for the visitor call. Visitors must copy
@@ -325,6 +329,8 @@ typedef struct BoazHostAPI {
       char* origin, size_t capacity);
   /* Independent single-use token for the exact same validated document. */
   BoazHostResult (*clone_document)(BoazHostPage page, BoazHostDocument document, BoazHostDocument* clone);
+  BoazHostResult (*set_devtools_dock_preferences)(BoazHostWindow window,
+      int32_t current, int32_t last);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

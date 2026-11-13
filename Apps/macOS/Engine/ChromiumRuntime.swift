@@ -22,6 +22,7 @@ final class ChromiumRuntime {
     var pageActivated: ((BoazHostWindow, BoazHostPage) -> Void)?
     var pageCreated: ((BoazHostWindow, EnginePage, Bool) -> Void)?
     var pageEvent: ((BoazHostPage, BoazHostPageEvent) -> Void)?
+    var devToolsDockChanged: ((BoazHostWindow, String, String) -> Void)?
     var passwordFocus: ((ChromiumEnginePageAdapter, UInt64, ChromiumCapturedDocument?, CGRect) -> Void)?
     var protectedMedia: ((BoazHostPage, UInt64, EngineProfileIdentity, ProtectedMediaService.KeySystem) -> Void)?
 
@@ -82,6 +83,17 @@ final class ChromiumRuntime {
                 DispatchQueue.main.async { [weak owner] in
                     guard let owner, !owner.stopped else { return }
                     owner.receivePage(event, copied)
+                }
+            }
+        }
+        callbacks.devtools_dock_changed = { context, window, current, last in
+            guard let context, (0...3).contains(current), (0...2).contains(last) else { return }
+            MainActor.assumeIsolated {
+                let owner = Unmanaged<ChromiumRuntime>.fromOpaque(context).takeUnretainedValue()
+                DispatchQueue.main.async { [weak owner] in
+                    guard let owner, !owner.stopped, !owner.closedWindows.contains(window) else { return }
+                    let sides = ["right", "bottom", "left", "undocked"]
+                    owner.devToolsDockChanged?(window, sides[Int(current)], sides[Int(last)])
                 }
             }
         }
@@ -521,6 +533,16 @@ final class ChromiumRuntime {
                 cancelAll(error)
             }
         }
+    }
+
+    func restoreDevToolsDockPreferences(window: BoazHostWindow, current: String, last: String) throws {
+        let sides = ["right", "bottom", "left", "undocked"]
+        guard !stopped, let set = api.set_devtools_dock_preferences,
+              let currentIndex = sides.firstIndex(of: current),
+              let lastIndex = sides.prefix(3).firstIndex(of: last) else {
+            throw EnginePageError.invalidRequest
+        }
+        try check(set(window, Int32(currentIndex), Int32(lastIndex)))
     }
 
     func adapter(for handle: BoazHostPage) -> ChromiumEnginePageAdapter? { pages[handle] }

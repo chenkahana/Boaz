@@ -82,6 +82,11 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         guard !installed else { return }
         self.handle = handle
         installed = true
+        browser.restoreChromiumDockPreferences = { [weak self] current, last in
+            guard let self, !finished else { return }
+            do { try runtime.restoreDevToolsDockPreferences(window: self.handle, current: current, last: last) }
+            catch { model.showToast(error.localizedDescription) }
+        }
         browser.chromiumExtensions = ChromiumExtensionActionsModel(api: runtime.api, window: handle,
             activePage: { [weak browser = browser] in
                 browser?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter
