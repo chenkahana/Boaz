@@ -1,9 +1,12 @@
 #include "adblock_popup.h"
 #include <optional>
 #include <set>
+#include <string>
 #include <utility>
 #include "adblock_profile_state.h"
+#include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"
+#include "base/task/thread_pool.h"
 #include "base/task/single_thread_task_runner.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/navigation_handle.h"
@@ -30,6 +33,7 @@ class Popup final : public content::WebContentsObserver,
       return {};
     }
     active_navigations_.insert(navigation.GetNavigationId());
+    if (!current_navigation_) current_navigation_ = navigation.GetNavigationId();
     return weak_.GetWeakPtr();
   }
   content::NavigationThrottle::ThrottleCheckResult Check(content::NavigationHandle& navigation) {
@@ -40,8 +44,20 @@ class Popup final : public content::WebContentsObserver,
     if (!navigation.GetURL().SchemeIsHTTPOrHTTPS()) {
       return Throttle::PROCEED;
     }
-    const auto result = state_->Evaluate(navigation.GetURL(), opener_url_, "popup",
-                                         navigation.GetRequestMethod(), top_level_site_);
+    if (current_navigation_ != navigation.GetNavigationId()) return Throttle::PROCEED;
+    return Throttle::DEFER;
+  }
+  struct Input {
+    std::shared_ptr<AdblockProfileState> state;
+    GURL opener;
+    std::optional<net::SchemefulSite> top;
+  };
+  Input Capture() const { return {state_, opener_url_, top_level_site_}; }
+  content::NavigationThrottle::ThrottleCheckResult Apply(
+      content::NavigationHandle& navigation, const AdblockDecision& result) {
+    using Throttle = content::NavigationThrottle;
+    const auto eligibility = Check(navigation);
+    if (eligibility.action() != Throttle::DEFER) return eligibility;
     if (result.action == AdblockDecision::Action::kAllow &&
         !result.rewritten_url && result.replacement_data_url.empty()) return Throttle::PROCEED;
     const bool blocked = result.action == AdblockDecision::Action::kBlock;
@@ -72,6 +88,7 @@ class Popup final : public content::WebContentsObserver,
   std::shared_ptr<AdblockProfileState> state_;
   base::OnceClosure close_owned_;
   std::set<int64_t> active_navigations_;
+  std::optional<int64_t> current_navigation_;
   bool retired_ = false;
   bool denied_ = false;
   base::WeakPtrFactory<Popup> weak_{this};
@@ -79,10 +96,10 @@ class Popup final : public content::WebContentsObserver,
 };
 WEB_CONTENTS_USER_DATA_KEY_IMPL(Popup);
 void Popup::DidStartNavigation(content::NavigationHandle* navigation) {
-  if (!retired_ && navigation->IsInPrimaryMainFrame() &&
-      !navigation->IsSameDocument() && navigation->GetURL().SchemeIsHTTPOrHTTPS()) {
-    // Track before throttle construction so superseded completion cannot retire
-    // provenance while the replacement navigation is being initialized.
+  if (retired_ || !navigation->IsInPrimaryMainFrame() || navigation->IsSameDocument()) return;
+  current_navigation_ = navigation->GetNavigationId();
+  if (navigation->GetURL().SchemeIsHTTPOrHTTPS()) {
+    // Track replacements before throttle construction without retiring older pending work.
     active_navigations_.insert(navigation->GetNavigationId());
   }
 }
@@ -104,8 +121,41 @@ class PopupThrottle final : public content::NavigationThrottle {
   ThrottleCheckResult WillRedirectRequest() override;
   const char* GetNameForLogging() override;
  private:
-  ThrottleCheckResult Check() { return popup_ ? popup_->Check(*navigation_handle()) : PROCEED; }
+  ThrottleCheckResult Check() {
+    DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+    if (!popup_) return PROCEED;
+    const auto eligibility = popup_->Check(*navigation_handle());
+    if (eligibility.action() != DEFER) return eligibility;
+    DCHECK(!pending_);
+    pending_ = true;
+    const GURL target = navigation_handle()->GetURL();
+    const int64_t id = navigation_handle()->GetNavigationId();
+    const bool posted = base::ThreadPool::PostTaskAndReplyWithResult(
+        FROM_HERE,
+        {base::TaskPriority::USER_VISIBLE, base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
+        base::BindOnce([](Popup::Input input, GURL target, std::string method) {
+          return input.state->Evaluate(target, input.opener, "popup", method, input.top);
+        }, popup_->Capture(), target, navigation_handle()->GetRequestMethod()),
+        base::BindOnce(&PopupThrottle::Decided, weak_.GetWeakPtr(), id, target));
+    if (!posted) { pending_ = false; return {CANCEL, net::ERR_ABORTED}; }
+    return DEFER;
+  }
+  void Decided(int64_t id, const GURL& target, AdblockDecision result) {
+    DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+    if (!pending_) return;
+    pending_ = false;
+    if (!popup_ || navigation_handle()->GetNavigationId() != id ||
+        navigation_handle()->GetURL() != target) {
+      Resume();
+      return;
+    }
+    const auto decision = popup_->Apply(*navigation_handle(), result);
+    if (decision.action() == PROCEED) { Resume(); return; }
+    CancelDeferredNavigation(decision);
+  }
   base::WeakPtr<Popup> popup_;
+  bool pending_ = false;
+  base::WeakPtrFactory<PopupThrottle> weak_{this};
 };
 content::NavigationThrottle::ThrottleCheckResult PopupThrottle::WillStartRequest() { return Check(); }
 content::NavigationThrottle::ThrottleCheckResult PopupThrottle::WillRedirectRequest() { return Check(); }
