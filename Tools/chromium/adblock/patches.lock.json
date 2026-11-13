@@ -2,7 +2,7 @@
   "schema_version": 1,
   "repository": "https://github.com/brave/adblock-rust",
   "revision": "0016bc16a75ca9f87354a537a8b006fdd2b5b5b9",
-  "serialization_fork_version": 128,
+  "serialization_fork_version": 129,
   "patches": [
     {
       "file": "popup.patch",
@@ -29,6 +29,32 @@
           "after": "d0f6e6a7867cd0287480c433828ceda93466444f5e00330cfdd7d7a3ba4a5b7b"
         }
       ]
+    },
+    {
+      "file": "networkcompat.patch",
+      "sha256": "cc689c7be8132e65c09ec3b9698663b3f0c6416cd061c9f469cb08c54b9da1ea",
+      "files": [
+        {
+          "path": "src/filters/abstract_network.rs",
+          "before": "7f49d575681bfc9b5f34e331ded35feb4bf672e8f1cce43019d4165d7dd5081f",
+          "after": "6fdb1d642d5e3edc62a8a53be9b9c05b09e30a38fb1c88ea1cc9331677ec87da"
+        },
+        {
+          "path": "src/filters/network.rs",
+          "before": "8601aa7160409b41acc9b6999f33ec8da0a1346d6840b63f9c3f4de01d0c33b8",
+          "after": "2d79ee39e66a5f6f62fc35dacde188fc265954a8d5d705b2287db4e142890beb"
+        },
+        {
+          "path": "src/data_format/mod.rs",
+          "before": "d0f6e6a7867cd0287480c433828ceda93466444f5e00330cfdd7d7a3ba4a5b7b",
+          "after": "c60b5a68c6183d5a5f0df869bc984b05ff387628d1dcd7fa4bf9f9fc5ed4a176"
+        },
+        {
+          "path": "src/blocker.rs",
+          "before": "fdcf2ce644e367e893eed336544a07a24a75db5283ac58b2946388a56b53bdb5",
+          "after": "bd3de11036fdae225d6c64007077cf7b32ac71a4a5cd12b3c95959e2475cf7b3"
+        }
+      ]
     }
   ],
   "semantics": {
@@ -36,5 +62,10 @@
     "explicit_all": "Includes popup.",
     "mixed_negation": "Existing upstream algorithm retained: popup,~subdocument also enables other ordinary network types.",
     "pinned_list_mixed_positive_popup_negated_network_count": 0
+  },
+  "network_compatibility": {
+    "document_negation": "Explicit document exclusion overrides generic exception document fallback; normal network defaults unchanged.",
+    "csp": "Only document/subdocument types permitted. Typed CSP exceptions cannot disable top-document CSP outside their scope. Native CSP directive application remains separate and unimplemented.",
+    "empty_redirect_rule_exception": "Only exception syntax may omit resource; disables resource replacement selection without exempting network blocking."
   }
 }
