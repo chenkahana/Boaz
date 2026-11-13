@@ -38,8 +38,8 @@ AdblockRequestContext ResolveAdblockRequestContext(
   // Document factories use RFH's browser-computed subresource IsolationInfo,
   // including pending navigation origins. Reading GetLastCommittedURL here
   // would incorrectly attach the previous document's path to a new factory.
-  result.top_level_url = top->GetURL();
-  result.frame_url = origin->GetURL();
+  result.top_level_origin = *top;
+  result.frame_origin = *origin;
   result.status = AdblockRequestContext::Status::kAuthoritative;
   return result;
 }
