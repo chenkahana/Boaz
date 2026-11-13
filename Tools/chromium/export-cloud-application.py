@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import plistlib
+import re
 import shutil
 import selectors
 import subprocess
@@ -56,8 +57,12 @@ def experiment(args):
             raise RuntimeError('Canonical unpublished artifact paths required')
     if output.exists() or output.is_symlink() or output.is_relative_to(source):
         raise RuntimeError('Output must be new and outside input')
-    if not args.identity.startswith('Apple Development:'):
-        raise RuntimeError('An existing Apple Development signing identity is required for this archive experiment')
+    identities = subprocess.run(['/usr/bin/security', 'find-identity', '-v', '-p', 'codesigning'],
+                                capture_output=True, text=True, check=True).stdout
+    available = dict(re.findall(r'([0-9A-F]{40}) "(Apple Development:[^"\n]+)"', identities))
+    identity_name = available.get(args.identity.upper())
+    if identity_name is None:
+        raise RuntimeError('Select an existing Apple Development identity by its unambiguous SHA-1 fingerprint')
     app = source / 'Boaz.app'
     assembly = source / 'Boaz.assembly.json'
     record = json.loads(assembly.read_text())
@@ -160,6 +165,9 @@ def experiment(args):
                  '--channel', 'stable', '--disable-packaging', '--notarize', 'none'], log)
         signed_app = signed_output / 'stable/Boaz.app'
         execute(['/usr/bin/codesign', '--verify', '--deep', '--strict', str(signed_app)], log)
+        _, identity_details = execute(['/usr/bin/codesign', '-dv', '--verbose=4', str(signed_app)], log, capture=True)
+        if ('TeamIdentifier=' + TEAM).encode() not in identity_details or b'Authority=Apple Development:' not in identity_details:
+            raise RuntimeError('Archive input must use the authorized Boaz development team')
         archive = output / 'Boaz.xcarchive'
         archive_app = archive / 'Products/Applications/Boaz.app'
         execute(['/usr/bin/ditto', '--clone', str(signed_app), str(archive_app)], log)
@@ -167,7 +175,7 @@ def experiment(args):
             'CreationDate': datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
             'ApplicationProperties': {'ApplicationPath': 'Applications/Boaz.app',
                 'CFBundleIdentifier': 'com.chenkahana.boaz', 'CFBundleShortVersionString': version,
-                'CFBundleVersion': metadata['CFBundleVersion'], 'SigningIdentity': args.identity,
+                'CFBundleVersion': metadata['CFBundleVersion'], 'SigningIdentity': identity_name,
                 'Team': TEAM}}
         (archive / 'Info.plist').write_bytes(plistlib.dumps(archive_info))
         options = output / 'ExportOptions.plist'
