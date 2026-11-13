@@ -2,6 +2,9 @@
 #include "extension_actions.h"
 #include "extension_popup.h"
 #include "base/check.h"
+#include "base/functional/bind.h"
+#include "base/location.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/memory/raw_ptr.h"
 #include "base/scoped_observation.h"
 #include "chrome/browser/extensions/api/side_panel/side_panel_service.h"
@@ -41,7 +44,9 @@ class NativeExtensionActions::Impl final : public extensions::ExtensionRegistryO
         PopupShowAction action, bool by_user, ShowPopupCallback callback) override {
       if (!by_user || !owner_->invoking_ || !owner_->AnchorValid()) {
         owner_->result_ = Result::kUnsupported;
-        if (callback) std::move(callback).Run(nullptr);
+        if (callback)
+          base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+              FROM_HERE, base::BindOnce(std::move(callback), nullptr));
         return;
       }
       owner_->Close();
@@ -97,10 +102,11 @@ class NativeExtensionActions::Impl final : public extensions::ExtensionRegistryO
     auto* side_panel = extensions::SidePanelService::Get(browser_->GetProfile());
     if (side_panel && side_panel->HasSidePanelActionForTab(
           *extension, extensions::ExtensionTabUtil::GetTabId(expected))) return Result::kUnsupported;
-    if (!model_ || model_->GetId() != id) {
+    if (!model_ || model_invalid_ || model_->GetId() != id) {
       Close();
       model_.reset();
       model_ = ExtensionActionViewModel::Create(id, browser_, std::make_unique<Delegate>(this));
+      model_invalid_ = false;
     }
     if (!model_->IsEnabled(expected)) return Result::kUnsupported;
     result_ = Result::kOk;
@@ -111,7 +117,10 @@ class NativeExtensionActions::Impl final : public extensions::ExtensionRegistryO
   }
   void OnExtensionUnloaded(content::BrowserContext*, const extensions::Extension* extension,
       extensions::UnloadedExtensionReason) override {
-    if (model_ && model_->GetId() == extension->id()) Close();
+    if (model_ && model_->GetId() == extension->id()) {
+      model_invalid_ = true;
+      Close();
+    }
   }
   void OnShutdown(extensions::ExtensionRegistry*) override {
     observation_.Reset();
@@ -129,6 +138,7 @@ class NativeExtensionActions::Impl final : public extensions::ExtensionRegistryO
   NSView* __weak anchor_ = nil;
   gfx::Rect bounds_;
   bool invoking_ = false;
+  bool model_invalid_ = false;
   Result result_ = Result::kUnavailable;
 };
 NativeExtensionActions::NativeExtensionActions(BrowserWindowInterface* browser)
