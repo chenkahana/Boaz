@@ -2,6 +2,7 @@
 #include "include/cef_app.h"
 #include "include/cef_application_mac.h"
 #include "include/cef_client.h"
+#include "include/cef_id_mappers.h"
 #include "include/views/cef_browser_view.h"
 #include "include/views/cef_browser_view_delegate.h"
 #include "include/views/cef_box_layout.h"
@@ -137,12 +138,18 @@ private:
 class SpikeClient final : public CefClient,
                           public CefLifeSpanHandler,
                           public CefLoadHandler,
-                          public CefDisplayHandler {
+                          public CefDisplayHandler, public CefCommandHandler {
 public:
     explicit SpikeClient(BZBrowserHost *host) : host_(host) {}
     CefRefPtr<CefLifeSpanHandler> GetLifeSpanHandler() override { return this; }
     CefRefPtr<CefLoadHandler> GetLoadHandler() override { return this; }
     CefRefPtr<CefDisplayHandler> GetDisplayHandler() override { return this; }
+    CefRefPtr<CefCommandHandler> GetCommandHandler() override { return this; }
+    bool OnChromeCommand(CefRefPtr<CefBrowser> browser, int command_id,
+                         cef_window_open_disposition_t disposition) override {
+        if (command_id != cef_id_for_command_id_name("IDC_EXIT")) return false;
+        return [host_ closeViewsWindow];
+    }
     void OnAfterCreated(CefRefPtr<CefBrowser> browser) override {
         CEF_REQUIRE_UI_THREAD();
         [host_ didCreate:browser];
