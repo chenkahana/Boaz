@@ -933,6 +933,7 @@ final class BrowserState {
 
     #if BOAZ_CHROMIUM
     func activateChromiumPageFromEngine(_ handle: BoazHostPage) {
+        if let activeTabID, pendingEngineSwitches.keys.contains(activeTabID) { return }
         guard let entry = enginePages.first(where: {
             ($0.value.adapter as? ChromiumEnginePageAdapter)?.handle == handle
         }), activeTabID != entry.key, let tab = tab(entry.key) else { return }
