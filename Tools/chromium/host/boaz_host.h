@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 12u
+#define BOAZ_HOST_ABI_VERSION 13u
 
 typedef uint64_t BoazHostWindow;
 typedef uint64_t BoazHostPage;
@@ -100,7 +100,7 @@ typedef struct BoazHostCallbacks {
   void* context;
   void (*page_event)(void* context, BoazHostPageEvent event,
                      const BoazHostPageState* state);
-  BoazHostResult (*prepare_window)(void* context, BoazHostWindowOptions* options);
+  BoazHostResult (*prepare_window)(void* context, BoazHostProfile profile, BoazHostWindowOptions* options);
   void (*window_created)(void* context, BoazHostWindow window,
                          void* window_context);
   void (*window_closed)(void* context, BoazHostWindow window);

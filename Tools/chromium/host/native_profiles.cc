@@ -118,6 +118,13 @@ class NativeProfiles::Impl {
     auto found = entries_.find(handle);
     return found == entries_.end() ? nullptr : found->second.profile.get();
   }
+  BoazHostProfile HandleFor(Profile* profile) const {
+    DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+    if (!profile) return 0;
+    for (const auto& [handle, entry] : entries_)
+      if (entry.profile == profile) return handle;
+    return 0;
+  }
   bool Owns(Profile* profile) const {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
     if (!profile) return false;
@@ -150,5 +157,6 @@ void NativeProfiles::Acquire(std::string identifier, bool private_session,
 }
 Profile* NativeProfiles::Resolve(BoazHostProfile handle) const { return impl_->Resolve(handle); }
 bool NativeProfiles::Owns(Profile* profile) const { return impl_->Owns(profile); }
+BoazHostProfile NativeProfiles::HandleFor(Profile* profile) const { return impl_->HandleFor(profile); }
 BoazHostResult NativeProfiles::Release(BoazHostProfile handle) { return impl_->Release(handle); }
 }

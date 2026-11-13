@@ -15,6 +15,7 @@ class NativeProfiles {
                base::OnceCallback<void(BoazHostResult, BoazHostProfile)> completion);
   Profile* Resolve(BoazHostProfile handle) const;
   bool Owns(Profile* profile) const;
+  BoazHostProfile HandleFor(Profile* profile) const;
   BoazHostResult Release(BoazHostProfile handle);
  private:
   class Impl;

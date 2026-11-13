@@ -67,7 +67,7 @@ private struct PageUpdate {
                 }
             }
         }
-        callbacks.prepare_window = { context, options in
+        callbacks.prepare_window = { context, _, options in
             guard Thread.isMainThread, let context, let options else { return BOAZ_HOST_INVALID_ARGUMENT }
             return MainActor.assumeIsolated {
                 guard let owner = session, !owner.stopped,
