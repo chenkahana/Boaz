@@ -16,6 +16,7 @@ private final class ChromiumApplication: NSObject {
     private var pendingNativeWindows: [UInt: ChromiumAppWindow] = [:]
     var auxiliaryWindows: [NSWindow] = []
     var finished = false
+    private var startupWindow: Task<ChromiumAppWindow?, Never>?
     private var applicationMenu: ChromiumApplicationMenu?
 
     init(runtime: ChromiumRuntime) {
@@ -141,7 +142,21 @@ private final class ChromiumApplication: NSObject {
             Task { @MainActor in await self?.openScene(id, url: url) }
         }
         legacyDelegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
-        Task { @MainActor in await openScene("main", url: nil) }
+        Task { @MainActor in _ = await ensureMainWindow() }
+    }
+
+    private func ensureMainWindow() async -> ChromiumAppWindow? {
+        if let window = windows.first { return window }
+        if let startupWindow { return await startupWindow.value }
+        let task = Task { @MainActor [weak self] () -> ChromiumAppWindow? in
+            guard let self, !finished else { return nil }
+            await openScene("main", url: nil)
+            return windows.last
+        }
+        startupWindow = task
+        let window = await task.value
+        startupWindow = nil
+        return window
     }
 
     private var externalURLBatches: [[URL]] = []
@@ -173,8 +188,7 @@ private final class ChromiumApplication: NSObject {
                     }
                     var owner = windows.first(where: { $0.window.isKeyWindow }) ?? windows.first
                     if owner == nil {
-                        await openScene("main", url: nil)
-                        owner = windows.last
+                        owner = await ensureMainWindow()
                     }
                     guard let owner, !finished else { continue }
                     if let target { owner.browser.openTab(target) }
