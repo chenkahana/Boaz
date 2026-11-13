@@ -27,6 +27,7 @@ class TabRegistry {
 
   BoazHostResult SetCallbacks(const BoazHostCallbacks* callbacks);
   BoazHostWindow RegisterWindow(Browser* browser, void* native_window);
+  void ReportPasswordSubmission(content::WebContents*, std::string origin, std::string username, std::string password);
   BoazHostResult SetDevToolsDockPreferences(BoazHostWindow window, int32_t current, int32_t last);
   BoazHostResult CreatePage(BoazHostWindow window, const char* url,
                             BoazHostPage* page);

@@ -227,6 +227,14 @@ BoazHostResult SetCallbacks(const BoazHostCallbacks* callbacks) {
       Notify([&] { state->callbacks.devtools_dock_changed(state->callbacks.context, window, current, last); });
     };
   }
+  if (callbacks->password_submission) {
+    proxy.password_submission = [](void*, BoazHostPage page, BoazHostDocument document,
+        const char* source, const char* destination, const char* username, size_t username_length,
+        const char* password, size_t password_length) {
+      Notify([&] { state->callbacks.password_submission(state->callbacks.context, page, document,
+          source, destination, username, username_length, password, password_length); });
+    };
+  }
   proxy.window_closed = [](void*, BoazHostWindow window) {
     Notify([&] { state->callbacks.window_closed(state->callbacks.context, window); });
     state->windows.erase(window);
@@ -944,6 +952,12 @@ bool RouteExternalURLs(std::vector<std::string> urls) {
         FROM_HERE, base::BindOnce(&DeliverExternalURLs));
   }
   return true;
+}
+void ReportNativePasswordSubmission(content::WebContents* contents,
+    std::string origin, std::string username, std::string password) {
+  if (!NativeHostEnabled() || !state || state->exit_requested || !state->tabs || !state->profiles ||
+      !contents || !state->profiles->Owns(Profile::FromBrowserContext(contents->GetBrowserContext()))) return;
+  state->tabs->ReportPasswordSubmission(contents, std::move(origin), std::move(username), std::move(password));
 }
 void ReportProtectedMediaRequest(content::RenderFrameHost* frame, const std::string& key) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);

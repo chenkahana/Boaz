@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 38u
+#define BOAZ_HOST_ABI_VERSION 39u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT,
@@ -203,6 +203,11 @@ typedef struct BoazHostCallbacks {
    * Last dock side excludes undocked. UI notification; no API reentry. */
   void (*devtools_dock_changed)(void* context, BoazHostWindow window,
       int32_t current, int32_t last);
+  /* Browser-validated successful submission. Own/release document token after
+   * callback; strings are borrowed. Credentials must never be logged. */
+  void (*password_submission)(void* context, BoazHostPage page, BoazHostDocument document,
+      const char* source_origin, const char* document_origin,
+      const char* username, size_t username_length, const char* password, size_t password_length);
 } BoazHostCallbacks;
 
 /* Enumeration values are borrowed for the visitor call. Visitors must copy

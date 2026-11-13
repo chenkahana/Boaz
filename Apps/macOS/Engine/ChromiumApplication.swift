@@ -62,6 +62,7 @@ private final class ChromiumApplication: NSObject {
         }
         runtime.pageActivated = { [weak self] window, page in
             ChromiumPasswordSuggestions.shared.dismiss()
+            ChromiumPasswordSave.shared.dismiss()
             guard let owner = self?.windows.first(where: { $0.handle == window }),
                   owner.browser.peek?.nativePage == nil else { return }
             owner.browser.activateChromiumPageFromEngine(page)
@@ -79,6 +80,7 @@ private final class ChromiumApplication: NSObject {
         }
         runtime.windowClosed = { [weak self] handle in
             ChromiumPasswordSuggestions.shared.dismiss()
+            ChromiumPasswordSave.shared.dismiss()
             guard let self else { return }
             let profile: ChromiumProfile
             if let index = windows.firstIndex(where: { $0.handle == handle }) {
@@ -109,6 +111,18 @@ private final class ChromiumApplication: NSObject {
             owner.browser.devToolsLastDockSide = last
             if !owner.browser.isIncognito { model.saveOpenWindows() }
         }
+        runtime.passwordSubmission = { [weak self] page, target, origin, username, password in
+            let mainWindow = self?.windows.first(where: {
+                ($0.browser.activeEnginePage?.adapter as? ChromiumEnginePageAdapter)?.handle == page.handle
+                    && $0.window.isKeyWindow
+            })?.window
+            let quickWindow = self?.quickWindows.first(where: {
+                $0.chromiumPageHandle == page.handle && $0.window.isKeyWindow
+            })?.window
+            guard let window = mainWindow ?? quickWindow else { target.release(); return }
+            ChromiumPasswordSave.shared.offer(on: page, target: target, sourceOrigin: origin,
+                username: username, password: password, window: window)
+        }
         runtime.passwordFocus = { [weak self] page, sequence, target, bounds in
             let mainWindow = self?.windows.first(where: {
                 ($0.browser.activeEnginePage?.adapter as? ChromiumEnginePageAdapter)?.handle == page.handle
@@ -131,6 +145,7 @@ private final class ChromiumApplication: NSObject {
             }
         }
         runtime.pageEvent = { [weak self] handle, event in
+            ChromiumPasswordSave.shared.invalidate(page: handle)
             if event == BOAZ_HOST_PAGE_CLOSING || event == BOAZ_HOST_PAGE_CLOSED ||
                 event == BOAZ_HOST_PAGE_RENDERER_FAILED || event == BOAZ_HOST_PAGE_VIEW_WILL_CHANGE {
                 ChromiumPasswordSuggestions.shared.dismiss(page: handle)
@@ -140,6 +155,7 @@ private final class ChromiumApplication: NSObject {
         }
         runtime.shutdownReady = { [self] in
             ChromiumPasswordSuggestions.shared.dismiss()
+            ChromiumPasswordSave.shared.dismiss()
             ChromiumAutomation.shared.stop()
             finished = true
             legacyDelegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))

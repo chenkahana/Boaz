@@ -532,6 +532,32 @@ BoazHostWindow TabRegistry::RegisterWindow(Browser* browser, void* native_window
     impl_->Track(*registered, registered->strip->GetWebContentsAt(i));
   return id;
 }
+void TabRegistry::ReportPasswordSubmission(content::WebContents* contents,
+    std::string origin, std::string username, std::string password) {
+  if (impl_->Check() != BOAZ_HOST_OK || !contents || !impl_->callbacks.password_submission) return;
+  auto* page = impl_->FindContents(contents);
+  if (!page || page->closing || page->destroyed || contents->GetBrowserContext()->IsOffTheRecord()) return;
+  auto* frame = contents->GetPrimaryMainFrame();
+  if (!frame) return;
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
+      base::BindOnce([](base::WeakPtr<Impl> owner, BoazHostPage id,
+          content::WeakDocumentPtr document, std::string origin, std::string username, std::string password) {
+        if (!owner || !owner->callbacks.password_submission) return;
+        auto* page = owner->Find(id);
+        auto* frame = document.AsRenderFrameHostIfValid();
+        if (!page || page->closing || page->destroyed || !page->view_available || !page->web_contents() ||
+            !frame || frame != page->web_contents()->GetPrimaryMainFrame() ||
+            page->web_contents()->GetBrowserContext()->IsOffTheRecord()) return;
+        if (!page->scripts) page->scripts = std::make_unique<TrustedScriptChannel>(page->web_contents());
+        std::string document_origin;
+        auto token = page->scripts->Capture(&document_origin);
+        if (!token) return;
+        base::AutoReset<bool> guard(&owner->in_callback, true);
+        owner->callbacks.password_submission(owner->callbacks.context, id, *token,
+            origin.c_str(), document_origin.c_str(), username.data(), username.size(), password.data(), password.size());
+      }, impl_->weak.GetWeakPtr(), page->id, frame->GetWeakDocumentPtr(),
+      std::move(origin), std::move(username), std::move(password)));
+}
 BoazHostResult TabRegistry::SetDevToolsDockPreferences(
     BoazHostWindow id, int32_t current, int32_t last) {
   if (auto result = impl_->Check(); result != BOAZ_HOST_OK) return result;

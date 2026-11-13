@@ -9,6 +9,7 @@ class BrowserWindow;
 class BrowserWindowInterface;
 class ChromeBrowserMainExtraParts;
 namespace boaz {
+void ReportNativePasswordSubmission(content::WebContents*, std::string origin, std::string username, std::string password);
 void ReportProtectedMediaRequest(content::RenderFrameHost* frame, const std::string& key);
 bool NativeHostEnabled();
 bool ShouldDisableJavaScript(content::WebContents* contents);

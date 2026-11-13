@@ -36,6 +36,8 @@ source_set("host") {
     "page_print.cc",
     "page_emulation.h",
     "page_emulation.cc",
+    "native_password_submission.h",
+    "native_password_submission.cc",
     "extension_management.h",
     "extension_management.cc",
     "extension_actions.h",

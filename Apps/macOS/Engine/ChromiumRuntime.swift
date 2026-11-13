@@ -23,6 +23,7 @@ final class ChromiumRuntime {
     var pageCreated: ((BoazHostWindow, EnginePage, Bool) -> Void)?
     var pageEvent: ((BoazHostPage, BoazHostPageEvent) -> Void)?
     var devToolsDockChanged: ((BoazHostWindow, String, String) -> Void)?
+    var passwordSubmission: ((ChromiumEnginePageAdapter, ChromiumCapturedDocument, URL, String, String) -> Void)?
     var passwordFocus: ((ChromiumEnginePageAdapter, UInt64, ChromiumCapturedDocument?, CGRect) -> Void)?
     var protectedMedia: ((BoazHostPage, UInt64, EngineProfileIdentity, ProtectedMediaService.KeySystem) -> Void)?
 
@@ -94,6 +95,34 @@ final class ChromiumRuntime {
                     guard let owner, !owner.stopped, !owner.closedWindows.contains(window) else { return }
                     let sides = ["right", "bottom", "left", "undocked"]
                     owner.devToolsDockChanged?(window, sides[Int(current)], sides[Int(last)])
+                }
+            }
+        }
+        callbacks.password_submission = { context, page, token, source, destination, username, usernameLength, password, passwordLength in
+            guard let context else { return }
+            let sourceURL = source.flatMap { URL(string: String(cString: $0)) }
+            let destinationURL = destination.flatMap { URL(string: String(cString: $0)) }
+            func copied(_ pointer: UnsafePointer<CChar>?, _ count: Int) -> String? {
+                guard let pointer, count >= 0, count <= 65536 else { return nil }
+                let bytes = UnsafeBufferPointer(start: UnsafeRawPointer(pointer).assumingMemoryBound(to: UInt8.self), count: count)
+                return String(bytes: bytes, encoding: .utf8)
+            }
+            let user = copied(username, usernameLength)
+            let secret = passwordLength <= 65536 - min(usernameLength, 65536) ? copied(password, passwordLength) : nil
+            MainActor.assumeIsolated {
+                let owner = Unmanaged<ChromiumRuntime>.fromOpaque(context).takeUnretainedValue()
+                DispatchQueue.main.async {
+                    guard !owner.stopped, !owner.closingPages.contains(page), token != 0,
+                          let adapter = owner.pages[page], !adapter.profile.isPrivate,
+                          let sourceURL, let destinationURL, let user, let secret, !secret.isEmpty,
+                          ["http", "https"].contains(sourceURL.scheme ?? ""), sourceURL.host != nil,
+                          ["http", "https"].contains(destinationURL.scheme ?? ""), destinationURL.host != nil,
+                          let handler = owner.passwordSubmission else {
+                        if token != 0 { _ = owner.api.release_document?(page, token) }
+                        return
+                    }
+                    handler(adapter, ChromiumCapturedDocument(owner: adapter, origin: destinationURL, token: token),
+                        sourceURL, user, secret)
                 }
             }
         }
