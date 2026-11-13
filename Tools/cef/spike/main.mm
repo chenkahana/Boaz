@@ -90,6 +90,7 @@ static void StopNativeLoop() {
 @property(nonatomic, strong) BZBrowserHost *host;
 - (void)createWindow;
 - (void)requestQuit;
+- (void)toggleFullscreen:(id)sender;
 @end
 
 @interface BZCApplication : NSApplication <CefAppProtocol>
@@ -422,6 +423,9 @@ private:
     [self.host removeBrowserView];
     self.window.contentView = nil;
 }
+- (void)toggleFullscreen:(id)sender {
+    if (![self.host toggleViewsFullscreen]) [self.window toggleFullScreen:sender];
+}
 - (void)requestQuit {
     if (self.window) [self.window performClose:nil];
     else if ([self.host closeViewsWindow]) return;
@@ -452,6 +456,13 @@ int main(int argc, char *argv[]) {
         [edit.submenu addItemWithTitle:@"Paste" action:@selector(paste:) keyEquivalent:@"v"];
         [edit.submenu addItemWithTitle:@"Select All" action:@selector(selectAll:) keyEquivalent:@"a"];
         [menu addItem:edit];
+        NSMenuItem *view = [[NSMenuItem alloc] initWithTitle:@"View" action:nil keyEquivalent:@""];
+        view.submenu = [[NSMenu alloc] initWithTitle:@"View"];
+        NSMenuItem *fullscreen = [view.submenu addItemWithTitle:@"Toggle Full Screen"
+            action:@selector(toggleFullscreen:) keyEquivalent:@"f"];
+        fullscreen.keyEquivalentModifierMask = NSEventModifierFlagControl | NSEventModifierFlagCommand;
+        fullscreen.target = delegate;
+        [menu addItem:view];
         NSApp.mainMenu = menu;
         [NSApp run];
         gPumpEnabled.store(false);
