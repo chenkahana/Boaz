@@ -70,6 +70,7 @@ struct State {
   std::map<BoazHostWindow, Window> windows;
   uint64_t pending_scripts = 0;
   uint64_t pending_captures = 0;
+  uint64_t pending_emulations = 0;
   uint64_t pending_profiles = 0;
   std::unique_ptr<NativeProfiles> profiles;
   bool in_callback = false;
@@ -118,7 +119,7 @@ bool ValidOptions(const BoazHostWindowOptions* o) {
 }
 void FinishIfDrained() {
   if (!state->exit_requested || !state->windows.empty() ||
-      state->pending_scripts || state->pending_captures || state->pending_profiles || state->finished) return;
+      state->pending_scripts || state->pending_captures || state->pending_emulations || state->pending_profiles || state->finished) return;
   state->finished = true;
   Notify([] { state->callbacks.shutdown_ready(state->callbacks.context); });
   // Swift queues its cleanup on this same main dispatch queue first.
@@ -446,11 +447,43 @@ BoazHostResult CancelCapture(BoazHostPage page, uint64_t request) {
   if (auto result = Check(); result != BOAZ_HOST_OK) return result;
   return state->tabs->CancelCapture(page, request);
 }
+BoazHostResult ApplyViewport(BoazHostPage page, const BoazHostViewport* viewport,
+    uint64_t request, BoazHostEmulationCompletion completion, void* context) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (!request || !completion || (viewport && (viewport->mobile > 1 || viewport->touch > 1 || viewport->landscape > 1)))
+    return BOAZ_HOST_INVALID_ARGUMENT;
+  std::optional<PageEmulation::Viewport> value;
+  if (viewport) value = {viewport->width, viewport->height, viewport->dpr,
+      viewport->mobile != 0, viewport->touch != 0, viewport->max_touch_points, viewport->landscape != 0};
+  CHECK_LT(state->pending_emulations, std::numeric_limits<uint64_t>::max());
+  ++state->pending_emulations;
+  auto result = state->tabs->ApplyViewport(page, value, base::BindOnce(
+      [](BoazHostPage page, uint64_t request, BoazHostEmulationCompletion completion,
+         void* context, PageEmulation::Result result) {
+        CHECK(state);
+        BoazHostEmulationStatus status;
+        switch (result) {
+          case PageEmulation::Result::kSuccess: status = BOAZ_EMULATION_SUCCESS; break;
+          case PageEmulation::Result::kInvalid: status = BOAZ_EMULATION_INVALID; break;
+          case PageEmulation::Result::kUnavailable: status = BOAZ_EMULATION_UNAVAILABLE; break;
+          case PageEmulation::Result::kProtocolError: status = BOAZ_EMULATION_PROTOCOL_ERROR; break;
+          case PageEmulation::Result::kTimeout: status = BOAZ_EMULATION_TIMEOUT; break;
+          case PageEmulation::Result::kNavigation: status = BOAZ_EMULATION_NAVIGATION; break;
+          case PageEmulation::Result::kClosed: status = BOAZ_EMULATION_CLOSED; break;
+        }
+        Notify([&] { completion(context, page, request, status); });
+        CHECK_GT(state->pending_emulations, 0u);
+        --state->pending_emulations;
+        FinishIfDrained();
+      }, page, request, completion, context));
+  if (result != BOAZ_HOST_OK) --state->pending_emulations;
+  return result;
+}
 const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
@@ -496,6 +529,8 @@ class MainParts final : public ChromeBrowserMainExtraParts {
     CHECK(state->finished);
     CHECK(state->windows.empty());
     CHECK_EQ(state->pending_scripts, 0u);
+    CHECK_EQ(state->pending_captures, 0u);
+    CHECK_EQ(state->pending_emulations, 0u);
     CHECK_EQ(state->pending_profiles, 0u);
     CHECK(!state->cleanup_pending);
     CHECK(!state->profile);

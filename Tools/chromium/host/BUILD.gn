@@ -21,6 +21,8 @@ source_set("host") {
   public_deps = [ ":launch" ]
   sources = [
     "boaz_host.h",
+    "page_emulation.h",
+    "page_emulation.cc",
     "extension_actions.h",
     "extension_actions.mm",
     "extension_popup.h",

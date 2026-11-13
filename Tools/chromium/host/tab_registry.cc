@@ -182,7 +182,7 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver, find_in_page::Fin
     owner->Queue(*this, BOAZ_HOST_PAGE_CLOSE_CANCELLED);
   }
   void WebContentsDestroyed() override { DetachFind(); owner->Destroyed(*this); }
-  void ObserveReplacement(content::WebContents* contents) { DetachFind(); capture.reset(); scripts.reset(); latest_navigation = -1; load_error = net::OK; failed_url.clear(); Observe(contents); AttachFind(); }
+  void ObserveReplacement(content::WebContents* contents) { DetachFind(); emulation.reset(); capture.reset(); scripts.reset(); latest_navigation = -1; load_error = net::OK; failed_url.clear(); Observe(contents); AttachFind(); }
 
   raw_ref<Impl> owner;
   BoazHostPage id = NextHandle();
@@ -202,6 +202,7 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver, find_in_page::Fin
   std::optional<Snapshot> final_snapshot;
   std::unique_ptr<TrustedScriptChannel> scripts;
   std::unique_ptr<VisiblePageCapture> capture;
+  std::unique_ptr<PageEmulation> emulation;
   raw_ptr<find_in_page::FindTabHelper> find_helper = nullptr;
   find_in_page::FindNotificationDetails find_result;
   bool find_active = false;
@@ -375,6 +376,7 @@ void TabRegistry::Impl::Closing(Page& page) {
   page.closing = true;
   if (page.scripts) page.scripts->Close();
   if (page.capture) page.capture->Close();
+  if (page.emulation) page.emulation->Close();
   auto snapshot = Capture(page);
   page.final_snapshot = snapshot;
   snapshot.state.url = snapshot.url.c_str();
@@ -581,6 +583,14 @@ BoazHostResult TabRegistry::IsBusyForResidency(BoazHostPage id, uint8_t* busy) {
       capture->IsCapturingUserMedia(contents) || capture->IsCapturingTab(contents) ||
       capture->IsCapturingWindow(contents) || capture->IsCapturingDisplay(contents) ||
       capture->IsBeingMirrored(contents);
+  return BOAZ_HOST_OK;
+}
+BoazHostResult TabRegistry::ApplyViewport(BoazHostPage id,
+    std::optional<PageEmulation::Viewport> viewport, PageEmulation::Completion completion) {
+  BOAZ_FIND_PAGE();
+  if (!page->emulation) page->emulation = std::make_unique<PageEmulation>(page->web_contents());
+  if (viewport) page->emulation->Apply(*viewport, std::move(completion));
+  else page->emulation->Clear(std::move(completion));
   return BOAZ_HOST_OK;
 }
 BoazHostResult TabRegistry::GetZoomFactor(BoazHostPage id, double* factor) {

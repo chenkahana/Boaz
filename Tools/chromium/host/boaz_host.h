@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 18u
+#define BOAZ_HOST_ABI_VERSION 19u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT
@@ -17,6 +17,19 @@ typedef uint64_t BoazHostWindow;
 typedef uint64_t BoazHostPage;
 typedef uint64_t BoazHostDocument;
 typedef uint64_t BoazHostProfile;
+typedef struct BoazHostViewport {
+  int32_t width, height;
+  double dpr;
+  uint8_t mobile, touch, landscape;
+  int32_t max_touch_points;
+} BoazHostViewport;
+typedef enum BoazHostEmulationStatus {
+  BOAZ_EMULATION_SUCCESS, BOAZ_EMULATION_INVALID, BOAZ_EMULATION_UNAVAILABLE,
+  BOAZ_EMULATION_PROTOCOL_ERROR, BOAZ_EMULATION_TIMEOUT,
+  BOAZ_EMULATION_NAVIGATION, BOAZ_EMULATION_CLOSED
+} BoazHostEmulationStatus;
+typedef void (*BoazHostEmulationCompletion)(void* context, BoazHostPage page,
+    uint64_t request, BoazHostEmulationStatus status);
 typedef enum BoazHostCaptureStatus {
   BOAZ_CAPTURE_SUCCESS, BOAZ_CAPTURE_INVALID_TARGET, BOAZ_CAPTURE_NAVIGATION,
   BOAZ_CAPTURE_CLOSED, BOAZ_CAPTURE_RENDERER_FAILED, BOAZ_CAPTURE_TIMEOUT,
@@ -202,6 +215,9 @@ typedef struct BoazHostAPI {
   BoazHostResult (*capture_visible)(BoazHostPage page, uint64_t request,
       int32_t width, int32_t height, BoazHostCaptureCompletion completion, void* context);
   BoazHostResult (*cancel_capture)(BoazHostPage page, uint64_t request);
+  /* A null viewport clears native overrides. Accepted operations complete once on UI. */
+  BoazHostResult (*apply_viewport)(BoazHostPage page, const BoazHostViewport* viewport,
+      uint64_t request, BoazHostEmulationCompletion completion, void* context);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

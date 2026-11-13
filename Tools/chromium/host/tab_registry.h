@@ -2,8 +2,10 @@
 #define BOAZ_CHROMIUM_TAB_REGISTRY_H_
 
 #include <memory>
+#include <optional>
 #include "boaz_host.h"
 #include "visible_page_capture.h"
+#include "page_emulation.h"
 #include "trusted_execution.h"
 
 class Browser;
@@ -39,6 +41,8 @@ class TabRegistry {
   BoazHostResult StopFind(BoazHostPage page);
   BoazHostResult SetAudioMuted(BoazHostPage page, bool muted);
   BoazHostResult IsBusyForResidency(BoazHostPage page, uint8_t* busy);
+  BoazHostResult ApplyViewport(BoazHostPage page, std::optional<PageEmulation::Viewport> viewport,
+      PageEmulation::Completion completion);
   BoazHostResult GetZoomFactor(BoazHostPage page, double* factor);
   BoazHostResult SetZoomFactor(BoazHostPage page, double factor);
   BoazHostResult ActivatePage(BoazHostPage page, bool focus);
