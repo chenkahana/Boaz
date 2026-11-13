@@ -9,6 +9,7 @@
 #include "native_cache_clearer.h"
 class Profile;
 namespace boaz {
+class AdblockProfileState;
 class NativeProfiles {
  public:
   NativeProfiles(base::FilePath user_data_root, Profile* primary);
@@ -16,6 +17,7 @@ class NativeProfiles {
   void Acquire(std::string identifier, bool is_private,
                base::OnceCallback<void(BoazHostResult, BoazHostProfile)> completion);
   Profile* Resolve(BoazHostProfile handle) const;
+  std::shared_ptr<AdblockProfileState> Blocking(BoazHostProfile handle) const;
   bool Owns(Profile* profile) const;
   BoazHostProfile HandleFor(Profile* profile) const;
   BoazHostResult Release(BoazHostProfile handle);

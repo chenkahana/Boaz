@@ -1,3 +1,4 @@
+#include "adblock_profile_state.h"
 #include "native_profiles.h"
 #include <limits>
 #include <map>
@@ -32,6 +33,7 @@ class NativeProfiles::Impl {
     std::unique_ptr<NativeCacheClearer> cache_clearer;
     bool cache_pending = false;
     bool release_requested = false;
+    std::shared_ptr<AdblockProfileState> blocking = std::make_shared<AdblockProfileState>();
   };
   Impl(base::FilePath root, Profile* primary) : root_(std::move(root)), primary_(primary) {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
@@ -43,6 +45,7 @@ class NativeProfiles::Impl {
     CHECK(pending_.empty());
     weak_.InvalidateWeakPtrs();
     for (auto& [id, entry] : entries_) {
+      entry.blocking->Close();
       CHECK(!entry.cache_pending);
       CHECK(!entry.cache_clearer || !entry.cache_clearer->busy());
       entry.cache_clearer.reset();
@@ -191,10 +194,17 @@ class NativeProfiles::Impl {
     if (found->second.release_requested) Release(handle);
     std::move(completion).Run(result);
   }
+  std::shared_ptr<AdblockProfileState> Blocking(BoazHostProfile handle) const {
+    DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+    auto found = entries_.find(handle);
+    return found == entries_.end() || found->second.release_requested
+        ? nullptr : found->second.blocking;
+  }
   BoazHostResult Release(BoazHostProfile handle) {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
     auto found = entries_.find(handle);
     if (found == entries_.end()) return BOAZ_HOST_INVALID_HANDLE;
+    found->second.blocking->Close();
     if (found->second.cache_pending) {
       found->second.release_requested = true;
       return BOAZ_HOST_OK;
@@ -218,6 +228,7 @@ class NativeProfiles::Impl {
 NativeProfiles::NativeProfiles(base::FilePath root, Profile* primary)
     : impl_(std::make_unique<Impl>(std::move(root), primary)) {}
 NativeProfiles::~NativeProfiles() = default;
+std::shared_ptr<AdblockProfileState> NativeProfiles::Blocking(BoazHostProfile handle) const { return impl_->Blocking(handle); }
 NativeDownloads* NativeProfiles::Downloads(BoazHostProfile handle) const { return impl_->Downloads(handle); }
 void NativeProfiles::SetDownloadObserver(DownloadObserver observer) {
   impl_->SetDownloadObserver(std::move(observer));
