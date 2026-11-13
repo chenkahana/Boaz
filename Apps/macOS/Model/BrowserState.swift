@@ -38,7 +38,16 @@ final class BrowserState {
     /// Direction the space column slides in from on the next switch.
     var spaceEdge: Edge = .trailing
     var activeTabID: String? {
-        didSet { if oldValue != activeTabID { pagesInViewChanged(from: Self.pagesInView(oldValue, split)) } }
+        didSet {
+            if oldValue != activeTabID {
+                pagesInViewChanged(from: Self.pagesInView(oldValue, split))
+                #if BOAZ_CHROMIUM
+                if let activeTabID, let engine = enginePages[activeTabID], engine.kind == .chromium {
+                    activateChromiumPage?(engine)
+                }
+                #endif
+            }
+        }
     }
     var split: Split? {
         didSet { if oldValue != split { pagesInViewChanged(from: Self.pagesInView(activeTabID, oldValue)) } }
@@ -83,6 +92,9 @@ final class BrowserState {
     #if BOAZ_CHROMIUM
     @ObservationIgnored var createChromiumPage: ((SidebarItem) throws -> EnginePage)?
     @ObservationIgnored var chromiumAddressField: NSTextField?
+    @ObservationIgnored var activateChromiumPage: ((EnginePage) -> Void)?
+    @ObservationIgnored private var pendingChromiumCloses: [String: SidebarItem] = [:]
+    @ObservationIgnored private var pendingChromiumUnloads: Set<String> = []
     #endif
     @ObservationIgnored private var recency: [String] = []
     @ObservationIgnored private var isClosingIdlePages = false
@@ -219,6 +231,9 @@ final class BrowserState {
     /// none of its own.
     var activeURL: URL? {
         if let failed = activeFailure?.url { return failed }
+        if let activeTabID, let url = enginePages[activeTabID]?.state.url, url.absoluteString != "about:blank" {
+            return url
+        }
         return activePage?.url.flatMap { $0.absoluteString == "about:blank" ? nil : $0 } ?? activeTab?.url
     }
 
@@ -333,6 +348,7 @@ final class BrowserState {
         if let createChromiumPage {
             let engine = try createChromiumPage(tab)
             enginePages[tab.id] = engine
+            if activeTabID == tab.id { activateChromiumPage?(engine) }
             return engine
         }
         #endif
@@ -397,6 +413,16 @@ final class BrowserState {
     }
 
     func unload(_ tabID: String) {
+        #if BOAZ_CHROMIUM
+        if let engine = enginePages[tabID], engine.kind == .chromium {
+            requestChromiumClose(tabID, engine: engine)
+            return
+        }
+        #endif
+        finishUnload(tabID)
+    }
+
+    private func finishUnload(_ tabID: String) {
         pictureInPicture(tabID)?.detach()
         pages[tabID] = nil
         enginePages[tabID] = nil
@@ -408,7 +434,7 @@ final class BrowserState {
 
     /// Unloads every page whose tab is gone from the library.
     func unloadPagesWithoutTabs() {
-        pages.keys.filter { tab($0) == nil }.forEach(unload)
+        Set(pages.keys).union(enginePages.keys).filter { tab($0) == nil }.forEach(unload)
     }
 
     /// Whether a pinned tab's page has browsed away from where it was pinned.
@@ -638,6 +664,17 @@ final class BrowserState {
     }
 
     func close(_ tab: SidebarItem) {
+        #if BOAZ_CHROMIUM
+        if let engine = enginePages[tab.id], engine.kind == .chromium {
+            if pendingChromiumCloses[tab.id] == nil { pendingChromiumCloses[tab.id] = tab }
+            requestChromiumClose(tab.id, engine: engine)
+            return
+        }
+        #endif
+        finishClose(tab)
+    }
+
+    private func finishClose(_ tab: SidebarItem) {
         let next = neighbor(of: tab)
         if let split, split.contains(tab.id) {
             self.split = nil
@@ -645,7 +682,7 @@ final class BrowserState {
         } else if activeTabID == tab.id {
             activeTabID = next?.id
         }
-        unload(tab.id)
+        finishUnload(tab.id)
         // A closed tab opens fresh, a pinned one at its pinned page's top.
         pageStates.remove(tab.id)
         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
@@ -656,6 +693,35 @@ final class BrowserState {
             }
         }
     }
+
+    #if BOAZ_CHROMIUM
+    private func requestChromiumClose(_ tabID: String, engine: EnginePage) {
+        guard !pendingChromiumUnloads.contains(tabID) else { return }
+        pendingChromiumUnloads.insert(tabID)
+        do {
+            try engine.close()
+        } catch {
+            pendingChromiumUnloads.remove(tabID)
+            pendingChromiumCloses[tabID] = nil
+            model.showToast("Could not close page: \(error.localizedDescription)")
+        }
+    }
+
+    func chromiumPageEvent(_ handle: BoazHostPage, event: BoazHostPageEvent) {
+        guard let entry = enginePages.first(where: {
+            ($0.value.adapter as? ChromiumEnginePageAdapter)?.handle == handle
+        }) else { return }
+        let id = entry.key
+        if event == BOAZ_HOST_PAGE_CLOSE_CANCELLED {
+            pendingChromiumUnloads.remove(id)
+            pendingChromiumCloses[id] = nil
+        } else if event == BOAZ_HOST_PAGE_CLOSED {
+            let closingTab = pendingChromiumCloses.removeValue(forKey: id)
+            pendingChromiumUnloads.remove(id)
+            if let closingTab { finishClose(closingTab) } else { finishUnload(id) }
+        }
+    }
+    #endif
 
     /// A middle-click on a sidebar tab closes it as its row's button does, except that a pinned tab with nothing
     /// loaded leaves Pinned for the Archive, after a warning the user can turn off.
