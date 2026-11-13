@@ -702,6 +702,17 @@
           "after": "3f8b37bd336a6f5d7182d192f46405e8bb0b2b4ad0b88f2dd4aa78125b6940a5"
         }
       ]
+    },
+    {
+      "file": "patches/native-blocking-navigation.patch",
+      "sha256": "915b8472effa8bcaf562ca41a9c01a78d3f701638f5f5281ae9900b352f3e4ed",
+      "files": [
+        {
+          "path": "chrome/browser/chrome_content_browser_client.cc",
+          "before": "3f8b37bd336a6f5d7182d192f46405e8bb0b2b4ad0b88f2dd4aa78125b6940a5",
+          "after": "5e39aa1b925856297b65a6e6917760e8531eb7efb30cc15e7f21b16e0f3fb07c"
+        }
+      ]
     }
   ]
 }
