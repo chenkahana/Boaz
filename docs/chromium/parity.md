@@ -147,3 +147,19 @@ The matching UI at `81c25f6` passed in run `20261113T172148Z-25920c03de0c4ab181d
 Observed: native Boaz launch; existing test-profile tabs visible; dedicated DevTools window renders without Boaz sidebar/session UI; Lighthouse panel loads with its controls and correctly refuses to audit an uncommitted/non-HTTP document. Normal HTTPS loading still did not commit. Inspector Cmd-W failed: Chromium terminated at `ReadAnythingSidePanelController::TabWillDetach`, where a missing Chrome side-panel coordinator is permitted only for tests/WebUIBrowser. The native host has no Chrome side panel. A narrowly scoped native-host detach correction is required before inspector-close acceptance. This is a runtime failure, not a passed lifecycle gate.
 
 The earlier ABI23 app exited after the native Quit action; the initial still-visible window was transitional. No force termination, Keychain reset or access-rule change was used.
+
+
+### ABI30 runtime and subsequent source integration
+
+Native and matching UI at `f2f166a` passed. Native logs: `20261113T173247.385494Z.log` and `20261113T173529.218570Z.log`; UI run: `20261113T173717Z-ea5d02f1038d46d08f8b13bb3ddb7e84`. Development signing completed for `20261113-abi30-native-application-signed`. This is not Developer ID notarization.
+
+Inspector Cmd-W still failed, now with SIGSEGV rather than the earlier reading-mode assertion. Crash `Chromium-2026-11-13-194927.ips` identifies ContextualTasksCloseButtonController destruction after its observed dependencies. Source comparison found the native window omitted Chromium's required `TearDownPreBrowserWindowDestruction` hook. Commit `dc39799` adds it before native window teardown. Its focused native compile passed at frozen checkpoint `25726ab` (`20261113T175245.528436Z.log`); full build is underway. Inspector-close acceptance remains failed until the signed runtime retest passes.
+
+Source integrated since that checkpoint:
+
+- ABI32 authenticated loopback automation, default off, with private per-run connection records, Origin/fetch-metadata rejection, bearer authentication before HTTP/WebSocket routing, and enterprise-policy revocation. Settings distinguish next-launch configuration from actual running status. Browser-origin rejection, active-client shutdown and endpoint acceptance remain unverified.
+- Bundled native `boaz` CLI, explicit owning-app routing, DevTools URL commands, restart-only automation launch, packaging/signing and a Settings installer that refuses conflicting user files. Compilation and installed-command acceptance are pending.
+- ABI33 full-page PNG capture through the existing typed protocol owner, cancellation and shutdown accounting, bounded accepted output, and native save UI. Capture targets the currently laid-out document; it does not scroll to load more content. Preflight limits are not a guarantee of peak renderer memory on a changing page. Runtime output and cancellation checks remain pending.
+- Site-engine choices now have an additive synced record migration, validated deterministic identity, encrypted host/path fields, deletion tombstones and database-driven cache invalidation. Seed defaults use an old modification timestamp so they cannot resurrect newer deletions. Local source tables remain preserved. CloudKit schema deployment and multi-device acceptance remain release dependencies.
+
+Ready source implementation continues while frozen build inputs compile. Normal HTTP navigation remains blocked on the unresolved system Keychain interaction. No production engine switch, release, new tests or performance claim has been made.
