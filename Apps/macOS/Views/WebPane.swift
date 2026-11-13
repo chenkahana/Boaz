@@ -37,7 +37,7 @@ private struct ChromiumTabPane: View {
     }
     @State private var recoveryDocument: OfflineFailure?
     @State private var attemptedOfflineURLs: Set<URL?> = []
-    @State private var capturedSurface: String?
+    @State private var revealedSurface: String?
 
 
     var body: some View {
@@ -80,7 +80,7 @@ private struct ChromiumTabPane: View {
             } else if let engine, let adapter = engine.adapter as? ChromiumEnginePageAdapter {
                 ChromiumPageView(adapter: adapter)
                     .overlay {
-                        if surfaceDocument == nil || capturedSurface != surfaceDocument,
+                        if surfaceDocument == nil || revealedSurface != surfaceDocument,
                            let preview = browser.chromiumPreview(for: tab.id, url: engine.state.url ?? tab.url) {
                             GeometryReader { geometry in
                                 Image(nsImage: preview).resizable().scaledToFit()
@@ -90,7 +90,7 @@ private struct ChromiumTabPane: View {
                                         Text("Saved preview").font(.caption).padding(6).background(.regularMaterial)
                                     }
                             }
-                            .allowsHitTesting(false).accessibilityHidden(true)
+                            .contentShape(Rectangle()).onTapGesture {}.accessibilityHidden(true)
                         }
                     }
                     .overlay {
@@ -139,10 +139,11 @@ private struct ChromiumTabPane: View {
                 guard !Task.isCancelled, surfaceDocument == expected else { return }
                 if browser.cacheChromiumPreview(data, tabID: tab.id, adapter: adapter,
                                                 url: url, navigation: navigation) {
-                    capturedSurface = expected
+                    revealedSurface = expected
                 }
             } catch {
-                // Cached feedback remains explicitly labeled until a capture succeeds.
+                guard !Task.isCancelled, surfaceDocument == expected else { return }
+                revealedSurface = expected
             }
         }
         .task(id: faviconDocument) {
