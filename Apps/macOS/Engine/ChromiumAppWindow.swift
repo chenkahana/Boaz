@@ -20,11 +20,17 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
     private var appliedSplit: (leading: String, trailing: String)?
 
     init(runtime: ChromiumRuntime, profile: ChromiumProfile, model: MacModel,
-         preparedForNativeCreation: Bool = false) throws {
+         preparedForNativeCreation: Bool = false,
+         restoration: MacModel.NativeWindowRestoration? = nil) throws {
         self.model = model
         self.runtime = runtime
         self.profile = profile
         browser = BrowserState(incognito: profile.identity.isPrivate)
+        if !profile.identity.isPrivate {
+            let savedSpace = model.space(restoration?.saved?.spaceID)
+            browser.currentSpaceID = savedSpace?.profileID == profile.identity.id
+                ? savedSpace?.id : model.sidebar.spaces.first(where: { $0.profileID == profile.identity.id })?.id
+        }
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1200, height: 800),
                           styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                           backing: .buffered, defer: false)
@@ -114,7 +120,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
             activePage: { [weak browser = browser] in
                 browser?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter
             })
-        let hosting = NSHostingView(rootView: BrowserWindow(browser: browser)
+        let hosting = NSHostingView(rootView: BrowserWindow(browser: browser, nativeRestoration: restoration)
             .environment(model).task { await self.model.start() })
         hosting.frame = contentContainer.bounds
         hosting.autoresizingMask = [.width, .height]

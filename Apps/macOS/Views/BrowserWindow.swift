@@ -9,15 +9,27 @@ struct BrowserWindow: View {
     @Environment(MacModel.self) private var model
     @Environment(\.openWindow) private var openWindow
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private let nativeRestoration: MacModel.NativeWindowRestoration?
+    private let claimsSavedWindow: Bool
     @State private var browser: BrowserState
     @AppStorage("sidebarWidth") private var sidebarWidth = 250.0
     @AppStorage(Preferences.skipsPinnedRemovalWarningKey) private var skipsPinnedRemovalWarning = false
 
     init(incognito: Bool) {
+        nativeRestoration = nil
+        claimsSavedWindow = true
         _browser = State(initialValue: BrowserState(incognito: incognito))
     }
 
     init(browser: BrowserState) {
+        nativeRestoration = nil
+        claimsSavedWindow = true
+        _browser = State(initialValue: browser)
+    }
+
+    init(browser: BrowserState, nativeRestoration: MacModel.NativeWindowRestoration?) {
+        self.nativeRestoration = nativeRestoration
+        claimsSavedWindow = false
         _browser = State(initialValue: browser)
     }
 
@@ -111,28 +123,48 @@ struct BrowserWindow: View {
         .onChange(of: browser.activeTabID) { if !browser.isIncognito { model.saveOpenWindows() } }
         .task {
             if !browser.isIncognito { model.beginRestoring() }
-            defer { if !browser.isIncognito { model.endRestoring() } }
+            var restorationFinished = false
+            defer {
+                if !browser.isIncognito { model.endRestoring() }
+                if let nativeRestoration {
+                    model.finishNativeRestoration(nativeRestoration, succeeded: restorationFinished)
+                }
+            }
             // Welcome can go up before the library has loaded; a URL to open has to wait for it.
             while model.sidebar.spaces.isEmpty && model.loadError == nil && !model.needsOnboarding {
+                if !claimsSavedWindow && Task.isCancelled { return }
                 try? await Task.sleep(for: .milliseconds(100))
             }
             if model.needsOnboarding && !browser.isIncognito {
                 model.needsOnboarding = false
                 browser.onboarding = .welcome
             }
-            while model.sidebar.spaces.isEmpty && model.loadError == nil { try? await Task.sleep(for: .milliseconds(100)) }
-            if !browser.isIncognito, let saved = model.claimSavedWindow() {
+            while model.sidebar.spaces.isEmpty && model.loadError == nil {
+                if !claimsSavedWindow && Task.isCancelled { return }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            if !claimsSavedWindow && Task.isCancelled { return }
+            let savedWindow = browser.isIncognito ? nil : (claimsSavedWindow ? model.claimSavedWindow() : nativeRestoration?.saved)
+            if !browser.isIncognito, let saved = savedWindow {
                 browser.devToolsDockSide = ["right", "bottom", "left", "undocked"].contains(saved.devToolsDockSide ?? "")
                     ? saved.devToolsDockSide! : "right"
                 browser.devToolsLastDockSide = ["right", "bottom", "left"].contains(saved.devToolsLastDockSide ?? "")
                     ? saved.devToolsLastDockSide! : "right"
                 browser.restoreChromiumDockPreferences?(browser.devToolsDockSide, browser.devToolsLastDockSide)
-                if let id = saved.spaceID, model.space(id) != nil { browser.currentSpaceID = id }
-                if let tab = browser.tab(saved.tabID) { browser.activate(tab) }
+                #if BOAZ_CHROMIUM
+                let nativeProfile = browser.chromiumProfileIdentity?.id
+                #else
+                let nativeProfile: String? = nil
+                #endif
+                if let id = saved.spaceID, let space = model.space(id),
+                   nativeProfile == nil || space.profileID == nativeProfile { browser.currentSpaceID = id }
+                if let tab = browser.tab(saved.tabID),
+                   nativeProfile == nil || (tab.profileID ?? "default") == nativeProfile { browser.activate(tab) }
                 for _ in 0..<25 where browser.window == nil { try? await Task.sleep(for: .milliseconds(20)) }
                 if let frame = saved.frame { browser.window?.setFrame(from: frame) }
                 if saved.minimized == true { browser.window?.miniaturize(nil) }
             }
+            restorationFinished = !Task.isCancelled
             browser.consumePendingURL()
         }
     }

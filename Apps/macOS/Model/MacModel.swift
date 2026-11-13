@@ -323,7 +323,7 @@ final class MacModel {
     /// Saves the open main windows, back to front, for the next launch.
     func saveOpenWindows() {
         // Until every saved window is back, the list on disk is still the one to restore.
-        guard windowsToRestore.isEmpty else { return }
+        guard windowsToRestore.isEmpty, pendingNativeRestorations.isEmpty else { return }
         let order = NSApp.orderedWindows
         let depth = { (browser: BrowserState) in order.firstIndex { $0 === browser.window } ?? order.count }
         let windows = browsers.compactMap(\.browser).filter {
@@ -337,6 +337,23 @@ final class MacModel {
                                devToolsDockSide: $0.devToolsDockSide,
                                devToolsLastDockSide: $0.devToolsLastDockSide) }
         UserDefaults.standard.set(try? JSONEncoder().encode(saved), forKey: SavedWindow.key)
+    }
+
+    struct NativeWindowRestoration {
+        let id = UUID()
+        let saved: SavedWindow?
+    }
+    @ObservationIgnored private var pendingNativeRestorations: [UUID: NativeWindowRestoration] = [:]
+
+    func claimNativeSavedWindow() -> NativeWindowRestoration {
+        let claim = NativeWindowRestoration(saved: claimSavedWindow())
+        pendingNativeRestorations[claim.id] = claim
+        return claim
+    }
+
+    func finishNativeRestoration(_ claim: NativeWindowRestoration, succeeded: Bool) {
+        guard pendingNativeRestorations.removeValue(forKey: claim.id) != nil else { return }
+        if !succeeded, let saved = claim.saved { windowsToRestore.insert(saved, at: 0) }
     }
 
     /// The window a new main window brings back from the last run, if any. The first to ask opens the rest.

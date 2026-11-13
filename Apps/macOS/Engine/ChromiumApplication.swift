@@ -289,16 +289,31 @@ private final class ChromiumApplication: NSObject {
             } catch { showError(error.localizedDescription) }
         default:
             let isPrivate = id == "incognito"
+            let restoration = isPrivate ? nil : model.claimNativeSavedWindow()
+            var created = false
+            defer {
+                if !created, let restoration { model.finishNativeRestoration(restoration, succeeded: false) }
+            }
+            let saved = restoration?.saved
+            let savedSpaceProfile = model.space(saved?.spaceID)?.profileID
+            let savedTabProfile = model.item(saved?.tabID).map { $0.profileID ?? "default" }
+            let fallback = model.sidebar.spaces.first?.profileID
+                ?? model.sidebar.profiles.first(where: \.isDefault)?.id ?? "default"
+            let candidates = [savedSpaceProfile, savedTabProfile, fallback].compactMap { $0 }
+            let profileID = candidates.first(where: { candidate in
+                model.sidebar.profiles.contains { $0.id == candidate }
+            }) ?? fallback
             let identity = EngineProfileIdentity(
-                id: isPrivate ? UUID().uuidString : (model.sidebar.spaces.first?.profileID ?? "default"),
-                isPrivate: isPrivate)
+                id: isPrivate ? UUID().uuidString : profileID, isPrivate: isPrivate)
             do {
                 try await runtime.prepareBlockingAssets()
                 guard !finished else { return }
                 let profile = try await runtime.prepareProfile(identity)
                 guard !finished else { return }
-                let window = try ChromiumAppWindow(runtime: runtime, profile: profile, model: model)
+                let window = try ChromiumAppWindow(runtime: runtime, profile: profile, model: model,
+                                                    restoration: restoration)
                 windows.append(window)
+                created = true
                 if let url { window.browser.openTab(url) }
             } catch { showError(error.localizedDescription) }
         }
