@@ -23,6 +23,9 @@ def checked(path):
 
 def assemble(base, receipt, output, native_launch=False, production_version=None, production_build=None):
     base, receipt, output = map(checked, (base, receipt, output))
+    expected_name = 'Boaz.app' if production_version else 'Chromium.app'
+    if output.name != expected_name:
+        raise RuntimeError(f'Output must name the application bundle {expected_name}, not its parent directory')
     if output.exists() or output.is_symlink():
         raise RuntimeError('Refusing to overwrite an existing application artifact')
     record = json.loads(receipt.read_text())
