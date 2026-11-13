@@ -11,6 +11,7 @@
 #include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/memory/weak_ptr.h"
+#include "base/memory/raw_ptr.h"
 #include "base/observer_list.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/timer/timer.h"
@@ -309,7 +310,7 @@ class NativeWindow final : public BrowserWindow,
     if (!IsFullscreen() && !IsMaximized() && !IsMinimized()) restored_ = GetBounds();
     NotifyPositionRequiresUpdate();
   }
-  BrowserWindowInterface* browser_;
+  raw_ptr<BrowserWindowInterface> browser_;
   NSWindow* __strong window_;
   NSMutableArray* __strong observers_;
   NativeWindowServices services_;

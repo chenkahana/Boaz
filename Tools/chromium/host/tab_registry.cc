@@ -12,6 +12,7 @@
 #include "base/location.h"
 #include "base/memory/weak_ptr.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/raw_ref.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/extensions/extension_tab_util.h"
@@ -85,16 +86,16 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver {
   void DidFinishNavigation(content::NavigationHandle* navigation) override {
     if (navigation->HasCommitted() && navigation->IsInPrimaryMainFrame()) {
       if (!navigation->IsSameDocument()) ++generation;
-      owner.Queue(*this, BOAZ_HOST_PAGE_CHANGED);
+      owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED);
     }
   }
   void TitleWasSet(content::NavigationEntry*) override {
-    owner.Queue(*this, BOAZ_HOST_PAGE_CHANGED);
+    owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED);
   }
-  void DidStartLoading() override { owner.Queue(*this, BOAZ_HOST_PAGE_CHANGED); }
-  void DidStopLoading() override { owner.Queue(*this, BOAZ_HOST_PAGE_CHANGED); }
+  void DidStartLoading() override { owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED); }
+  void DidStopLoading() override { owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED); }
   void PrimaryMainFrameRenderProcessGone(base::TerminationStatus) override {
-    owner.Queue(*this, BOAZ_HOST_PAGE_RENDERER_FAILED);
+    owner->Queue(*this, BOAZ_HOST_PAGE_RENDERER_FAILED);
   }
   void BeforeUnloadFired(bool proceed) override { if (!proceed) CancelClose(); }
   void BeforeUnloadDialogCancelled() override { CancelClose(); }
@@ -102,12 +103,12 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver {
     if (!close_requested || closing || cancel_notified) return;
     cancel_notified = true;
     close_requested = false;
-    owner.Queue(*this, BOAZ_HOST_PAGE_CLOSE_CANCELLED);
+    owner->Queue(*this, BOAZ_HOST_PAGE_CLOSE_CANCELLED);
   }
-  void WebContentsDestroyed() override { owner.Destroyed(*this); }
+  void WebContentsDestroyed() override { owner->Destroyed(*this); }
   void ObserveReplacement(content::WebContents* contents) { Observe(contents); }
 
-  Impl& owner;
+  raw_ref<Impl> owner;
   BoazHostPage id = NextHandle();
   BoazHostWindow window;
   uint64_t generation = 0;
@@ -123,8 +124,8 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver {
 };
 
 struct TabRegistry::Impl::Window : TabStripModelObserver {
-  Window(Impl& owner, Browser* browser, void* native_window)
-      : owner(owner), browser(browser), native_window(native_window),
+  Window(Impl& owner, Browser* browser)
+      : owner(owner), browser(browser),
         strip(browser->GetTabStripModel()) {
     strip->AddObserver(this);
   }
@@ -133,45 +134,44 @@ struct TabRegistry::Impl::Window : TabStripModelObserver {
                               const TabStripSelectionChange& selection) override {
     if (change.type() == TabStripModelChange::kInserted) {
       for (const auto& item : change.GetInsert()->contents)
-        owner.Track(*this, item.contents);
+        owner->Track(*this, item.contents);
     } else if (change.type() == TabStripModelChange::kRemoved) {
       for (const auto& item : change.GetRemove()->contents) {
-        if (auto* page = owner.FindContents(item.contents)) {
+        if (auto* page = owner->FindContents(item.contents)) {
           if (TabRemoveReasonUtils::WillDeleteWebContents(item.remove_reason))
-            owner.Closing(*page);
+            owner->Closing(*page);
           // Transfer removals retain identity; the destination insertion updates it.
         }
       }
     } else if (change.type() == TabStripModelChange::kReplaced) {
       const auto* replacement = change.GetReplace();
-      if (auto* page = owner.FindContents(replacement->old_contents))
-        owner.Replace(*page, replacement->new_contents);
+      if (auto* page = owner->FindContents(replacement->old_contents))
+        owner->Replace(*page, replacement->new_contents);
       else
-        owner.Track(*this, replacement->new_contents);
+        owner->Track(*this, replacement->new_contents);
     }
     if (selection.old_contents)
-      if (auto* page = owner.FindContents(selection.old_contents))
-        owner.Queue(*page, BOAZ_HOST_PAGE_CHANGED);
+      if (auto* page = owner->FindContents(selection.old_contents))
+        owner->Queue(*page, BOAZ_HOST_PAGE_CHANGED);
     if (selection.new_contents)
-      if (auto* page = owner.FindContents(selection.new_contents))
-        owner.Queue(*page, BOAZ_HOST_PAGE_CHANGED);
+      if (auto* page = owner->FindContents(selection.new_contents))
+        owner->Queue(*page, BOAZ_HOST_PAGE_CHANGED);
   }
   void OnTabCloseCancelled(const tabs::TabInterface* tab) override {
-    if (auto* page = owner.FindContents(tab->GetContents())) page->CancelClose();
+    if (auto* page = owner->FindContents(tab->GetContents())) page->CancelClose();
   }
   void OnTabStripModelDestroyed(TabStripModel*) override {
     // Model destruction precedes destruction of its owned tab collection.
     for (int i = 0; i < strip->count(); ++i)
-      if (auto* page = owner.FindContents(strip->GetWebContentsAt(i)))
-        owner.Closing(*page);
+      if (auto* page = owner->FindContents(strip->GetWebContentsAt(i)))
+        owner->Closing(*page);
     strip = nullptr;
     browser = nullptr;
-    owner.WindowDestroyed(id);
+    owner->WindowDestroyed(id);
   }
-  Impl& owner;
+  raw_ref<Impl> owner;
   BoazHostWindow id = NextHandle();
   raw_ptr<Browser> browser;
-  void* native_window;  // Retention belongs to the native window factory.
   raw_ptr<TabStripModel> strip;
 };
 
@@ -334,7 +334,7 @@ BoazHostWindow TabRegistry::RegisterWindow(Browser* browser, void* native_window
     return 0;
   for (const auto& [id, window] : impl_->windows)
     if (window->browser == browser) return id;
-  auto window = std::make_unique<Impl::Window>(*impl_, browser, native_window);
+  auto window = std::make_unique<Impl::Window>(*impl_, browser);
   auto* registered = window.get();
   auto id = registered->id;
   impl_->windows.emplace(id, std::move(window));

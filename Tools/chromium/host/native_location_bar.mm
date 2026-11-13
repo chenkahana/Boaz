@@ -90,7 +90,7 @@ class NativeLocationBar final : public LocationBar,
     return tab ? tab->GetContents() : nullptr;
   }
   LocationBarModel* GetLocationBarModel() override {
-    Main(); auto* model = LocationBarModel::From(browser_); CHECK(model); return model;
+    Main(); auto* model = LocationBarModel::From(browser_.get()); CHECK(model); return model;
   }
   std::optional<bubble_anchor_util::AnchorConfiguration> GetChipAnchor() override { return std::nullopt; }
   ChipController* GetChipController() override { return nullptr; }
