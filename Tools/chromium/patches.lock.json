@@ -51,6 +51,17 @@
           "after": "3f6fa08643ea62e4964810c8837af50f11bf19587ccecfeff09072427ca153b6"
         }
       ]
+    },
+    {
+      "file": "patches/trusted-world.patch",
+      "sha256": "baa09f6d46779961778e07a52727f79d65a78978c7e902a61f4329fe23728d3b",
+      "files": [
+        {
+          "path": "chrome/common/chrome_isolated_world_ids.h",
+          "before": "6b5384da3ab0cb04ff100b19b8981e8846d51d0d405acf595ccbaf048d1e219a",
+          "after": "f42542e4565b2122176b0753bb79a059c9bd495135178dc800bd2c1a38573588"
+        }
+      ]
     }
   ]
 }
