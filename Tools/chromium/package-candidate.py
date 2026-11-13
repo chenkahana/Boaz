@@ -9,6 +9,7 @@ from pathlib import Path
 import plistlib
 import re
 import subprocess
+import stat
 import sys
 import xml.etree.ElementTree as ET
 
@@ -29,19 +30,22 @@ def digest(path):
 
 
 def inventory(app):
-    entries = []
+    entries = [{'path': '.', 'type': 'directory', 'mode': stat.S_IMODE(app.stat().st_mode)}]
     for directory, dirs, files in os.walk(app, followlinks=False):
         for name in sorted(dirs + files):
             path = Path(directory) / name
             relative = str(path.relative_to(app))
+            mode = stat.S_IMODE(path.lstat().st_mode)
             if path.is_symlink():
                 resolved = path.resolve(strict=True)
                 if not resolved.is_relative_to(app):
                     raise RuntimeError('Application contains an escaping symlink')
-                entries.append({'path': relative, 'symlink': os.readlink(path)})
+                entries.append({'path': relative, 'type': 'symlink', 'mode': mode, 'symlink': os.readlink(path)})
             elif path.is_file():
-                entries.append({'path': relative, 'sha256': digest(path), 'size': path.stat().st_size})
-            elif not path.is_dir():
+                entries.append({'path': relative, 'type': 'file', 'mode': mode, 'sha256': digest(path), 'size': path.stat().st_size})
+            elif path.is_dir():
+                entries.append({'path': relative, 'type': 'directory', 'mode': mode})
+            else:
                 raise RuntimeError('Application contains an unsupported filesystem entry')
     return sorted(entries, key=lambda entry: entry['path'])
 
