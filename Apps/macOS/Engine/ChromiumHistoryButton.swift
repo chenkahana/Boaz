@@ -7,7 +7,7 @@ struct ChromiumHistoryButton: NSViewRepresentable {
     let adapter: ChromiumEnginePageAdapter
     let forward: Bool
     let hint: String
-    var onError: (String) -> Void = { _ in }
+    let onError: (String) -> Void
 
     final class Coordinator: NSObject, NSMenuDelegate {
         var control: ChromiumHistoryButton
