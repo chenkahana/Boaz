@@ -1,4 +1,5 @@
 #include "adblock_popup.h"
+#include <optional>
 #include <set>
 #include <utility>
 #include "adblock_profile_state.h"
@@ -12,6 +13,7 @@
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
 #include "net/base/net_errors.h"
+#include "net/base/schemeful_site.h"
 namespace boaz {
 namespace {
 bool IsBlank(const GURL& url) { return url.is_empty() || url.IsAboutBlank(); }
@@ -39,7 +41,7 @@ class Popup final : public content::WebContentsObserver,
       return Throttle::PROCEED;
     }
     const auto result = state_->Evaluate(navigation.GetURL(), opener_url_, "popup",
-                                         navigation.GetRequestMethod(), top_origin_);
+                                         navigation.GetRequestMethod(), top_level_site_);
     if (result.action == AdblockDecision::Action::kAllow &&
         !result.rewritten_url && result.replacement_data_url.empty()) return Throttle::PROCEED;
     const bool blocked = result.action == AdblockDecision::Action::kBlock;
@@ -51,10 +53,10 @@ class Popup final : public content::WebContentsObserver,
   }
  private:
   friend class content::WebContentsUserData<Popup>;
-  Popup(content::WebContents* contents, GURL opener, url::Origin top,
+  Popup(content::WebContents* contents, GURL opener, net::SchemefulSite top,
         std::shared_ptr<AdblockProfileState> state, base::OnceClosure close)
       : content::WebContentsObserver(contents), content::WebContentsUserData<Popup>(*contents),
-        opener_url_(std::move(opener)), top_origin_(std::move(top)),
+        opener_url_(std::move(opener)), top_level_site_(std::move(top)),
         state_(std::move(state)), close_owned_(std::move(close)) {}
   void Retire() {
     retired_ = true;
@@ -66,7 +68,7 @@ class Popup final : public content::WebContentsObserver,
   void DidFinishNavigation(content::NavigationHandle* navigation) override;
   void WebContentsDestroyed() override;
   GURL opener_url_;
-  url::Origin top_origin_;
+  const std::optional<net::SchemefulSite> top_level_site_;
   std::shared_ptr<AdblockProfileState> state_;
   base::OnceClosure close_owned_;
   std::set<int64_t> active_navigations_;
@@ -115,7 +117,7 @@ bool AttachAdblockBlankPopup(content::WebContents* contents, const GURL& target,
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   if (!contents || !IsBlank(target) || !opener.SchemeIsHTTPOrHTTPS() || top.opaque() ||
       !top.GetURL().SchemeIsHTTPOrHTTPS() || !state || !close || Popup::FromWebContents(contents)) return false;
-  Popup::CreateForWebContents(contents, std::move(opener), std::move(top), std::move(state), std::move(close));
+  Popup::CreateForWebContents(contents, std::move(opener), net::SchemefulSite(top), std::move(state), std::move(close));
   return true;
 }
 void AddAdblockPopupThrottle(content::NavigationThrottleRegistry& registry) {
