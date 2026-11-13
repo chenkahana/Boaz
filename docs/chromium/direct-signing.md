@@ -28,3 +28,7 @@ The bootstrap requires `--boaz-native-host`, `--no-startup-window`, `--no-first-
 Never reset Keychain items, widen access rules or use mock-keychain behavior to pass acceptance. A Keychain prompt or profile stall remains diagnostic evidence. Do not reuse the earlier ad-hoc CEF profile for this distinct host. Verify the actual running executable/profile before recording a result.
 
 Required runtime results include retained tabs, real extension IDs, address edit retention, native/page accessibility, input, permission cancellation, pending-callback close, renderer failure and clean quit with no helpers. The initial permission sheet supports only camera, microphone and notifications; other requests remain explicit parity work. Successful compilation is not evidence for these results.
+
+## Browser passkey capability
+
+See [native website passkeys](passkeys.md) before enabling browser-passkey entitlements. The approval-required template is inactive. The current unbranded browser does not inherit Google's managed browser entitlement. Inspect the finished signed executable and authorized provisioning configuration before claiming Apple Passwords support.

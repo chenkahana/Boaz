@@ -59,3 +59,7 @@ Reader is conditional on inventory of an existing Mac reader; no new reader is a
 | M5 | Chromium | YouTube stays Chromium; Widevine off by default; no activation toggle before approval; authorized CDM and signing verified before enablement |
 
 All existing feature rows apply to both DMG engines except Chromium-only extensions and documented per-engine PiP behavior. Developer-tool requirements remain explicit; WebKit capability gaps must be resolved or reported, never silently omitted.
+
+## Native passkey acceptance expansion
+
+Passkeys remain mandatory in PR #70. [The passkey packet](passkeys.md) records pinned Chromium integration, native-window discovery, entitlement preparation and ten explicit runtime scenarios. Reuse Chromium WebAuthn; no JavaScript API replacement or independent authenticator. The real signed host is a prerequisite. Apple Passwords approval, physical security keys, phone interaction and test-account access remain separate dependencies; none count as passed by compilation.

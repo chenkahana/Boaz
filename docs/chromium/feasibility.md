@@ -14,7 +14,7 @@ The dual-engine revision requires S0 Crest source inspection before further Wave
 | F2 native embedding and extensions | Direct-host proof pending; CEF route frozen | S0 selected a direct Chromium host from source evidence. Real native window/tab identity, split view, actions, and all eight extensions remain unverified in Boaz |
 | F3 trusted scripts | Direct-host implementation pending | Crest demonstrates isolated-world APIs; Boaz must independently implement exact-document identity and cancellation and pass hostile-page/password acceptance |
 | F4 custom distribution | Direct source/toolchains, GN and initial adapter objects passed | Official Chromium 157.0.8103.51 checksum and extraction passed; ten pinned Mac toolchain packages installed. Native-host GN graph passed. Four adapter translation units compiled under the SSD guard after ownership/type fixes. Bootstrap/link/runtime and later changes remain pending. CEF output preserved. No complete custom artifact or codec pass |
-| F5 platform behavior | Not executed | Requires a working selected host |
+| F5 platform behavior | Source findings; runtime pending | Native passkey window-discovery adapter prepared; Apple entitlement grant unverified. Working signed host remains prerequisite; see [passkeys](passkeys.md) |
 | F6 performance baseline | Not executed | Direct host not runnable yet; no benchmark numbers claimed. Do not benchmark during the custom build |
 | F7 external dependencies | Partly inspected; unresolved | Widevine inquiry submitted; approval gates dormant Chromium DRM only. WebKit/FairPlay playback, Developer ID/notarization and codec distribution remain unverified; see [dependencies](spikes/distribution-dependencies.md) |
 
