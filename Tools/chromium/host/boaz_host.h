@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 3u
+#define BOAZ_HOST_ABI_VERSION 4u
 
 typedef uint64_t BoazHostWindow;
 typedef uint64_t BoazHostPage;
@@ -77,6 +77,11 @@ typedef struct BoazHostCallbacks {
   void (*shutdown_ready)(void* context);
 } BoazHostCallbacks;
 
+/* Enumeration values are borrowed for the visitor call. Visitors must copy
+ * strings and must not reenter the API. Only enabled profile actions appear. */
+typedef void (*BoazHostExtensionVisitor)(void* context, const char* extension_id,
+                                        const char* name);
+
 /* All calls and callbacks use Chromium's UI thread, also the AppKit main thread.
  * Handles are never reused during a process. Callbacks must not reenter the API.
  * PAGE_CLOSING and PAGE_VIEW_WILL_CHANGE are synchronous and permit only
@@ -99,6 +104,13 @@ typedef struct BoazHostAPI {
   BoazHostResult (*close_page)(BoazHostPage page);
   BoazHostResult (*close_window)(BoazHostWindow window);
   BoazHostResult (*request_shutdown)(void);
+  BoazHostResult (*enumerate_extensions)(BoazHostWindow window,
+      BoazHostExtensionVisitor visitor, void* context);
+  /* Invoke only from real user activation. Anchor is a borrowed NSView in this
+   * window; bounds use its local coordinates. Expected page must be active. */
+  BoazHostResult (*invoke_extension)(BoazHostWindow window, BoazHostPage page,
+      const char* extension_id, void* anchor_nsview,
+      int32_t x, int32_t y, int32_t width, int32_t height);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.
