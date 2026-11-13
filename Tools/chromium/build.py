@@ -64,7 +64,7 @@ def main():
     if not args.configure and not args.build and not args.host_objects and not args.native_ui:
         print(json.dumps({"source": str(source), "output": str(output),
                           "gn_args": config["gn_args"], "jobs": args.jobs,
-                          "target": "chrome", "purpose": config["purpose"]}, indent=2))
+                          "targets": ["chrome", "chrome/installer/mac"], "purpose": config["purpose"]}, indent=2))
         return 0
     if not args.guarded:
         guard = scripts.parent / "cef/run-build.py"
@@ -148,7 +148,7 @@ def main():
     if args.build or args.host_objects:
         targets = (["obj/boaz/host/" + name + ".o" for name in
                     ("bootstrap", "native_view", "native_window", "native_location_bar", "native_permission_prompt", "tab_registry", "trusted_execution", "password_submission", "extension_actions", "extension_popup")]
-                   if args.host_objects else ["chrome"])
+                   if args.host_objects else ["chrome", "chrome/installer/mac"])
         if args.host_objects:
             targets += [
                 "obj/chrome/browser/core/chrome_browser_main.o",

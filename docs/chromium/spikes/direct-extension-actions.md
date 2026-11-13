@@ -1,6 +1,6 @@
 # Native extension actions
 
-Status: implementation prepared, not yet compiled or connected to native controls; not extension acceptance. The direct host uses Chromium's `ExtensionActionViewModel` and native implementations of `ExtensionActionDelegate` and `ExtensionView`. It does not navigate an ordinary tab to a popup URL or synthesize an activeTab grant.
+Status: implementation and native menu connection prepared, not yet compiled or run; not extension acceptance. The direct host uses Chromium's `ExtensionActionViewModel` and native implementations of `ExtensionActionDelegate` and `ExtensionView`. It does not navigate an ordinary tab to a popup URL or synthesize an activeTab grant.
 
 The model's user-action path invokes `ExtensionActionRunner` against the actual active WebContents. Its popup factory retains Chromium's extension window controller, profile and incognito checks. Native controls must validate their expected active page and anchor window before invocation. Side-panel actions remain explicitly unsupported in this packet.
 
@@ -11,3 +11,5 @@ A prepared three-file `native-popup-dialogs.patch` lets ExtensionView provide a 
 Pinned source evidence: `extension_action_view_model.cc` owns user-action and popup dispatch; `extension_action_runner.cc` owns tab identity and grants; `extension_view_host_factory.cc` owns popup profile/window selection; `extension_action_api.cc` routes programmatic popup requests separately. No Crest implementation was copied.
 
 The first action/popup packets include unload invalidation, deferred failure callbacks, a ten-second first-load timeout and re-entrant close checks around native presentation. GN sources are prepared for the next guarded host installation. They are deliberately not installed over the active full build.
+
+ABI 4 exposes enumeration and user invocation to the Swift menu. Enumeration copies action IDs/names during its synchronous visitor. Invocation checks the expected active page, native anchor and browser lifetime. The action controller is destroyed on the browser close-scheduled notification, before delayed window cleanup. The menu uses a fresh snapshot when opened and invokes only after native menu tracking returns.
