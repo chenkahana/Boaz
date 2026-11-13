@@ -19,12 +19,17 @@ final class ChromiumRuntime {
     var windowClosed: ((BoazHostWindow) -> Void)?
     var shutdownReady: (() -> Void)?
     var externalURLs: (([URL]) -> Void)?
+    var pageCreated: ((BoazHostWindow, EnginePage, Bool) -> Void)?
     var pageEvent: ((BoazHostPage, BoazHostPageEvent) -> Void)?
 
     private static weak var callbackOwner: ChromiumRuntime?
     private var pages: [BoazHostPage: ChromiumEnginePageAdapter] = [:]
     private var preparedProfiles: [BoazHostProfile: ChromiumProfile] = [:]
     private var windowProfiles: [BoazHostWindow: ChromiumProfile] = [:]
+    private var preparedWindowContexts: [UInt: ChromiumProfile] = [:]
+    private var pendingPageEvents: [BoazHostWindow: [(BoazHostPageEvent, CopiedPageState)]] = [:]
+    private var closedWindows: Set<BoazHostWindow> = []
+    private var closingPages: Set<BoazHostPage> = []
     private var profileRequests: [EngineProfileIdentity: ProfileRequest] = [:]
     private var started = false
     private var stopped = false
@@ -62,14 +67,13 @@ final class ChromiumRuntime {
                 owner.inCallback = true
                 defer { owner.inCallback = false }
                 let copied = CopiedPageState(pointer.pointee)
+                if event == BOAZ_HOST_PAGE_CLOSING { owner.closingPages.insert(copied.page) }
                 if event == BOAZ_HOST_PAGE_CLOSING || event == BOAZ_HOST_PAGE_VIEW_WILL_CHANGE {
                     owner.pages[copied.page]?.detachNativeView()
                 }
                 DispatchQueue.main.async { [weak owner] in
-                    guard let owner, !owner.stopped, let adapter = owner.pages[copied.page] else { return }
-                    adapter.apply(event: event, snapshot: copied.snapshot)
-                    owner.pageEvent?(copied.page, event)
-                    if event == BOAZ_HOST_PAGE_CLOSED { owner.pages.removeValue(forKey: copied.page) }
+                    guard let owner, !owner.stopped else { return }
+                    owner.receivePage(event, copied)
                 }
             }
         }
@@ -96,6 +100,10 @@ final class ChromiumRuntime {
                 defer { owner.inCallback = false }
                 guard let profile = owner.preparedProfiles[profileHandle],
                       let options = owner.prepareWindow?(profile) else { return BOAZ_HOST_UNAVAILABLE }
+                guard let nativeContext = options.context else { return BOAZ_HOST_INVALID_ARGUMENT }
+                let bits = UInt(bitPattern: nativeContext)
+                guard owner.preparedWindowContexts[bits] == nil else { return BOAZ_HOST_INVALID_ARGUMENT }
+                owner.preparedWindowContexts[bits] = profile
                 output.pointee = options
                 return BOAZ_HOST_OK
             }
@@ -107,7 +115,14 @@ final class ChromiumRuntime {
                 let owner = Unmanaged<ChromiumRuntime>.fromOpaque(context).takeUnretainedValue()
                 DispatchQueue.main.async { [weak owner] in
                     guard let owner, !owner.stopped else { return }
-                    owner.windowCreated?(window, contextBits.flatMap { UnsafeMutableRawPointer(bitPattern: $0) })
+                    guard !owner.closedWindows.contains(window), let contextBits,
+                          let profile = owner.preparedWindowContexts.removeValue(forKey: contextBits),
+                          owner.preparedProfiles[profile.handle] == profile,
+                          owner.windowProfiles[window] == nil || owner.windowProfiles[window] == profile else { return }
+                    owner.windowProfiles[window] = profile
+                    owner.windowCreated?(window, UnsafeMutableRawPointer(bitPattern: contextBits))
+                    let events = owner.pendingPageEvents.removeValue(forKey: window) ?? []
+                    for (event, state) in events { owner.receivePage(event, state) }
                 }
             }
         }
@@ -117,6 +132,8 @@ final class ChromiumRuntime {
                 let owner = Unmanaged<ChromiumRuntime>.fromOpaque(context).takeUnretainedValue()
                 DispatchQueue.main.async { [weak owner] in
                     guard let owner, !owner.stopped else { return }
+                    owner.closedWindows.insert(window)
+                    owner.pendingPageEvents[window] = nil
                     owner.windowProfiles.removeValue(forKey: window)
                     owner.windowClosed?(window)
                 }
@@ -129,6 +146,9 @@ final class ChromiumRuntime {
                 DispatchQueue.main.async {
                     guard !owner.stopped else { return }
                     owner.stopped = true
+                    owner.pendingPageEvents.removeAll()
+                    owner.preparedWindowContexts.removeAll()
+                    owner.closingPages.removeAll()
                     let requests = Array(owner.profileRequests.values)
                     owner.profileRequests.removeAll()
                     requests.forEach { $0.cancelAll(EnginePageError.unavailable) }
@@ -144,6 +164,31 @@ final class ChromiumRuntime {
         try check(api.set_callbacks!(&callbacks))
         started = true
         Self.callbackOwner = self
+    }
+
+    private func receivePage(_ event: BoazHostPageEvent, _ copied: CopiedPageState) {
+        guard !stopped, !closedWindows.contains(copied.window) else { return }
+        guard let profile = windowProfiles[copied.window] else {
+            pendingPageEvents[copied.window, default: []].append((event, copied))
+            return
+        }
+        if pages[copied.page] == nil, event == BOAZ_HOST_PAGE_CREATED,
+           !closingPages.contains(copied.page) {
+            do {
+                let adapter = try ChromiumEnginePageAdapter(api: api, handle: copied.page, profile: profile.identity)
+                pages[copied.page] = adapter
+                adapter.apply(event: event, snapshot: copied.snapshot)
+                pageCreated?(copied.window, EnginePage(adapter: adapter), copied.active)
+            } catch { return }
+        } else {
+            pages[copied.page]?.apply(event: event, snapshot: copied.snapshot)
+        }
+        if event == BOAZ_HOST_PAGE_CLOSE_CANCELLED { closingPages.remove(copied.page) }
+        if pages[copied.page] != nil { pageEvent?(copied.page, event) }
+        if event == BOAZ_HOST_PAGE_CLOSED {
+            pages.removeValue(forKey: copied.page)
+            closingPages.remove(copied.page)
+        }
     }
 
     func createPage(window: BoazHostWindow, url: URL, profile: EngineProfileIdentity) throws -> EnginePage {
@@ -205,8 +250,17 @@ final class ChromiumRuntime {
     func createWindow(profile: ChromiumProfile, options: inout BoazHostWindowOptions) throws -> BoazHostWindow {
         try requireRunning()
         guard preparedProfiles[profile.handle] == profile else { throw EnginePageError.invalidRequest }
+        guard let context = options.context else { throw EnginePageError.invalidRequest }
+        let bits = UInt(bitPattern: context)
+        guard preparedWindowContexts[bits] == nil else { throw EnginePageError.invalidRequest }
+        preparedWindowContexts[bits] = profile
         var handle: BoazHostWindow = 0
-        try check(api.create_profile_window!(profile.handle, &options, &handle))
+        do {
+            try check(api.create_profile_window!(profile.handle, &options, &handle))
+        } catch {
+            preparedWindowContexts[bits] = nil
+            throw error
+        }
         guard handle != 0, windowProfiles[handle] == nil else { throw EnginePageError.invalidRequest }
         windowProfiles[handle] = profile
         return handle
