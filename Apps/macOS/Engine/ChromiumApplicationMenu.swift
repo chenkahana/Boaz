@@ -84,6 +84,9 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         add(view, "Reload Page", command: .reload, enabled: { $0?.activeTab != nil }) { $0?.reload() }
         add(view, "Back", command: .goBack, enabled: { $0?.activeTab != nil }) { $0?.goBack() }
         add(view, "Forward", command: .goForward, enabled: { $0?.activeTab != nil }) { $0?.goForward() }
+        add(view, "Zoom In", enabled: { $0?.activeTab != nil }, perform: { $0?.zoom(.in) }, key: "+")
+        add(view, "Zoom Out", enabled: { $0?.activeTab != nil }, perform: { $0?.zoom(.out) }, key: "-")
+        add(view, "Actual Size", enabled: { $0?.activeTab != nil }, perform: { $0?.zoom(.reset) }, key: "0")
         add(view, "Add Split View", command: .addSplitView, enabled: { $0?.activeTab != nil },
             title: { $0?.split == nil ? "Add Split View" : "Close Split View" }) { $0?.toggleSplit() }
         responder(view, "Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), key: "f", modifiers: [.command, .control])

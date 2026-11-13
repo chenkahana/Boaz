@@ -101,6 +101,23 @@ final class ChromiumEnginePageAdapter: EnginePageAdapter {
         try requireOpen()
         try check(api.reload!(handle))
     }
+    func changeZoom(_ change: EngineZoomChange) throws {
+        try requireOpen()
+        guard let get = api.get_zoom_factor, let set = api.set_zoom_factor else {
+            throw EnginePageError.incompatibleBridge
+        }
+        var current = 1.0
+        try check(get(handle, &current))
+        guard current.isFinite, current > 0 else { throw EnginePageError.invalidRequest }
+        let levels = [0.5, 0.75, 0.85, 1.0, 1.15, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0]
+        let next: Double = switch change {
+        case .increase: levels.first(where: { $0 > current + 0.000001 }) ?? levels.last!
+        case .decrease: levels.last(where: { $0 < current - 0.000001 }) ?? levels.first!
+        case .reset: 1.0
+        }
+        try check(set(handle, next))
+    }
+
     func close() throws {
         guard state.lifecycle != .closed, state.lifecycle != .closing, !closeRequested else { return }
         try check(api.close_page!(handle))

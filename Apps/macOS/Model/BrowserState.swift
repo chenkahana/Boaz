@@ -806,6 +806,15 @@ final class BrowserState {
     }
 
     func zoom(_ change: PageZoom.Change) {
+        if let id = activeTabID, let engine = enginePages[id], engine.kind == .chromium {
+            let action: EngineZoomChange = switch change {
+            case .in: .increase
+            case .out: .decrease
+            case .reset: .reset
+            }
+            navigateEngine { try $0.changeZoom(action) }
+            return
+        }
         guard let page = activePage else { return }
         PageZoom.change(change, for: page, isPrivate: isIncognito)
     }

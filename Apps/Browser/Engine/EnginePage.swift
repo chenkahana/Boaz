@@ -11,6 +11,8 @@ struct EngineProfileIdentity: Hashable, Sendable {
     let isPrivate: Bool
 }
 
+enum EngineZoomChange: Sendable { case increase, decrease, reset }
+
 enum EnginePageLifecycle: Sendable {
     case active
     case closing
@@ -55,6 +57,7 @@ protocol EnginePageAdapter: AnyObject {
     func goBack() throws
     func goForward() throws
     func reload() throws
+    func changeZoom(_ change: EngineZoomChange) throws
     func close() throws
 }
 
@@ -75,6 +78,7 @@ final class EnginePage: Identifiable {
     func goBack() throws { try requireOpen(); try adapter.goBack() }
     func goForward() throws { try requireOpen(); try adapter.goForward() }
     func reload() throws { try requireOpen(); try adapter.reload() }
+    func changeZoom(_ change: EngineZoomChange) throws { try requireOpen(); try adapter.changeZoom(change) }
     func close() throws {
         guard state.lifecycle != .closed, state.lifecycle != .closing else { return }
         try adapter.close()
