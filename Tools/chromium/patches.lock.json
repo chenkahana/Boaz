@@ -467,6 +467,17 @@
           "after": "7bc2ba9a49d37f8db6ade1f99763d1dc3434a8a21441bcb92598725d8a4f8b86"
         }
       ]
+    },
+    {
+      "file": "patches/native-password-reset-submission.patch",
+      "sha256": "3ca3056ef65f83350934fe0f135898411be9c6ae31ccd69245eced1c93794521",
+      "files": [
+        {
+          "path": "components/password_manager/core/browser/password_manager.cc",
+          "before": "0e6b35c206e1e79eb26bc50ae86e8c6b912813a44880b7a72fd2e57a7db8b6b5",
+          "after": "1b30fb71b5fda13297f88fd8001df62a4815715ef30ee6afd24c4d9d2959461a"
+        }
+      ]
     }
   ]
 }
