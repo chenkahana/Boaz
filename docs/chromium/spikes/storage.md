@@ -23,3 +23,7 @@ The image is 500 GiB APFS with 128 MiB bands, mounted at `/Volumes/BoazBuild`. S
 Run custom build stages with `python3 Tools/cef/run-build.py -- COMMAND ARGS`. It attaches and validates the image, locks against concurrent guarded stages, runs in `/Volumes/BoazBuild/cef`, redirects temporary/cache paths, logs output, and prevents sleep. Every ten seconds it verifies the mount and requires 20 GiB outside the image and 30 GiB inside. Failure terminates only the launched process group, first gracefully, then after a 30-second timeout if necessary. It does not delete outputs.
 
 Stop builds and detach normally before ejecting the external drive. A corrupt image is preserved for diagnosis; the scripts never repair, erase, or recreate it automatically.
+
+## Custom build command
+
+`Tools/cef/build-cef.sh --dry-run` prints the pinned CEF/Chromium/depot_tools inputs and codec configuration without mounting or downloading. Normal execution uses the guarded runner; `--smoke` builds cefsimple without packaging. `--jobs` accepts 1 through 12. The pinned automation uses autoninja, so concurrency is controlled by its verified `NINJA_CORE_ADDITION` setting with Siso and remote execution disabled, not an unsupported `--ninja-jobs` flag. Custom compilation and media checks have not run yet.

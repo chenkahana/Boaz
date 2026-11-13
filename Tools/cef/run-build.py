@@ -83,7 +83,7 @@ if __name__ == "__main__":
     signal.signal(signal.SIGTERM, interrupted)
     try:
         sys.exit(main())
-    except (RuntimeError, OSError, subprocess.CalledProcessError) as error:
+    except (RuntimeError, OSError, subprocess.SubprocessError) as error:
         print(f"CEF build stopped: {error}", file=sys.stderr)
         sys.exit(1)
     except KeyboardInterrupt:

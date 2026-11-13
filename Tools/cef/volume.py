@@ -26,7 +26,7 @@ def run(*args):
 
 
 def plist(*args):
-    return plistlib.loads(subprocess.check_output(args))
+    return plistlib.loads(subprocess.check_output(args, timeout=15))
 
 
 def drive_info():
@@ -135,6 +135,6 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except (RuntimeError, OSError, subprocess.CalledProcessError, plistlib.InvalidFileException) as error:
+    except (RuntimeError, OSError, subprocess.SubprocessError, plistlib.InvalidFileException) as error:
         print(f"Build volume: {error}", file=sys.stderr)
         sys.exit(1)
