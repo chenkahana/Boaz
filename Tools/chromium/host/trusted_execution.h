@@ -2,12 +2,14 @@
 #define BOAZ_CHROMIUM_TRUSTED_EXECUTION_H_
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/values.h"
+#include "base/timer/timer.h"
 #include "content/public/browser/global_routing_id.h"
 #include "content/public/browser/weak_document_ptr.h"
 #include "content/public/browser/web_contents_observer.h"
@@ -33,7 +35,11 @@ class TrustedExecution final : public content::WebContentsObserver {
                base::DictValue arguments, Completion completion);
   void Close();
  private:
-  struct Pending { Target target; Completion completion; };
+  struct Pending {
+    Target target;
+    Completion completion;
+    std::unique_ptr<base::OneShotTimer> timer;
+  };
   bool Validate(const Target& target) const;
   static void Post(Completion completion, Outcome outcome);
   void Finish(uint64_t id, Status status, base::Value result = base::Value());
@@ -43,7 +49,7 @@ class TrustedExecution final : public content::WebContentsObserver {
   void RenderFrameDeleted(content::RenderFrameHost*) override;
   void PrimaryMainFrameRenderProcessGone(base::TerminationStatus) override;
   void WebContentsDestroyed() override;
-  raw_ptr<content::BrowserContext> profile_;
+  raw_ptr<content::BrowserContext> profile_ = nullptr;
   uint64_t epoch_ = 1;
   uint64_t next_id_ = 1;
   bool closed_ = false;

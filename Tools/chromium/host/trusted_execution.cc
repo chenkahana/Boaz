@@ -17,8 +17,10 @@
 
 namespace boaz {
 TrustedExecution::TrustedExecution(content::WebContents* contents)
-    : WebContentsObserver(contents), profile_(contents->GetBrowserContext()) {
+    : WebContentsObserver(contents) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  CHECK(contents);
+  profile_ = contents->GetBrowserContext();
 }
 TrustedExecution::~TrustedExecution() {
   Close();
@@ -73,11 +75,11 @@ void TrustedExecution::Execute(Target target, std::u16string source,
                          base::UTF8ToUTF16(*quoted) + u"))";
   CHECK_NE(next_id_, std::numeric_limits<uint64_t>::max());
   const uint64_t id = next_id_++;
-  pending_.emplace(id, Pending{target, std::move(completion)});
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
-      FROM_HERE, base::BindOnce(&TrustedExecution::Finish,
-          weak_factory_.GetWeakPtr(), id, Status::kTimeout, base::Value()),
-      base::Seconds(5));
+  auto timer = std::make_unique<base::OneShotTimer>();
+  timer->Start(FROM_HERE, base::Seconds(5),
+      base::BindOnce(&TrustedExecution::Finish, weak_factory_.GetWeakPtr(),
+                     id, Status::kTimeout, base::Value()));
+  pending_.emplace(id, Pending{target, std::move(completion), std::move(timer)});
   auto result = mojo::WrapCallbackWithDropHandler(
       base::BindOnce(&TrustedExecution::Result, weak_factory_.GetWeakPtr(), id),
       base::BindOnce(&TrustedExecution::Finish, weak_factory_.GetWeakPtr(),
@@ -89,8 +91,16 @@ void TrustedExecution::Result(uint64_t id, base::Value result) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   auto it = pending_.find(id);
   if (it == pending_.end()) return;
-  Finish(id, Validate(it->second.target) ? Status::kSuccess : Status::kInvalidTarget,
-         std::move(result));
+  if (!Validate(it->second.target)) {
+    Finish(id, Status::kInvalidTarget);
+    return;
+  }
+  auto serialized = base::WriteJson(result);
+  if (!serialized || serialized->size() > 64 * 1024) {
+    Finish(id, Status::kInvalidArgument);
+    return;
+  }
+  Finish(id, Status::kSuccess, std::move(result));
 }
 void TrustedExecution::Finish(uint64_t id, Status status, base::Value result) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
@@ -116,6 +126,7 @@ void TrustedExecution::Close() {
   weak_factory_.InvalidateWeakPtrs();
   Cancel(Status::kClosed);
   Observe(nullptr);
+  profile_ = nullptr;
 }
 void TrustedExecution::DidStartNavigation(content::NavigationHandle* navigation) {
   if (navigation->IsInPrimaryMainFrame() && !navigation->IsSameDocument())
