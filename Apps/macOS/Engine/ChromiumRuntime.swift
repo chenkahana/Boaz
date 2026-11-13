@@ -24,6 +24,7 @@ final class ChromiumRuntime {
     var pageEvent: ((BoazHostPage, BoazHostPageEvent) -> Void)?
 
     private static weak var callbackOwner: ChromiumRuntime?
+    private var downloads: [BoazHostProfile: ChromiumDownloads] = [:]
     private var activePages: [BoazHostWindow: BoazHostPage] = [:]
     private var pages: [BoazHostPage: ChromiumEnginePageAdapter] = [:]
     private var preparedProfiles: [BoazHostProfile: ChromiumProfile] = [:]
@@ -48,7 +49,8 @@ final class ChromiumRuntime {
               table.create_page != nil, table.navigate != nil,
               table.go_back != nil, table.go_forward != nil, table.reload != nil,
               table.get_native_view != nil, table.close_page != nil,
-              table.close_window != nil, table.request_shutdown != nil else {
+              table.close_window != nil, table.request_shutdown != nil,
+              table.enumerate_downloads != nil, table.download_action != nil else {
             throw EnginePageError.incompatibleBridge
         }
         api = table
@@ -76,6 +78,17 @@ final class ChromiumRuntime {
                 DispatchQueue.main.async { [weak owner] in
                     guard let owner, !owner.stopped else { return }
                     owner.receivePage(event, copied)
+                }
+            }
+        }
+        callbacks.download_changed = { context, profile, pointer in
+            guard let context, let pointer else { return }
+            MainActor.assumeIsolated {
+                let owner = Unmanaged<ChromiumRuntime>.fromOpaque(context).takeUnretainedValue()
+                let copied = ChromiumDownload(pointer.pointee)
+                DispatchQueue.main.async { [weak owner] in
+                    guard let owner, !owner.stopped, owner.preparedProfiles[profile] != nil else { return }
+                    owner.downloadModel(profile).update(copied)
                 }
             }
         }
@@ -149,6 +162,8 @@ final class ChromiumRuntime {
                 DispatchQueue.main.async {
                     guard !owner.stopped else { return }
                     owner.stopped = true
+                    owner.downloads.values.forEach { $0.dispose() }
+                    owner.downloads.removeAll()
                     owner.activePages.removeAll()
                     owner.pendingPageEvents.removeAll()
                     owner.preparedWindowContexts.removeAll()
@@ -288,12 +303,45 @@ final class ChromiumRuntime {
         throw EnginePageError.unavailable
     }
 
+    static func showDownloads(for identity: EngineProfileIdentity) {
+        guard let owner = callbackOwner, !owner.stopped,
+              let profile = owner.preparedProfiles.values.first(where: { $0.identity == identity }) else { return }
+        let model = owner.downloadModel(profile.handle)
+        do {
+            try owner.requireRunning()
+            let collector = ChromiumDownloadSnapshotCollector()
+            let context = Unmanaged.passUnretained(collector).toOpaque()
+            try owner.check(owner.api.enumerate_downloads!(profile.handle, { context, _, pointer in
+                guard let context, let pointer else { return }
+                MainActor.assumeIsolated {
+                    let copied = ChromiumDownload(pointer.pointee)
+                    Unmanaged<ChromiumDownloadSnapshotCollector>.fromOpaque(context).takeUnretainedValue().items.append(copied)
+                }
+            }, context))
+            collector.items.forEach { model.update($0) }
+        } catch { model.error = "Downloads could not be refreshed. Please try again." }
+        model.show(isPrivate: identity.isPrivate)
+    }
+
+    private func downloadModel(_ profile: BoazHostProfile) -> ChromiumDownloads {
+        if let model = downloads[profile] { return model }
+        let model = ChromiumDownloads()
+        model.perform = { [weak self] id, action in
+            guard let self, preparedProfiles[profile] != nil else { throw EnginePageError.unavailable }
+            try requireRunning()
+            try check(api.download_action!(profile, id, action))
+        }
+        downloads[profile] = model
+        return model
+    }
+
     func releaseProfile(_ profile: ChromiumProfile) throws {
         try requireRunning()
         guard preparedProfiles[profile.handle] == profile else { throw EnginePageError.invalidRequest }
         guard !windowProfiles.values.contains(profile) else { throw EnginePageError.unavailable }
         try check(api.release_profile!(profile.handle))
         preparedProfiles.removeValue(forKey: profile.handle)
+        downloads.removeValue(forKey: profile.handle)?.dispose()
     }
 
     private final class ProfileRequest {
