@@ -99,14 +99,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
             ChromiumExtensionMigration.present(window: window, profileID: profile.identity.id,
                 profiles: model.sidebar.profiles, openStore: { [weak self] url in
                     guard let self, !finished else { return }
-                    browser.openTab(URL(string: "about:blank")!)
-                    guard let tab = browser.activeTab else { return }
-                    Task { @MainActor [weak self] in
-                        guard let self, !finished else { return }
-                        await browser.switchEngine(of: tab, to: .chromium)
-                        guard !finished, browser.activeTab?.id == tab.id, browser.engineKind(for: tab) == .chromium else { return }
-                        browser.load(url)
-                    }
+                    browser.openTab(url, engine: .chromium)
                 }, loadDeveloper: { [weak self] in
                     guard let self, !finished else { return }
                     browser.loadChromiumDeveloperExtension?()

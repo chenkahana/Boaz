@@ -931,7 +931,7 @@ final class BrowserState {
 
     /// A new Today tab, at the top or right below `source`. One opened in the background starts loading without
     /// taking the window.
-    func openTab(_ url: URL, title: String? = nil, below source: SidebarItem? = nil, inBackground: Bool = false) {
+    func openTab(_ url: URL, title: String? = nil, below source: SidebarItem? = nil, inBackground: Bool = false, engine: BrowserEngineKind? = nil) {
         let tab: SidebarItem
         if isIncognito {
             let index = source.flatMap { source in incognitoTabs.firstIndex { $0.id == source.id } }.map { $0 + 1 } ?? 0
@@ -950,6 +950,14 @@ final class BrowserState {
                 model.newTab(url, title: title, in: spaceID, below: source)
             }) else { return }
             tab = new
+        }
+        if let engine, createChromiumPage != nil {
+            engineChoices[tab.id] = engine
+            if !isIncognito {
+                do { try model.store?.setTabEngine(engine == .chromium ? .chromium : .webkit,
+                                                   tabID: tab.id, profileID: tab.profileID) }
+                catch { model.showToast("The browser engine choice could not be saved.") }
+            }
         }
         if inBackground {
             do { _ = try enginePage(for: tab) }
