@@ -1,0 +1,42 @@
+Boaz Chromium content-blocking source inputs
+
+EasyList and EasyPrivacy
+Attribution: The EasyList authors (https://easylist.to/).
+Official assembled lists:
+  https://easylist.to/easylist/easylist.txt
+  https://easylist.to/easylist/easyprivacy.txt
+Source repository: https://github.com/easylist/easylist
+License declaration: https://easylist.to/pages/licence.html
+
+Unless otherwise noted, upstream offers these lists under either GNU General
+Public License version 3 or later, or Creative Commons Attribution-ShareAlike
+3.0 Unported or later. Retain the selected license's required notices and terms
+with distributed lists; this notice does not replace the license text.
+  https://www.gnu.org/licenses/gpl-3.0.html
+  https://creativecommons.org/licenses/by-sa/3.0/
+
+lists.lock.json records the exact unmodified assembled bytes, version headers,
+source commit declarations, and dependency inventory. Source commit headers
+identify upstream provenance; the byte SHA-256 is the artifact identity.
+No source list, rejected rule, directive, redirect or scriptlet was removed.
+
+These snapshots contain no include or conditional preprocessing directives.
+They do contain ABP rewrite resources, redirects, procedural cosmetics and
+scriptlet invocations. The named resources/scriptlets are NOT bundled or pinned
+by this packet. Parser acceptance alone cannot establish that their runtime
+resources resolve. Production integration must supply validated, independently
+pinned resources with their own notices, or explicitly block the snapshot.
+The empty resource array is not a complete implementation of these lists.
+
+adblock-rust
+Copyright its respective upstream contributors.
+Source: https://github.com/brave/adblock-rust
+Pinned version: 0.13.4
+Pinned commit: 0016bc16a75ca9f87354a537a8b006fdd2b5b5b9
+License: Mozilla Public License 2.0
+License text: https://www.mozilla.org/MPL/2.0/
+Covered source: https://github.com/brave/adblock-rust/tree/0016bc16a75ca9f87354a537a8b006fdd2b5b5b9
+
+Release preparation must preserve applicable source availability and notices
+for this library, list data, and separately selected resource assets. Rust
+transitive dependency notices remain dependent on the resolved Cargo.lock.

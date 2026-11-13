@@ -1,0 +1,401 @@
+{
+  "schema_version": 1,
+  "retrieved_at": "2026-11-13T20:19:21.849596+00:00",
+  "official_index": "https://easylist.to/",
+  "license_url": "https://easylist.to/pages/licence.html",
+  "license": "GPL-3.0-or-later OR CC-BY-SA-3.0-or-later",
+  "attribution": "The EasyList authors (https://easylist.to/)",
+  "lists": [
+    {
+      "name": "easylist",
+      "url": "https://easylist.to/easylist/easylist.txt",
+      "sha256": "93e97f635895433296fbc83a07088a9400025877fc49b5a88c83460cad23f7d0",
+      "size_bytes": 2053681,
+      "line_count": 78011,
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/list-inputs/93e97f635895433296fbc83a07088a9400025877fc49b5a88c83460cad23f7d0.txt",
+      "headers": [
+        "[Adblock Plus 2.0]",
+        "! Version: 202611132008",
+        "! Title: EasyList",
+        "! Last modified: 13 Nov 2026 20:08 UTC",
+        "! Expires: 4 days (update frequency)",
+        "! Commit: 141914270cc4bc77651f82f8e367edb2306faa6f",
+        "! *** easylist:template_header.txt ***",
+        "! ",
+        "! Please report any unblocked adverts or problems",
+        "! in the forums (https://forums.lanik.us/)",
+        "! or via e-mail (easylist@protonmail.com).",
+        "! ",
+        "! Homepage: https://easylist.to/",
+        "! Licence: https://easylist.to/pages/licence.html",
+        "! GitHub issues: https://github.com/easylist/easylist/issues",
+        "! GitHub pull requests: https://github.com/easylist/easylist/pulls",
+        "! "
+      ],
+      "directives": [],
+      "redirects": [
+        {
+          "line": 64698,
+          "resource": "abp-resource:blank-mp4"
+        },
+        {
+          "line": 65016,
+          "resource": "abp-resource:blank-mp4"
+        },
+        {
+          "line": 65572,
+          "resource": "abp-resource:blank-mp4"
+        },
+        {
+          "line": 65753,
+          "resource": "abp-resource:blank-mp4"
+        },
+        {
+          "line": 65808,
+          "resource": "abp-resource:blank-mp4"
+        },
+        {
+          "line": 65812,
+          "resource": "abp-resource:blank-mp4"
+        },
+        {
+          "line": 66335,
+          "resource": "abp-resource:blank-mp4"
+        }
+      ],
+      "scriptlets": [],
+      "version": "202611132008",
+      "last_modified": "13 Nov 2026 20:08 UTC",
+      "source_commit": "141914270cc4bc77651f82f8e367edb2306faa6f",
+      "source_repository": "https://github.com/easylist/easylist",
+      "source_revision_url": "https://github.com/easylist/easylist/tree/141914270cc4bc77651f82f8e367edb2306faa6f",
+      "resource_names": [
+        "abp-resource:blank-mp4"
+      ],
+      "scriptlet_names": [],
+      "inventory": {
+        "includes_or_conditionals": 0,
+        "redirect_or_rewrite_rules": 7,
+        "scriptlet_rules": 0,
+        "comment_or_header_or_blank_lines": 278,
+        "cosmetic_marker_lines": 24756
+      }
+    },
+    {
+      "name": "easyprivacy",
+      "url": "https://easylist.to/easylist/easyprivacy.txt",
+      "sha256": "bf775427194e10c609e7c9a189ec0c70c199570ef90e9e183ff9afd850e06887",
+      "size_bytes": 1516555,
+      "line_count": 57403,
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/list-inputs/bf775427194e10c609e7c9a189ec0c70c199570ef90e9e183ff9afd850e06887.txt",
+      "headers": [
+        "[Adblock Plus 1.1]",
+        "! Version: 202611132015",
+        "! Title: EasyPrivacy",
+        "! Last modified: 13 Nov 2026 20:15 UTC",
+        "! Expires: 4 days (update frequency)",
+        "! Commit: e9685119a32b47683309e5f1070b9dae5e408c8f",
+        "! *** easylist:template_header.txt ***",
+        "! ",
+        "! Please report any unblocked adverts or problems",
+        "! in the forums (https://forums.lanik.us/)",
+        "! or via e-mail (easylist@protonmail.com).",
+        "! ",
+        "! Homepage: https://easylist.to/",
+        "! Licence: https://easylist.to/pages/licence.html",
+        "! GitHub issues: https://github.com/easylist/easylist/issues",
+        "! GitHub pull requests: https://github.com/easylist/easylist/pulls",
+        "! "
+      ],
+      "directives": [],
+      "redirects": [
+        {
+          "line": 14175,
+          "resource": "abp-resource:blank-js"
+        },
+        {
+          "line": 18209,
+          "resource": "noop.js"
+        },
+        {
+          "line": 18210,
+          "resource": "noop.js"
+        },
+        {
+          "line": 18212,
+          "resource": "nooptext"
+        },
+        {
+          "line": 18224,
+          "resource": "chartbeat.js"
+        },
+        {
+          "line": 18225,
+          "resource": "chartbeat.js"
+        },
+        {
+          "line": 18241,
+          "resource": "noopjs"
+        },
+        {
+          "line": 18242,
+          "resource": "noopjs"
+        },
+        {
+          "line": 18243,
+          "resource": "noopjs"
+        },
+        {
+          "line": 18244,
+          "resource": "noopjs"
+        },
+        {
+          "line": 18245,
+          "resource": "noopjs"
+        },
+        {
+          "line": 18246,
+          "resource": "noopjson"
+        },
+        {
+          "line": 18247,
+          "resource": "noopjs"
+        },
+        {
+          "line": 18248,
+          "resource": "noopjs"
+        },
+        {
+          "line": 18249,
+          "resource": "noopjs"
+        },
+        {
+          "line": 18250,
+          "resource": "noopjs"
+        },
+        {
+          "line": 18251,
+          "resource": "noopjs"
+        },
+        {
+          "line": 18252,
+          "resource": "noopjs"
+        },
+        {
+          "line": 18253,
+          "resource": "noopjs"
+        },
+        {
+          "line": 18254,
+          "resource": "noopjson"
+        },
+        {
+          "line": 18255,
+          "resource": "noopjs"
+        },
+        {
+          "line": 18256,
+          "resource": "noopjs"
+        },
+        {
+          "line": 18257,
+          "resource": "noopjs"
+        },
+        {
+          "line": 18258,
+          "resource": "noopjs"
+        },
+        {
+          "line": 18271,
+          "resource": "googletagmanager_gtm.js"
+        },
+        {
+          "line": 18295,
+          "resource": "noop.txt"
+        },
+        {
+          "line": 18297,
+          "resource": "1x1.gif"
+        },
+        {
+          "line": 18307,
+          "resource": "fingerprint2.js"
+        },
+        {
+          "line": 18309,
+          "resource": "noop.txt"
+        },
+        {
+          "line": 18318,
+          "resource": "noop.js"
+        }
+      ],
+      "scriptlets": [
+        {
+          "line": 18214,
+          "text": "accuweather.com,acmemarkets.com,aiskillsnavigator.microsoft.com,boston.com,capezio.com,chime.com,costco.com,crunchyroll.com,deezer.com,delta.com,dnb.co.uk,dnb.com,dollargeneral.com,engadget.com,espn.com,eventbrite.com,filson.com,flyfrontier.com,formula1.com,geizhals.de,gladiatorgarageworks.com,harborfreight.com,hopwtr.com,jdsports.com,kkrt.com,lenscrafters.com,livewithkellyandmark.com,madewell.com,mail.yahoo.com,mazdausa.com,michaels.com,milesplit.live,monsterenergy.com,newyorker.com,norton.com,pandora.com,payment.nba.com,porsche.com,qobuz.com,rivals.com,soundcloud.com,spotify.com,subway.com,techcrunch.com,ticketmaster.*,tidal.com,tirerack.com,twitter.com,uber.com,ubereats.com,usaa.com,vimeo.com,visible.com,weather.com,wunderground.com,www.yahoo.com,x.com##+js(set, Navigator.prototype.globalPrivacyControl, false)"
+        },
+        {
+          "line": 18215,
+          "text": "accuweather.com,acmemarkets.com,aiskillsnavigator.microsoft.com,boston.com,capezio.com,chime.com,costco.com,crunchyroll.com,deezer.com,delta.com,dnb.co.uk,dnb.com,dollargeneral.com,engadget.com,espn.com,eventbrite.com,filson.com,flyfrontier.com,formula1.com,geizhals.de,gladiatorgarageworks.com,harborfreight.com,hopwtr.com,jdsports.com,kkrt.com,lenscrafters.com,livewithkellyandmark.com,madewell.com,mail.yahoo.com,mazdausa.com,michaels.com,milesplit.live,monsterenergy.com,newyorker.com,norton.com,pandora.com,payment.nba.com,porsche.com,qobuz.com,rivals.com,soundcloud.com,spotify.com,subway.com,techcrunch.com,ticketmaster.*,tidal.com,tirerack.com,twitter.com,uber.com,ubereats.com,usaa.com,vimeo.com,visible.com,weather.com,wunderground.com,www.yahoo.com,x.com##+js(set, navigator.globalPrivacyControl, false)"
+        },
+        {
+          "line": 18217,
+          "text": "madewell.com##+js(cookie-remover, dns_cookie)"
+        },
+        {
+          "line": 18218,
+          "text": "visible.com##+js(set-local-storage-item, browser-ids, $remove$)"
+        },
+        {
+          "line": 18220,
+          "text": "usaa.com##+js(set-cookie, GPC, 1, , reload, 1)"
+        },
+        {
+          "line": 18222,
+          "text": "bolighub.dk##+js(acs, document.getElementsByTagName, gtm.js)"
+        },
+        {
+          "line": 18227,
+          "text": "iphoneincanada.ca##+js(acs, document.createElement, __apNoHold)"
+        },
+        {
+          "line": 18228,
+          "text": "247sports.com,al.com,arstechnica.com,bringmethenews.com,cattime.com,cbr.com,cheatsheet.com,collider.com,comingsoon.net,crooksandliars.com,cwtv.com,dogtime.com,esportstales.com,forums.hfboards.com,freep.com,fresnobee.com,gamerant.com,gbatemp.net,golfdigest.com,grabify.link,hancinema.net,hemmings.com,howtogeek.com,ijr.com,informazionefiscale.it,inquirer.net,insider-gaming.com,knowyourmeme.com,magesypro.pro,makeuseof.com,mlive.com,money.it,motorbiscuit.com,movieweb.com,nationalreview.com,nbcnews.com,neopets.com,nofilmschool.com,nypost.com,omg.blog,order-order.com,oregonlive.com,pcwelt.de,pennlive.com,playstationlifestyle.net,pwinsider.com,savvytime.com,screenrant.com,siliconera.com,simpleflying.com,sporcle.com,stealthoptional.com,techlicious.com,technicpack.net,thedraftnetwork.com,thefashionspot.com,thegamer.com,thelayoff.com,thenerdstash.com,theprovince.com,titantv.com,topspeed.com,twinfinite.net,videogamer.com,webmail.wiki,wnd.com,worldpopulationreview.com,wral.com,wrestlezone.com,wrestlinginc.com,xda-developers.com##+js(acs, document.createElement, admiral)"
+        },
+        {
+          "line": 18229,
+          "text": "10tv.com,11alive.com,12news.com,12newsnow.com,13newsnow.com,13wmaz.com,5newsonline.com,9news.com,abc10.com,al.com,aol.com,apnews.com,artforum.com,artnews.com,bellinghamherald.com,billboard.com,birdsandblooms.com,calgaryherald.com,calgarysun.com,cbs19.tv,cbs8.com,chattanoogacw.com,cleveland.com,crooksandliars.com,cwtv.com,deadline.com,dpreview.com,driving.ca,edmontonjournal.com,edmontonsun.com,familyhandyman.com,financialpost.com,firstcoastnews.com,fox43.com,fox61.com,futbin.com,goldderby.com,golfdigest.com,gulflive.com,hollywoodreporter.com,indiewire.com,kare11.com,kcentv.com,kens5.com,kgw.com,khou.com,kiiitv.com,king5.com,komonews.com,krem.com,ktvb.com,kvue.com,lehighvalleylive.com,lfpress.com,localmemphis.com,masslive.com,mlive.com,motor1.com,myfoxzone.com,nationalpost.com,nbcsports.com,news.com.au,newscentermaine.com,newswest9.com,nj.com,nydailynews.com,oregonlive.com,ottawacitizen.com,ottawasun.com,pcworld.com,pennlive.com,rd.com,robbreport.com,rollingstone.com,sherdog.com,sidereel.com,silive.com,sportico.com,superherohype.com,syracuse.com,tasteofhome.com,techcrunch.com,thehealthy.com,thv11.com,tj.news,torontosun.com,twinfinite.net,vancouversun.com,variety.com,vibe.com,wbir.com,wcnc.com,weareiowa.com,weather.com,wfaa.com,wfmynews2.com,wgrz.com,whas11.com,windsorstar.com,wkyc.com,wltx.com,wnep.com,wowhead.com,wqad.com,wthr.com,wtol.com,wtsp.com,wusa9.com,wwd.com,wwltv.com,wzzm13.com##+js(acs, document.getElementsByTagName, .pubads)"
+        },
+        {
+          "line": 18230,
+          "text": "ranker.com##+js(aost, HTMLElement.prototype.insertBefore, /[A-Z] .+chunks\\/\\d{4}\\./)"
+        },
+        {
+          "line": 18231,
+          "text": "cleveland.com,fox11online.com,oregonlive.com,reuters.com,weartv.com##+js(aost, admiral, .js?)"
+        },
+        {
+          "line": 18232,
+          "text": "al.com,attackofthefanboy.com,beavertonvalleytimes.com,destructoid.com,gamepur.com,gamerjournalist.com,gameskinny.com,lehighvalleylive.com,lehighvalleylivecom,lgbtqnation.com,macwelt.de,masslive.com,mlive.com,news8000.com,oregonlive.com,pcwelt.de,pennlive.com,portlandtribune.com,primagames.com,progameguides.com,queerty.com,siliconera.com,silive.com,sporcle.com,techcrunch.com,thebeenews.com,themarysue.com,theoutlookonline.com,touchtapplay.com,wegotthiscovered.com##+js(aost, decodeURI, /(?=^(?!.*\\.js))/)"
+        },
+        {
+          "line": 18233,
+          "text": "mensjournal.com##+js(json-edit, ..props.children.*[?.key==\"admiral-script\"])"
+        },
+        {
+          "line": 18234,
+          "text": "247sports.com,cbsnews.com,cbssports.com,indiewire.com,nypost.com,pagesix.com,pennlive.com##+js(rmnt, script, '\"data-adm-url\"')"
+        },
+        {
+          "line": 18235,
+          "text": "abc17news.com,al.com,artforum.com,artnews.com,awkward.com,awkwardmom.com,bailiwickexpress.com,barnsleychronicle.com,becomingpeculiar.com,bethcakes.com,blogher.com,bluegraygal.com,briefeguru.de,carmagazine.co.uk,cattime.com,cbr.com,chaptercheats.com,collider.com,comingsoon.net,commercialobserver.com,competentedigitale.ro,crafty.house,dailyvoice.com,decider.com,didyouknowfacts.com,dogtime.com,dualshockers.com,dustyoldthing.com,faithhub.net,femestella.com,footwearnews.com,freeconvert.com,frogsandsnailsandpuppydogtail.com,fsm-media.com,funtasticlife.com,fwmadebycarli.com,gamerant.com,gfinityesports.com,givemesport.com,gulflive.com,helloflo.com,homeglowdesign.com,honeygirlsworld.com,hotcars.com,howtogeek.com,insider-gaming.com,insurancejournal.com,jasminemaria.com,kion546.com,lehighvalleylive.com,lettyskitchen.com,lifeinleggings.com,liveandletsfly.com,lizzieinlace.com,localnews8.com,lonestarlive.com,madeeveryday.com,maidenhead-advertiser.co.uk,makeuseof.com,mardomreport.net,melangery.com,milestomemories.com,mlive.com,modernmom.com,momtastic.com,mostlymorgan.com,motherwellmag.com,movieweb.com,muddybootsanddiamonds.com,musicfeeds.com.au,nationalreview.com,nj.com,nordot.app,nothingbutnewcastle.com,nsjonline.com,oakvillenews.org,observer.com,pagesix.com,pennlive.com,pinkonthecheek.com,predic.ro,puckermom.com,qtoptens.com,realgm.com,robbreport.com,royalmailchat.co.uk,samchui.com,sandrarose.com,screenrant.com,sheknows.com,sherdog.com,sidereel.com,simpleflying.com,sloughexpress.co.uk,spacenews.com,sportsgamblingpodcast.com,spotofteadesigns.com,ssnewstelegram.com,stacysrandomthoughts.com,superherohype.com,tablelifeblog.com,thebeautysection.com,thecelticblog.com,thecurvyfashionista.com,thefashionspot.com,thegamer.com,thenerdyme.com,thenonconsumeradvocate.com,thethings.com,timesnews.net,topspeed.com,toyotaklub.org.pl,travelingformiles.com,tvline.com##+js(rmnt, script, '\"v4ac1eiZr0\"')"
+        },
+        {
+          "line": 18236,
+          "text": "baeldung.com,cheatsheet.com,pcwelt.de,pwinsider.com##+js(rmnt, script, admiral)"
+        },
+        {
+          "line": 18237,
+          "text": "cbssports.com,foxnews.com,gbatemp.net,news.com.au,pcworld.com,usatoday.com##+js(set, admiral, noopFunc)"
+        },
+        {
+          "line": 18238,
+          "text": "usatoday.com##+js(set, gnt.x.adm, '')"
+        },
+        {
+          "line": 18264,
+          "text": "fedex.com##+js(set-local-storage-item, fdx_enable_new_detail_page, true)"
+        },
+        {
+          "line": 18266,
+          "text": "mwed.jp##+js(acs, document.createElement, keen-tracking)"
+        },
+        {
+          "line": 18268,
+          "text": "nicovideo.jp##+js(no-fetch-if, stella)"
+        },
+        {
+          "line": 18269,
+          "text": "nicovideo.jp##+js(no-xhr-if, stella)"
+        },
+        {
+          "line": 18276,
+          "text": "abema.tv##+js(rmnt, script, NREUM)"
+        },
+        {
+          "line": 18286,
+          "text": "coomer.st,kemono.cr,official.coomer.com.co##+js(set-local-storage-item, plausible_ignore, true)"
+        },
+        {
+          "line": 18290,
+          "text": "ncbi.nlm.nih.gov##+js(set, ncbi.sg, {})"
+        },
+        {
+          "line": 18291,
+          "text": "ncbi.nlm.nih.gov##+js(set, ncbi.sg.ping, noopFunc)"
+        },
+        {
+          "line": 18312,
+          "text": "x.com##+js(no-xhr-if, /i/api/1.1/flow/viewer.json)"
+        },
+        {
+          "line": 18315,
+          "text": "aliexpress.com,aliexpress.ru,aliexpress.us##+js(set, OfflineAudioContext, undefined)"
+        },
+        {
+          "line": 18316,
+          "text": "aliexpress.com,aliexpress.ru,aliexpress.us##+js(set, navigator.bluetooth, undefined)"
+        },
+        {
+          "line": 18320,
+          "text": "search.rakuten.co.jp##+js(aeld, mouseup, sendClickEvent)"
+        }
+      ],
+      "version": "202611132015",
+      "last_modified": "13 Nov 2026 20:15 UTC",
+      "source_commit": "e9685119a32b47683309e5f1070b9dae5e408c8f",
+      "source_repository": "https://github.com/easylist/easylist",
+      "source_revision_url": "https://github.com/easylist/easylist/tree/e9685119a32b47683309e5f1070b9dae5e408c8f",
+      "resource_names": [
+        "1x1.gif",
+        "abp-resource:blank-js",
+        "chartbeat.js",
+        "fingerprint2.js",
+        "googletagmanager_gtm.js",
+        "noop.js",
+        "noop.txt",
+        "noopjs",
+        "noopjson",
+        "nooptext"
+      ],
+      "scriptlet_names": [
+        "acs",
+        "aeld",
+        "aost",
+        "cookie-remover",
+        "json-edit",
+        "no-fetch-if",
+        "no-xhr-if",
+        "rmnt",
+        "set",
+        "set-cookie",
+        "set-local-storage-item"
+      ],
+      "inventory": {
+        "includes_or_conditionals": 0,
+        "redirect_or_rewrite_rules": 30,
+        "scriptlet_rules": 30,
+        "comment_or_header_or_blank_lines": 772,
+        "cosmetic_marker_lines": 37
+      }
+    }
+  ],
+  "validation": {
+    "parser": "pending actual pinned adblock-rust FFI validation",
+    "transformed": false,
+    "preprocessing": "No include/conditional directives found in these exact assembled bytes; no stripping or substitutions performed.",
+    "resource_assets": "NOT PINNED. Resource names and scriptlet names are dependency requirements, not proof that assets exist or resolve.",
+    "compatibility": "ABP rewrite resources and all procedural/scriptlet rules require exact parser/output validation; do not ignore rejected rules."
+  }
+}
