@@ -80,6 +80,9 @@ final class BrowserState {
     @ObservationIgnored private var pages: [String: WebPage] = [:]
     @ObservationIgnored private var enginePages: [String: EnginePage] = [:]
     private let privateEngineProfileID = UUID().uuidString
+    #if BOAZ_CHROMIUM
+    @ObservationIgnored var createChromiumPage: ((SidebarItem) throws -> EnginePage)?
+    #endif
     @ObservationIgnored private var recency: [String] = []
     @ObservationIgnored private var isClosingIdlePages = false
     /// Tabs whose title is cooling down after a save, and whether it changed again meanwhile (`didChangeTitle`).
@@ -205,7 +208,12 @@ final class BrowserState {
     }
 
     var activeTab: SidebarItem? { tab(activeTabID) }
-    var activePage: WebPage? { activeTab.map(page(for:)) }
+    var activePage: WebPage? {
+        #if BOAZ_CHROMIUM
+        if createChromiumPage != nil { return nil }
+        #endif
+        return activeTab.map(page(for:))
+    }
     /// The address that failed while the tab shows why; otherwise the page's address, or the tab's while the page has
     /// none of its own.
     var activeURL: URL? {
@@ -318,9 +326,16 @@ final class BrowserState {
 
     func existingPage(for tabID: String) -> WebPage? { pages[tabID] }
 
-    func enginePage(for tab: SidebarItem) -> EnginePage {
-        let page = page(for: tab)
+    func enginePage(for tab: SidebarItem) throws -> EnginePage {
         if let engine = enginePages[tab.id] { return engine }
+        #if BOAZ_CHROMIUM
+        if let createChromiumPage {
+            let engine = try createChromiumPage(tab)
+            enginePages[tab.id] = engine
+            return engine
+        }
+        #endif
+        let page = page(for: tab)
         let engine = wrapPage(page, profileID: tab.profileID)
         enginePages[tab.id] = engine
         return engine
@@ -334,7 +349,7 @@ final class BrowserState {
 
     private func navigateEngine(_ operation: (EnginePage) throws -> Void) {
         guard let tab = activeTab else { return }
-        do { try operation(enginePage(for: tab)) }
+        do { try operation(try enginePage(for: tab)) }
         catch { model.showToast(error.localizedDescription) }
     }
 
@@ -512,7 +527,10 @@ final class BrowserState {
             }) else { return }
             tab = new
         }
-        if inBackground { _ = page(for: tab) } else { activate(tab) }
+        if inBackground {
+            do { _ = try enginePage(for: tab) }
+            catch { model.showToast(error.localizedDescription) }
+        } else { activate(tab) }
     }
 
     func load(_ url: URL) {
