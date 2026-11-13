@@ -84,7 +84,7 @@ struct Window {
 struct BlockingPreparation {
   uint64_t id;
   BoazHostBlockingCompletion completion;
-  void* context;
+  raw_ptr<void> context;
 };
 struct State {
   raw_ptr<Profile> profile = nullptr;
@@ -1027,7 +1027,8 @@ BoazHostResult PrepareBlockingAssets(const char* directory,
   if (auto result = Check(); result != BOAZ_HOST_OK) return result;
   if (state->exit_requested) return BOAZ_HOST_CLOSING;
   if (!directory || !completion) return BOAZ_HOST_INVALID_ARGUMENT;
-  const size_t length = strnlen(directory, 4097);
+  // The C ABI caller supplies a live, NUL-terminated string for this call.
+  const size_t length = UNSAFE_BUFFERS(strnlen(directory, 4097));
   if (!length || length > 4096) return BOAZ_HOST_INVALID_ARGUMENT;
   const base::FilePath path(std::string(directory, length));
   if (!path.IsAbsolute() || path.ReferencesParent()) return BOAZ_HOST_INVALID_ARGUMENT;
@@ -1062,7 +1063,8 @@ BoazHostResult ConfigureProfileBlocking(BoazHostProfile profile, uint8_t enabled
   if (auto result = Check(); result != BOAZ_HOST_OK) return result;
   if (state->exit_requested) return BOAZ_HOST_CLOSING;
   if (enabled > 1 || !exception_sites_json) return BOAZ_HOST_INVALID_ARGUMENT;
-  const size_t length = strnlen(exception_sites_json, 1024 * 1024 + 1);
+  // The C ABI caller supplies a live, NUL-terminated string for this call.
+  const size_t length = UNSAFE_BUFFERS(strnlen(exception_sites_json, 1024 * 1024 + 1));
   if (length > 1024 * 1024) return BOAZ_HOST_INVALID_ARGUMENT;
   auto sites = base::JSONReader::ReadList(
       std::string_view(exception_sites_json, length), base::JSON_PARSE_RFC);
