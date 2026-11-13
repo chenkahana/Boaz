@@ -205,6 +205,7 @@ void TrustedExecution::RenderFrameDeleted(content::RenderFrameHost* frame) {
   for (auto id : cancelled) Finish(id, Status::kRendererFailed);
 }
 void TrustedExecution::PrimaryMainFrameRenderProcessGone(base::TerminationStatus) {
+  navigations_.clear();
   Cancel(Status::kRendererFailed);
 }
 void TrustedExecution::WebContentsDestroyed() { Close(); }

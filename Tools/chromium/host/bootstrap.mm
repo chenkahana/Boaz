@@ -530,6 +530,18 @@ BoazHostResult ShowDevTools(BoazHostPage page, BoazHostDevToolsAction action) {
   if (auto result = Check(); result != BOAZ_HOST_OK) return result;
   return state->tabs->ShowDevTools(page, action);
 }
+BoazHostResult CaptureFocusedDocumentOrigin(BoazHostPage page, BoazHostDocument* document,
+    char* origin, size_t capacity) {
+  if (document) *document = 0;
+  if (origin && capacity) origin[0] = '\0';
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  return state->tabs->CaptureDocumentOrigin(page, document, origin, capacity, true);
+}
+BoazHostResult CloneDocument(BoazHostPage page, BoazHostDocument document, BoazHostDocument* clone) {
+  if (clone) *clone = 0;
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  return state->tabs->CloneDocument(page, document, clone);
+}
 BoazHostResult CaptureVisible(BoazHostPage page, uint64_t request, int32_t width,
     int32_t height, BoazHostCaptureCompletion completion, void* context) {
   if (auto result = Check(); result != BOAZ_HOST_OK) return result;
@@ -795,7 +807,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:

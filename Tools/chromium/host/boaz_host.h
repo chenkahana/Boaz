@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 34u
+#define BOAZ_HOST_ABI_VERSION 35u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT,
@@ -314,6 +314,11 @@ typedef struct BoazHostAPI {
   BoazHostResult (*capture_full_page)(BoazHostPage page, uint64_t request,
       BoazHostCaptureCompletion completion, void* context);
   BoazHostResult (*cancel_full_page)(BoazHostPage page, uint64_t request);
+  /* Browser-selected focused frame; no caller-supplied frame identity. */
+  BoazHostResult (*capture_focused_document_origin)(BoazHostPage page, BoazHostDocument* document,
+      char* origin, size_t capacity);
+  /* Independent single-use token for the exact same validated document. */
+  BoazHostResult (*clone_document)(BoazHostPage page, BoazHostDocument document, BoazHostDocument* clone);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

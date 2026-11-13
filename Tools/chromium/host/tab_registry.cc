@@ -784,6 +784,16 @@ BoazHostResult TabRegistry::CancelCapture(BoazHostPage id, uint64_t request) {
   BOAZ_FIND_PAGE();
   return page->capture ? page->capture->Cancel(request) : BOAZ_HOST_INVALID_ARGUMENT;
 }
+BoazHostResult TabRegistry::CloneDocument(BoazHostPage id, BoazHostDocument document, BoazHostDocument* output) {
+  if (output) *output = 0;
+  BOAZ_FIND_PAGE();
+  if (!output || !document) return BOAZ_HOST_INVALID_ARGUMENT;
+  if (!page->scripts) return BOAZ_HOST_UNAVAILABLE;
+  auto token = page->scripts->Clone(document);
+  if (!token) return BOAZ_HOST_UNAVAILABLE;
+  *output = *token;
+  return BOAZ_HOST_OK;
+}
 BoazHostResult TabRegistry::CaptureDocument(BoazHostPage id, BoazHostDocument* output) {
   if (output) *output = 0;
   BOAZ_FIND_PAGE();
@@ -795,14 +805,14 @@ BoazHostResult TabRegistry::CaptureDocument(BoazHostPage id, BoazHostDocument* o
   return BOAZ_HOST_OK;
 }
 BoazHostResult TabRegistry::CaptureDocumentOrigin(BoazHostPage id,
-    BoazHostDocument* output, char* origin, size_t capacity) {
+    BoazHostDocument* output, char* origin, size_t capacity, bool focused) {
   if (output) *output = 0;
   if (origin && capacity) origin[0] = '\0';
   BOAZ_FIND_PAGE();
   if (!output || !origin || capacity == 0) return BOAZ_HOST_INVALID_ARGUMENT;
   if (!page->scripts) page->scripts = std::make_unique<TrustedScriptChannel>(page->web_contents());
   std::string serialized;
-  auto token = page->scripts->Capture(&serialized);
+  auto token = page->scripts->Capture(&serialized, focused);
   if (!token) return BOAZ_HOST_UNAVAILABLE;
   if (serialized.empty() || serialized.size() >= capacity || serialized.size() >= 2048) {
     page->scripts->Release(*token);
