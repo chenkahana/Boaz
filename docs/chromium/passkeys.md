@@ -1,6 +1,6 @@
 # Native website passkeys
 
-Status: required work in PR #70. The full direct Chromium host is still building. No WebAuthn runtime scenario has passed. This concerns third-party website authentication, not sign-in to Boaz.
+Status: required work in PR #70. The native-window adapter is implementation-ready; manifest integration and compilation remain pending. No WebAuthn runtime scenario has passed. This concerns third-party website authentication, not sign-in to Boaz.
 
 Reuse Chromium 157.0.8103.51 WebAuthn, FIDO, origin/RP validation, secure-context checks, user verification and profile isolation. Do not replace navigator.credentials, add OAuth/Sign in with Apple, or build a separate Swift AuthenticationServices authenticator. Keep WebKit, extensions and isolated passwords intact.
 
@@ -8,7 +8,7 @@ Reuse Chromium 157.0.8103.51 WebAuthn, FIDO, origin/RP validation, secure-contex
 
 `chrome/browser/webauthn/chrome_authenticator_request_delegate.cc:1402–1426` obtains the request's WebContents and browser, preserves the app-window exclusion, then discovers NSWindow through a top-level Views widget. Boaz's NSWindow/NSHostingView has no such widget. `device/fido/fido_discovery_factory.cc:212–213` requires that window for iCloud discovery outside testing. This identifies a missing adapter without assuming that the rest of WebAuthn is broken.
 
-`Tools/chromium/patches/webauthn-native-window.proposed.patch` retains that lookup and adds a fallback only for a positively registered Boaz browser. It obtains the existing BrowserWindow's native window. No origin, RP, authentication, protocol or crypto checks change. The two-file patch passes `git apply --check --no-index`; it is deliberately outside the active patch manifest. First run the unchanged signed host flow, record its result, then pin/apply the adapter if confirmed necessary and rebuild the affected object/application.
+`Tools/chromium/patches/webauthn-native-window.patch` retains that lookup and adds a fallback only for a positively registered Boaz browser. It obtains the existing BrowserWindow's native window. No origin, RP, authentication, protocol or crypto checks change. The two-file patch passes applicability and application checks against copied pinned source. The delegate already includes the complete `BrowserWindow` type; the Mac target adds `//boaz:headers`. Append the patch to the manifest, apply at the next safe build checkpoint, and compile the affected object/application. The verified missing Views widget supports implementing this fallback now; runtime uncertainty blocks acceptance, not this adapter. No SSD source was changed during preparation.
 
 The existing native window already supplies WebContentsModalDialogHost. Chromium's authenticator dialog uses that host; runtime evidence must establish whether a further presentation fix is needed. Conditional mediation reaches ChromeWebAuthnCredentialsDelegate and passkey autofill; Boaz's native address adapter does not establish a working conditional suggestion surface. Security-key, hybrid/phone, Touch ID and Apple Passwords flows need separate results.
 
