@@ -40,3 +40,42 @@ Covered source: https://github.com/brave/adblock-rust/tree/0016bc16a75ca9f87354a
 Release preparation must preserve applicable source availability and notices
 for this library, list data, and separately selected resource assets. Rust
 transitive dependency notices remain dependent on the resolved Cargo.lock.
+
+Pinned resource sources (resources.lock.json)
+
+Brave's uBlock Origin fork:
+  https://github.com/brave/uBlock/tree/cfa955fa8e1732e895e59fc6b8014e2317695ff3
+  Copyright Raymond Hill and respective uBlock Origin contributors.
+  GPL version 3 or later; LICENSE.txt and original per-file notices retained.
+  This is the exact submodule revision selected by the pinned official Brave
+  component packager. Its redirect-resources.js explicitly maps
+  abp-resource:blank-mp4 to noop-1s.mp4 and blank-js to noop.js.
+
+Brave custom resources:
+  https://github.com/brave/adblock-resources/tree/6da9b247c3368baa8b4f24cd02046e18702a6527
+  MPL 2.0; LICENSE and original source attribution retained.
+  The published dist/resources.json is pinned as upstream assembly input.
+
+Official assembly reference:
+  https://github.com/brave/brave-core-crx-packager/tree/46709f1745c13478a4b10223ab96d25f390a9dab
+  MPL 2.0; LICENSE retained. lib/adBlockRustUtils.js lines 65-106 records
+  builtinScriptlets import, dependency lookup, function-source encoding,
+  redirect assembly and custom-resource composition. No packager was executed.
+
+The source inventory now resolves every named list dependency. Generated
+Resource JSON, resource permission validation and runtime behavior still need
+verification. Preserve requiresTrust/permission metadata; public lists receive
+no elevated resource permission. The source packager's omission of world/trust
+fields is not authorization to discard those boundaries in Boaz.
+
+Renderer execution contract
+Public filtering scriptlets may run in the matching document's main world.
+Several required scripts replace page globals (fetch, XMLHttpRequest and
+property values); password-world execution would not implement their effects.
+Four required scriptlets declare ISOLATED in upstream metadata; the lock retains
+that distinction even though adblock-rust returns one combined injected_script.
+The approved combined-output route uses main world without credentials,
+secrets, privileged bindings or native password access. It must never reuse
+Boaz's trusted password script channel. Injection timing and document identity,
+site exceptions, procedural cosmetics and renderer lifecycle remain runtime
+acceptance gates. These files establish source provenance, not product parity.

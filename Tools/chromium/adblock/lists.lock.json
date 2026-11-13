@@ -395,7 +395,7 @@
     "parser": "pending actual pinned adblock-rust FFI validation",
     "transformed": false,
     "preprocessing": "No include/conditional directives found in these exact assembled bytes; no stripping or substitutions performed.",
-    "resource_assets": "NOT PINNED. Resource names and scriptlet names are dependency requirements, not proof that assets exist or resolve.",
+    "resource_assets": "Source assets pinned in resources.lock.json; all named redirects/scriptlets and transitive scriptlet dependencies resolve statically. Generated Resource JSON and runtime behavior remain unvalidated.",
     "compatibility": "ABP rewrite resources and all procedural/scriptlet rules require exact parser/output validation; do not ignore rejected rules."
   }
 }
