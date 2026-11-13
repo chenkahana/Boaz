@@ -35,3 +35,11 @@ A failed preparation fails the prototype's window-creation gate explicitly; it m
 `enumerate_extensions` visits enabled actions for the requested browser profile synchronously. The visitor copies borrowed UTF-8 ID/name values and cannot reenter the API. `invoke_extension` is reserved for genuine native user activation. It validates the expected live page against the browser's actual active WebContents and the anchor against that browser's NSWindow. Anchor bounds use local view coordinates. An OK result means dispatch, not confirmed popup visibility. Unsupported actions return unavailable.
 
 The browser close-scheduled notification destroys the action controller before Browser destruction; delayed window UI cleanup does not own extension lifetime. The ABI 4 C++ and Swift implementations compile. The source was installed after checkpointing the ABI 3 build; the resumed full build includes ABI 4. Runtime acceptance remains pending.
+
+## ABI 5 trusted execution (prepared, not installed)
+
+The native caller captures an opaque document token before authentication, then either releases it or consumes it with accepted trusted execution. Tokens never repeat within the process, are limited to 64 held targets per page, and cannot be substituted across pages or replacement WebContents. Cross-document navigation, frame deletion, crash and close invalidate held targets. Private pages may execute fill operations; this API does not save credentials.
+
+Function source is trusted application code. Arguments are a UTF-8 JSON dictionary, bounded to 64 KiB and 32 levels. The executor also bounds function storage and result size. Immediate API errors promise no callback and leave token release to the caller. Accepted execution promises one posted callback carrying the original page/token and explicit status; result JSON is borrowed only during that callback. Native callers copy the result and cannot reenter the host synchronously.
+
+The bootstrap counts accepted script operations and delays `shutdown_ready` until their posted completions have drained. Page close and WebContents replacement close the channel and cancel its executor. This extends the earlier object-level cancellation guarantee to the C boundary. The running full build remains ABI 4; this packet needs compilation and hostile-navigation/runtime verification before S3 acceptance.

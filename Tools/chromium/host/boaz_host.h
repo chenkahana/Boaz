@@ -8,10 +8,20 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 4u
+#define BOAZ_HOST_ABI_VERSION 5u
 
 typedef uint64_t BoazHostWindow;
 typedef uint64_t BoazHostPage;
+typedef uint64_t BoazHostDocument;
+typedef enum BoazHostScriptStatus {
+  BOAZ_SCRIPT_SUCCESS, BOAZ_SCRIPT_INVALID_TARGET, BOAZ_SCRIPT_NAVIGATION,
+  BOAZ_SCRIPT_CLOSED, BOAZ_SCRIPT_RENDERER_FAILED, BOAZ_SCRIPT_TIMEOUT,
+  BOAZ_SCRIPT_INVALID_ARGUMENT, BOAZ_SCRIPT_BUSY
+} BoazHostScriptStatus;
+/* Posted once for accepted operations. JSON is borrowed during callback only;
+ * failures have no result. Callbacks cannot reenter the host API. */
+typedef void (*BoazHostScriptCompletion)(void* context, BoazHostPage page,
+    BoazHostDocument document, BoazHostScriptStatus status, const char* result_json);
 
 typedef enum BoazHostResult {
   BOAZ_HOST_OK = 0,
@@ -111,6 +121,16 @@ typedef struct BoazHostAPI {
   BoazHostResult (*invoke_extension)(BoazHostWindow window, BoazHostPage page,
       const char* extension_id, void* anchor_nsview,
       int32_t x, int32_t y, int32_t width, int32_t height);
+  /* Capture before authentication. Accepted execution consumes the opaque document token.
+   * Function source must be trusted app code; arguments are a JSON dictionary.
+   * Return OK promises one completion before shutdown_ready, including failure.
+   * Other immediate return values promise no completion. */
+  BoazHostResult (*capture_document)(BoazHostPage page, BoazHostDocument* document);
+  BoazHostResult (*release_document)(BoazHostPage page, BoazHostDocument document);
+  BoazHostResult (*execute_trusted)(BoazHostPage page, BoazHostDocument document,
+      const char* function_utf8, size_t function_length,
+      const char* arguments_json, size_t arguments_length,
+      BoazHostScriptCompletion completion, void* context);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

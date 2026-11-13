@@ -3,6 +3,7 @@
 
 #include <memory>
 #include "boaz_host.h"
+#include "trusted_execution.h"
 
 class Browser;
 namespace content { class WebContents; }
@@ -30,6 +31,10 @@ class TabRegistry {
   BoazHostResult Reload(BoazHostPage page);
   BoazHostResult ActivatePage(BoazHostPage page, bool focus);
   BoazHostResult GetNativeView(BoazHostPage page, void** native_view);
+  BoazHostResult CaptureDocument(BoazHostPage page, BoazHostDocument* document);
+  BoazHostResult ReleaseDocument(BoazHostPage page, BoazHostDocument document);
+  BoazHostResult ExecuteTrusted(BoazHostPage page, BoazHostDocument document,
+      std::u16string source, base::DictValue arguments, TrustedExecution::Completion completion);
   BoazHostResult ClosePage(BoazHostPage page);
   BoazHostResult CloseWindow(BoazHostWindow window);
 

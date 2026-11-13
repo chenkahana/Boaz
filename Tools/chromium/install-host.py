@@ -39,6 +39,7 @@ def main():
                 "extension_actions.h", "extension_actions.mm",
                 "extension_popup.h", "extension_popup.mm",
                 "password_submission.h", "password_submission.cc",
+                "trusted_script_channel.h", "trusted_script_channel.cc",
                 "tab_registry.h", "tab_registry.cc", "trusted_execution.h", "trusted_execution.cc"}
     if not required.issubset(contents):
         raise RuntimeError("Host packet is incomplete; integrate its implementation first.")

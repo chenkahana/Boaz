@@ -1,4 +1,5 @@
 #include "tab_registry.h"
+#include "trusted_script_channel.h"
 
 #include <limits>
 #include <map>
@@ -106,7 +107,7 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver {
     owner->Queue(*this, BOAZ_HOST_PAGE_CLOSE_CANCELLED);
   }
   void WebContentsDestroyed() override { owner->Destroyed(*this); }
-  void ObserveReplacement(content::WebContents* contents) { Observe(contents); }
+  void ObserveReplacement(content::WebContents* contents) { scripts.reset(); Observe(contents); }
 
   raw_ref<Impl> owner;
   BoazHostPage id = NextHandle();
@@ -121,6 +122,7 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver {
   bool created_delivered = false;
   bool view_available = false;
   std::optional<Snapshot> final_snapshot;
+  std::unique_ptr<TrustedScriptChannel> scripts;
 };
 
 struct TabRegistry::Impl::Window : TabStripModelObserver {
@@ -275,6 +277,7 @@ void TabRegistry::Impl::Replace(Page& page, content::WebContents* replacement) {
 void TabRegistry::Impl::Closing(Page& page) {
   if (page.closing) return;
   page.closing = true;
+  if (page.scripts) page.scripts->Close();
   auto snapshot = Capture(page);
   page.final_snapshot = snapshot;
   snapshot.state.url = snapshot.url.c_str();
@@ -403,6 +406,27 @@ BoazHostResult TabRegistry::GetNativeView(BoazHostPage id, void** output) {
   if (!page->view_available) return BOAZ_HOST_UNAVAILABLE;
   *output = NativeViewForContents(page->web_contents());
   return *output ? BOAZ_HOST_OK : BOAZ_HOST_UNAVAILABLE;
+}
+BoazHostResult TabRegistry::CaptureDocument(BoazHostPage id, BoazHostDocument* output) {
+  if (output) *output = 0;
+  BOAZ_FIND_PAGE();
+  if (!output) return BOAZ_HOST_INVALID_ARGUMENT;
+  if (!page->scripts) page->scripts = std::make_unique<TrustedScriptChannel>(page->web_contents());
+  auto token = page->scripts->Capture();
+  if (!token) return BOAZ_HOST_UNAVAILABLE;
+  *output = *token;
+  return BOAZ_HOST_OK;
+}
+BoazHostResult TabRegistry::ReleaseDocument(BoazHostPage id, BoazHostDocument token) {
+  BOAZ_FIND_PAGE();
+  return page->scripts && page->scripts->Release(token) ? BOAZ_HOST_OK : BOAZ_HOST_INVALID_HANDLE;
+}
+BoazHostResult TabRegistry::ExecuteTrusted(BoazHostPage id, BoazHostDocument token,
+    std::u16string source, base::DictValue arguments, TrustedExecution::Completion completion) {
+  BOAZ_FIND_PAGE();
+  if (!page->scripts) return BOAZ_HOST_INVALID_HANDLE;
+  page->scripts->Execute(token, std::move(source), std::move(arguments), std::move(completion));
+  return BOAZ_HOST_OK;
 }
 BoazHostResult TabRegistry::ClosePage(BoazHostPage id) {
   BOAZ_FIND_PAGE();

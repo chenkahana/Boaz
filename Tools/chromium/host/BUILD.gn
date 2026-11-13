@@ -37,6 +37,8 @@ source_set("host") {
     "tab_registry.cc",
     "password_submission.h",
     "password_submission.cc",
+    "trusted_script_channel.h",
+    "trusted_script_channel.cc",
     "trusted_execution.h",
     "trusted_execution.cc",
   ]

@@ -147,7 +147,7 @@ def main():
                        cwd=source, env=env, check=True)
     if args.build or args.host_objects:
         targets = (["obj/boaz/host/" + name + ".o" for name in
-                    ("bootstrap", "native_view", "native_window", "native_location_bar", "native_permission_prompt", "tab_registry", "trusted_execution", "password_submission", "extension_actions", "extension_popup")]
+                    ("bootstrap", "native_view", "native_window", "native_location_bar", "native_permission_prompt", "tab_registry", "trusted_execution", "password_submission", "trusted_script_channel", "extension_actions", "extension_popup")]
                    if args.host_objects else ["chrome", "chrome/installer/mac"])
         if args.host_objects:
             targets += [

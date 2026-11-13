@@ -1,6 +1,9 @@
 #import <AppKit/AppKit.h>
 #include <dlfcn.h>
 #include <map>
+#include <limits>
+#include <optional>
+#include <string_view>
 #include <utility>
 #include "bootstrap.h"
 #include "boaz_host.h"
@@ -16,6 +19,10 @@
 #include "base/auto_reset.h"
 #include "base/check.h"
 #include "base/check_op.h"
+#include "base/json/json_reader.h"
+#include "base/json/json_writer.h"
+#include "base/strings/string_util.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/command_line.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
@@ -56,6 +63,7 @@ struct State {
   BoazHostCallbacks callbacks{};
   raw_ptr<const BoazHostWindowOptions> pending = nullptr;
   std::map<BoazHostWindow, Window> windows;
+  uint64_t pending_scripts = 0;
   bool in_callback = false;
   bool exit_requested = false;
   bool finished = false;
@@ -86,7 +94,8 @@ bool ValidOptions(const BoazHostWindowOptions* o) {
   });
 }
 void FinishIfDrained() {
-  if (!state->exit_requested || !state->windows.empty() || state->finished) return;
+  if (!state->exit_requested || !state->windows.empty() ||
+      state->pending_scripts || state->finished) return;
   state->finished = true;
   Notify([] { state->callbacks.shutdown_ready(state->callbacks.context); });
   // Swift queues its cleanup on this same main dispatch queue first.
@@ -219,10 +228,63 @@ BoazHostResult InvokeExtension(BoazHostWindow id, BoazHostPage page,
     case NativeExtensionActions::Result::kUnsupported: return BOAZ_HOST_UNAVAILABLE;
   }
 }
+BoazHostResult CaptureDocument(BoazHostPage page, BoazHostDocument* document) {
+  if (document) *document = 0;
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  return state->tabs->CaptureDocument(page, document);
+}
+BoazHostResult ReleaseDocument(BoazHostPage page, BoazHostDocument document) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  return state->tabs->ReleaseDocument(page, document);
+}
+BoazHostScriptStatus ScriptStatus(TrustedExecution::Status status) {
+  switch (status) {
+    case TrustedExecution::Status::kSuccess: return BOAZ_SCRIPT_SUCCESS;
+    case TrustedExecution::Status::kInvalidTarget: return BOAZ_SCRIPT_INVALID_TARGET;
+    case TrustedExecution::Status::kNavigation: return BOAZ_SCRIPT_NAVIGATION;
+    case TrustedExecution::Status::kClosed: return BOAZ_SCRIPT_CLOSED;
+    case TrustedExecution::Status::kRendererFailed: return BOAZ_SCRIPT_RENDERER_FAILED;
+    case TrustedExecution::Status::kTimeout: return BOAZ_SCRIPT_TIMEOUT;
+    case TrustedExecution::Status::kInvalidArgument: return BOAZ_SCRIPT_INVALID_ARGUMENT;
+    case TrustedExecution::Status::kBusy: return BOAZ_SCRIPT_BUSY;
+  }
+}
+BoazHostResult ExecuteTrusted(BoazHostPage page, BoazHostDocument document,
+    const char* source, size_t source_length, const char* arguments,
+    size_t arguments_length, BoazHostScriptCompletion completion, void* context) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  constexpr size_t kLimit = 64 * 1024;
+  if (!completion || !source || !arguments || !source_length ||
+      source_length > kLimit || arguments_length > kLimit)
+    return BOAZ_HOST_INVALID_ARGUMENT;
+  std::string_view function(source, source_length);
+  if (!base::IsStringUTF8(function)) return BOAZ_HOST_INVALID_ARGUMENT;
+  auto dict = base::JSONReader::ReadDict(std::string_view(arguments, arguments_length),
+                                       base::JSON_PARSE_RFC, 32);
+  if (!dict) return BOAZ_HOST_INVALID_ARGUMENT;
+  CHECK_LT(state->pending_scripts, std::numeric_limits<uint64_t>::max());
+  ++state->pending_scripts;
+  auto result = state->tabs->ExecuteTrusted(page, document, base::UTF8ToUTF16(function),
+      std::move(*dict), base::BindOnce(
+          [](BoazHostPage page, BoazHostDocument document, BoazHostScriptCompletion callback,
+             void* context, TrustedExecution::Outcome outcome) {
+            CHECK(state);
+            auto status = ScriptStatus(outcome.status);
+            auto json = outcome.status == TrustedExecution::Status::kSuccess
+                ? base::WriteJson(outcome.value) : std::nullopt;
+            if (status == BOAZ_SCRIPT_SUCCESS && !json) status = BOAZ_SCRIPT_INVALID_ARGUMENT;
+            Notify([&] { callback(context, page, document, status, json ? json->c_str() : nullptr); });
+            CHECK_GT(state->pending_scripts, 0u);
+            --state->pending_scripts;
+            FinishIfDrained();
+          }, page, document, completion, context));
+  if (result != BOAZ_HOST_OK) --state->pending_scripts;
+  return result;
+}
 const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
-  EnumerateExtensions, InvokeExtension};
+  EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
