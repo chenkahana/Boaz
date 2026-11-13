@@ -5,7 +5,7 @@ public enum StoredBrowserEngine: String, Codable, Sendable {
     case chromium, webkit
 }
 
-/// Local routing preferences are deliberately excluded from library sync.
+/// Persistent routing preferences; private browsing never writes these rules.
 public struct SiteEngineRule: Codable, Equatable, Sendable {
     public enum Reason: String, Codable, Sendable { case user, protectedMedia }
     public enum ValidationError: Error { case invalidProfile, invalidHost, invalidPath }
@@ -64,16 +64,17 @@ public struct SiteEngineRule: Codable, Equatable, Sendable {
 }
 
 extension BoazStore {
-    /// Seeds local protected-media routing once per persistent profile. Deleting a rule is permanent.
-    public func seedProtectedMediaRules(profileID: String) throws {
-        let sites: [(String, String?)] = [
+    static let protectedMediaSeedSites: [(String, String?)] = [
             ("netflix.com", nil), ("disneyplus.com", nil), ("max.com", nil),
             ("primevideo.com", nil), ("amazon.com", "/gp/video"), ("tv.apple.com", nil),
             ("open.spotify.com", nil), ("hulu.com", nil), ("peacocktv.com", nil),
             ("paramountplus.com", nil),
-        ]
+    ]
+
+    /// Seed defaults never overwrite synced choices or deletion tombstones.
+    public func seedProtectedMediaRules(profileID: String) throws {
         let created = Date.now
-        let rules = try sites.map { host, path in
+        let rules = try Self.protectedMediaSeedSites.map { host, path in
             try SiteEngineRule(profileID: profileID, host: host, pathPrefix: path,
                 engine: .webkit, reason: .protectedMedia, createdAt: created)
         }
@@ -82,11 +83,10 @@ extension BoazStore {
                 sql: "SELECT EXISTS(SELECT 1 FROM protectedEngineSeed WHERE profileID = ?)", arguments: [profileID])
             if completed == true { return }
             for rule in rules {
-                try db.execute(sql: """
-                    INSERT OR IGNORE INTO siteEngineRule
-                        (profileID, host, pathPrefix, engine, reason, createdAt) VALUES (?, ?, ?, ?, ?, ?)
-                    """, arguments: [rule.profileID, rule.host, rule.pathPrefix ?? "", rule.engine.rawValue,
-                                      rule.reason.rawValue, rule.createdAt])
+                let record = SiteEngineRuleRecord(rule: rule, modifiedAt: Date(timeIntervalSince1970: 0))
+                if try SiteEngineRuleRecord.fetchOne(db, key: record.id) == nil {
+                    try record.insert(db)
+                }
             }
             try db.execute(sql: "INSERT INTO protectedEngineSeed (profileID, completedAt) VALUES (?, ?)",
                            arguments: [profileID, created])
@@ -114,35 +114,32 @@ extension BoazStore {
 
     public func siteEngineRules(profileID: String) throws -> [SiteEngineRule] {
         try writer.read { db in
-            try Row.fetchAll(db, sql: "SELECT * FROM siteEngineRule WHERE profileID = ? ORDER BY host, pathPrefix, reason",
-                             arguments: [profileID]).map { row in
-                guard let engine = StoredBrowserEngine(rawValue: row["engine"]),
-                      let reason = SiteEngineRule.Reason(rawValue: row["reason"]) else {
-                    throw SiteEngineRule.ValidationError.invalidHost
-                }
-                let path: String = row["pathPrefix"]
-                return try SiteEngineRule(profileID: row["profileID"], host: row["host"],
-                    pathPrefix: path.isEmpty ? nil : path, engine: engine, reason: reason, createdAt: row["createdAt"])
-            }
+            try SiteEngineRuleRecord.fetchAll(db,
+                sql: "SELECT * FROM siteEngineRuleRecord WHERE profileID = ? AND deletedAt IS NULL ORDER BY host, pathPrefix, reason",
+                arguments: [profileID]).map { try $0.rule() }
         }
+    }
+
+    public func siteEngineRuleUpdates() -> AsyncValueObservation<[SiteEngineRuleRecord]> {
+        ValueObservation.tracking { db in
+            try SiteEngineRuleRecord.fetchAll(db, sql: "SELECT * FROM siteEngineRuleRecord ORDER BY id")
+        }.removeDuplicates().values(in: writer)
     }
 
     public func upsertSiteEngineRule(_ rule: SiteEngineRule) throws {
         let valid = try SiteEngineRule(profileID: rule.profileID, host: rule.host, pathPrefix: rule.pathPrefix,
-                                      engine: rule.engine, reason: rule.reason, createdAt: rule.createdAt)
+            engine: rule.engine, reason: rule.reason, createdAt: rule.createdAt)
         try writer.write { db in
-            try db.execute(sql: """
-                INSERT INTO siteEngineRule (profileID, host, pathPrefix, engine, reason, createdAt) VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(profileID, host, pathPrefix, reason) DO UPDATE SET engine = excluded.engine
-                """, arguments: [valid.profileID, valid.host, valid.pathPrefix ?? "", valid.engine.rawValue,
-                                  valid.reason.rawValue, valid.createdAt])
+            try SiteEngineRuleRecord(rule: valid, modifiedAt: .now).save(db)
         }
     }
 
     public func removeSiteEngineRule(_ rule: SiteEngineRule) throws {
+        let valid = try SiteEngineRule(profileID: rule.profileID, host: rule.host, pathPrefix: rule.pathPrefix,
+            engine: rule.engine, reason: rule.reason, createdAt: rule.createdAt)
+        let now = Date.now
         try writer.write { db in
-            try db.execute(sql: "DELETE FROM siteEngineRule WHERE profileID = ? AND host = ? AND pathPrefix = ? AND reason = ?",
-                arguments: [rule.profileID, rule.host, rule.pathPrefix ?? "", rule.reason.rawValue])
+            try SiteEngineRuleRecord(rule: valid, modifiedAt: now, deletedAt: now).save(db)
         }
     }
 }

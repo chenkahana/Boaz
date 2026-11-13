@@ -237,6 +237,47 @@ public final class BoazStore: Sendable {
                 t.column("completedAt", .datetime).notNull()
             }
         }
+        migrator.registerMigration("v8-synced-site-engine-rules") { db in
+            try db.create(table: "siteEngineRuleRecord") { t in
+                t.primaryKey("id", .text)
+                t.column("profileID", .text).notNull()
+                t.column("host", .text).notNull()
+                t.column("pathPrefix", .text).notNull()
+                t.column("reason", .text).notNull()
+                t.column("engine", .text).notNull()
+                t.column("createdAt", .datetime).notNull()
+                t.column("modifiedAt", .datetime).notNull()
+                t.column("deletedAt", .datetime)
+                t.uniqueKey(["profileID", "host", "pathPrefix", "reason"])
+            }
+            for row in try Row.fetchAll(db, sql: "SELECT * FROM siteEngineRule") {
+                guard let engine = StoredBrowserEngine(rawValue: row["engine"]),
+                      let reason = SiteEngineRule.Reason(rawValue: row["reason"]) else {
+                    throw SiteEngineRule.ValidationError.invalidHost
+                }
+                let path: String = row["pathPrefix"]
+                let rule = try SiteEngineRule(profileID: row["profileID"], host: row["host"],
+                    pathPrefix: path.isEmpty ? nil : path, engine: engine, reason: reason, createdAt: row["createdAt"])
+                let seedDate = try Date.fetchOne(db,
+                    sql: "SELECT completedAt FROM protectedEngineSeed WHERE profileID = ?", arguments: [rule.profileID])
+                let isSeed = rule.reason == .protectedMedia && seedDate == rule.createdAt &&
+                    Self.protectedMediaSeedSites.contains { $0.0 == rule.host && $0.1 == rule.pathPrefix }
+                try SiteEngineRuleRecord(rule: rule,
+                    modifiedAt: isSeed ? Date(timeIntervalSince1970: 0) : rule.createdAt).insert(db)
+            }
+            let migratedAt = Date.now
+            for profileID in try String.fetchAll(db, sql: "SELECT profileID FROM protectedEngineSeed") {
+                for (host, path) in Self.protectedMediaSeedSites {
+                    let rule = try SiteEngineRule(profileID: profileID, host: host, pathPrefix: path,
+                        engine: .webkit, reason: .protectedMedia, createdAt: migratedAt)
+                    let deletion = SiteEngineRuleRecord(rule: rule, modifiedAt: migratedAt, deletedAt: migratedAt)
+                    if try SiteEngineRuleRecord.fetchOne(db, key: deletion.id) == nil {
+                        try deletion.insert(db)
+                    }
+                }
+            }
+            try createSyncTriggers(for: .siteEngineRule, in: db)
+        }
         return migrator
     }
 

@@ -118,6 +118,9 @@ final class MacModel {
         // Not tied to the window whose task started the app: closing that window would stop the sidebar following
         // the library, and a new space wouldn't show until relaunch.
         Task { await observeSidebar(store) }
+        #if BOAZ_CHROMIUM
+        Task { await observeEngineRules(store) }
+        #endif
     }
 
     /// Follows the library for the life of the app. Any database error ends an observation, so it starts again,
@@ -161,6 +164,24 @@ final class MacModel {
             }
         }
     }
+
+    #if BOAZ_CHROMIUM
+    private func observeEngineRules(_ store: BoazStore) async {
+        var failures = 0
+        while !Task.isCancelled {
+            do {
+                for try await _ in store.siteEngineRuleUpdates() {
+                    failures = 0
+                    ChromiumEnginePreferences.rulesDidChange()
+                }
+                return
+            } catch {
+                failures += 1
+                try? await Task.sleep(for: .seconds(min(1 << min(failures, 5), 30)))
+            }
+        }
+    }
+    #endif
 
     private func archiveLoop() async {
         while !Task.isCancelled {
