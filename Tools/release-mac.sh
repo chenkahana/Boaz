@@ -39,14 +39,12 @@ SPARKLE_BIN=$PACKAGES/artifacts/sparkle/Sparkle/bin
 echo "==> Release artifacts: $OUT"
 
 echo "==> Archiving Boaz $VERSION"
-# The DMG build: project.yml plus Sparkle (project-dmg.yml). The App Store build never contains Sparkle.
-xcodegen generate --quiet --spec project-dmg.yml
-# Back to the App Store project however this ends, so a later `make mac` or Xcode build doesn't pick up Sparkle.
-trap 'xcodegen generate --quiet' EXIT
-# Seeded with BoazKit's pins, so Xcode records Sparkle's here and not in BoazKit's Package.resolved.
-mkdir -p Boaz.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
-cp Packages/BoazKit/Package.resolved Boaz.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
-xcodebuild archive -project Boaz.xcodeproj -scheme Boaz-macOS -configuration Release \
+Tools/generate-webkit-project.sh dmg
+PROJECT="$(pwd -P)/build/webkit-dmg/Boaz.xcodeproj"
+# Keep Sparkle resolution separate from BoazKit and the App Store project.
+mkdir -p "$PROJECT/project.xcworkspace/xcshareddata/swiftpm"
+cp Packages/BoazKit/Package.resolved "$PROJECT/project.xcworkspace/xcshareddata/swiftpm/"
+xcodebuild archive -project "$PROJECT" -scheme Boaz-macOS -configuration Release \
     -destination 'generic/platform=macOS' -archivePath "$ARCHIVE" -allowProvisioningUpdates -quiet \
     -clonedSourcePackagesDirPath "$PACKAGES" MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD"
 

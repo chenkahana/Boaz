@@ -216,3 +216,18 @@ Verification passed:
 ABI43 combined verification is pending. The guarded build uses a frozen validation checkout; independent implementation continues in worker worktrees.
 
 A bounded ABI37 shutdown recheck sampled its identified NetworkService child during quit. `network-quit-sample.txt` contains image metadata but no call graph; it cannot establish the child wait's cause. The app again exited with teardown-watchdog status 2. Neither Keychain access rules nor shutdown deadlines were changed. Normal HTTP navigation and clean quit remain unresolved; this failed runtime check does not invalidate the independent implementation/build progress.
+
+
+### Native permissions and WebKit preservation, ABI44/45
+
+ABI43 checkpoint `f3bab52` passed the complete native build (`20261113T193855.755881Z.log`) and matching Swift application build (`20261113T194113Z-f4f4122c38cf40239589ad3d80bf7c0b`). Its development-signed application displayed the native extension management sheet. Internal component extensions appeared there; `f615122` filters them from the user list. That correction still needs runtime verification. Ordinary HTTP loading and clean quit remain failed gates. The attempted `chrome://version` navigation went through the HTTP-only command bar's search path and provides no evidence about local Chrome-page rendering.
+
+Optional extension permissions now use Chromium's requester-bound continuation with exact extension identity, document/worker lifetime, native consent and cancellation. The first native build exposed a factory include and C++ native-window type error. After `1a2f44c`, the complete native build passed (`20261113T195050.750671Z.log`).
+
+ABI44 checkpoint `5b2d57a` passed the complete native build (`20261113T195527.698213Z.log`) and matching Swift application build (`20261113T195949Z-d0191f0754b446ecb8c2dfbd57a4d6a5`). It adds explicit video/Document PiP routing through the actual media session and native site-permission read/reset controls for camera, microphone and notifications. Decisions remain in Chromium; the UI reports stored/effective state and policy restrictions. These are build results, not runtime permission or PiP acceptance.
+
+ABI45 source adds typed native location consent, approximate/precise saved-state reporting and scoped reset, plus the existing automatic-PiP preference at Chromium's eligibility check. Disabling the preference prevents future automatic triggers; it does not forcibly close existing PiP. ABI45 compilation and runtime acceptance remain pending.
+
+Isolated WebKit generation is available through `Tools/generate-webkit-project.sh appstore` and `Tools/generate-webkit-project.sh dmg`. Generated plists, entitlements and Xcode projects occupy separate `build/webkit-appstore` and `build/webkit-dmg` directories. The prior preservation build failed because its relocated project referenced a nonexistent Info.plist. The corrected generator preserves the original target properties and gives the local package and generated files absolute paths. The WebKit release script uses the isolated DMG project without rewriting the main project. Shell syntax and diff checks passed; the corrected Mac preservation build is underway.
+
+Content blocking remains incomplete in Chromium. The existing WebKit rules cannot be losslessly reduced to extension DNR rules because of regex quotas, top-URL conditions, ordered exceptions and cosmetics. A pinned adblock-rust boundary is being implemented, with production hooks investigated separately. No subset is counted as parity. Cookie migration is also blocked on verified preservation of partition and SameSite metadata through the actual previous-store export path; source cookies are not copied or broadened.
