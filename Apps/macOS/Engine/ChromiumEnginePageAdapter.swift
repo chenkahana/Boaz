@@ -91,6 +91,12 @@ final class ChromiumEnginePageAdapter: EnginePageAdapter {
         try requireOpen()
         try check(api.go_forward!(handle))
     }
+    func setAudioMuted(_ muted: Bool) throws {
+        try requireOpen()
+        guard let setMuted = api.set_audio_muted else { throw EnginePageError.incompatibleBridge }
+        try check(setMuted(handle, muted ? 1 : 0))
+    }
+
     func reload() throws {
         try requireOpen()
         try check(api.reload!(handle))

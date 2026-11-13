@@ -232,6 +232,19 @@ private struct FavoriteTile: View {
     @State private var targeted = false
 
     var body: some View {
+        #if BOAZ_CHROMIUM
+        ZStack(alignment: .topTrailing) {
+            activationTile
+            if let page = browser.cachedChromiumPage(for: tab.id) {
+                ChromiumAudioButton(page: page).padding(2)
+            }
+        }
+        #else
+        activationTile
+        #endif
+    }
+
+    private var activationTile: some View {
         let active = browser.activeTabID == tab.id
         // The icon's own color, once its icon is known; a black, white or gray icon keeps the neutral fill.
         let color = Favicons.shared.resolved(for: tab.url)?.color
@@ -479,6 +492,11 @@ struct ItemRow: View {
                 .foregroundStyle(hovering || active ? .primary : .secondary)
                 .transition(.opacity)
             }
+            #if BOAZ_CHROMIUM
+            if item.kind == .tab, let page = browser.cachedChromiumPage(for: item.id) {
+                ChromiumAudioButton(page: page)
+            }
+            #endif
             if hovering, item.kind == .tab {
                 let pinned = model.isPinned(item)
                 HoverIconButton(symbol: pinned ? "minus" : "xmark", help: pinned ? "Unload" : "Archive",
@@ -831,3 +849,21 @@ struct HorizontalSwipeReader: NSViewRepresentable {
         }
     }
 }
+
+#if BOAZ_CHROMIUM
+private struct ChromiumAudioButton: View {
+    @Environment(MacModel.self) private var model
+    let page: ChromiumEnginePageAdapter
+
+    var body: some View {
+        if page.state.isAudible || page.state.isMuted {
+            HoverIconButton(symbol: page.state.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                            help: page.state.isMuted ? "Unmute Tab" : "Mute Tab", size: 20) {
+                do { try page.setAudioMuted(!page.state.isMuted) }
+                catch { model.showToast("Couldn't change this tab's audio.") }
+            }
+            .disabled(page.state.lifecycle == .closed || page.state.lifecycle == .closing)
+        }
+    }
+}
+#endif
