@@ -16,6 +16,7 @@ final class ChromiumExtensionManagement {
         let canDisable: Bool
         let canEnable: Bool
         let canUninstall: Bool
+        let needsPermissionReview: Bool
     }
     private let api: BoazHostAPI
     private let profile: BoazHostProfile
@@ -27,17 +28,83 @@ final class ChromiumExtensionManagement {
         self.profile = profile
     }
 
-    static func present(api: BoazHostAPI, profile: BoazHostProfile, window: NSWindow) {
-        guard window.attachedSheet == nil else { return }
+    private static var nextReviewRequest: UInt64 = 1
+
+    static func present(api: BoazHostAPI, profile: BoazHostProfile, handle: BoazHostWindow,
+                        window: NSWindow, failure: String? = nil) {
+        guard window.isVisible, window.attachedSheet == nil else { return }
         let model = ChromiumExtensionManagement(api: api, profile: profile)
         model.refresh()
+        if let failure { model.error = failure }
+        var reviewID: String?
         let sheet = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 400),
                              styleMask: [.titled], backing: .buffered, defer: false)
         sheet.title = "Chromium Extensions"
-        sheet.contentViewController = NSHostingController(rootView: ManagementView(model: model) {
-            window.endSheet(sheet)
-        })
-        window.beginSheet(sheet) { _ in sheet.orderOut(nil); sheet.contentViewController = nil }
+        sheet.contentViewController = NSHostingController(rootView: ManagementView(model: model,
+            done: { window.endSheet(sheet) }, review: { id in
+                model.refresh()
+                guard model.installed.contains(where: { $0.id == id && $0.needsPermissionReview }) else {
+                    model.error = "This extension no longer needs permission review."
+                    return
+                }
+                reviewID = id
+                window.endSheet(sheet)
+            }))
+        window.beginSheet(sheet) { _ in
+            sheet.orderOut(nil)
+            sheet.contentViewController = nil
+            guard let reviewID, window.isVisible else { return }
+            DispatchQueue.main.async {
+                beginReview(api: api, profile: profile, handle: handle, window: window, id: reviewID)
+            }
+        }
+    }
+
+    private final class ReviewRequest {
+        let api: BoazHostAPI
+        let profile: BoazHostProfile
+        let handle: BoazHostWindow
+        let request: UInt64
+        weak var window: NSWindow?
+        init(api: BoazHostAPI, profile: BoazHostProfile, handle: BoazHostWindow,
+             request: UInt64, window: NSWindow) {
+            self.api = api; self.profile = profile; self.handle = handle
+            self.request = request; self.window = window
+        }
+        func finish(_ failure: String?) {
+            NotificationCenter.default.post(name: ChromiumExtensionManagement.installedExtensionsChanged, object: nil)
+            guard let window, window.isVisible, window.attachedSheet == nil else { return }
+            ChromiumExtensionManagement.present(api: api, profile: profile, handle: handle,
+                                                 window: window, failure: failure)
+        }
+    }
+
+    private static func beginReview(api: BoazHostAPI, profile: BoazHostProfile,
+                                    handle: BoazHostWindow, window: NSWindow, id: String) {
+        guard window.isVisible, window.attachedSheet == nil else { return }
+        guard let review = api.review_extension_permissions, nextReviewRequest < UInt64.max else {
+            present(api: api, profile: profile, handle: handle, window: window,
+                    failure: "Permission review is unavailable.")
+            return
+        }
+        let request = nextReviewRequest
+        nextReviewRequest += 1
+        let pending = ReviewRequest(api: api, profile: profile, handle: handle, request: request, window: window)
+        let context = Unmanaged.passRetained(pending).toOpaque()
+        let result = id.withCString { review(handle, $0, request, { context, callbackWindow, callbackRequest, result in
+            guard let context else { return }
+            MainActor.assumeIsolated {
+                let pending = Unmanaged<ReviewRequest>.fromOpaque(context).takeRetainedValue()
+                let valid = pending.handle == callbackWindow && pending.request == callbackRequest
+                let failure = valid && (result == BOAZ_EXTENSION_INSTALLED || result == BOAZ_EXTENSION_INSTALL_CANCELLED)
+                    ? nil : "The extension could not be enabled after permission review."
+                DispatchQueue.main.async { pending.finish(failure) }
+            }
+        }, context) }
+        if result != BOAZ_HOST_OK {
+            Unmanaged<ReviewRequest>.fromOpaque(context).release()
+            pending.finish("Permission review could not start. The extension may be restricted or another installation may be running.")
+        }
     }
 
     private final class InstallRequest {
@@ -93,12 +160,12 @@ final class ChromiumExtensionManagement {
             return
         }
         installed = []
-        let result = enumerate(profile, { context, id, name, version, enabled, canDisable, canEnable, canUninstall in
+        let result = enumerate(profile, { context, id, name, version, enabled, canDisable, canEnable, canUninstall, needsPermissionReview in
             guard let context, let id, let name, let version else { return }
             MainActor.assumeIsolated {
                 let model = Unmanaged<ChromiumExtensionManagement>.fromOpaque(context).takeUnretainedValue()
                 model.installed.append(Installed(id: String(cString: id), name: String(cString: name),
-                    version: String(cString: version), enabled: enabled != 0, canDisable: canDisable != 0, canEnable: canEnable != 0, canUninstall: canUninstall != 0))
+                    version: String(cString: version), enabled: enabled != 0, canDisable: canDisable != 0, canEnable: canEnable != 0, canUninstall: canUninstall != 0, needsPermissionReview: needsPermissionReview != 0))
             }
         }, Unmanaged.passUnretained(self).toOpaque())
         if result != BOAZ_HOST_OK {
@@ -146,6 +213,7 @@ final class ChromiumExtensionManagement {
     private struct ManagementView: View {
         let model: ChromiumExtensionManagement
         let done: () -> Void
+        let review: (String) -> Void
         @State private var removal: Installed?
         var body: some View {
             VStack(alignment: .leading, spacing: 16) {
@@ -180,6 +248,10 @@ final class ChromiumExtensionManagement {
                                 } else if !item.enabled && item.canEnable {
                                     Button("Enable") { model.enable(item.id) }
                                         .accessibilityLabel("Enable \(item.name)")
+                                }
+                                if item.needsPermissionReview {
+                                    Button("Review Permissions") { review(item.id) }
+                                        .accessibilityLabel("Review permissions for \(item.name)")
                                 }
                                 if item.canUninstall {
                                     Button("Remove", role: .destructive) { removal = item }
