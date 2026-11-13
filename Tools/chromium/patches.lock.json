@@ -650,17 +650,6 @@
       ]
     },
     {
-      "file": "patches/native-blocking-renderer-lifetime.patch",
-      "sha256": "c3ac3663d98c19f3743ac97af45349b175ea32f4cdadd829af25d959e27502bb",
-      "files": [
-        {
-          "path": "chrome/renderer/chrome_content_renderer_client.cc",
-          "before": "b0eb1edfee430208a4ac6d3008ae1c74147becebefc65eea3cca69bb16f7dd6b",
-          "after": "c017c275d572af8e9de10b6fd57fcb59c2d7fab6f69cad55f7829a8ed1d6d8ad"
-        }
-      ]
-    },
-    {
       "file": "patches/native-http-security-warning.patch",
       "sha256": "3025b6d599950f76daeb4f9023723e4a9e6e92ff656586a8807b26b2b651288a",
       "files": [
@@ -689,6 +678,17 @@
           "path": "chrome/browser/ssl/ask_before_http_dialog_controller.cc",
           "before": "bd5825bfe5028f465259aad8d5806d7c32f4d914f348cbf185eb7f04aec00c4e",
           "after": "f4b5886528080a48b5992475bd4f0a0471ae977d86ebf3da38b90e430beb056d"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-blocking-renderer-lifetime.patch",
+      "sha256": "c3ac3663d98c19f3743ac97af45349b175ea32f4cdadd829af25d959e27502bb",
+      "files": [
+        {
+          "path": "chrome/renderer/chrome_content_renderer_client.cc",
+          "before": "b0eb1edfee430208a4ac6d3008ae1c74147becebefc65eea3cca69bb16f7dd6b",
+          "after": "c017c275d572af8e9de10b6fd57fcb59c2d7fab6f69cad55f7829a8ed1d6d8ad"
         }
       ]
     }
