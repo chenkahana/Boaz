@@ -13,6 +13,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
     private(set) var handle: BoazHostWindow = 0
     var onClosed: (() -> Void)?
     private let model: MacModel
+    private let restoration: MacModel.NativeWindowRestoration?
     private var installed = false
     private var finished = false
     private var closing = false
@@ -23,6 +24,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
          preparedForNativeCreation: Bool = false,
          restoration: MacModel.NativeWindowRestoration? = nil) throws {
         self.model = model
+        self.restoration = restoration
         self.runtime = runtime
         self.profile = profile
         browser = BrowserState(incognito: profile.identity.isPrivate)
@@ -328,6 +330,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
     func finishClose() {
         guard !finished else { return }
         finished = true
+        if let restoration { model.finishNativeRestoration(restoration, succeeded: false) }
         browser.chromiumExtensions = nil
         browser.createChromiumPeekPage = nil
         browser.createChromiumPage = nil
