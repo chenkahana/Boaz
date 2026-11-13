@@ -30,7 +30,13 @@ def assemble(base, receipt, output, native_launch=False, production_version=None
         raise RuntimeError('Refusing to overwrite an existing application artifact')
     record = json.loads(receipt.read_text())
     library = checked(record['immutable_copy'])
-    blocker_receipt = json.loads((ROOT / 'adblock-built.json').read_text())
+    native_receipt = json.loads((ROOT / 'native-built.json').read_text())
+    source_lock = json.loads((HERE / 'source.lock.json').read_text())
+    framework = base / 'Contents/Frameworks/Chromium Framework.framework/Versions' / source_lock['chromium_version'] / 'Chromium Framework'
+    with framework.open('rb') as stream:
+        if hashlib.file_digest(stream, 'sha256').hexdigest() != native_receipt['framework_sha256']:
+            raise RuntimeError('Base application differs from the completed native build receipt')
+    blocker_receipt = native_receipt['blocking']
     blocker = checked(blocker_receipt['library'])
     if (blocker.name != 'libboaz_adblock.dylib' or
             hashlib.sha256(blocker.read_bytes()).hexdigest() != blocker_receipt['library_sha256']):

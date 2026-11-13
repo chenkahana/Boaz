@@ -196,6 +196,18 @@ def main():
             ]
         subprocess.run([str(ninja), "-C", str(output), f"-j{args.jobs}", *(["-k", "0"] if args.host_objects else []), *targets],
                        cwd=source, env=env, check=True)
+        if args.build:
+            framework = output / "Chromium.app/Contents/Frameworks/Chromium Framework.framework/Versions" / source_lock["chromium_version"] / "Chromium Framework"
+            with framework.open("rb") as stream:
+                framework_digest = hashlib.file_digest(stream, "sha256").hexdigest()
+            native_receipt = {
+                "framework_sha256": framework_digest,
+                "blocking": json.loads((root / "adblock-built.json").read_text()),
+                "host": json.loads((root / "host-installed.json").read_text()),
+            }
+            temporary = root / ("native-built-" + uuid.uuid4().hex + ".json")
+            temporary.write_text(json.dumps(native_receipt, indent=2) + "\n")
+            temporary.replace(root / "native-built.json")
     return 0
 
 
