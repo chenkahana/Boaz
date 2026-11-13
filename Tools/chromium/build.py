@@ -42,8 +42,11 @@ def verify_host_inputs(scripts, root, source, ui_only=False):
             raise RuntimeError(f"Patched Chromium input changed: {name}")
 
 
-def verified_adblock_library(scripts, root):
-    receipt = json.loads((root / "adblock-built.json").read_text())
+def verified_adblock_library(scripts, root, receipt_path):
+    if (not receipt_path.is_absolute() or receipt_path.resolve() != receipt_path or
+            not receipt_path.is_relative_to(root)):
+        raise RuntimeError("Blocking receipt must be canonical and under the build root.")
+    receipt = json.loads(receipt_path.read_text())
     if receipt["exit_code"] != 0:
         raise RuntimeError("Content-blocking library did not build successfully.")
     crate = scripts / "adblock"
@@ -74,11 +77,13 @@ def main():
     modes.add_argument("--native-ui", action="store_true")
     parser.add_argument("--jobs", type=int, default=4, choices=range(1, 13))
     parser.add_argument("--guarded", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--blocking-receipt", type=Path, help="Use a preserved matching content-blocking build receipt")
     args = parser.parse_args()
     scripts = Path(__file__).resolve().parent
     source_lock = json.loads((scripts / "source.lock.json").read_text())
     config = json.loads((scripts / "development.json").read_text())
     root = Path(source_lock["storage_root"])
+    blocking_receipt = args.blocking_receipt or root / "adblock-built.json"
     source = root / "chromium/src"
     output = source / "out" / config["configuration"]
     gn = source / "buildtools/mac/gn"
@@ -95,7 +100,8 @@ def main():
                                 "--guarded", "--build" if args.build else
                                 "--host-objects" if args.host_objects else
                                 "--native-ui" if args.native_ui else "--configure",
-                                "--jobs", str(args.jobs)])
+                                "--jobs", str(args.jobs)] +
+                               (["--blocking-receipt", str(args.blocking_receipt)] if args.blocking_receipt else []))
     if Path.cwd() != root.parent or os.environ.get("TMPDIR") != str(root.parent / "tmp"):
         raise RuntimeError("Build stage requires the verified SSD guard.")
     with (root.parent / ".build.lock").open("r") as lock:
@@ -153,7 +159,7 @@ def main():
         staged_library.rename(library)
         return 0
     values = dict(config["gn_args"])
-    values["boaz_adblock_library"] = verified_adblock_library(scripts, root)
+    values["boaz_adblock_library"] = verified_adblock_library(scripts, root, blocking_receipt)
     contents = "".join(f"{key} = {json.dumps(value)}\n" for key, value in sorted(values.items()))
     output.mkdir(parents=True, exist_ok=True)
     settings = output / "args.gn"
@@ -203,7 +209,8 @@ def main():
                 framework_digest = hashlib.file_digest(stream, "sha256").hexdigest()
             native_receipt = {
                 "framework_sha256": framework_digest,
-                "blocking": json.loads((root / "adblock-built.json").read_text()),
+                "blocking": json.loads(blocking_receipt.read_text()),
+                "blocking_receipt": str(blocking_receipt),
                 "host": json.loads((root / "host-installed.json").read_text()),
             }
             temporary = root / ("native-built-" + uuid.uuid4().hex + ".json")
