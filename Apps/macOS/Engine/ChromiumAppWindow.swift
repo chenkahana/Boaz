@@ -15,6 +15,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
     private var finished = false
     private var closing = false
     private var layoutQueued = false
+    private var appliedSplit: (leading: String, trailing: String)?
 
     init(runtime: ChromiumRuntime, profile: ChromiumProfile, model: MacModel) throws {
         self.runtime = runtime
@@ -130,6 +131,44 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
             window.subtitle = "Could not read browser layout (\(result.rawValue))."
             return
         }
+        if let previous = appliedSplit,
+           browser.split?.leading != previous.leading || browser.split?.trailing != previous.trailing {
+            let survivor = [previous.leading, previous.trailing].compactMap {
+                browser.cachedChromiumPage(for: $0)
+            }.first { $0.state.lifecycle == .active }
+            let desired = browser.activeTabID.flatMap { browser.cachedChromiumPage(for: $0) }
+            if let survivor, let activate = runtime.api.activate_page {
+                let switched = actual.active != survivor.handle
+                if switched { result = activate(survivor.handle, 0) }
+                if result == BOAZ_HOST_OK { result = getLayout(handle, &actual) }
+                if result == BOAZ_HOST_OK, actual.second != 0 {
+                    if actual.first == survivor.handle || actual.second == survivor.handle {
+                        result = clearSplit(handle)
+                    } else {
+                        result = BOAZ_HOST_UNAVAILABLE
+                    }
+                }
+                let clearResult = result
+                if switched, let desired, desired.state.lifecycle == .active {
+                    result = activate(desired.handle, 0)
+                }
+                if clearResult != BOAZ_HOST_OK || result != BOAZ_HOST_OK {
+                    window.subtitle = "Could not clear previous split view."
+                    return
+                }
+            } else if [previous.leading, previous.trailing].contains(where: {
+                guard let page = browser.cachedChromiumPage(for: $0) else { return false }
+                return page.state.lifecycle == .closing
+            }) {
+                return
+            }
+            appliedSplit = nil
+            result = getLayout(handle, &actual)
+            guard result == BOAZ_HOST_OK else {
+                window.subtitle = "Could not read updated browser layout (\(result.rawValue))."
+                return
+            }
+        }
         if let split = browser.split {
             guard let first = browser.cachedChromiumPage(for: split.leading),
                   let second = browser.cachedChromiumPage(for: split.trailing),
@@ -143,6 +182,9 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
                    active.handle != first.handle, let activate = runtime.api.activate_page {
                     result = activate(active.handle, 0)
                 }
+            }
+            if result == BOAZ_HOST_OK {
+                appliedSplit = (split.leading, split.trailing)
             }
         } else if actual.second != 0 {
             result = clearSplit(handle)
