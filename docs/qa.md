@@ -69,6 +69,10 @@ and error states look intentional. Check RTL text too (for example ynet.co.il).
       `boaz://open?url=https://example.com`, `boaz://search?q=test`, `boaz://search`.
       `boaz://open?url=javascript:alert(1)` must do nothing.
 - [ ] **Alternate app icons** in Settings.
+- [ ] **Default browser** (once Apple grants the entitlement; `docs/default-browser.md`): Settings shows the button
+      or the confirmation correctly; set Boaz as the default in Settings › Apps › Default Apps and confirm a link
+      tapped in Mail or Notes opens it, with the URL's path, query and fragment unchanged, cold and warm; a
+      Universal Link to another app still opens that app.
 
 ### Mac
 

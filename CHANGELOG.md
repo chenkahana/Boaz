@@ -6,6 +6,16 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- iPhone: Settings › Default Browser shows whether Boaz is your default browser and opens iOS Settings to choose it.
+  It appears once Apple grants the default browser entitlement (`web-browser.yml`; see `docs/default-browser.md`).
+
+### Fixed
+
+- iPhone: a link sent to Boaz again (tapped twice, or replayed after a cold launch) goes back to its tab instead of
+  opening a duplicate.
+
 ### Changed
 
 - Mac: Boaz uses less energy. The shadow around a web page is no longer redrawn each time the page redraws, and in

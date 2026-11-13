@@ -84,7 +84,12 @@ enum DeepLink {
     private static func perform(_ intent: Intent, model: AppModel) {
         switch intent {
         case .open(let target):
-            model.openNewTab(target)
+            // The same link sent again (tapped twice, or replayed after a cold launch) goes back to its tab.
+            if let open = model.phoneTabs.first(where: { $0.url == target }) {
+                model.activate(open)
+            } else {
+                model.openNewTab(target)
+            }
         case .search(let query):
             model.beginSearch(.newTab)
             model.searchText = query

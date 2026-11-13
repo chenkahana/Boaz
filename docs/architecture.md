@@ -109,7 +109,7 @@ preference or the `WKWebView` property, Picture in Picture stops and nothing els
 **Passkeys.** WebKit handles WebAuthn (`navigator.credentials.create` and `get`) itself and shows the system's
 passkey sheet, so neither app has passkey code of its own. For any site beyond the app's associated domains, the
 system requires the managed entitlement `com.apple.developer.web-browser.public-key-credential`, which Apple grants
-per App ID (requested for `com.chenkahana.boaz`, team DPF8459C2J, as request Z6525VUX9T). Both apps get it from [`passkeys.yml`](../passkeys.yml), which
+per App ID. Both apps get it from [`passkeys.yml`](../passkeys.yml), which
 `project.yml` includes with `enable: false` until the grant: signing with an entitlement the App ID lacks fails. To
 turn passkeys on, set `enable: true` and run `make project`, which writes it into the iPhone and Mac entitlements
 (the DMG build includes `project.yml`, so it follows). `ASAuthorizationWebBrowserPublicKeyCredentialManager` isn't
@@ -118,9 +118,11 @@ needed: it lists saved passkeys for browsers that draw their own sign-in suggest
 **Default browser on iPhone.** iOS only offers "Default Browser App" to apps holding the managed entitlement
 `com.apple.developer.web-browser`, which Apple grants per App ID through its default browser entitlement request
 form. The iPhone app gets it from [`web-browser.yml`](../web-browser.yml), which `project.yml` includes with
-`enable: false` until the grant, the same way as passkeys. The iPhone app already declares the `http` and `https`
-schemes Apple requires, and `DeepLink` opens those links in a new tab. The Mac needs no entitlement to be the default
-browser.
+`enable: false` until the grant, the same way as passkeys; the same file compiles the Settings › Default Browser
+section (`DEFAULT_BROWSER`). The iPhone app already declares the `http` and `https` schemes Apple requires, and
+`DeepLink` opens those links in a new tab, or switches to the tab already showing that URL. The steps to get the
+entitlement and verify it are in [default-browser.md](default-browser.md). The Mac needs no entitlement to be the
+default browser.
 
 **Pop-ups.** A sign-in pop-up ("Sign in with Google", Apple or Microsoft) posts its result to `window.opener`, which
 only survives if the pop-up lives in the `WKWebView` WebKit creates for it. `WebPage` has no new-window hook (checked
