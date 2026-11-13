@@ -38,7 +38,8 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         browser.chromiumProfileIdentity = profile.identity
         browser.chromiumAddressField = addressField
         browser.activateChromiumPage = { [weak self] page in
-            guard let self, let adapter = page.adapter as? ChromiumEnginePageAdapter,
+            guard let self, self.browser.peek?.nativePage == nil,
+                  let adapter = page.adapter as? ChromiumEnginePageAdapter,
                   let activate = runtime.api.activate_page else { return }
             let result = activate(adapter.handle, 1)
             if result != BOAZ_HOST_OK { window.subtitle = "Could not activate page (\(result.rawValue))." }
@@ -52,6 +53,10 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
             }
             return try self.runtime.createPage(window: self.handle,
                 url: tab.url ?? URL(string: "about:blank")!, profile: self.profile.identity)
+        }
+        browser.createChromiumPeekPage = { [weak self] url in
+            guard let self, !finished, handle != 0 else { throw EnginePageError.closed }
+            return try runtime.createPage(window: handle, url: url, profile: profile.identity)
         }
         if preparedForNativeCreation { return }
         var options = makeOptions()
@@ -143,6 +148,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
     }
 
     private func synchronizeLayout() {
+        guard browser.peek?.nativePage == nil else { return }
         guard handle != 0, let getLayout = runtime.api.get_window_layout,
               let setSplit = runtime.api.set_split, let clearSplit = runtime.api.clear_split else {
             window.subtitle = "Chromium split view is unavailable."
@@ -213,6 +219,10 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         } else if actual.second != 0 {
             result = clearSplit(handle)
         }
+        if result == BOAZ_HOST_OK, let active = browser.activeEnginePage?.adapter as? ChromiumEnginePageAdapter,
+           active.state.lifecycle == .active, let activate = runtime.api.activate_page {
+            result = activate(active.handle, 0)
+        }
         if result != BOAZ_HOST_OK {
             window.subtitle = "Could not update split view (\(result.rawValue))."
         }
@@ -257,6 +267,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         guard !finished else { return }
         finished = true
         browser.chromiumExtensions = nil
+        browser.createChromiumPeekPage = nil
         browser.createChromiumPage = nil
         browser.activateChromiumPage = nil
         browser.chromiumLayoutChanged = nil

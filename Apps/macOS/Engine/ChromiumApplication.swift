@@ -44,7 +44,9 @@ private final class ChromiumApplication: NSObject {
             }
         }
         runtime.pageActivated = { [weak self] window, page in
-            self?.windows.first(where: { $0.handle == window })?.browser.activateChromiumPageFromEngine(page)
+            guard let owner = self?.windows.first(where: { $0.handle == window }),
+                  owner.browser.peek?.nativePage == nil else { return }
+            owner.browser.activateChromiumPageFromEngine(page)
         }
         runtime.pageCreated = { [weak self] window, page, active in
             guard let self, let owner = windows.first(where: { $0.handle == window }) else { return }
