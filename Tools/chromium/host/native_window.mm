@@ -22,6 +22,7 @@
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
 #include "chrome/browser/ui/find_bar/find_bar.h"
+#include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/web_modal/web_contents_modal_dialog_host.h"
 #include "content/public/browser/eye_dropper.h"
@@ -220,7 +221,12 @@ class NativeWindow final : public BrowserWindow,
   bool HandleKeyboardEvent(const input::NativeWebKeyboardEvent&) override { return false; }
   std::unique_ptr<FindBar> CreateFindBar() override { Unsupported("find bar"); return nullptr; }
   web_modal::WebContentsModalDialogHost* GetWebContentsModalDialogHost() override { return this; }
-  web_modal::WebContentsModalDialogHost* GetWebContentsModalDialogHostFor(content::WebContents* contents) override { return contents == Active() ? this : nullptr; }
+  web_modal::WebContentsModalDialogHost* GetWebContentsModalDialogHostFor(content::WebContents* contents) override {
+    Main();
+    auto* tabs = browser_->GetTabStripModel();
+    return contents && tabs && tabs->GetIndexOfWebContents(contents) != TabStripModel::kNoTab
+        ? this : nullptr;
+  }
   void ShowAvatarBubbleFromAvatarButton(bool) override { Unsupported("avatar UI"); }
   void ShowHatsDialog(const std::string&, const std::optional<std::string>&,
       const std::optional<uint64_t>, base::OnceClosure, base::OnceClosure failure,
