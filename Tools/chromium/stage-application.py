@@ -170,7 +170,8 @@ def assemble(base, receipt, output, native_launch=False, production_version=None
                 'blocking_sha256': blocker_receipt['library_sha256'],
                 'blocking_assets': {name: hashlib.sha256(data).hexdigest() for name, data in verified_assets.items()},
                 'signed': False, 'published': False, 'production_metadata': bool(production_version),
-                'remaining': 'Development signing, launch acceptance, Boaz distribution branding and release gates.'}
+                'remaining': ('Developer ID signing, notarization, upgrade and existing-feature acceptance.'
+                              if production_version else 'Development signing and local runtime acceptance.')}
     with output.with_suffix('.assembly.json').open('x') as stream:
         json.dump(manifest, stream, indent=2)
     print(json.dumps(manifest, indent=2))
