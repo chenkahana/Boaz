@@ -384,95 +384,89 @@
     {
       "file": "patches/native-password-ownership.patch",
       "sha256": "69bb40efcf95e73c0ebda569727b8d5710975599479d924da4203009812fa935",
-      "files": {
-        "sha256": "69bb40efcf95e73c0ebda569727b8d5710975599479d924da4203009812fa935",
-        "files": [
-          {
-            "path": "components/password_manager/core/browser/password_manager_client.h",
-            "before": "0263010b6886cc626deb6b0bedd6010b0fea6e224e94c9743495608e5ac86162",
-            "after": "f62fa397e3cab18aec63c9bf84b67add092db7f15176bf128f7134a64a4ce21f"
-          },
-          {
-            "path": "chrome/browser/password_manager/chrome_password_manager_client.h",
-            "before": "6e7f769b825bfbfebd1f2e91048c61b10dd24a82bcb95bd07b1fe87e446bb845",
-            "after": "460082a2382a880baa42c7dfa40bc6a12eeae8d6752352b26d3f9b55cbe9f2d4"
-          },
-          {
-            "path": "chrome/browser/password_manager/chrome_password_manager_client.cc",
-            "before": "9aed194ffcf2a1210c331e511e87401c7c2c4a999c7def029de7406ea8ecb6b5",
-            "after": "202bcb5242526f8d4395b6f8b4b1215da306098514d1dc9ec507f5dd624e4adf"
-          },
-          {
-            "path": "chrome/browser/password_manager/BUILD.gn",
-            "before": "525aef5a16011a7e00e39f69a0983471658d68a0f9e885898b9a9bddec1e6103",
-            "after": "7ae7c77312f7f0c90f0ed765904b0315358a2639d7b64b0db105017ca33b8677"
-          },
-          {
-            "path": "components/password_manager/core/browser/password_save_manager_impl.cc",
-            "before": "23115e1064406ec2db993ac209311f6cd88e9ecf32ca4ce9c53db6dacd3dcd13",
-            "after": "56ba41cd73a6653ca25448f2468ae0b1201f894664e0e20b7079279ab6520e83"
-          },
-          {
-            "path": "components/password_manager/core/browser/password_manager.cc",
-            "before": "549a8d1f6a25ebfb173dac98b68e119966011a8eeabb1d9a734d9ee471180172",
-            "after": "a2e69ad4b0b4b9a60800a519315763425fd41caf99081d4cb248135a12191321"
-          },
-          {
-            "path": "components/password_manager/content/browser/content_password_manager_driver.cc",
-            "before": "eecaa0f5d59d1a63ed73476d3cc285df1c4abbdd403350f69d388ed12adb8255",
-            "after": "44c1fe0119e6ef4823f9008b6c01452f7764cabd9d397603c0009f562478a536"
-          },
-          {
-            "path": "components/password_manager/core/browser/form_fetcher_impl.cc",
-            "before": "b5e01c288da5837c34eb49633f7a1a5449b49805e6f44bbce1200075d45a1fa1",
-            "after": "177fe85ee2e36f14c06f1daf15d6b89f184f4a8f2252b85edb80f01cdf5f69b0"
-          },
-          {
-            "path": "components/password_manager/core/browser/credential_manager_impl.cc",
-            "before": "da9cfa6839dc48275147b4eee8e2a9619ef73cfd7379f1835dafc72057ec09bf",
-            "after": "0322f60fad6db19bf1d193216f6dda9597e5b6ff53dd13f7da04246b31598d0c"
-          }
-        ]
-      }
+      "files": [
+        {
+          "path": "components/password_manager/core/browser/password_manager_client.h",
+          "before": "0263010b6886cc626deb6b0bedd6010b0fea6e224e94c9743495608e5ac86162",
+          "after": "f62fa397e3cab18aec63c9bf84b67add092db7f15176bf128f7134a64a4ce21f"
+        },
+        {
+          "path": "chrome/browser/password_manager/chrome_password_manager_client.h",
+          "before": "6e7f769b825bfbfebd1f2e91048c61b10dd24a82bcb95bd07b1fe87e446bb845",
+          "after": "460082a2382a880baa42c7dfa40bc6a12eeae8d6752352b26d3f9b55cbe9f2d4"
+        },
+        {
+          "path": "chrome/browser/password_manager/chrome_password_manager_client.cc",
+          "before": "9aed194ffcf2a1210c331e511e87401c7c2c4a999c7def029de7406ea8ecb6b5",
+          "after": "202bcb5242526f8d4395b6f8b4b1215da306098514d1dc9ec507f5dd624e4adf"
+        },
+        {
+          "path": "chrome/browser/password_manager/BUILD.gn",
+          "before": "525aef5a16011a7e00e39f69a0983471658d68a0f9e885898b9a9bddec1e6103",
+          "after": "7ae7c77312f7f0c90f0ed765904b0315358a2639d7b64b0db105017ca33b8677"
+        },
+        {
+          "path": "components/password_manager/core/browser/password_save_manager_impl.cc",
+          "before": "23115e1064406ec2db993ac209311f6cd88e9ecf32ca4ce9c53db6dacd3dcd13",
+          "after": "56ba41cd73a6653ca25448f2468ae0b1201f894664e0e20b7079279ab6520e83"
+        },
+        {
+          "path": "components/password_manager/core/browser/password_manager.cc",
+          "before": "549a8d1f6a25ebfb173dac98b68e119966011a8eeabb1d9a734d9ee471180172",
+          "after": "a2e69ad4b0b4b9a60800a519315763425fd41caf99081d4cb248135a12191321"
+        },
+        {
+          "path": "components/password_manager/content/browser/content_password_manager_driver.cc",
+          "before": "eecaa0f5d59d1a63ed73476d3cc285df1c4abbdd403350f69d388ed12adb8255",
+          "after": "44c1fe0119e6ef4823f9008b6c01452f7764cabd9d397603c0009f562478a536"
+        },
+        {
+          "path": "components/password_manager/core/browser/form_fetcher_impl.cc",
+          "before": "b5e01c288da5837c34eb49633f7a1a5449b49805e6f44bbce1200075d45a1fa1",
+          "after": "177fe85ee2e36f14c06f1daf15d6b89f184f4a8f2252b85edb80f01cdf5f69b0"
+        },
+        {
+          "path": "components/password_manager/core/browser/credential_manager_impl.cc",
+          "before": "da9cfa6839dc48275147b4eee8e2a9619ef73cfd7379f1835dafc72057ec09bf",
+          "after": "0322f60fad6db19bf1d193216f6dda9597e5b6ff53dd13f7da04246b31598d0c"
+        }
+      ]
     },
     {
       "file": "patches/native-password-submission.patch",
       "sha256": "2e36f66d09b9c46eb7621f0601786d99615be2af4cef543151e17c0a3e0cad5e",
-      "files": {
-        "sha256": "2e36f66d09b9c46eb7621f0601786d99615be2af4cef543151e17c0a3e0cad5e",
-        "files": [
-          {
-            "path": "components/password_manager/core/browser/password_manager_client.h",
-            "before": "f62fa397e3cab18aec63c9bf84b67add092db7f15176bf128f7134a64a4ce21f",
-            "after": "141c8a3b970130e89498b450329d826bbae41a40547c559474e048230a746385"
-          },
-          {
-            "path": "components/password_manager/core/browser/password_form_manager.h",
-            "before": "8a3bd82c31fa9acc7c3c212ffde7a02f66a4e660c32d13f2153061c4a2b3303d",
-            "after": "67ce2e0a064cf5b90a29440a2e84fbe4fdc638a11a7279189af731e5f38553bc"
-          },
-          {
-            "path": "components/password_manager/core/browser/password_form_manager.cc",
-            "before": "1e9b39900874ef2731dd50ec5b44015a6759cdb6d02cfba4dec87d4643c77d52",
-            "after": "6c1045479eebd4f2ef3e4112bea3eacaffbae450ac8390dfbc8df5c337c92d00"
-          },
-          {
-            "path": "components/password_manager/core/browser/password_manager.cc",
-            "before": "a2e69ad4b0b4b9a60800a519315763425fd41caf99081d4cb248135a12191321",
-            "after": "0e6b35c206e1e79eb26bc50ae86e8c6b912813a44880b7a72fd2e57a7db8b6b5"
-          },
-          {
-            "path": "chrome/browser/password_manager/chrome_password_manager_client.h",
-            "before": "460082a2382a880baa42c7dfa40bc6a12eeae8d6752352b26d3f9b55cbe9f2d4",
-            "after": "0abf58abb0fca689b775a962d2ab2a31dadc4a572e3d1c94d7b2ee3ef9677489"
-          },
-          {
-            "path": "chrome/browser/password_manager/chrome_password_manager_client.cc",
-            "before": "202bcb5242526f8d4395b6f8b4b1215da306098514d1dc9ec507f5dd624e4adf",
-            "after": "7bc2ba9a49d37f8db6ade1f99763d1dc3434a8a21441bcb92598725d8a4f8b86"
-          }
-        ]
-      }
+      "files": [
+        {
+          "path": "components/password_manager/core/browser/password_manager_client.h",
+          "before": "f62fa397e3cab18aec63c9bf84b67add092db7f15176bf128f7134a64a4ce21f",
+          "after": "141c8a3b970130e89498b450329d826bbae41a40547c559474e048230a746385"
+        },
+        {
+          "path": "components/password_manager/core/browser/password_form_manager.h",
+          "before": "8a3bd82c31fa9acc7c3c212ffde7a02f66a4e660c32d13f2153061c4a2b3303d",
+          "after": "67ce2e0a064cf5b90a29440a2e84fbe4fdc638a11a7279189af731e5f38553bc"
+        },
+        {
+          "path": "components/password_manager/core/browser/password_form_manager.cc",
+          "before": "1e9b39900874ef2731dd50ec5b44015a6759cdb6d02cfba4dec87d4643c77d52",
+          "after": "6c1045479eebd4f2ef3e4112bea3eacaffbae450ac8390dfbc8df5c337c92d00"
+        },
+        {
+          "path": "components/password_manager/core/browser/password_manager.cc",
+          "before": "a2e69ad4b0b4b9a60800a519315763425fd41caf99081d4cb248135a12191321",
+          "after": "0e6b35c206e1e79eb26bc50ae86e8c6b912813a44880b7a72fd2e57a7db8b6b5"
+        },
+        {
+          "path": "chrome/browser/password_manager/chrome_password_manager_client.h",
+          "before": "460082a2382a880baa42c7dfa40bc6a12eeae8d6752352b26d3f9b55cbe9f2d4",
+          "after": "0abf58abb0fca689b775a962d2ab2a31dadc4a572e3d1c94d7b2ee3ef9677489"
+        },
+        {
+          "path": "chrome/browser/password_manager/chrome_password_manager_client.cc",
+          "before": "202bcb5242526f8d4395b6f8b4b1215da306098514d1dc9ec507f5dd624e4adf",
+          "after": "7bc2ba9a49d37f8db6ade1f99763d1dc3434a8a21441bcb92598725d8a4f8b86"
+        }
+      ]
     }
   ]
 }
