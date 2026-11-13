@@ -112,7 +112,19 @@ def assemble(base, receipt, output, native_launch=False, production_version=None
         else:
             metadata['SUEnableAutomaticChecks'] = False
             metadata.pop('SUFeedURL', None)
-        url_types = metadata.setdefault('CFBundleURLTypes', [])
+        metadata['CFBundleURLTypes'] = distribution.get('CFBundleURLTypes', [])
+        schemes = {scheme for entry in metadata['CFBundleURLTypes']
+                   for scheme in entry.get('CFBundleURLSchemes', [])}
+        if not {'http', 'https'}.issubset(schemes):
+            raise RuntimeError('Boaz distribution must register both HTTP and HTTPS')
+        for key, value in list(metadata.items()):
+            if key.startswith('NS') and key.endswith('UsageDescription') and isinstance(value, str):
+                metadata[key] = value.replace('Chromium', 'Boaz')
+        for key, value in distribution.items():
+            if key.startswith('NS') and key.endswith('UsageDescription'):
+                metadata[key] = value
+        metadata['LSApplicationCategoryType'] = 'public.app-category.productivity'
+        url_types = metadata['CFBundleURLTypes']
         url_types.append({'CFBundleURLName': 'Boaz commands', 'CFBundleTypeRole': 'Viewer',
                           'CFBundleURLSchemes': ['boaz']})
         with info.open('wb') as stream:
