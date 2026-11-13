@@ -281,10 +281,25 @@ BoazHostResult ExecuteTrusted(BoazHostPage page, BoazHostDocument document,
   if (result != BOAZ_HOST_OK) --state->pending_scripts;
   return result;
 }
+BoazHostResult WindowLayout(BoazHostWindow window, BoazHostWindowLayout* layout) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  return state->tabs->GetWindowLayout(window, layout);
+}
+BoazHostResult SetSplit(BoazHostWindow window, BoazHostPage first,
+    BoazHostPage second, uint8_t vertical, double ratio) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  if (vertical > 1) return BOAZ_HOST_INVALID_ARGUMENT;
+  return state->tabs->SetSplit(window, first, second, vertical != 0, ratio);
+}
+BoazHostResult ClearSplit(BoazHostWindow window) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  return state->tabs->ClearSplit(window);
+}
 const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
-  EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted};
+  EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
+  WindowLayout, SetSplit, ClearSplit};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
@@ -322,6 +337,7 @@ class MainParts final : public ChromeBrowserMainExtraParts {
     CHECK(state);
     CHECK(state->finished);
     CHECK(state->windows.empty());
+    CHECK_EQ(state->pending_scripts, 0u);
     CHECK(!state->cleanup_pending);
     CHECK(!state->profile);
     CHECK(!state->profile_keep_alive);
