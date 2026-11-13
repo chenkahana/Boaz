@@ -200,3 +200,19 @@ Integrated source now includes:
 - Shared native standard store consent, native policy-block notices and Safe Browsing friction decisions. The existing Chromium policy and warning checks remain in place. Parent approval, remaining store-specific UI, actual Google store availability, updates and the full eight-extension cohort remain unresolved.
 
 Compile correction evidence: ABI39's full build exposed an optional-result callback mismatch; the callback now returns `std::nullopt`. Earlier inline virtual defaults moved to the implementation file. ABI40's focused compile at `9c14e0e` compiled the new native password, management, unpacked-install and shared-consent sources, then found the CRX error header path. After correcting that path, the focused pass at `356d2be` succeeded (`20261113T191445.777248Z.log`). The complete build and matching Swift application pass for the combined implementation remain pending. No tests were added and no production release or appcast changed.
+
+### Extension management and migration review, ABI43
+
+Integrated policy-checked removal with native confirmation and actual registry refresh; native review of permission-increasing updates with exact extension-object revalidation and cancellable consent; suppression of Chrome post-install/disabled bubbles; per-tab titles, real badge values, and cached action icons with observer-driven refresh. Ordinary upstream automatic updates already start through the normal profile/ExtensionService initialization. Actual update delivery and the eight-extension cohort remain runtime gates.
+
+The explicit previous-extension review reads a user-selected `installed.json`, bounds its size, rejects orphan/duplicate records, and keeps profile identities separate. Store entries open Chromium store tabs for fresh consent. Developer entries require choosing the original developer folder. This is a recovery/reinstallation interface, not completed automatic migration: installation receipts, prior enabled-state restoration, resumable stage journals and actual previous-store access remain outstanding. No original extension payload, cookies, passwords or user data are modified by inventory review.
+
+Verification passed:
+- ABI40 checkpoint `5ce0fa6`: complete native build `20261113T191615.751998Z.log`; matching Boaz UI run `20261113T192402Z-0fbd6570a020492b95b1565e70c3b74f`.
+- ABI41 checkpoint `8922eda`: complete native build `20261113T192629.151746Z.log`.
+- ABI42 checkpoint `94e4807`: complete native build `20261113T193151.816785Z.log`; matching Boaz UI run `20261113T193520Z-8d7144cdad9944e8beb28ef12f481e53`.
+- Swift conditional parsing for new management/action/migration code passed. No tests added.
+
+ABI43 combined verification is pending. The guarded build uses a frozen validation checkout; independent implementation continues in worker worktrees.
+
+A bounded ABI37 shutdown recheck sampled its identified NetworkService child during quit. `network-quit-sample.txt` contains image metadata but no call graph; it cannot establish the child wait's cause. The app again exited with teardown-watchdog status 2. Neither Keychain access rules nor shutdown deadlines were changed. Normal HTTP navigation and clean quit remain unresolved; this failed runtime check does not invalidate the independent implementation/build progress.
