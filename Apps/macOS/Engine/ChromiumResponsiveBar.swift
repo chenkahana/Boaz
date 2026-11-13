@@ -7,9 +7,26 @@ struct ChromiumResponsiveBar: View {
     @State private var draft = ChromiumViewport()
     @State private var customUserAgent = ""
     @State private var defaultsError: String?
+    @State private var presets: [ChromiumViewportPresets.Preset] = []
+    @State private var selectedPreset = ""
+    @State private var presetName = ""
+    @State private var presetError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Picker("Saved Viewport", selection: $selectedPreset) {
+                    Text("Custom size").tag("")
+                    ForEach(presets) { Text($0.name).tag($0.id.uuidString) }
+                }.accessibilityLabel("Saved viewport preset")
+                TextField("Preset name", text: $presetName).accessibilityLabel("New viewport preset name")
+                Button("Save") { savePreset() }.disabled(adapter.profile.isPrivate)
+                Button("Remove") { removePreset() }.disabled(adapter.profile.isPrivate || selectedPreset.isEmpty)
+            }.controlSize(.small)
+            if adapter.profile.isPrivate {
+                Text("Private windows can use saved presets but cannot change them.").font(.caption).foregroundStyle(.secondary)
+            }
+            if let presetError { Text(presetError).font(.caption).foregroundStyle(.red) }
             HStack(spacing: 8) {
                 Text("Viewport").font(.caption.weight(.semibold))
                 TextField("Width", value: $draft.width, format: .number).frame(width: 65).accessibilityLabel("Viewport width")
@@ -57,12 +74,42 @@ struct ChromiumResponsiveBar: View {
         }
         .padding(8)
         .background(.bar)
+        .onChange(of: selectedPreset) {
+            if let preset = presets.first(where: { $0.id.uuidString == selectedPreset }) { draft = preset.viewport }
+        }
+        .onChange(of: draft) {
+            if let preset = presets.first(where: { $0.id.uuidString == selectedPreset }), preset.viewport != draft {
+                selectedPreset = ""
+            }
+        }
         .onAppear {
+            do { presets = try ChromiumViewportPresets.load(); presetError = nil }
+            catch { presetError = error.localizedDescription }
             if let applied = adapter.appliedViewport { draft = applied }
             customUserAgent = adapter.appliedUserAgent ?? ""
             do { try adapter.readUserAgentDefaults() }
             catch { defaultsError = "Native user-agent details are unavailable." }
         }
+    }
+
+    private func savePreset() {
+        guard !adapter.profile.isPrivate else { return }
+        do {
+            let saved = try ChromiumViewportPresets.save(name: presetName, viewport: draft)
+            presets = try ChromiumViewportPresets.load()
+            selectedPreset = saved.id.uuidString
+            presetName = ""
+            presetError = nil
+        } catch { presetError = error.localizedDescription }
+    }
+    private func removePreset() {
+        guard !adapter.profile.isPrivate, let id = UUID(uuidString: selectedPreset) else { return }
+        do {
+            try ChromiumViewportPresets.remove(id: id)
+            presets = try ChromiumViewportPresets.load()
+            selectedPreset = ""
+            presetError = nil
+        } catch { presetError = error.localizedDescription }
     }
 
     private func change(_ value: ChromiumViewport?) {
