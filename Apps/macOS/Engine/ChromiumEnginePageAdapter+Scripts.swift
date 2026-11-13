@@ -24,6 +24,7 @@ extension ChromiumEnginePageAdapter {
             throw ChromiumTrustedScriptError.invalidArgument
         }
         let argumentJSON = String(decoding: argumentData, as: UTF8.self)
+        let navigationID = state.navigationID
         var document: BoazHostDocument = 0
         try check(capture(handle, &document))
         guard document != 0 else { throw ChromiumTrustedScriptError.invalidTarget }
@@ -61,6 +62,8 @@ extension ChromiumEnginePageAdapter {
                 }
             }
             try Task.checkCancellation()
+            guard state.lifecycle == .active else { throw ChromiumTrustedScriptError.closed }
+            guard state.navigationID == navigationID else { throw ChromiumTrustedScriptError.navigation }
             return value
         } catch {
             // Accepted operations retain their completion until the host finishes or cancels.

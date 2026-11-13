@@ -311,7 +311,7 @@ private struct CopiedPageState {
         snapshot = EnginePageState(url: url.flatMap(URL.init(string:)),
             title: value.title.map { String(cString: $0) } ?? "",
             isLoading: value.loading != 0, canGoBack: value.can_go_back != 0,
-            canGoForward: value.can_go_forward != 0)
+            canGoForward: value.can_go_forward != 0, navigationID: value.document_generation)
     }
 }
 #endif
