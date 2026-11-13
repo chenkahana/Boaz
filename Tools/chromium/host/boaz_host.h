@@ -66,6 +66,7 @@ typedef struct BoazHostWindowLayout {
   BoazHostPage second;
   BoazHostPage active;
   uint8_t vertical;
+  uint8_t content_fullscreen;
   double first_ratio;
 } BoazHostWindowLayout;
 

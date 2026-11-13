@@ -465,6 +465,7 @@ private struct PageUpdate {
         active = layout.active
         stacked = layout.vertical != 0
         splitButton.title = secondPage == 0 ? "Split" : "Unsplit"
+        splitButton.isEnabled = layout.content_fullscreen == 0
         for page in pages where page.id != firstPage && page.id != secondPage {
             page.view?.removeFromSuperview()
         }

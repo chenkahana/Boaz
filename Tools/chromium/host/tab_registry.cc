@@ -12,6 +12,8 @@
 #include "base/check.h"
 #include "base/feature_list.h"
 #include "chrome/browser/ui/tabs/features.h"
+#include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
+#include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
 #include "components/tabs/public/split_tab_data.h"
 #include "components/split_tabs/split_tab_visual_data.h"
@@ -103,6 +105,9 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver {
   void DidStopLoading() override { owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED); }
   void PrimaryMainFrameRenderProcessGone(base::TerminationStatus) override {
     owner->Queue(*this, BOAZ_HOST_PAGE_RENDERER_FAILED);
+  }
+  void DidToggleFullscreenModeForTab(bool, bool) override {
+    owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED);
   }
   void BeforeUnloadFired(bool proceed) override { if (!proceed) CancelClose(); }
   void BeforeUnloadDialogCancelled() override { CancelClose(); }
@@ -478,6 +483,17 @@ BoazHostResult TabRegistry::GetWindowLayout(BoazHostWindow id, BoazHostWindowLay
   layout.size = size;
   layout.window = id;
   layout.first_ratio = 0.5;
+  auto* manager = window->browser ? ExclusiveAccessManager::From(window->browser.get()) : nullptr;
+  if (manager && manager->fullscreen_controller()->IsTabFullscreen()) {
+    auto* page = impl_->FindContents(manager->fullscreen_controller()->exclusive_access_tab());
+    if (!page || page->destroyed || page->closing || page->window != id)
+      return BOAZ_HOST_UNAVAILABLE;
+    layout.first = page->id;
+    layout.active = page->id;
+    layout.content_fullscreen = 1;
+    *output = layout;
+    return BOAZ_HOST_OK;
+  }
   auto foreground = window->strip->GetForegroundTabs();
   if (foreground.size() > 2) return BOAZ_HOST_UNAVAILABLE;
   for (size_t i = 0; i < foreground.size(); ++i) {
@@ -505,6 +521,8 @@ BoazHostResult TabRegistry::SetSplit(BoazHostWindow id, BoazHostPage first,
     return BOAZ_HOST_INVALID_ARGUMENT;
   auto* window = impl_->FindWindow(id);
   if (!window || !window->browser || !window->strip) return BOAZ_HOST_INVALID_HANDLE;
+  auto* manager = ExclusiveAccessManager::From(window->browser.get());
+  if (manager && manager->fullscreen_controller()->IsTabFullscreen()) return BOAZ_HOST_UNAVAILABLE;
   auto* a = impl_->Find(first);
   auto* b = impl_->Find(second);
   if (!a || !b || a->destroyed || b->destroyed || !a->web_contents() || !b->web_contents() ||
@@ -552,6 +570,8 @@ BoazHostResult TabRegistry::ClearSplit(BoazHostWindow id) {
   auto* window = impl_->FindWindow(id);
   if (!window || !window->strip) return BOAZ_HOST_INVALID_HANDLE;
   if (window->strip->closing_all()) return BOAZ_HOST_CLOSING;
+  auto* manager = window->browser ? ExclusiveAccessManager::From(window->browser.get()) : nullptr;
+  if (manager && manager->fullscreen_controller()->IsTabFullscreen()) return BOAZ_HOST_UNAVAILABLE;
   for (auto* tab : window->strip->GetForegroundTabs()) {
     auto* page = impl_->FindContents(tab->GetContents());
     if (!page || page->destroyed) return BOAZ_HOST_UNAVAILABLE;
