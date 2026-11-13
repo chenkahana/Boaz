@@ -98,7 +98,7 @@ private struct ChromiumTabPane: View {
                 } description: {
                     Text(failure)
                 } actions: {
-                    Button("Try Again", action: open).buttonStyle(.glass)
+                    Button("Try Again") { open(retry: true) }.buttonStyle(.glass)
                 }
             } else if let engine, let adapter = engine.adapter as? ChromiumEnginePageAdapter {
                 ChromiumPageView(adapter: adapter)
@@ -203,15 +203,15 @@ private struct ChromiumTabPane: View {
         return "\(adapter.handle):\(adapter.state.navigationID):\(url.absoluteString)"
     }
 
-    private func open() {
+    private func open(retry: Bool = false) {
         failure = nil
         do {
-            let page = try browser.enginePage(for: tab)
+            let page = try (retry ? browser.retryEngineRouting(for: tab) : browser.enginePage(for: tab))
             guard page.adapter is ChromiumEnginePageAdapter else { throw EnginePageError.incompatibleBridge }
             engine = page
         } catch {
             engine = nil
-            failure = "Chromium could not open this page: \(String(describing: error))."
+            failure = "This page could not open: \(error.localizedDescription)"
         }
     }
 }

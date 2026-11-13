@@ -206,7 +206,17 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         if let split = browser.split {
             guard let first = browser.cachedChromiumPage(for: split.leading),
                   let second = browser.cachedChromiumPage(for: split.trailing),
-                  first.state.lifecycle == .active, second.state.lifecycle == .active else { return }
+                  first.state.lifecycle == .active, second.state.lifecycle == .active else {
+                if let native = [split.leading, split.trailing].compactMap({ browser.cachedChromiumPage(for: $0) }).first,
+                   native.state.lifecycle == .active, let activate = runtime.api.activate_page {
+                    result = activate(native.handle, 0)
+                    if result == BOAZ_HOST_OK { result = getLayout(handle, &actual) }
+                }
+                if result == BOAZ_HOST_OK, actual.second != 0 { result = clearSplit(handle) }
+                if result == BOAZ_HOST_OK { appliedSplit = nil }
+                else { window.subtitle = "Could not update the mixed-engine split view." }
+                return
+            }
             let ratio = Double(split.fraction)
             if actual.first != first.handle || actual.second != second.handle ||
                 actual.vertical != 0 || abs(actual.first_ratio - ratio) > 0.000001 {
@@ -254,14 +264,27 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         return true
     }
 
+    func confirmWebKitClose() async -> Bool {
+        guard browser.hasWebKitPages else { return true }
+        guard window.attachedSheet == nil else { return false }
+        let alert = NSAlert()
+        alert.messageText = "Close WebKit pages?"
+        alert.informativeText = "This window contains WebKit pages. Closing it may lose unsaved changes."
+        alert.addButton(withTitle: "Keep Window Open")
+        alert.addButton(withTitle: "Close Window")
+        return await alert.beginSheetModal(for: window) == .alertSecondButtonReturn
+    }
+
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         guard !finished else { return true }
         if !closing {
             closing = true
-            queue { owner in
-                let result = owner.runtime.api.close_window!(owner.handle)
-                owner.closing = false
-                if result != BOAZ_HOST_OK { owner.window.subtitle = "Could not close window (\(result.rawValue))." }
+            Task { [weak self] in
+                guard let self else { return }
+                defer { closing = false }
+                guard await confirmWebKitClose(), !finished else { return }
+                let result = runtime.api.close_window!(handle)
+                if result != BOAZ_HOST_OK { window.subtitle = "Could not close window (\(result.rawValue))." }
             }
         }
         return false
