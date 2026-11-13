@@ -7,14 +7,14 @@
 #include <string>
 #include <string_view>
 #include "adblock_engine.h"
-#include "url/origin.h"
+#include "net/base/schemeful_site.h"
 namespace boaz {
 class AdblockProfileState final {
  public:
   struct Config {
     bool enabled = true;
     bool closed = false;
-    std::set<std::string, std::less<>> exception_hosts;
+    std::set<std::string, std::less<>> exception_sites;
     std::shared_ptr<const AdblockEngine> engine;
   };
   AdblockProfileState();
@@ -24,7 +24,7 @@ class AdblockProfileState final {
   void Close();
   AdblockDecision Evaluate(const GURL& url, const GURL& source,
       std::string_view kind, std::string_view method,
-      const std::optional<url::Origin>& top_level_origin) const;
+      const std::optional<net::SchemefulSite>& top_level_site) const;
  private:
   std::shared_ptr<const Config> config_;
 };
