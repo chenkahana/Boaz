@@ -364,11 +364,19 @@ BoazHostResult SetAudioMuted(BoazHostPage page, uint8_t muted) {
   if (muted > 1) return BOAZ_HOST_INVALID_ARGUMENT;
   return state->tabs->SetAudioMuted(page, muted != 0);
 }
+BoazHostResult GetZoomFactor(BoazHostPage page, double* factor) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  return state->tabs->GetZoomFactor(page, factor);
+}
+BoazHostResult SetZoomFactor(BoazHostPage page, double factor) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  return state->tabs->SetZoomFactor(page, factor);
+}
 const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:

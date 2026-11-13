@@ -57,6 +57,8 @@ source_set("host") {
     "//chrome/browser/ui/tabs:features",
     "//components/split_tabs",
     "//components/tabs:public",
+    "//components/zoom",
+    "//third_party/blink/public/common",
     "//components/web_modal",
     "//content/public/browser",
     "//crypto",
