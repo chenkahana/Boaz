@@ -33,7 +33,7 @@ def main():
     root = Path(lock["storage_root"])
     destination = root / "chromium/src/boaz"
     contents = inventory(scripts / "host")
-    required = {"BUILD.gn", "boaz_host.h", "bootstrap.h", "bootstrap.mm", "native_view.mm", "native_window.h",
+    required = {"BUILD.gn", "launch.h", "launch.mm", "visible_page_capture.h", "visible_page_capture.cc", "boaz_host.h", "bootstrap.h", "bootstrap.mm", "native_view.mm", "native_window.h",
                 "native_window.mm", "native_profiles.h", "native_profiles.cc", "native_location_bar.h", "native_location_bar.mm",
                 "native_permission_prompt.h", "native_permission_prompt.mm",
                 "extension_actions.h", "extension_actions.mm",

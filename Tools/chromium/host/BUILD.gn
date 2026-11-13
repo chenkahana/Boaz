@@ -47,6 +47,7 @@ source_set("host") {
     "trusted_execution.cc",
   ]
   deps = [
+    ":launch",
     "//base",
     "//chrome/browser",
     "//chrome/browser/extensions",
@@ -78,4 +79,11 @@ source_set("host") {
     "//ui/native_theme",
   ]
   frameworks = [ "AppKit.framework" ]
+}
+
+source_set("launch") {
+  sources = [ "launch.h", "launch.mm" ]
+  public = [ "launch.h" ]
+  deps = [ "//base" ]
+  frameworks = [ "Foundation.framework" ]
 }

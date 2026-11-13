@@ -6,6 +6,9 @@
 #include <string_view>
 #include <utility>
 #include "bootstrap.h"
+#include "launch.h"
+#include "base/path_service.h"
+#include "chrome/common/chrome_paths.h"
 #include "boaz_host.h"
 #include "native_window.h"
 #include "native_profiles.h"
@@ -462,7 +465,14 @@ class MainParts final : public ChromeBrowserMainExtraParts {
     CHECK(path.IsAbsolute());
     CHECK(base::DirectoryExists(path));
     CHECK_EQ(base::MakeAbsoluteFilePath(path), path);
-    CHECK(base::FilePath(kProfiles).IsParent(path));
+    if (const auto packaged = PackagedApplicationUserDataPath()) {
+      base::FilePath resolved;
+      CHECK(base::PathService::Get(chrome::DIR_USER_DATA, &resolved));
+      CHECK_EQ(path, *packaged);
+      CHECK_EQ(resolved, *packaged);
+    } else {
+      CHECK(base::FilePath(kProfiles).IsParent(path));
+    }
     // Canonical spelling rejects symlinks in every existing path component.
     state->profile_path = path.AppendASCII("Default");
     CHECK(!base::IsLink(state->profile_path));

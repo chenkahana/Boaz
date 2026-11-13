@@ -151,6 +151,8 @@ def main():
                    if args.host_objects else ["chrome", "chrome/installer/mac"])
         if args.host_objects:
             targets += [
+                "obj/boaz/launch/launch.o",
+                "obj/chrome/app/chrome_main_delegate/chrome_main_delegate.o",
                 "obj/chrome/browser/core/chrome_browser_main.o",
                 "obj/chrome/browser/ui/views/frame/browser_window_factory/browser_window_factory.o",
                 "obj/chrome/browser/ui/views/permissions/impl/permission_prompt_factory.o",
