@@ -10,7 +10,11 @@ extension PageText {
 
     @MainActor
     static func extract(from page: ChromiumEnginePageAdapter) async -> PageText? {
-        do {
+        try? await extractThrowing(from: page)
+    }
+
+    @MainActor
+    static func extractThrowing(from page: ChromiumEnginePageAdapter) async throws -> PageText? {
             for _ in 0..<50 {
                 try Task.checkCancellation()
                 guard page.state.isLoading else { break }
@@ -25,30 +29,24 @@ extension PageText {
             }
             var title = original.title
             var text = ""
-            let raw = try await page.executeTrusted(function: "function() {\n" + extractionScript + "\n}", arguments: [:])
+            let raw = try await ChromiumTextTransfer.read(from: page, body: extractionScript)
             guard unchanged() else { return nil }
-            if case .string(let json) = raw,
-               let payload = try? JSONDecoder().decode(ChromiumPayload.self, from: Data(json.utf8)) {
+            if let payload = try? JSONDecoder().decode(ChromiumPayload.self, from: Data(raw.utf8)) {
                 text = payload.blocks.compactMap(\.text).joined(separator: "\n")
                 if title.isEmpty { title = payload.title }
             }
             if text.count < 400 {
                 guard unchanged() else { return nil }
-                let body = try await page.executeTrusted(
-                    function: "function() { return document.body ? document.body.innerText : ''; }", arguments: [:])
+                let body = try await ChromiumTextTransfer.read(from: page,
+                    body: "return document.body ? document.body.innerText : '';")
                 guard unchanged() else { return nil }
-                if case .string(let value) = body, value.count > text.count { text = value }
+                if body.count > text.count { text = body }
             }
             text = text.replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             guard unchanged(), !text.isEmpty else { return nil }
             let host = original.url?.host().map { $0.hasPrefix("www.") ? String($0.dropFirst(4)) : $0 } ?? ""
             return PageText(title: title.trimmingCharacters(in: .whitespacesAndNewlines), host: host, text: text)
-        } catch {
-            // Navigation/cancellation and the bridge's 64-KiB result limit fail
-            // extraction; do not truncate or fall back into a different document.
-            return nil
-        }
     }
 }
 #endif
