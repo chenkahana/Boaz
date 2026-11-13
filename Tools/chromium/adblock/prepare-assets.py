@@ -167,6 +167,32 @@ def main():
     if len(combined) > MAX_INPUT:
         raise ValueError('Combined rules exceed native input limit')
     status, detail = validate_engine(library, combined, resources)
+    compatibility_bytes = read(HERE / 'compatibility.json')
+    compatibility = json.loads(compatibility_bytes)
+    if compatibility['lists_lock_sha256'] != digest(lock_bytes):
+        raise ValueError('Subscription compatibility decisions require review for these list versions')
+    exclusions = compatibility['optional_exclusions']
+    if len(exclusions) > 32:
+        raise ValueError('Unexpected compatibility exclusion count')
+    rejection_reasons = {entry['line']: entry['reason']
+                         for entry in detail.get('rejected_rule_details', [])}
+    lines = combined.decode('utf-8').splitlines(keepends=True)
+    excluded_indices = set()
+    for entry in exclusions:
+        source = next((row for row in sections if row[2] == entry['list']), None)
+        if source is None or not isinstance(entry['line'], int):
+            raise ValueError('Invalid compatibility source')
+        number = source[0] + entry['line'] - 1
+        if not source[0] <= number <= source[1] or number in excluded_indices:
+            raise ValueError('Invalid or duplicate compatibility rule position')
+        if (lines[number - 1].rstrip('\r\n') != entry['rule'] or
+                rejection_reasons.get(number) != entry['parser_reason']):
+            raise ValueError('Optional rule capability changed; review compatibility decision')
+        excluded_indices.add(number)
+        lines[number - 1] = '! Boaz unsupported optional rule: ' + entry['rule'] + '\n'
+    if exclusions:
+        combined = ''.join(lines).encode('utf-8')
+        status, detail = validate_engine(library, combined, resources)
     if status != 0:
         mapped = []
         source_lines = combined.decode().splitlines()
@@ -181,8 +207,11 @@ def main():
         return 1
     inputs.update({'rules.txt': combined, 'resources.json': resources,
                    'lists.lock.json': lock_bytes, 'resources.lock.json': resource_lock,
-                   'resources.receipt.json': resource_receipt_bytes, 'NOTICE': read(HERE / 'NOTICE')})
+                   'resources.receipt.json': resource_receipt_bytes, 'compatibility.json': compatibility_bytes,
+                   'NOTICE': read(HERE / 'NOTICE')})
     provenance = {'schema_version': 1, 'validation': 'native_engine_creation_passed',
+                  'full_subscription_supported': not bool(exclusions),
+                  'optional_excluded_rule_count': len(exclusions),
                   'native_library_sha256': build['library_sha256'], 'build_receipt_sha256': digest(build_bytes),
                   'tracker_source': own_provenance, 'diagnostics': detail,
                   'files': {name: {'sha256': digest(data), 'size_bytes': len(data)} for name, data in inputs.items()},
