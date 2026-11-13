@@ -139,3 +139,11 @@ Code complete has not been reached. No production release, appcast change, accep
 - Cache clearing removes resource caches only, preserving cookies and Cache Storage. It retains a retiring private profile until completion; shutdown drains outstanding work. Reload targets the original active document only and preserves Chromium's form-resubmission confirmation.
 - Source now includes acknowledged network/CPU and sensor overrides through typed internal protocol commands. Network uses the pinned rule-based and navigator-state commands. CPU, navigator state, timezone and locale can affect shared renderers; UI must not claim strict per-tab isolation. Worker coverage and cached-response throttling are not assumed.
 - Locale/timezone require a trusted internal protocol client. That client exposes only typed application operations, retains owned HTTP(S) primary-frame attachment checks, and denies local file reads/writes and unsafe operations. No arbitrary protocol endpoint is introduced. Geolocation emulation does not grant site permission.
+
+### Signed ABI28 runtime findings
+
+The matching UI at `81c25f6` passed in run `20261113T172148Z-25920c03de0c4ab181d0d753f8392564`. The staged, development-signed candidate is preserved under `20261113-abi28-native-application-signed`.
+
+Observed: native Boaz launch; existing test-profile tabs visible; dedicated DevTools window renders without Boaz sidebar/session UI; Lighthouse panel loads with its controls and correctly refuses to audit an uncommitted/non-HTTP document. Normal HTTPS loading still did not commit. Inspector Cmd-W failed: Chromium terminated at `ReadAnythingSidePanelController::TabWillDetach`, where a missing Chrome side-panel coordinator is permitted only for tests/WebUIBrowser. The native host has no Chrome side panel. A narrowly scoped native-host detach correction is required before inspector-close acceptance. This is a runtime failure, not a passed lifecycle gate.
+
+The earlier ABI23 app exited after the native Quit action; the initial still-visible window was transitional. No force termination, Keychain reset or access-rule change was used.
