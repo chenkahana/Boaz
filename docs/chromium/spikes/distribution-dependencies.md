@@ -1,3 +1,5 @@
+> Current release policy: the [dual-engine revision](../dual-engine.md) supersedes Chromium-only DRM acceptance. Widevine approval gates enabling Chromium DRM; working protected playback in WebKit remains mandatory. The custom CEF build is paused with source and outputs preserved while S0 selects the host.
+
 # Distribution dependencies
 
 Recorded 2026-11-13. These are release gates, not reasons to stop independent engineering work.

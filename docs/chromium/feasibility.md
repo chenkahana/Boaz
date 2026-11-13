@@ -2,17 +2,21 @@
 
 Recorded 2026-11-13 against Boaz `045132d7bd3b7a191730031a018554ad1f0bcfbe`, fetched from `origin/master`. The original `feat/phone-toolbar` checkout was left unchanged. Worktree: `~/.worktrees/Boaz/codex/chromium-migration`.
 
+## Current prerequisite
+
+The dual-engine revision requires S0 Crest source inspection before further Wave 0 implementation. [S0](spikes/S0-crest.md) now selects an independently authored direct Chromium host; CEF-specific S2a/S2b are frozen and their acceptance moves to the direct-host proof. The owned custom build stopped cleanly with exit 130; all outputs are preserved. Earlier CEF architecture selection is superseded by the S0 verdict. See [dual-engine revision](dual-engine.md). Widevine approval now gates dormant Chromium DRM enablement; release instead requires working protected playback in WebKit.
+
 ## Gate status
 
 | Gate | Status | Evidence or missing prerequisite |
 |---|---|---|
 | F1 native host and lifecycle | Partial; signed fresh-profile relaunch passes | Development signatures verify; two signed-profile runs load HTTPS and exit 0. Earlier ad-hoc profile still stalls. Notarization, IME, accessibility and performance remain pending |
-| F2 native embedding and extensions | Public API route blocked; broader CEF adapter authorized | Native fullscreen shortcut now passes. Toolbar-free extension actions lack a public API; the selected next proof retains Chromium’s original root and real tab model, with native-view hosting and an explicit extension-action API. The former 300-line limit is superseded. See [actions](spikes/S2-actions.md) and [native parent](spikes/S2-native-parent.md) |
-| F3 trusted scripts | Blocked by unselected runtime route | No isolated-world or extension messaging implementation demonstrated |
-| F4 custom distribution | Build running; project generation passed | Pinned checkout and 117 applicable CEF patches completed; Debug and Release project generation passed. Guarded SSD build retains the 12-job cap. No custom artifact or codec pass yet |
+| F2 native embedding and extensions | Direct-host proof pending; CEF route frozen | S0 selected a direct Chromium host from source evidence. Real native window/tab identity, split view, actions, and all eight extensions remain unverified in Boaz |
+| F3 trusted scripts | Direct-host implementation pending | Crest demonstrates isolated-world APIs; Boaz must independently implement exact-document identity and cancellation and pass hostile-page/password acceptance |
+| F4 custom distribution | Paused for S0; project generation passed | Pinned checkout and 117 applicable CEF patches completed; Debug and Release project generation passed. Guarded SSD build retains the 12-job cap. No custom artifact or codec pass yet |
 | F5 platform behavior | Not executed | Requires a working selected host |
 | F6 performance baseline | Not executed | Host now available; no benchmark numbers claimed |
-| F7 external dependencies | Partly inspected; unresolved | Widevine eligibility inquiry submitted with authorization; no agreement or approval. Developer ID/notarization and codec distribution remain unverified; see [dependencies](spikes/distribution-dependencies.md) |
+| F7 external dependencies | Partly inspected; unresolved | Widevine inquiry submitted; approval gates dormant Chromium DRM only. WebKit/FairPlay playback, Developer ID/notarization and codec distribution remain unverified; see [dependencies](spikes/distribution-dependencies.md) |
 
 No complete S1–S7 gate has a GO verdict. SSD filesystem acceptance passed separately. The original upstream source revision below is an inspection reference, not the selected stable distribution.
 

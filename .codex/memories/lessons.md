@@ -8,3 +8,8 @@
 - Trigger: Repeated architecture permission questions after the user delegated product and implementation judgment.
 - Rule: Make routine architecture and scope decisions from evidence under existing authorization. Keep acceptance gates explicit; ask only for genuinely missing external facts or actions that require separate authorization.
 - Scope: repo / Chromium migration
+
+- Date: 2026-11-13
+- Trigger: Ended the implementation turn at a prototype progress checkpoint despite ready authorized work.
+- Rule: Continue through ready implementation packets; a progress update is not a completion boundary. Stop only at an actual dependency, requested review, or completed scope.
+- Scope: repo / long-running migration

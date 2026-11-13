@@ -1,10 +1,10 @@
 # Chromium migration
 
-The GitHub DMG is intended to move to Chromium while the Mac App Store and iPhone apps remain on WebKit. All migration work belongs to one draft PR on `codex/chromium-migration`. Do not merge or release until full parity, including DRM playback, is verified.
+The GitHub DMG is intended to move to Chromium while the Mac App Store and iPhone apps remain on WebKit. All migration work belongs to one draft PR on `codex/chromium-migration`. The DMG keeps both engines at runtime. Do not merge or release until full dual-engine parity and protected playback through WebKit are verified; Widevine remains disabled pending approval.
 
 ## Current status
 
-Wave 0 is in progress. The external SSD now contains a verified APFS build image; CMake and Ninja are installed. Native hosting uses the prebuilt-distribution experiments before any production engine migration. See [feasibility.md](feasibility.md) and [SSD verification](spikes/storage.md).
+The [S0 Crest study](spikes/S0-crest.md) selects a direct Chromium host. CEF development is frozen; the original runtime gates now apply to the new host. The [dual-engine revision](dual-engine.md) governs subsequent work. The external SSD now contains a verified APFS build image; CMake and Ninja are installed. Native hosting uses the prebuilt-distribution experiments before any production engine migration. See [feasibility.md](feasibility.md) and [SSD verification](spikes/storage.md).
 
 The [parity ledger](parity.md) records the existing implementation and required acceptance coverage. Source inventory is not runtime verification.
 
@@ -15,7 +15,7 @@ The [parity ledger](parity.md) records the existing implementation and required 
 3. After those gates pass, freeze engine contracts and implement WebKit adapters without changing iPhone behavior. Use a concrete observable page facade, typed script values, origin/frame/navigation identity, single-completion callbacks, and explicit page lifecycle states.
 4. Integrate the Objective-C++ Chromium bridge, helpers, artifact retrieval, and isolated build outputs. CEF callbacks retain their documented thread contracts; UI notifications cross to MainActor.
 5. Implement the ready packets in the parity ledger, two at a time, then developer tools and native UI polish.
-6. Verify performance, migration, signing, notarization, update/rollback, and three days of dogfooding. DRM approval and working playback are release blockers, not deferred features.
+6. Verify performance, migration, signing, notarization, update/rollback, and three days of dogfooding. Working protected playback is a release blocker. Widevine approval gates enabling Widevine, not the dual-engine release.
 
 ## Worker dispatch
 
