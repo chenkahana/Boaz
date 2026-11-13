@@ -73,6 +73,11 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
             do { try page.printPage() } catch { MacModel.shared.showToast(error.localizedDescription) }
         }, key: "p")
 
+        add(file, "Save Page as PDF…", enabled: { $0?.activeEnginePage?.adapter is ChromiumEnginePageAdapter }) { browser in
+            guard let page = browser?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter else { return }
+            ChromiumPageCapture.exportPDF(from: page, window: browser?.window) { MacModel.shared.showToast($0) }
+        }
+
         let edit = menu("Edit")
         responder(edit, "Undo", Selector(("undo:")), key: "z")
         responder(edit, "Redo", Selector(("redo:")), key: "z", modifiers: [.command, .shift])

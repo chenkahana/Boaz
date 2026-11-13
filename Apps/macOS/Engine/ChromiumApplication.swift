@@ -168,10 +168,19 @@ private final class ChromiumApplication: NSObject {
         guard !finished else { return }
         legacyDelegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
     }
+    private var confirmingQuit = false
     @objc private func quit() {
-        model.isQuitting = true
-        do { try runtime.requestShutdown() }
-        catch { model.isQuitting = false; showError(error.localizedDescription) }
+        guard !confirmingQuit else { return }
+        confirmingQuit = true
+        Task {
+            defer { confirmingQuit = false }
+            for window in windows {
+                guard await window.confirmWebKitClose() else { return }
+            }
+            model.isQuitting = true
+            do { try runtime.requestShutdown() }
+            catch { model.isQuitting = false; showError(error.localizedDescription) }
+        }
     }
 
 
