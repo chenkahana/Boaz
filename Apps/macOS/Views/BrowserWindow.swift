@@ -17,6 +17,10 @@ struct BrowserWindow: View {
         _browser = State(initialValue: BrowserState(incognito: incognito))
     }
 
+    init(browser: BrowserState) {
+        _browser = State(initialValue: browser)
+    }
+
     var body: some View {
         @Bindable var browser = browser
         ZStack(alignment: .leading) {
