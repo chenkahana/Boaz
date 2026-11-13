@@ -14,7 +14,7 @@ class AdblockProfileState final {
   struct Config {
     bool enabled = true;
     bool closed = false;
-    std::set<std::string> exception_hosts;
+    std::set<std::string, std::less<>> exception_hosts;
     std::shared_ptr<const AdblockEngine> engine;
   };
   AdblockProfileState();
