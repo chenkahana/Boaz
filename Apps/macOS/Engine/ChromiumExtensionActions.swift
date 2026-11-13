@@ -18,7 +18,10 @@ final class ChromiumExtensionActionsModel {
         self.window = window
         self.activePage = activePage
     }
-    var activeHandle: BoazHostPage? { activePage()?.handle }
+    var activeHandle: BoazHostPage? {
+        guard let page = activePage(), page.state.lifecycle == .active else { return nil }
+        return page.handle
+    }
     func refresh(for notification: Notification) {
         if let changedWindow = notification.userInfo?["window"] as? BoazHostWindow, changedWindow != window { return }
         refresh()
@@ -99,11 +102,15 @@ final class ChromiumExtensionActionsModel {
 struct ChromiumExtensionActionsBar: View {
     let model: ChromiumExtensionActionsModel
     var body: some View {
+        let hasActiveChromiumPage = model.activeHandle != nil
         VStack(alignment: .leading, spacing: 4) {
             if !model.actions.isEmpty {
                 HStack(spacing: 4) {
                     ForEach(model.actions) { action in
                         NativeExtensionActionButton(model: model, action: action).frame(width: 28, height: 28)
+                            .disabled(!hasActiveChromiumPage)
+                            .help(hasActiveChromiumPage ? (action.title.isEmpty ? action.name : action.title)
+                                  : "Extensions require an active Chromium page; they do not run in WebKit.")
                             .overlay(alignment: .topTrailing) {
                                 if !action.badge.isEmpty {
                                     Text(action.badge).font(.system(size: 9, weight: .semibold))
@@ -150,7 +157,8 @@ private struct NativeExtensionActionButton: NSViewRepresentable {
         context.coordinator.id = action.id
         button.image = action.icon ?? NSImage(systemSymbolName: "puzzlepiece.extension", accessibilityDescription: action.name)
         button.imageScaling = .scaleProportionallyDown
-        button.toolTip = action.title.isEmpty ? action.name : action.title
+        button.toolTip = model.activeHandle != nil ? (action.title.isEmpty ? action.name : action.title)
+            : "Extensions require an active Chromium page; they do not run in WebKit."
         button.setAccessibilityLabel(action.badge.isEmpty ? action.name : "\(action.name), \(action.badge)")
         button.isEnabled = model.activeHandle != nil
     }
