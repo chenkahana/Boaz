@@ -17,20 +17,41 @@ extension ChromiumEnginePageAdapter {
         guard let capture = api.capture_visible, let cancel = api.cancel_capture else {
             throw EnginePageError.incompatibleBridge
         }
+        return try await captureData(maxBytes: 8 * 1024 * 1024,
+            signature: [137, 80, 78, 71, 13, 10, 26, 10], cancel: cancel) { request, completion, context in
+                capture(handle, request, Int32(maxWidth), Int32(maxHeight), completion, context)
+            }
+    }
+
+    func capturePDF() async throws -> Data {
+        try Task.checkCancellation()
+        guard state.lifecycle == .active else { throw ChromiumCaptureError.closed }
+        guard let capture = api.capture_pdf, let cancel = api.cancel_pdf else {
+            throw EnginePageError.incompatibleBridge
+        }
+        return try await captureData(maxBytes: 32 * 1024 * 1024,
+            signature: Array("%PDF-".utf8), cancel: cancel) { request, completion, context in
+                capture(handle, request, completion, context)
+            }
+    }
+
+    private func captureData(maxBytes: Int, signature: [UInt8],
+        cancel: @escaping @convention(c) (BoazHostPage, UInt64) -> BoazHostResult,
+        start: (UInt64, BoazHostCaptureCompletion, UnsafeMutableRawPointer) -> BoazHostResult) async throws -> Data {
         let navigation = state.navigationID
-        let request = ChromiumCaptureRequest(page: handle, cancel: cancel)
+        let request = ChromiumCaptureRequest(page: handle, maxBytes: maxBytes, signature: signature, cancel: cancel)
         let data = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 request.continuation = continuation
                 if request.cancelled || Task.isCancelled { request.finishCancellation(); return }
                 let context = Unmanaged.passRetained(request).toOpaque()
-                let result = capture(handle, request.id, Int32(maxWidth), Int32(maxHeight),
+                let result = start(request.id,
                     { context, page, id, status, bytes, size in
                         guard let context else { return }
-                        let oversized = size > 8 * 1024 * 1024
-                        let data = !oversized && size > 0 ? bytes.map { Data(bytes: $0, count: size) } : nil
                         MainActor.assumeIsolated {
                             let request = Unmanaged<ChromiumCaptureRequest>.fromOpaque(context).takeRetainedValue()
+                            let oversized = size > request.maxBytes
+                            let data = !oversized && size > 0 ? bytes.map { Data(bytes: $0, count: size) } : nil
                             DispatchQueue.main.async {
                                 request.finish(page: page, id: id, status: status, data: data, oversized: oversized)
                             }
@@ -57,16 +78,20 @@ extension ChromiumEnginePageAdapter {
     private static var nextID: UInt64 = 1
     let id: UInt64
     let page: BoazHostPage
+    let maxBytes: Int
+    let signature: [UInt8]
     let cancelOperation: @convention(c) (BoazHostPage, UInt64) -> BoazHostResult
     var continuation: CheckedContinuation<Data, Error>?
     var accepted = false
     private(set) var cancelled = false
 
-    init(page: BoazHostPage, cancel: @escaping @convention(c) (BoazHostPage, UInt64) -> BoazHostResult) {
+    init(page: BoazHostPage, maxBytes: Int, signature: [UInt8], cancel: @escaping @convention(c) (BoazHostPage, UInt64) -> BoazHostResult) {
         precondition(Self.nextID < UInt64.max)
         id = Self.nextID
         Self.nextID += 1
         self.page = page
+        self.maxBytes = maxBytes
+        self.signature = signature
         cancelOperation = cancel
     }
     func cancel() {
@@ -99,7 +124,7 @@ extension ChromiumEnginePageAdapter {
         }
         if let error { fail(error); return }
         guard !oversized else { fail(ChromiumCaptureError.tooLarge); return }
-        guard let data, data.starts(with: [137, 80, 78, 71, 13, 10, 26, 10]) else {
+        guard let data, data.starts(with: signature) else {
             fail(ChromiumCaptureError.malformedResult); return
         }
         let completion = continuation
