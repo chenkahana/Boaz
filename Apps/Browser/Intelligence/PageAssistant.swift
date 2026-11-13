@@ -44,16 +44,22 @@ final class PageAssistant {
     /// Set when the conversation had to start over to make room.
     private(set) var notice: String?
 
-    @ObservationIgnored private let page: WebPage
+    @ObservationIgnored private let extractText: @MainActor () async -> PageText?
     @ObservationIgnored private var text: PageText?
     @ObservationIgnored private var askSession: LanguageModelSession?
     /// Whether `askSession` has already read the page (its first question carried it).
     @ObservationIgnored private var askSessionHasPage = false
 
-    init(page: WebPage) {
-        self.page = page
-        title = page.title
-        host = page.url?.host() ?? ""
+    convenience init(page: WebPage) {
+        self.init(title: page.title, host: page.url?.host() ?? "") {
+            await PageText.extract(from: page)
+        }
+    }
+
+    init(title: String, host: String, extractText: @escaping @MainActor () async -> PageText?) {
+        self.title = title
+        self.host = host
+        self.extractText = extractText
     }
 
     private static let summaryInstructions = """
@@ -167,7 +173,7 @@ final class PageAssistant {
     // MARK: Page text
 
     private func pageContent(tokens budget: Int) async -> String? {
-        if text == nil { text = await PageText.extract(from: page) }
+        if text == nil { text = await extractText() }
         guard let text else { return nil }
         if !text.title.isEmpty { title = text.title }
         if !text.host.isEmpty { host = text.host }

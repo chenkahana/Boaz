@@ -142,6 +142,12 @@ struct PageAssistantView: View {
         _mode = State(initialValue: mode)
     }
 
+    init(title: String, host: String, mode: Mode,
+         extractText: @escaping @MainActor () async -> PageText?) {
+        _assistant = State(initialValue: PageAssistant(title: title, host: host, extractText: extractText))
+        _mode = State(initialValue: mode)
+    }
+
     var body: some View {
         AISheet(title: mode == .summary ? "Summarize Page" : "Ask This Page") {
             AvailabilityGate {
