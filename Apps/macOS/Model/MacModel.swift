@@ -82,7 +82,11 @@ final class MacModel {
         }
         let store: BoazStore
         do {
+            #if BOAZ_CHROMIUM
+            store = try BoazStore.onDisk(applicationSupportDirectory: ChromiumLegacyStore.applicationSupportDirectory())
+            #else
             store = try BoazStore.onDisk()
+            #endif
             self.store = store
             let sync = LibrarySync(store: store)
             self.sync = sync

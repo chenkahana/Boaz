@@ -16,11 +16,13 @@ public final class BoazStore: Sendable {
     public static let appGroup = "group.com.chenkahana.boaz"
 
     /// Opens the database in the App Group container when the entitlement is present, else in Application Support.
+    /// An explicit applicationSupportDirectory selects the base directory without copying the database.
     /// Configured per GRDB's "Sharing a Database": the app and its extensions wait for each other's writes instead
     /// of failing with `SQLITE_BUSY`, and the iOS app suspends the database in the background
     /// (`Database.suspendNotification`) so it is never killed for holding a lock. Extensions pass `migrate: false`.
-    public static func onDisk(appGroup: String? = nil, migrate: Bool = true) throws -> BoazStore {
-        let base = try appGroup.flatMap { FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: $0) }
+    public static func onDisk(appGroup: String? = nil, migrate: Bool = true,
+                              applicationSupportDirectory: URL? = nil) throws -> BoazStore {
+        let base = try applicationSupportDirectory ?? appGroup.flatMap { FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: $0) }
             ?? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                        appropriateFor: nil, create: true)
         let dir = base.appendingPathComponent("Boaz", isDirectory: true)
