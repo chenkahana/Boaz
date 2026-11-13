@@ -41,6 +41,9 @@ class TabRegistry {
   BoazHostResult StopFind(BoazHostPage page);
   BoazHostResult SetAudioMuted(BoazHostPage page, bool muted);
   BoazHostResult IsBusyForResidency(BoazHostPage page, uint8_t* busy);
+  BoazHostResult GetUserAgentDefaults(BoazHostPage page, std::optional<PageEmulation::UserAgentDefaults>* output);
+  BoazHostResult ApplyUserAgent(BoazHostPage page, std::optional<std::string> user_agent,
+      PageEmulation::Completion completion);
   BoazHostResult ApplyViewport(BoazHostPage page, std::optional<PageEmulation::Viewport> viewport,
       PageEmulation::Completion completion);
   BoazHostResult GetZoomFactor(BoazHostPage page, double* factor);

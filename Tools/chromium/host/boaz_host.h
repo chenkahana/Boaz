@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 19u
+#define BOAZ_HOST_ABI_VERSION 20u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT
@@ -30,6 +30,9 @@ typedef enum BoazHostEmulationStatus {
 } BoazHostEmulationStatus;
 typedef void (*BoazHostEmulationCompletion)(void* context, BoazHostPage page,
     uint64_t request, BoazHostEmulationStatus status);
+/* Synchronous borrowed native defaults. Metadata JSON has Chromium's typed UA metadata fields. */
+typedef void (*BoazHostUserAgentVisitor)(void* context, const char* user_agent,
+    const char* navigator_platform, const char* metadata_json);
 typedef enum BoazHostCaptureStatus {
   BOAZ_CAPTURE_SUCCESS, BOAZ_CAPTURE_INVALID_TARGET, BOAZ_CAPTURE_NAVIGATION,
   BOAZ_CAPTURE_CLOSED, BOAZ_CAPTURE_RENDERER_FAILED, BOAZ_CAPTURE_TIMEOUT,
@@ -217,6 +220,10 @@ typedef struct BoazHostAPI {
   BoazHostResult (*cancel_capture)(BoazHostPage page, uint64_t request);
   /* A null viewport clears native overrides. Accepted operations complete once on UI. */
   BoazHostResult (*apply_viewport)(BoazHostPage page, const BoazHostViewport* viewport,
+      uint64_t request, BoazHostEmulationCompletion completion, void* context);
+  BoazHostResult (*get_user_agent_defaults)(BoazHostPage page, BoazHostUserAgentVisitor visitor, void* context);
+  /* Null user_agent resets defaults. Custom values suppress Client Hints. */
+  BoazHostResult (*apply_user_agent)(BoazHostPage page, const char* user_agent, size_t length,
       uint64_t request, BoazHostEmulationCompletion completion, void* context);
 } BoazHostAPI;
 

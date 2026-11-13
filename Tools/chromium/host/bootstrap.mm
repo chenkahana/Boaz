@@ -28,6 +28,7 @@
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/command_line.h"
+#include "base/compiler_specific.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"
@@ -447,17 +448,9 @@ BoazHostResult CancelCapture(BoazHostPage page, uint64_t request) {
   if (auto result = Check(); result != BOAZ_HOST_OK) return result;
   return state->tabs->CancelCapture(page, request);
 }
-BoazHostResult ApplyViewport(BoazHostPage page, const BoazHostViewport* viewport,
-    uint64_t request, BoazHostEmulationCompletion completion, void* context) {
-  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
-  if (!request || !completion || (viewport && (viewport->mobile > 1 || viewport->touch > 1 || viewport->landscape > 1)))
-    return BOAZ_HOST_INVALID_ARGUMENT;
-  std::optional<PageEmulation::Viewport> value;
-  if (viewport) value = PageEmulation::Viewport{viewport->width, viewport->height, viewport->dpr,
-      viewport->mobile != 0, viewport->touch != 0, viewport->max_touch_points, viewport->landscape != 0};
-  CHECK_LT(state->pending_emulations, std::numeric_limits<uint64_t>::max());
-  ++state->pending_emulations;
-  auto result = state->tabs->ApplyViewport(page, value, base::BindOnce(
+PageEmulation::Completion EmulationCompletion(BoazHostPage page, uint64_t request,
+    BoazHostEmulationCompletion completion, void* context) {
+  return base::BindOnce(
       [](BoazHostPage page, uint64_t request, BoazHostEmulationCompletion completion,
          void* context, PageEmulation::Result result) {
         CHECK(state);
@@ -475,7 +468,69 @@ BoazHostResult ApplyViewport(BoazHostPage page, const BoazHostViewport* viewport
         CHECK_GT(state->pending_emulations, 0u);
         --state->pending_emulations;
         FinishIfDrained();
-      }, page, request, completion, context));
+      }, page, request, completion, context);
+}
+BoazHostResult ApplyViewport(BoazHostPage page, const BoazHostViewport* viewport,
+    uint64_t request, BoazHostEmulationCompletion completion, void* context) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (!request || !completion || (viewport && (viewport->mobile > 1 || viewport->touch > 1 || viewport->landscape > 1)))
+    return BOAZ_HOST_INVALID_ARGUMENT;
+  std::optional<PageEmulation::Viewport> value;
+  if (viewport) value = PageEmulation::Viewport{viewport->width, viewport->height, viewport->dpr,
+      viewport->mobile != 0, viewport->touch != 0, viewport->max_touch_points, viewport->landscape != 0};
+  CHECK_LT(state->pending_emulations, std::numeric_limits<uint64_t>::max());
+  ++state->pending_emulations;
+  auto result = state->tabs->ApplyViewport(page, value, EmulationCompletion(page, request, completion, context));
+  if (result != BOAZ_HOST_OK) --state->pending_emulations;
+  return result;
+}
+BoazHostResult GetUserAgentDefaults(BoazHostPage page, BoazHostUserAgentVisitor visitor, void* context) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (!visitor) return BOAZ_HOST_INVALID_ARGUMENT;
+  std::optional<PageEmulation::UserAgentDefaults> defaults;
+  if (auto result = state->tabs->GetUserAgentDefaults(page, &defaults); result != BOAZ_HOST_OK) return result;
+  const auto& value = *defaults;
+  base::DictValue metadata;
+  metadata.Set("fullVersion", value.full_version);
+  metadata.Set("platform", value.platform);
+  metadata.Set("platformVersion", value.platform_version);
+  metadata.Set("architecture", value.architecture);
+  metadata.Set("model", value.model);
+  metadata.Set("bitness", value.bitness);
+  metadata.Set("mobile", value.mobile);
+  metadata.Set("wow64", value.wow64);
+  auto brands = [](const std::vector<PageEmulation::BrandVersion>& entries) {
+    base::ListValue list;
+    for (const auto& entry : entries) {
+      base::DictValue item;
+      item.Set("brand", entry.brand); item.Set("version", entry.version);
+      list.Append(std::move(item));
+    }
+    return list;
+  };
+  metadata.Set("brands", brands(value.brands));
+  metadata.Set("fullVersionList", brands(value.full_version_list));
+  base::ListValue factors;
+  for (const auto& factor : value.form_factors) factors.Append(factor);
+  metadata.Set("formFactors", std::move(factors));
+  std::string json;
+  if (!base::JSONWriter::Write(metadata, &json) || json.size() > 65536) return BOAZ_HOST_UNAVAILABLE;
+  Notify([&] { visitor(context, value.user_agent.c_str(), value.navigator_platform.c_str(), json.c_str()); });
+  return BOAZ_HOST_OK;
+}
+BoazHostResult ApplyUserAgent(BoazHostPage page, const char* user_agent, size_t length,
+    uint64_t request, BoazHostEmulationCompletion completion, void* context) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (!request || !completion || length > 8192 || (!user_agent && length)) return BOAZ_HOST_INVALID_ARGUMENT;
+  std::optional<std::string> value;
+  if (user_agent) {
+    // Native caller provides length readable bytes; values are copied before returning.
+    value = UNSAFE_BUFFERS(std::string(user_agent, length));
+    if (!base::IsStringUTF8(*value)) return BOAZ_HOST_INVALID_ARGUMENT;
+  }
+  CHECK_LT(state->pending_emulations, std::numeric_limits<uint64_t>::max());
+  ++state->pending_emulations;
+  auto result = state->tabs->ApplyUserAgent(page, std::move(value), EmulationCompletion(page, request, completion, context));
   if (result != BOAZ_HOST_OK) --state->pending_emulations;
   return result;
 }
@@ -483,7 +538,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
