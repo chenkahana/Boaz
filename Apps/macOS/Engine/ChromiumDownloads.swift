@@ -91,7 +91,7 @@ private struct ChromiumDownloadsView: View {
                             if !item.dangerous, item.state == BOAZ_DOWNLOAD_PROGRESS, !item.paused {
                                 Button("Pause") { model.action(item.id, BOAZ_DOWNLOAD_PAUSE) }
                             }
-                            if !item.dangerous, item.canResume {
+                            if !item.dangerous, item.canResume, item.paused || item.state == BOAZ_DOWNLOAD_INTERRUPTED {
                                 Button("Resume") { model.action(item.id, BOAZ_DOWNLOAD_RESUME) }
                             }
                             if item.state == BOAZ_DOWNLOAD_PROGRESS || item.state == BOAZ_DOWNLOAD_INTERRUPTED {
