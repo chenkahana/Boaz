@@ -713,6 +713,27 @@
           "after": "5e39aa1b925856297b65a6e6917760e8531eb7efb30cc15e7f21b16e0f3fb07c"
         }
       ]
+    },
+    {
+      "file": "patches/native-blocking-popup.patch",
+      "sha256": "0a221d866bba29b232c2919a8f4b7cb76d845d4b9753f797fcfeeed34b84bb98",
+      "files": [
+        {
+          "path": "chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc",
+          "before": "9ebd62de115c3647df5b659fb5f6d78029cd529144380ce82fdc0660b68ee031",
+          "after": "ea693590b66642f18c49f052f75b1b1a0438423a2d48cebe7ca899a2357d3360"
+        },
+        {
+          "path": "chrome/browser/ui/browser_web_contents_delegate/BUILD.gn",
+          "before": "5e1ffa831fe1b7b8cea2e6aec6d5b7311309fa8894a8cb737827f3843c499c36",
+          "after": "1277805f22a23de23b893e11e3713bdc2ca882ff3b4083ca89f5db4dd804b350"
+        },
+        {
+          "path": "chrome/browser/chrome_content_browser_client.cc",
+          "before": "5e39aa1b925856297b65a6e6917760e8531eb7efb30cc15e7f21b16e0f3fb07c",
+          "after": "c32e82b6ffd8717b6021de00415f7bdb36c92573ba6429be48913fa8481cd8e5"
+        }
+      ]
     }
   ]
 }
