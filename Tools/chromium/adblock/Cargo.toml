@@ -1,0 +1,15 @@
+[package]
+name = "boaz-adblock"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+adblock = { git = "https://github.com/brave/adblock-rust", rev = "0016bc16a75ca9f87354a537a8b006fdd2b5b5b9", default-features = false, features = ["embedded-domain-resolver", "full-regex-handling"] }
+serde_json = "1"
+
+[profile.release]
+panic = "unwind"
