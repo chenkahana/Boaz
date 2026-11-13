@@ -7,6 +7,10 @@ import WebKit
 /// One browser window: which space and tab it shows, its live web pages, split view, peek and command bar.
 @Observable
 final class BrowserState {
+    var devToolsDockSide: String = "right"
+    var devToolsLastDockSide: String = "right"
+    @ObservationIgnored var restoreChromiumDockPreferences: ((String, String) -> Void)?
+
     enum CommandMode: Equatable { case newTab, currentTab, split }
 
     struct Split: Equatable {

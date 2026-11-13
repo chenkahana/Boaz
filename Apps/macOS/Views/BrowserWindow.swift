@@ -122,6 +122,11 @@ struct BrowserWindow: View {
             }
             while model.sidebar.spaces.isEmpty && model.loadError == nil { try? await Task.sleep(for: .milliseconds(100)) }
             if !browser.isIncognito, let saved = model.claimSavedWindow() {
+                browser.devToolsDockSide = ["right", "bottom", "left", "undocked"].contains(saved.devToolsDockSide ?? "")
+                    ? saved.devToolsDockSide! : "right"
+                browser.devToolsLastDockSide = ["right", "bottom", "left"].contains(saved.devToolsLastDockSide ?? "")
+                    ? saved.devToolsLastDockSide! : "right"
+                browser.restoreChromiumDockPreferences?(browser.devToolsDockSide, browser.devToolsLastDockSide)
                 if let id = saved.spaceID, model.space(id) != nil { browser.currentSpaceID = id }
                 if let tab = browser.tab(saved.tabID) { browser.activate(tab) }
                 for _ in 0..<25 where browser.window == nil { try? await Task.sleep(for: .milliseconds(20)) }

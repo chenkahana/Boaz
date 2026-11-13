@@ -295,6 +295,8 @@ final class MacModel {
         var tabID: String?
         var frame: String?
         var minimized: Bool?
+        var devToolsDockSide: String?
+        var devToolsLastDockSide: String?
 
         static func load() -> [SavedWindow] {
             guard let data = UserDefaults.standard.data(forKey: key) else { return [] }
@@ -331,7 +333,9 @@ final class MacModel {
         guard !(isQuitting && windows.isEmpty) else { return }
         let saved = windows.sorted { depth($0) > depth($1) }
             .map { SavedWindow(spaceID: $0.spaceID, tabID: $0.activeTabID, frame: $0.window?.frameDescriptor,
-                               minimized: $0.window?.isMiniaturized) }
+                               minimized: $0.window?.isMiniaturized,
+                               devToolsDockSide: $0.devToolsDockSide,
+                               devToolsLastDockSide: $0.devToolsLastDockSide) }
         UserDefaults.standard.set(try? JSONEncoder().encode(saved), forKey: SavedWindow.key)
     }
 
