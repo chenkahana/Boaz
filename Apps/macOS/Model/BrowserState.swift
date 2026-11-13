@@ -95,7 +95,7 @@ final class BrowserState {
     @ObservationIgnored let model = MacModel.shared
     @ObservationIgnored weak var window: NSWindow?
     @ObservationIgnored private var pages: [String: WebPage] = [:]
-    @ObservationIgnored private var enginePages: [String: EnginePage] = [:]
+    private var enginePages: [String: EnginePage] = [:]
     private let privateEngineProfileID = UUID().uuidString
     #if BOAZ_CHROMIUM
     @ObservationIgnored var createChromiumPage: ((SidebarItem) throws -> EnginePage)?
