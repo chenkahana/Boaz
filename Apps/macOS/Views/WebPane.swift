@@ -137,10 +137,9 @@ private struct ChromiumTabPane: View {
             do {
                 let data = try await adapter.captureVisible()
                 guard !Task.isCancelled, surfaceDocument == expected else { return }
-                if browser.cacheChromiumPreview(data, tabID: tab.id, adapter: adapter,
-                                                url: url, navigation: navigation) {
-                    revealedSurface = expected
-                }
+                _ = browser.cacheChromiumPreview(data, tabID: tab.id, adapter: adapter,
+                                                url: url, navigation: navigation)
+                revealedSurface = expected
             } catch {
                 guard !Task.isCancelled, surfaceDocument == expected else { return }
                 revealedSurface = expected
