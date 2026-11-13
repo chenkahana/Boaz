@@ -311,6 +311,17 @@
           "after": "c51c747dc5321658f5cf1535e58f12ab4114d122f1e6400b6f064702b67c8201"
         }
       ]
+    },
+    {
+      "file": "patches/native-owned-automation-startup.patch",
+      "sha256": "21540da22c041e071f7ab89e3fb3c1b2a97685e904d763d1b698e61c37bd904d",
+      "files": [
+        {
+          "path": "chrome/browser/devtools/remote_debugging_server.cc",
+          "before": "ea72757acd7c3bff419db92bf5be101256c1bc813fcb87174a401fc8856901cc",
+          "after": "85ca51b6470804b6d554c8999e5fa500c3903784f968a7bfd7327b6a98da2c9b"
+        }
+      ]
     }
   ]
 }

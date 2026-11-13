@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 31u
+#define BOAZ_HOST_ABI_VERSION 32u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT
@@ -90,6 +90,11 @@ typedef void (*BoazHostProfileCompletion)(void* context, BoazHostResult result,
 typedef enum BoazHostCacheStatus { BOAZ_CACHE_SUCCESS, BOAZ_CACHE_FAILED } BoazHostCacheStatus;
 typedef void (*BoazHostCacheCompletion)(void* context, BoazHostProfile profile,
     uint64_t request, BoazHostCacheStatus status);
+
+typedef enum BoazHostAutomationState { BOAZ_AUTOMATION_DISABLED, BOAZ_AUTOMATION_STARTING,
+  BOAZ_AUTOMATION_READY, BOAZ_AUTOMATION_FAILED } BoazHostAutomationState;
+typedef void (*BoazHostAutomationVisitor)(void* context, BoazHostAutomationState state,
+    uint8_t requested_at_startup, uint16_t port, const char* error);
 
 typedef enum BoazHostPageEvent {
   BOAZ_HOST_PAGE_CREATED = 0,
@@ -301,6 +306,8 @@ typedef struct BoazHostAPI {
   BoazHostResult (*apply_sensors)(BoazHostPage page, const BoazHostSensors* sensors,
       uint64_t request, BoazHostEmulationCompletion completion, void* context);
   BoazHostResult (*set_javascript_disabled)(BoazHostPage page, uint8_t disabled);
+  /* No credentials are exposed by this synchronous status visitor. */
+  BoazHostResult (*automation_status)(BoazHostAutomationVisitor visitor, void* context);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

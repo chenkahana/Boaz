@@ -12,6 +12,10 @@
 #include "boaz_host.h"
 #include "native_window.h"
 #include "native_profiles.h"
+#include "native_automation.h"
+#include "chrome/browser/browser_process.h"
+#include "chrome/common/pref_names.h"
+#include "components/prefs/pref_service.h"
 #include "extension_actions.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_action_manager.h"
@@ -74,6 +78,8 @@ struct State {
   std::map<BoazHostWindow, Window> windows;
   uint64_t pending_scripts = 0;
   uint64_t pending_captures = 0;
+  std::unique_ptr<NativeAutomation> automation;
+  bool automation_requested = false;
   uint64_t pending_emulations = 0;
   uint64_t pending_cache_clears = 0;
   uint64_t pending_profiles = 0;
@@ -126,6 +132,7 @@ void FinishIfDrained() {
   if (!state->exit_requested || !state->windows.empty() ||
       state->pending_scripts || state->pending_captures || state->pending_emulations || state->pending_cache_clears || state->pending_profiles || state->finished) return;
   state->finished = true;
+  if (state->automation) state->automation->Stop();
   Notify([] { state->callbacks.shutdown_ready(state->callbacks.context); });
   // Swift queues its cleanup on this same main dispatch queue first.
   state->cleanup_pending = true;
@@ -719,11 +726,20 @@ BoazHostResult Print(BoazHostPage page) {
   if (auto result = Check(); result != BOAZ_HOST_OK) return result;
   return state->tabs->Print(page);
 }
+BoazHostResult AutomationStatus(BoazHostAutomationVisitor visitor, void* context) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (!visitor || !state->automation) return BOAZ_HOST_INVALID_ARGUMENT;
+  const auto snapshot = state->automation->Status();
+  const auto status = static_cast<BoazHostAutomationState>(snapshot.state);
+  Notify([&] { visitor(context, status, state->automation_requested ? 1 : 0,
+      snapshot.port, snapshot.error.c_str()); });
+  return BOAZ_HOST_OK;
+}
 const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
@@ -784,6 +800,11 @@ class MainParts final : public ChromeBrowserMainExtraParts {
     CHECK(state->profile);
     state->tabs = std::make_unique<TabRegistry>();
     state->profiles = std::make_unique<NativeProfiles>(state->profile_path.DirName(), state->profile.get());
+    state->automation = std::make_unique<NativeAutomation>(state->profile_path.DirName());
+    state->automation_requested = base::CommandLine::ForCurrentProcess()->HasSwitch("boaz-automation") ||
+        [[NSUserDefaults standardUserDefaults] boolForKey:@"boaz.chromium.automation.enabled"];
+    state->automation->Start(state->automation_requested,
+        g_browser_process->local_state()->GetBoolean(prefs::kDevToolsRemoteDebuggingAllowed));
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
         base::BindOnce([] {
           const bool application_ui = base::CommandLine::ForCurrentProcess()->HasSwitch("boaz-app-ui");

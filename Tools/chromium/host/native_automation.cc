@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "base/check.h"
+#include "base/location.h"
 #include "base/containers/span.h"
 #include "base/files/scoped_file.h"
 #include "base/json/json_writer.h"

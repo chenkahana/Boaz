@@ -51,6 +51,8 @@ source_set("host") {
     "native_downloads.cc",
     "native_cache_clearer.h",
     "native_cache_clearer.cc",
+    "native_automation.h",
+    "native_automation.cc",
     "native_profiles.h",
     "native_profiles.cc",
     "native_window.h",
@@ -68,6 +70,8 @@ source_set("host") {
   ]
   deps = [
     "//base",
+    "//crypto",
+    "//net",
     "//chrome/browser",
     "//chrome/browser/extensions",
     "//chrome/browser/media/webrtc",
