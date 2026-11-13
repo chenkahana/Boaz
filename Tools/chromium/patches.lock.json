@@ -680,6 +680,17 @@
           "after": "7514972cccb13fecd4cb40f78045e4214eb4c949b024cb53de7f9534272b0de3"
         }
       ]
+    },
+    {
+      "file": "patches/native-http-back-to-safety.patch",
+      "sha256": "2c485e4c2e32cd7478c9d9f180f9c6cf693c5c24237607e511aacd98f91d8928",
+      "files": [
+        {
+          "path": "chrome/browser/ssl/ask_before_http_dialog_controller.cc",
+          "before": "bd5825bfe5028f465259aad8d5806d7c32f4d914f348cbf185eb7f04aec00c4e",
+          "after": "f4b5886528080a48b5992475bd4f0a0471ae977d86ebf3da38b90e430beb056d"
+        }
+      ]
     }
   ]
 }
