@@ -8,6 +8,7 @@
 #include "base/check.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
+#include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/timer/timer.h"
@@ -49,6 +50,7 @@ class NativeNotice final : public ExclusiveAccessBubble {
     if (callback_) std::move(callback_).Run(ExclusiveAccessBubbleHideReason::kInterrupted);
   }
   bool visible() const { return visible_; }
+  void OnFullscreenTransitionComplete() { ShowAndStartTimers(); }
  private:
   void Show() override {
     auto text = exclusive_access_bubble::GetInstructionTextForType(params_.type, u"Esc",
@@ -78,19 +80,23 @@ class NativeWindow final : public BrowserWindow,
     CHECK(browser_ && window_);
     CHECK(services_.request_close && services_.content_view && services_.focus_address &&
           services_.focus_toolbar && services_.handle_key && services_.exclusive_access_notice);
+    restored_state_ = window_.zoomed ? ui::mojom::WindowShowState::kMaximized : ui::mojom::WindowShowState::kNormal;
     observers_ = [[NSMutableArray alloc] init];
+    const base::WeakPtr<NativeWindow> weak = weak_factory_.GetWeakPtr();
     for (NSString* name in @[NSWindowDidResizeNotification, NSWindowDidMoveNotification,
                             NSWindowDidEnterFullScreenNotification, NSWindowDidExitFullScreenNotification,
-                            NSWindowDidResignKeyNotification, NSWindowWillEnterFullScreenNotification]) {
+                            NSWindowDidResignKeyNotification, NSWindowWillEnterFullScreenNotification,
+                            NSWindowWillMiniaturizeNotification, NSWindowDidDeminiaturizeNotification]) {
       id token = [[NSNotificationCenter defaultCenter] addObserverForName:name object:window_
           queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification* notification) {
-        OnWindowEvent(notification.name);
+        if (weak) weak->OnWindowEvent(notification.name);
       }];
       [observers_ addObject:token];
     }
   }
   ~NativeWindow() override {
     Main();
+    weak_factory_.InvalidateWeakPtrs();
     if (attention_) [NSApp cancelUserAttentionRequest:attention_];
     for (id token in observers_) [[NSNotificationCenter defaultCenter] removeObserver:token];
     notice_.reset();
@@ -103,7 +109,11 @@ class NativeWindow final : public BrowserWindow,
   bool IsFullscreen() const override { Main(); return (window_.styleMask & NSWindowStyleMaskFullScreen) != 0; }
   gfx::NativeWindow GetNativeWindow() const override { Main(); return gfx::NativeWindow(window_); }
   gfx::Rect GetRestoredBounds() const override { Main(); return restored_; }
-  ui::mojom::WindowShowState GetRestoredState() const override { Main(); return restored_state_; }
+  ui::mojom::WindowShowState GetRestoredState() const override {
+    Main();
+    if (IsFullscreen() || IsMinimized()) return restored_state_;
+    return IsMaximized() ? ui::mojom::WindowShowState::kMaximized : ui::mojom::WindowShowState::kNormal;
+  }
   gfx::Rect GetBounds() const override { Main(); return gfx::ScreenRectFromNSRect(window_.frame); }
   void Show() override { Main(); [window_ makeKeyAndOrderFront:nil]; }
   void Hide() override { Main(); [window_ orderOut:nil]; }
@@ -121,7 +131,7 @@ class NativeWindow final : public BrowserWindow,
     [NSApp deactivate];
   }
   void Maximize() override { Main(); if (!window_.zoomed) [window_ zoom:nil]; }
-  void Minimize() override { Main(); [window_ miniaturize:nil]; }
+  void Minimize() override { Main(); restored_state_ = GetWindowShowState(); [window_ miniaturize:nil]; }
   void Restore() override {
     Main();
     if (IsFullscreen()) [window_ toggleFullScreen:nil];
@@ -277,9 +287,14 @@ class NativeWindow final : public BrowserWindow,
   }
   void OnWindowEvent(NSString* name) {
     Main();
-    if ([name isEqualToString:NSWindowDidResignKeyNotification, NSWindowWillEnterFullScreenNotification]) notice_.reset();
+    if ([name isEqualToString:NSWindowWillEnterFullScreenNotification] ||
+        [name isEqualToString:NSWindowWillMiniaturizeNotification]) {
+      restored_state_ = GetWindowShowState();
+    }
+    if ([name isEqualToString:NSWindowDidResignKeyNotification]) notice_.reset();
     if ([name isEqualToString:NSWindowDidEnterFullScreenNotification] || [name isEqualToString:NSWindowDidExitFullScreenNotification]) {
       if (auto* manager = ExclusiveAccessManager::From(browser_)) manager->fullscreen_controller()->WindowFullscreenStateChanged();
+      if ([name isEqualToString:NSWindowDidEnterFullScreenNotification] && notice_) notice_->OnFullscreenTransitionComplete();
     }
     if (!IsFullscreen() && !IsMaximized() && !IsMinimized()) restored_ = GetBounds();
     NotifyPositionRequiresUpdate();
@@ -293,6 +308,7 @@ class NativeWindow final : public BrowserWindow,
   NSInteger attention_ = 0;
   std::unique_ptr<NativeNotice> notice_;
   base::ObserverList<web_modal::ModalDialogHostObserver> modal_observers_;
+  base::WeakPtrFactory<NativeWindow> weak_factory_{this};
 };
 }  // namespace
 
