@@ -11,7 +11,15 @@ struct MacAISheet: View {
         switch request {
         case .page(let tabID, let mode):
             if let tab = browser.tab(tabID) {
+                #if BOAZ_CHROMIUM
+                if browser.createChromiumPage != nil {
+                    ChromiumPageAssistantSheet(tab: tab, mode: mode)
+                } else {
+                    PageAssistantView(page: browser.page(for: tab), mode: mode)
+                }
+                #else
                 PageAssistantView(page: browser.page(for: tab), mode: mode)
+                #endif
             }
         case .tidyTabs(let spaceID):
             if let space = model.space(spaceID) {
@@ -24,6 +32,44 @@ struct MacAISheet: View {
         }
     }
 }
+
+#if BOAZ_CHROMIUM
+private struct ChromiumPageAssistantSheet: View {
+    @Environment(BrowserState.self) private var browser
+    let tab: SidebarItem
+    let mode: PageAssistantView.Mode
+    @State private var adapter: ChromiumEnginePageAdapter?
+    @State private var failure: String?
+
+    var body: some View {
+        Group {
+            if let adapter {
+                PageAssistantView(title: adapter.state.title,
+                    host: adapter.state.url?.host() ?? "", mode: mode,
+                    extractText: { await PageText.extract(from: adapter) })
+            } else if let failure {
+                ContentUnavailableView("Couldn't Read This Page", systemImage: "doc.text.magnifyingglass",
+                                       description: Text(failure))
+            } else {
+                ProgressView("Opening page…")
+            }
+        }
+        .task(id: tab.id) {
+            adapter = nil
+            failure = nil
+            do {
+                let engine = try browser.enginePage(for: tab)
+                guard let chromium = engine.adapter as? ChromiumEnginePageAdapter else {
+                    throw EnginePageError.unavailable
+                }
+                adapter = chromium
+            } catch {
+                failure = error.localizedDescription
+            }
+        }
+    }
+}
+#endif
 
 /// View menu: Summarize Page (⌥⌘S) and Ask This Page for the active tab.
 struct PageAICommands: View {
