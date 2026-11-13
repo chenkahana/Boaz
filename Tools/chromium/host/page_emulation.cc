@@ -27,6 +27,10 @@ PageEmulation::PageEmulation(content::WebContents* contents)
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 }
 PageEmulation::~PageEmulation() { Close(); }
+bool PageEmulation::IsTrusted() { return false; }
+bool PageEmulation::MayReadLocalFiles() { return false; }
+bool PageEmulation::MayWriteLocalFiles() { return false; }
+bool PageEmulation::AllowUnsafeOperations() { return false; }
 void PageEmulation::Reply(Completion completion, Result result) {
   if (completion) base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
       FROM_HERE, base::BindOnce(std::move(completion), result));

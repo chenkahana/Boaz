@@ -453,7 +453,7 @@ BoazHostResult ApplyViewport(BoazHostPage page, const BoazHostViewport* viewport
   if (!request || !completion || (viewport && (viewport->mobile > 1 || viewport->touch > 1 || viewport->landscape > 1)))
     return BOAZ_HOST_INVALID_ARGUMENT;
   std::optional<PageEmulation::Viewport> value;
-  if (viewport) value = {viewport->width, viewport->height, viewport->dpr,
+  if (viewport) value = PageEmulation::Viewport{viewport->width, viewport->height, viewport->dpr,
       viewport->mobile != 0, viewport->touch != 0, viewport->max_touch_points, viewport->landscape != 0};
   CHECK_LT(state->pending_emulations, std::numeric_limits<uint64_t>::max());
   ++state->pending_emulations;

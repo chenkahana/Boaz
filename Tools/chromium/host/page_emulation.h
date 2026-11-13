@@ -60,10 +60,10 @@ class PageEmulation final : public content::WebContentsObserver,
   void AgentHostClosed(content::DevToolsAgentHost*) override;
   bool MayAttachToURL(const GURL&, bool is_webui) override;
   bool MayAttachToRenderFrameHost(content::RenderFrameHost*) override;
-  bool IsTrusted() override { return false; }
-  bool MayReadLocalFiles() override { return false; }
-  bool MayWriteLocalFiles() override { return false; }
-  bool AllowUnsafeOperations() override { return false; }
+  bool IsTrusted() override;
+  bool MayReadLocalFiles() override;
+  bool MayWriteLocalFiles() override;
+  bool AllowUnsafeOperations() override;
   void DidStartNavigation(content::NavigationHandle*) override;
   void PrimaryMainFrameRenderProcessGone(base::TerminationStatus) override;
   void WebContentsDestroyed() override;
