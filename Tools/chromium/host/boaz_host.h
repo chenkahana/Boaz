@@ -236,10 +236,11 @@ typedef void (*BoazHostExtensionInstallCompletion)(void* context, BoazHostWindow
 typedef void (*BoazHostExtensionMetadataVisitor)(void* context, const char* title, const char* badge,
     const uint8_t* png, size_t png_size);
 
-/* Saved top-level site permissions: kind camera/microphone/notifications (0..2),
+/* Saved top-level site permissions: kind camera/microphone/notifications/location (0..3),
  * setting ask/allow/block/other (0..3). Origin is borrowed during visitor. */
 typedef void (*BoazHostSitePermissionVisitor)(void* context, const char* origin,
-    int32_t kind, int32_t setting, uint8_t can_reset, uint8_t embargoed);
+    int32_t kind, int32_t setting, uint8_t can_reset, uint8_t embargoed,
+    uint8_t has_accuracy_options, int32_t approximate_setting, int32_t precise_setting);
 
 typedef struct BoazHostAPI {
   size_t size;

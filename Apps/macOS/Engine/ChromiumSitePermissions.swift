@@ -12,15 +12,22 @@ final class ChromiumSitePermissions {
         let setting: Int32
         let canReset: Bool
         let embargoed: Bool
+        let hasAccuracy: Bool
+        let approximate: Int32
+        let precise: Int32
         var name: String {
             switch id {
             case 0: "Camera"
             case 1: "Microphone"
             case 2: "Notifications"
+            case 3: "Location"
             default: "Unsupported permission"
             }
         }
-        var status: String {
+        var status: String { Self.label(setting) }
+        var approximateStatus: String { Self.label(approximate) }
+        var preciseStatus: String { Self.label(precise) }
+        private static func label(_ setting: Int32) -> String {
             switch setting {
             case 0: "Ask"
             case 1: "Allowed"
@@ -66,12 +73,13 @@ final class ChromiumSitePermissions {
             error = "Permissions are unavailable for this page. Close this panel and try again after the page loads."
             return
         }
-        let result = enumerate(page.handle, navigation, { context, origin, kind, setting, canReset, embargoed in
+        let result = enumerate(page.handle, navigation, { context, origin, kind, setting, canReset, embargoed, hasAccuracy, approximate, precise in
             guard let context, let origin else { return }
             MainActor.assumeIsolated {
                 let model = Unmanaged<ChromiumSitePermissions>.fromOpaque(context).takeUnretainedValue()
                 model.permissions.append(Permission(id: kind, origin: String(cString: origin),
-                    setting: setting, canReset: canReset != 0, embargoed: embargoed != 0))
+                    setting: setting, canReset: canReset != 0, embargoed: embargoed != 0,
+                    hasAccuracy: hasAccuracy != 0, approximate: approximate, precise: precise))
             }
         }, Unmanaged.passUnretained(self).toOpaque())
         if result != BOAZ_HOST_OK || !isCurrent {
@@ -118,6 +126,12 @@ final class ChromiumSitePermissions {
                                     Button("Reset") { model.reset(permission.id) }
                                         .disabled(!model.isCurrent || !permission.canReset)
                                         .accessibilityLabel("Reset \(permission.name) permission")
+                                }
+                                if permission.hasAccuracy {
+                                    Text("Saved approximate location: \(permission.approximateStatus)")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                    Text("Saved precise location: \(permission.preciseStatus)")
+                                        .font(.caption).foregroundStyle(.secondary)
                                 }
                                 if permission.embargoed {
                                     Text("Requests are automatically blocked after previous dismissals or denials.")

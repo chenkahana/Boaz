@@ -751,17 +751,18 @@ BoazHostResult TabRegistry::EnumerateSitePermissions(BoazHostPage id, uint64_t n
   const auto origin = frame->GetLastCommittedOrigin();
   if (origin.opaque() || !origin.GetURL().SchemeIsHTTPOrHTTPS()) return BOAZ_HOST_UNAVAILABLE;
   auto permissions = boaz::ReadSitePermissions(Profile::FromBrowserContext(contents->GetBrowserContext()), origin, origin);
-  if (permissions.size() != 3) return BOAZ_HOST_UNAVAILABLE;
+  if (permissions.size() != 4) return BOAZ_HOST_UNAVAILABLE;
   const std::string serialized = origin.Serialize();
   base::AutoReset<bool> callback_guard(&impl_->in_callback, true);
   for (const auto& permission : permissions)
     visitor(context, serialized.c_str(), static_cast<int32_t>(permission.kind),
-        static_cast<int32_t>(permission.setting), permission.can_reset, permission.embargoed);
+        static_cast<int32_t>(permission.setting), permission.can_reset, permission.embargoed, permission.has_accuracy_options,
+        static_cast<int32_t>(permission.approximate_setting), static_cast<int32_t>(permission.precise_setting));
   return BOAZ_HOST_OK;
 }
 BoazHostResult TabRegistry::ResetSitePermission(BoazHostPage id, uint64_t navigation, int32_t kind) {
   BOAZ_FIND_PAGE();
-  if (kind < 0 || kind > 2) return BOAZ_HOST_INVALID_ARGUMENT;
+  if (kind < 0 || kind > 3) return BOAZ_HOST_INVALID_ARGUMENT;
   auto* contents = page->web_contents();
   auto* frame = contents->GetPrimaryMainFrame();
   if (page->generation != navigation || contents->IsLoading() || contents->GetController().GetPendingEntry() ||
