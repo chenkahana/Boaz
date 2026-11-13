@@ -6,6 +6,7 @@
 #include "base/functional/bind.h"
 #include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
+#include "base/strings/sys_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
@@ -69,7 +70,9 @@ class NativeExtensionPopup::Impl final
     panel_ = [[NSPanel alloc] initWithContentRect:NSMakeRect(0, 0, 25, 25)
         styleMask:NSWindowStyleMaskTitled backing:NSBackingStoreBuffered defer:NO];
     panel_.releasedWhenClosed = NO;
-    panel_.title = @"Extension";
+    NSString* extension_name = base::SysUTF8ToNSString(host_->extension()->name());
+    panel_.title = extension_name.length ? extension_name : @"Extension";
+    panel_.accessibilityLabel = panel_.title;
     panel_.hidesOnDeactivate = NO;
     panel_.animationBehavior = NSWindowAnimationBehaviorNone;
     NSView* native = host_->host_contents()->GetNativeView().GetNativeNSView();
