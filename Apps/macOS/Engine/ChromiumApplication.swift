@@ -110,16 +110,20 @@ private final class ChromiumApplication: NSObject {
             if !owner.browser.isIncognito { model.saveOpenWindows() }
         }
         runtime.passwordFocus = { [weak self] page, sequence, target, bounds in
-            guard let owner = self?.windows.first(where: {
+            let mainWindow = self?.windows.first(where: {
                 ($0.browser.activeEnginePage?.adapter as? ChromiumEnginePageAdapter)?.handle == page.handle
                     && $0.window.isKeyWindow
-            }) else {
+            })?.window
+            let quickWindow = self?.quickWindows.first(where: {
+                $0.chromiumPageHandle == page.handle && $0.window.isKeyWindow
+            })?.window
+            guard let window = mainWindow ?? quickWindow else {
                 target?.release()
                 ChromiumPasswordSuggestions.shared.dismiss(page: page.handle)
                 return
             }
             ChromiumPasswordSuggestions.shared.focus(page: page, sequence: sequence,
-                target: target, screenBounds: bounds, window: owner.window)
+                target: target, screenBounds: bounds, window: window)
         }
         runtime.protectedMedia = { [weak self] page, navigation, profile, key in
             self?.windows.forEach {

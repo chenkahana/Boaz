@@ -364,6 +364,22 @@
           "after": "373d2d44b3039447610f77b37281834bc55c438dd227d1c459355b61a62bb2da"
         }
       ]
+    },
+    {
+      "file": "patches/native-devtools-window-preferences.patch",
+      "sha256": "bb38fe5fdc3ea74851b65dbf6e36797dc68bb7a63dc5f40d8bb4b662f97a5044",
+      "files": [
+        {
+          "path": "chrome/browser/devtools/devtools_ui_bindings.cc",
+          "before": "f77bec987f989e0009f332a8afbf373196a9b4de14db1cb50e979755a02d68b5",
+          "after": "9c6beba6b87316e118ed97c222d5da3257d801642264a4ff7a7253f4bbe8a3cc"
+        },
+        {
+          "path": "chrome/browser/devtools/devtools_window.cc",
+          "before": "8ae652ecb4f4f65e7216650e011e95111ce160774ac4c19e7f9f2366e46615cb",
+          "after": "a805118becb4ce1447bffc66722f9738b2cb771bf2010dde3b242098868368d2"
+        }
+      ]
     }
   ]
 }
