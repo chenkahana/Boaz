@@ -13,6 +13,7 @@ final class ChromiumExtensionManagement {
         let enabled: Bool
         let canDisable: Bool
         let canEnable: Bool
+        let canUninstall: Bool
     }
     private let api: BoazHostAPI
     private let profile: BoazHostProfile
@@ -89,12 +90,12 @@ final class ChromiumExtensionManagement {
             return
         }
         installed = []
-        let result = enumerate(profile, { context, id, name, version, enabled, canDisable, canEnable in
+        let result = enumerate(profile, { context, id, name, version, enabled, canDisable, canEnable, canUninstall in
             guard let context, let id, let name, let version else { return }
             MainActor.assumeIsolated {
                 let model = Unmanaged<ChromiumExtensionManagement>.fromOpaque(context).takeUnretainedValue()
                 model.installed.append(Installed(id: String(cString: id), name: String(cString: name),
-                    version: String(cString: version), enabled: enabled != 0, canDisable: canDisable != 0, canEnable: canEnable != 0))
+                    version: String(cString: version), enabled: enabled != 0, canDisable: canDisable != 0, canEnable: canEnable != 0, canUninstall: canUninstall != 0))
             }
         }, Unmanaged.passUnretained(self).toOpaque())
         if result != BOAZ_HOST_OK {
@@ -123,9 +124,23 @@ final class ChromiumExtensionManagement {
         }
     }
 
+    func remove(_ extensionID: String) {
+        guard installed.contains(where: { $0.id == extensionID && $0.canUninstall }),
+              let uninstall = api.uninstall_extension else {
+            error = "This extension cannot be removed. Refresh the list to check its current status."
+            return
+        }
+        let result = extensionID.withCString { uninstall(profile, $0) }
+        refresh()
+        if result != BOAZ_HOST_OK {
+            error = "This extension could not be removed. It may be required by a policy or the profile may have closed."
+        }
+    }
+
     private struct ManagementView: View {
         let model: ChromiumExtensionManagement
         let done: () -> Void
+        @State private var removal: Installed?
         var body: some View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Chromium Extensions").font(.title2.weight(.semibold))
@@ -160,6 +175,10 @@ final class ChromiumExtensionManagement {
                                     Button("Enable") { model.enable(item.id) }
                                         .accessibilityLabel("Enable \(item.name)")
                                 }
+                                if item.canUninstall {
+                                    Button("Remove", role: .destructive) { removal = item }
+                                        .accessibilityLabel("Remove \(item.name)")
+                                }
                             }
                             Divider()
                         }
@@ -173,6 +192,17 @@ final class ChromiumExtensionManagement {
             }
             .padding(20)
             .frame(minWidth: 480, minHeight: 360)
+            .alert("Remove extension?", isPresented: Binding(
+                get: { removal != nil }, set: { if !$0 { removal = nil } }
+            ), presenting: removal) { item in
+                Button("Cancel", role: .cancel) { removal = nil }
+                Button("Remove", role: .destructive) {
+                    removal = nil
+                    model.remove(item.id)
+                }
+            } message: { item in
+                Text("Remove “\(item.name)” from this profile? Its extension data may also be removed.")
+            }
         }
     }
 }
