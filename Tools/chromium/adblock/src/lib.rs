@@ -120,6 +120,7 @@ pub unsafe extern "C" fn boaz_adblock_create(
         let mut rejected = 0usize;
         let mut invalid = Vec::new();
         let mut reasons = Vec::new();
+        let mut all_reasons = Vec::new();
         let mut groups = BTreeMap::<String, usize>::new();
         let mut other_groups = 0usize;
         for (index, line) in rules.lines().enumerate() {
@@ -148,6 +149,9 @@ pub unsafe extern "C" fn boaz_adblock_create(
                 } else {
                     other_groups += 1;
                 }
+                if all_reasons.len() < 4096 {
+                    all_reasons.push(json!({"line": index + 1, "reason": reason}));
+                }
                 if invalid.len() < 32 {
                     invalid.push(index + 1);
                     reasons.push(json!({"line": index + 1, "reason": reason}));
@@ -159,7 +163,9 @@ pub unsafe extern "C" fn boaz_adblock_create(
                 diagnostics,
                 json_bytes(json!({"rejected_rules": rejected,
             "invalid_rule_line_numbers_sample": invalid,
-            "invalid_rule_reasons_sample": reasons, "rejected_rule_groups": groups,
+            "invalid_rule_reasons_sample": reasons,
+            "rejected_rule_details": all_reasons, "rejected_rule_details_truncated": rejected > 4096,
+            "rejected_rule_groups": groups,
             "other_rejected_rule_groups_count": other_groups, "rejected_resources": resource_error_count,
             "invalid_resource_indices_sample": resource_errors}))?,
             )?;
