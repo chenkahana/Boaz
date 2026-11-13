@@ -8,11 +8,12 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 6u
+#define BOAZ_HOST_ABI_VERSION 7u
 
 typedef uint64_t BoazHostWindow;
 typedef uint64_t BoazHostPage;
 typedef uint64_t BoazHostDocument;
+typedef uint64_t BoazHostProfile;
 typedef enum BoazHostScriptStatus {
   BOAZ_SCRIPT_SUCCESS, BOAZ_SCRIPT_INVALID_TARGET, BOAZ_SCRIPT_NAVIGATION,
   BOAZ_SCRIPT_CLOSED, BOAZ_SCRIPT_RENDERER_FAILED, BOAZ_SCRIPT_TIMEOUT,
@@ -31,6 +32,9 @@ typedef enum BoazHostResult {
   BOAZ_HOST_WRONG_THREAD = 4,
   BOAZ_HOST_UNAVAILABLE = 5
 } BoazHostResult;
+
+typedef void (*BoazHostProfileCompletion)(void* context, BoazHostResult result,
+                                          BoazHostProfile profile);
 
 typedef enum BoazHostPageEvent {
   BOAZ_HOST_PAGE_CREATED = 0,
@@ -148,6 +152,12 @@ typedef struct BoazHostAPI {
   BoazHostResult (*set_split)(BoazHostWindow window, BoazHostPage first,
       BoazHostPage second, uint8_t vertical, double first_ratio);
   BoazHostResult (*clear_split)(BoazHostWindow window);
+  /* Accepted requests complete once asynchronously before shutdown_ready. */
+  BoazHostResult (*prepare_profile)(const char* identifier, uint8_t is_private,
+      BoazHostProfileCompletion completion, void* context);
+  BoazHostResult (*create_profile_window)(BoazHostProfile profile,
+      const BoazHostWindowOptions* options, BoazHostWindow* window);
+  BoazHostResult (*release_profile)(BoazHostProfile profile);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.
