@@ -958,6 +958,7 @@ final class BrowserState {
             }) else { return }
             tab = new
         }
+        #if BOAZ_CHROMIUM
         if let engine, createChromiumPage != nil {
             engineChoices[tab.id] = engine
             if !isIncognito {
@@ -966,6 +967,7 @@ final class BrowserState {
                 catch { model.showToast("The browser engine choice could not be saved.") }
             }
         }
+        #endif
         if inBackground {
             do { _ = try enginePage(for: tab) }
             catch { model.showToast(error.localizedDescription) }

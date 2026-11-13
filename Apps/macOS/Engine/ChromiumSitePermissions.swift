@@ -131,7 +131,7 @@ final class ChromiumSitePermissions {
                         }
                     }
                 }
-                Text("Reload this page to stop any access already in use.")
+                Text("Reload the page to apply changes to active camera or microphone access.")
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
                     Button("Refresh") { model.refresh() }.disabled(!model.isCurrent)
