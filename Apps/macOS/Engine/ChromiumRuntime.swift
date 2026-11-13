@@ -35,6 +35,7 @@ final class ChromiumRuntime {
     private var windowProfiles: [BoazHostWindow: ChromiumProfile] = [:]
     private var preparedWindowContexts: [UInt: ChromiumProfile] = [:]
     private var pendingPageEvents: [BoazHostWindow: [(BoazHostPageEvent, CopiedPageState)]] = [:]
+    private var pendingExtensionWindows: Set<BoazHostWindow> = []
     private var closedWindows: Set<BoazHostWindow> = []
     private var closingPages: Set<BoazHostPage> = []
     private var profileRequests: [EngineProfileIdentity: ProfileRequest] = [:]
@@ -91,9 +92,13 @@ final class ChromiumRuntime {
             guard let context else { return }
             MainActor.assumeIsolated {
                 let owner = Unmanaged<ChromiumRuntime>.fromOpaque(context).takeUnretainedValue()
+                guard owner.pendingExtensionWindows.insert(window).inserted else { return }
                 DispatchQueue.main.async { [weak owner] in
-                    guard let owner, !owner.stopped, !owner.closedWindows.contains(window) else { return }
-                    NotificationCenter.default.post(name: ChromiumExtensionManagement.installedExtensionsChanged, object: nil)
+                    guard let owner else { return }
+                    owner.pendingExtensionWindows.remove(window)
+                    guard !owner.stopped, !owner.closedWindows.contains(window) else { return }
+                    NotificationCenter.default.post(name: ChromiumExtensionManagement.installedExtensionsChanged,
+                        object: nil, userInfo: ["window": window])
                 }
             }
         }

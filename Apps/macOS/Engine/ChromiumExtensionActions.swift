@@ -19,6 +19,10 @@ final class ChromiumExtensionActionsModel {
         self.activePage = activePage
     }
     var activeHandle: BoazHostPage? { activePage()?.handle }
+    func refresh(for notification: Notification) {
+        if let changedWindow = notification.userInfo?["window"] as? BoazHostWindow, changedWindow != window { return }
+        refresh()
+    }
 
     private final class Snapshot { var actions: [Action] = [] }
     private final class Metadata { var title = ""; var badge = ""; var icon: NSImage? }
@@ -116,8 +120,8 @@ struct ChromiumExtensionActionsBar: View {
         }
         .onAppear { model.refresh() }
         .onChange(of: model.activeHandle) { model.refresh() }
-        .onReceive(NotificationCenter.default.publisher(for: ChromiumExtensionManagement.installedExtensionsChanged)) { _ in
-            model.refresh()
+        .onReceive(NotificationCenter.default.publisher(for: ChromiumExtensionManagement.installedExtensionsChanged)) { notification in
+            model.refresh(for: notification)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             model.refresh()
