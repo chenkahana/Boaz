@@ -430,7 +430,8 @@ bool IsNativeHostBrowser(BrowserWindowInterface* browser) {
 std::unique_ptr<BrowserWindow, BrowserWindowDeleter>
 CreateNativeHostBrowserWindow(BrowserWindowInterface* browser) {
   CHECK_EQ(Check(), BOAZ_HOST_OK);
-  CHECK_EQ(browser->GetProfile(), state->profile);
+  CHECK(browser->GetProfile() == state->profile ||
+        (state->profiles && state->profiles->Owns(browser->GetProfile())));
   BoazHostWindowOptions options{};
   if (state->pending) {
     options = *state->pending;

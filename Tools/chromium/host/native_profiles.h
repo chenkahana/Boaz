@@ -14,6 +14,7 @@ class NativeProfiles {
   void Acquire(std::string identifier, bool is_private,
                base::OnceCallback<void(BoazHostResult, BoazHostProfile)> completion);
   Profile* Resolve(BoazHostProfile handle) const;
+  bool Owns(Profile* profile) const;
   BoazHostResult Release(BoazHostProfile handle);
  private:
   class Impl;
