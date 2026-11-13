@@ -51,6 +51,7 @@ struct ChromiumResponsiveBar: View {
                 Text(adapter.appliedUserAgent == nil ? "Native user agent." : "Custom user agent; Client Hints suppressed.")
                 if adapter.emulationPending { ProgressView().controlSize(.small) }
             }.font(.caption).foregroundStyle(.secondary)
+            ChromiumSensorControls(adapter: adapter)
             ChromiumThrottlingControls(adapter: adapter)
             ChromiumMediaControls(adapter: adapter)
             DisclosureGroup("User Agent") {
@@ -125,6 +126,7 @@ struct ChromiumResponsiveBar: View {
                 try await adapter.applyMedia(nil)
                 try await adapter.applyNetwork(nil)
                 try await adapter.applyCPU(1)
+                try await adapter.applySensors(nil)
                 adapter.responsiveVisible = false
             } catch { }
         }
