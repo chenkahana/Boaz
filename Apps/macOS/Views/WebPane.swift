@@ -56,6 +56,10 @@ private struct ChromiumTabPane: View {
                 .onTapGesture { browser.focusPane(tab.id) }
                 .onHover { hovering = $0 }
             }
+            if browser.findVisible, browser.activeTabID == tab.id,
+               let adapter = engine?.adapter as? ChromiumEnginePageAdapter {
+                ChromiumFindBar(adapter: adapter) { browser.findVisible = false }
+            }
             if let failure {
                 ContentUnavailableView {
                     Label("Can't Open This Page", systemImage: "exclamationmark.triangle")

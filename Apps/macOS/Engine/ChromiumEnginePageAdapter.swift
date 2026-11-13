@@ -97,6 +97,21 @@ final class ChromiumEnginePageAdapter: EnginePageAdapter {
         try check(setMuted(handle, muted ? 1 : 0))
     }
 
+    func find(text: String, forward: Bool) throws {
+        try requireOpen()
+        guard !text.isEmpty, text.utf8.count <= 8 * 1024, !text.contains("\0") else {
+            throw EnginePageError.invalidRequest
+        }
+        guard let find = api.find_text else { throw EnginePageError.incompatibleBridge }
+        try text.withCString { try check(find(handle, $0, forward ? 1 : 0)) }
+    }
+
+    func stopFinding() throws {
+        try requireOpen()
+        guard let stop = api.stop_find else { throw EnginePageError.incompatibleBridge }
+        try check(stop(handle))
+    }
+
     func reload() throws {
         try requireOpen()
         try check(api.reload!(handle))
