@@ -1,6 +1,7 @@
 #!/opt/homebrew/bin/python3.12
 """Sign and notarize a copied production assembly; never publish it."""
 import argparse
+import datetime
 import fcntl
 import hashlib
 import json
@@ -56,6 +57,36 @@ def sign(args):
     library = app / 'Contents/Frameworks/libBoazApplicationUI.dylib'
     if sha(library) != record.get('ui_sha256'):
         raise RuntimeError('UI library does not match assembly receipt')
+    profile = Path(args.provisioning_profile)
+    if not profile.is_absolute() or profile.resolve() != profile or not profile.is_file():
+        raise RuntimeError('A canonical Boaz Developer ID provisioning profile is required')
+    decoded = subprocess.run(['/usr/bin/security', 'cms', '-D', '-i', str(profile)],
+                             capture_output=True, check=True)
+    provision = plistlib.loads(decoded.stdout)
+    grants = provision.get('Entitlements', {})
+    expiry = provision.get('ExpirationDate')
+    if (provision.get('TeamIdentifier') != ['DPF8459C2J'] or not isinstance(expiry, datetime.datetime)
+            or expiry.replace(tzinfo=datetime.timezone.utc) <= datetime.datetime.now(datetime.timezone.utc)
+            or grants.get('com.apple.application-identifier') != 'DPF8459C2J.com.chenkahana.boaz'
+            or grants.get('com.apple.security.get-task-allow', False)
+            or provision.get('ProvisionsAllDevices') is not True):
+        raise RuntimeError('Profile must authorize current Developer ID distribution of Boaz')
+    cloud = {
+        'com.apple.application-identifier': 'DPF8459C2J.com.chenkahana.boaz',
+        'com.apple.developer.team-identifier': 'DPF8459C2J',
+        'com.apple.developer.icloud-services': ['CloudKit'],
+        'com.apple.developer.icloud-container-identifiers': ['iCloud.com.chenkahana.boaz'],
+        'com.apple.developer.icloud-container-environment': 'Production',
+        'com.apple.developer.aps-environment': 'production',
+    }
+    for key, expected_value in cloud.items():
+        granted = grants.get(key)
+        if isinstance(expected_value, list):
+            allowed = isinstance(granted, list) and all(item in granted for item in expected_value)
+        else:
+            allowed = granted == expected_value or (isinstance(granted, list) and expected_value in granted)
+        if not allowed:
+            raise RuntimeError(f'Provisioning profile does not authorize required Boaz entitlement: {key}')
     output.mkdir(parents=True)
     work = output / 'signing-input'
     work.mkdir()
@@ -69,6 +100,12 @@ def sign(args):
         packaging = work / 'Chromium Packaging'
         shutil.copytree(ROOT / 'chromium/src/out/BoazDevelopment/Chromium Packaging', packaging,
                         symlinks=True, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
+        shutil.copy2(profile, packaging / 'Boaz.provisionprofile')
+        browser_entitlements = packaging / 'app-entitlements.plist'
+        with browser_entitlements.open('rb') as stream:
+            entitlements = plistlib.load(stream)
+        entitlements.update(cloud)
+        browser_entitlements.write_bytes(plistlib.dumps(entitlements))
         config = packaging / 'signing/internal_config.py'
         if config.exists() or config.is_symlink():
             raise RuntimeError('Unexpected upstream internal signing configuration')
@@ -76,6 +113,7 @@ def sign(args):
             'class InternalCodeSignConfig(ChromiumCodeSignConfig):\n'
             '    @property\n    def app_product(self): return "Boaz"\n'
             '    @property\n    def product(self): return "Chromium"\n'
+            '    @property\n    def provisioning_profile_basename(self): return "Boaz"\n'
             f'    @property\n    def version(self): return {version!r}\n'
             '    @property\n    def base_bundle_id(self): return "com.chenkahana.boaz"\n')
         signer = packaging / 'signing/signing.py'
@@ -155,6 +193,12 @@ def sign(args):
             entitlements, _ = execute(['/usr/bin/codesign', '-d', '--entitlements', ':-', str(bundle)], log, capture=True)
             if entitlements and plistlib.loads(entitlements).get('com.apple.security.get-task-allow', False):
                 raise RuntimeError('Debugging entitlement found in signed product')
+        browser_signed, _ = execute(['/usr/bin/codesign', '-d', '--entitlements', ':-', str(signed_app)], log, capture=True)
+        signed_entitlements = plistlib.loads(browser_signed)
+        if any(signed_entitlements.get(key) != value for key, value in cloud.items()):
+            raise RuntimeError('Signed browser does not preserve required Boaz iCloud entitlements')
+        if sha(signed_app / 'Contents/embedded.provisionprofile') != sha(profile):
+            raise RuntimeError('Signed browser provisioning profile differs')
         archive = output / 'Boaz-notarization.zip'
         execute(['/usr/bin/ditto', '-c', '-k', '--keepParent', str(signed_app), str(archive)], log)
         reply, _ = execute(['/usr/bin/xcrun', 'notarytool', 'submit', str(archive),
@@ -173,7 +217,7 @@ def sign(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ('input', 'output', 'identity', 'notary-profile'):
+    for name in ('input', 'output', 'identity', 'notary-profile', 'provisioning-profile'):
         parser.add_argument('--' + name, required=True)
     parser.add_argument('--guarded', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
