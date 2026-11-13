@@ -585,6 +585,42 @@
           "after": "a8a1b5d53f4c7f5a60d9923d6131c3b1b0dfe465e98bc6372d78028e9ba1fad0"
         }
       ]
+    },
+    {
+      "file": "patches/native-extension-optional-permissions.patch",
+      "sha256": "43265ce85a5a55730befa8d58a015eabf337aa28b9646b034bf3eb44cc1c2779",
+      "files": [
+        {
+          "path": "extensions/browser/extensions_browser_client.h",
+          "before": "4ba1cf1452b0b539315e9cca8eb9de0e177de5c43b31692a04e9bfc940ce9a0b",
+          "after": "530193d39f10e2ade123cb79a033401898d8faad09164d6a514883ccca735f32"
+        },
+        {
+          "path": "extensions/browser/extensions_browser_client.cc",
+          "before": "789395347c73bf43068df2ae1c2b14d6212d0c4450c05f576ea5e16e8d172b0a",
+          "after": "98be90373bfda91abb0be9e70db4dd07302a52d4529459fb7020d7e8d6973528"
+        },
+        {
+          "path": "chrome/browser/extensions/chrome_extensions_browser_client.h",
+          "before": "b27744584d8e5714ed5c5f9449135527ac6ed546986cd9e5556d68ff85fefc27",
+          "after": "3d86cceb5a627b398d5cd92a88187fbb364f97fbd5ccef57243a0ccd500e0a9e"
+        },
+        {
+          "path": "chrome/browser/extensions/chrome_extensions_browser_client.cc",
+          "before": "2315c8829fd1a875dc595530ea40d2ce5d479e945003682e497af41ef7d9707b",
+          "after": "36fba23b114ff6a6d7e96e4f97ca307c1c5d25f727109cb7a7ba233d16b3f2fa"
+        },
+        {
+          "path": "extensions/browser/api/permissions/permissions_api.cc",
+          "before": "d09661224cf282fe35dbad1242356bebbf72d6cb84031d03006b060079c49299",
+          "after": "e8431b9a4ee9d78f29f0a5c77a98ba2984fb39b4d4d0fafb6eee4cc7630e515a"
+        },
+        {
+          "path": "chrome/browser/extensions/BUILD.gn",
+          "before": "852f810fdc4bf336acb7aced3370c50c9de9e18f7874e9fc4a91f84a75154c1e",
+          "after": "e5e26957be7c814566bbf609718b286bb6f9416f1322ac09dd6f64af232a3461"
+        }
+      ]
     }
   ]
 }

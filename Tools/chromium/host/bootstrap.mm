@@ -4,6 +4,7 @@
 #include <set>
 #include "extension_install.h"
 #include "extension_permission_review.h"
+#include "extension_optional_permissions.h"
 #include "extension_management.h"
 #import <AppKit/AppKit.h>
 #include <dlfcn.h>
@@ -142,7 +143,7 @@ bool ValidOptions(const BoazHostWindowOptions* o) {
   });
 }
 void StartShutdownIfReady() {
-  if (!state->exit_requested || state->exit_started || state->pending_extension_installs || PendingNativeExtensionPrompts() || PendingNativeExtensionStoreDialogs() || PendingExtensionPermissionReviews()) return;
+  if (!state->exit_requested || state->exit_started || state->pending_extension_installs || PendingNativeExtensionPrompts() || PendingNativeExtensionStoreDialogs() || PendingExtensionPermissionReviews() || PendingNativeOptionalPermissionPrompts()) return;
   state->exit_started = true;
   chrome::AttemptExit();
 }
@@ -163,7 +164,7 @@ void FinishIfDrained() {
     }
   }
   if (!state->exit_requested || !state->windows.empty() ||
-      state->pending_scripts || state->pending_captures || state->pending_emulations || state->pending_cache_clears || state->pending_profiles || state->pending_extension_installs || PendingNativeExtensionPrompts() || PendingNativeExtensionStoreDialogs() || PendingExtensionPermissionReviews() || state->finished) return;
+      state->pending_scripts || state->pending_captures || state->pending_emulations || state->pending_cache_clears || state->pending_profiles || state->pending_extension_installs || PendingNativeExtensionPrompts() || PendingNativeExtensionStoreDialogs() || PendingExtensionPermissionReviews() || PendingNativeOptionalPermissionPrompts() || state->finished) return;
   state->finished = true;
   if (state->automation) state->automation->Stop();
   Notify([] { state->callbacks.shutdown_ready(state->callbacks.context); });
@@ -367,6 +368,7 @@ BoazHostResult Shutdown() {
   state->exit_requested = true;
   CancelNativeExtensionInstalls();
   CancelNativeUnpackedExtensionInstalls();
+  CancelNativeOptionalPermissionPrompts();
   CancelExtensionPermissionReviews();
   CancelNativeExtensionPrompts();
   CancelNativeExtensionStoreDialogs();

@@ -40,7 +40,8 @@ class Prompt final : public content::WebContentsObserver, public ProfileObserver
     if (!profile || profile->IsOffTheRecord() || !parent || !parent.isVisible || parent.attachedSheet ||
         !IsNativeExtensionPromptContext(profile, (__bridge void*)parent) ||
         (data_->type() != extensions::InstallPromptData::INSTALL_PROMPT &&
-         data_->type() != extensions::InstallPromptData::RE_ENABLE_PROMPT) ||
+         data_->type() != extensions::InstallPromptData::RE_ENABLE_PROMPT &&
+         data_->type() != extensions::InstallPromptData::PERMISSIONS_PROMPT) ||
         data_->requires_parent_permission() || data_->ShouldWithheldPermissionsOnDialogAccept()) {
       Finish(Client::Result::ABORTED); return;
     }

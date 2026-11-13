@@ -16,7 +16,7 @@ buildflag_header("buildflags") {
 }
 
 source_set("headers") {
-  public = [ "native_extension_store_dialogs.h", "native_extension_prompt.h", "native_password_submission.h", "native_devtools.h", "bootstrap.h", "native_permission_prompt.h", "protected_media.h" ]
+  public = [ "extension_optional_permissions.h", "native_extension_store_dialogs.h", "native_extension_prompt.h", "native_password_submission.h", "native_devtools.h", "bootstrap.h", "native_permission_prompt.h", "protected_media.h" ]
   public_deps = [
     "//base",
     "//extensions/browser",
@@ -50,6 +50,8 @@ source_set("host") {
     "extension_install.mm",
     "extension_permission_review.h",
     "extension_permission_review.mm",
+    "extension_optional_permissions.h",
+    "extension_optional_permissions.mm",
     "extension_management.h",
     "extension_management.cc",
     "extension_actions.h",
