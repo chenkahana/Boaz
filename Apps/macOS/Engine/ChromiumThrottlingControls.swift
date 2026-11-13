@@ -61,8 +61,7 @@ struct ChromiumThrottlingControls: View {
                 .font(.caption).foregroundStyle(.secondary)
         }
         .onAppear { refreshNetwork(); cpu = adapter.appliedCPURate }
-        .onChange(of: adapter.appliedNetwork) { if !adapter.emulationPending { refreshNetwork() } }
-        .onChange(of: adapter.appliedCPURate) { if !adapter.emulationPending { cpu = adapter.appliedCPURate } }
+        .onChange(of: adapter.state.navigationID) { refreshNetwork(); cpu = adapter.appliedCPURate }
         .onChange(of: preset) {
             if preset == "offline" { offline = true }
             else if preset == "slow" { offline = false; latency = 400; downloadKB = 100; uploadKB = 50 }
