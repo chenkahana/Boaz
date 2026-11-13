@@ -18,6 +18,7 @@ def main():
     modes.add_argument("--configure", action="store_true")
     modes.add_argument("--build", action="store_true")
     modes.add_argument("--host-objects", action="store_true")
+    modes.add_argument("--native-ui", action="store_true")
     parser.add_argument("--jobs", type=int, default=4, choices=range(1, 13))
     parser.add_argument("--guarded", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
@@ -29,7 +30,7 @@ def main():
     output = source / "out" / config["configuration"]
     gn = source / "buildtools/mac/gn"
     ninja = Path("/opt/homebrew/bin/ninja")
-    if not args.configure and not args.build and not args.host_objects:
+    if not args.configure and not args.build and not args.host_objects and not args.native_ui:
         print(json.dumps({"source": str(source), "output": str(output),
                           "gn_args": config["gn_args"], "jobs": args.jobs,
                           "target": "chrome", "purpose": config["purpose"]}, indent=2))
@@ -39,7 +40,8 @@ def main():
         return subprocess.call([source_lock["python"], str(guard), "--",
                                 source_lock["python"], str(Path(__file__).resolve()),
                                 "--guarded", "--build" if args.build else
-                                "--host-objects" if args.host_objects else "--configure",
+                                "--host-objects" if args.host_objects else
+                                "--native-ui" if args.native_ui else "--configure",
                                 "--jobs", str(args.jobs)])
     if Path.cwd() != root.parent or os.environ.get("TMPDIR") != str(root.parent / "tmp"):
         raise RuntimeError("Build stage requires the verified SSD guard.")
@@ -68,6 +70,22 @@ def main():
     sdk = subprocess.check_output(["xcrun", "--sdk", "macosx", "--show-sdk-path"],
                                   text=True, env=env).strip()
     print(f"System SDK: {sdk}", flush=True)
+    if args.native_ui:
+        ui_output = root / "ui"
+        ui_cache = root / "cache/swift"
+        for path in (ui_output, ui_cache):
+            if path.resolve() != path:
+                raise RuntimeError(f"UI build path is redirected: {path}")
+            path.mkdir(parents=True, exist_ok=True)
+        subprocess.run([
+            "xcrun", "swiftc", "-emit-library", "-module-name", "BoazNativeUI",
+            "-swift-version", "6", "-target", "arm64-apple-macos14.0",
+            "-sdk", sdk, "-module-cache-path", str(ui_cache),
+            "-import-objc-header", str(scripts / "host/boaz_host.h"),
+            "-Xlinker", "-install_name", "-Xlinker", "@rpath/libBoazNativeUI.dylib",
+            "-o", str(ui_output / "libBoazNativeUI.dylib"),
+            str(scripts / "ui/BoazHostUI.swift")], cwd=scripts, env=env, check=True)
+        return 0
     values = config["gn_args"]
     contents = "".join(f"{key} = {json.dumps(value)}\n" for key, value in sorted(values.items()))
     output.mkdir(parents=True, exist_ok=True)
