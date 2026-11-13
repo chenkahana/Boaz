@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 23u
+#define BOAZ_HOST_ABI_VERSION 24u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT
@@ -251,6 +251,11 @@ typedef struct BoazHostAPI {
   BoazHostResult (*print_page)(BoazHostPage page);
   /* Update before closing the last Chromium page. Does not close a window. */
   BoazHostResult (*set_external_tab_count)(BoazHostWindow window, uint32_t count);
+  /* PDF bytes use capture status, max 32 MiB, 30-second deadline. Cancellation
+   * stops delivery; Chromium may finish the underlying print job afterward. */
+  BoazHostResult (*capture_pdf)(BoazHostPage page, uint64_t request,
+      BoazHostCaptureCompletion completion, void* context);
+  BoazHostResult (*cancel_pdf)(BoazHostPage page, uint64_t request);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

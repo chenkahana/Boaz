@@ -21,6 +21,8 @@ source_set("host") {
   public_deps = [ ":launch" ]
   sources = [
     "boaz_host.h",
+    "page_pdf.h",
+    "page_pdf.cc",
     "page_print.h",
     "page_print.cc",
     "page_emulation.h",
@@ -60,6 +62,7 @@ source_set("host") {
     "//chrome/browser/media/webrtc",
     "//chrome/browser/printing",
     "//chrome/browser/printing:impl",
+    "//components/printing/browser/print_to_pdf",
     "//chrome/browser/ui/extensions",
     "//chrome/browser/ui/extensions:impl",
     "//chrome/browser/ui/views/extensions:security_dialog_tracker",

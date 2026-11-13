@@ -204,6 +204,7 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver, find_in_page::Fin
   std::unique_ptr<TrustedScriptChannel> scripts;
   std::unique_ptr<VisiblePageCapture> capture;
   std::unique_ptr<PageEmulation> emulation;
+  std::unique_ptr<PagePDF> pdf;
   raw_ptr<find_in_page::FindTabHelper> find_helper = nullptr;
   find_in_page::FindNotificationDetails find_result;
   bool find_active = false;
@@ -378,6 +379,7 @@ void TabRegistry::Impl::Closing(Page& page) {
   if (page.scripts) page.scripts->Close();
   if (page.capture) page.capture->Close();
   if (page.emulation) page.emulation->Close();
+  if (page.pdf) page.pdf->Close();
   auto snapshot = Capture(page);
   page.final_snapshot = snapshot;
   snapshot.state.url = snapshot.url.c_str();
@@ -489,6 +491,15 @@ BoazHostResult TabRegistry::Reload(BoazHostPage id) {
   BOAZ_FIND_PAGE();
   page->web_contents()->GetController().Reload(content::ReloadType::NORMAL, true);
   return BOAZ_HOST_OK;
+}
+BoazHostResult TabRegistry::CapturePDF(BoazHostPage id, uint64_t request, PagePDF::Completion completion) {
+  BOAZ_FIND_PAGE();
+  if (!page->pdf) page->pdf = std::make_unique<PagePDF>(page->web_contents());
+  return page->pdf->Capture(request, std::move(completion));
+}
+BoazHostResult TabRegistry::CancelPDF(BoazHostPage id, uint64_t request) {
+  BOAZ_FIND_PAGE();
+  return page->pdf ? page->pdf->Cancel(request) : BOAZ_HOST_INVALID_ARGUMENT;
 }
 BoazHostResult TabRegistry::Print(BoazHostPage id) {
   BOAZ_FIND_PAGE();

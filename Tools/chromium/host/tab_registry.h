@@ -6,6 +6,7 @@
 #include "boaz_host.h"
 #include "visible_page_capture.h"
 #include "page_emulation.h"
+#include "page_pdf.h"
 #include "trusted_execution.h"
 
 class Browser;
@@ -32,6 +33,8 @@ class TabRegistry {
   BoazHostResult GoBack(BoazHostPage page);
   BoazHostResult GoForward(BoazHostPage page);
   BoazHostResult Reload(BoazHostPage page);
+  BoazHostResult CapturePDF(BoazHostPage page, uint64_t request, PagePDF::Completion completion);
+  BoazHostResult CancelPDF(BoazHostPage page, uint64_t request);
   BoazHostResult Print(BoazHostPage page);
   BoazHostResult ShowDevTools(BoazHostPage page, BoazHostDevToolsAction action);
   BoazHostResult StopLoading(BoazHostPage page);

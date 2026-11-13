@@ -494,6 +494,42 @@ BoazHostResult CaptureVisible(BoazHostPage page, uint64_t request, int32_t width
   if (result != BOAZ_HOST_OK) --state->pending_captures;
   return result;
 }
+BoazHostResult CapturePDF(BoazHostPage page, uint64_t request,
+    BoazHostCaptureCompletion completion, void* context) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (!completion) return BOAZ_HOST_INVALID_ARGUMENT;
+  CHECK_LT(state->pending_captures, std::numeric_limits<uint64_t>::max());
+  ++state->pending_captures;
+  auto result = state->tabs->CapturePDF(page, request,
+      base::BindOnce([](BoazHostPage page, uint64_t request,
+                       BoazHostCaptureCompletion completion, void* context, PagePDF::Outcome outcome) {
+        CHECK(state);
+        BoazHostCaptureStatus status;
+        switch (outcome.status) {
+          case PagePDF::Status::kSuccess: status = BOAZ_CAPTURE_SUCCESS; break;
+          case PagePDF::Status::kInvalid: status = BOAZ_CAPTURE_INVALID_TARGET; break;
+          case PagePDF::Status::kNavigation: status = BOAZ_CAPTURE_NAVIGATION; break;
+          case PagePDF::Status::kClosed: status = BOAZ_CAPTURE_CLOSED; break;
+          case PagePDF::Status::kCrash: status = BOAZ_CAPTURE_RENDERER_FAILED; break;
+          case PagePDF::Status::kTimeout: status = BOAZ_CAPTURE_TIMEOUT; break;
+          case PagePDF::Status::kBusy: status = BOAZ_CAPTURE_BUSY; break;
+          case PagePDF::Status::kTooLarge: status = BOAZ_CAPTURE_TOO_LARGE; break;
+          case PagePDF::Status::kFailed: status = BOAZ_CAPTURE_FAILED; break;
+          case PagePDF::Status::kCancelled: status = BOAZ_CAPTURE_CANCELLED; break;
+        }
+        Notify([&] { completion(context, page, request, status,
+            outcome.bytes.empty() ? nullptr : outcome.bytes.data(), outcome.bytes.size()); });
+        CHECK_GT(state->pending_captures, 0u);
+        --state->pending_captures;
+        FinishIfDrained();
+      }, page, request, completion, context));
+  if (result != BOAZ_HOST_OK) --state->pending_captures;
+  return result;
+}
+BoazHostResult CancelPDF(BoazHostPage page, uint64_t request) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  return state->tabs->CancelPDF(page, request);
+}
 BoazHostResult CancelCapture(BoazHostPage page, uint64_t request) {
   if (auto result = Check(); result != BOAZ_HOST_OK) return result;
   return state->tabs->CancelCapture(page, request);
@@ -592,7 +628,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
