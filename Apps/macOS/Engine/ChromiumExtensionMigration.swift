@@ -44,11 +44,12 @@ final class ChromiumExtensionMigration: NSObject, NSWindowDelegate {
                 close: { [weak controller] in controller?.finish() },
                 openStore: { [weak controller] url in controller?.finish { openStore(url) } },
                 loadDeveloper: { [weak controller] in controller?.finish(action: loadDeveloper) }))
-            active[ObjectIdentifier(window)] = controller
+            let windowID = ObjectIdentifier(window)
+            active[windowID] = controller
             window.beginSheet(controller.panel) { [controller, weak window] _ in
                 let action = controller.completion
                 controller.completion = nil
-                if let window { active.removeValue(forKey: ObjectIdentifier(window)) }
+                active.removeValue(forKey: windowID)
                 controller.panel.orderOut(nil)
                 if window?.isVisible == true { action?() }
             }
@@ -84,8 +85,8 @@ private struct MigrationView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     switch result {
-                    case .failure:
-                        Text("The extension list could not be read. Choose a valid installed.json file and try again.")
+                    case .failure(let error):
+                        Text((error as? ChromiumExtensionMigrationInventory.InventoryError)?.errorDescription ?? "The extension list could not be read. Choose a valid installed.json file and try again.")
                             .foregroundStyle(.red)
                     case .success(let inventory):
                         let group = inventory.groups.first { $0.profileID == profileID }
