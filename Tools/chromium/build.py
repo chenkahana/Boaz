@@ -159,7 +159,7 @@ def main():
                 "obj/chrome/renderer/renderer/chrome_content_renderer_client.o",
                 "obj/boaz/renderer/protected_media_renderer.o",
                 "obj/content/renderer/renderer/media_factory.o",
-                "obj/chrome/browser/webauthn/webauthn/chrome_authenticator_request_delegate.o",
+                "obj/chrome/browser/webauthn/impl/chrome_authenticator_request_delegate.o",
                 "obj/chrome/browser/ui/core/browser.o",
                 "obj/chrome/browser/ui/unload_controller_impl/unload_controller.o",
                 "obj/chrome/browser/ui/views/frame/browser_window_factory/browser_window_factory.o",
