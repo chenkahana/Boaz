@@ -143,10 +143,11 @@ private struct PageUpdate {
         window.contentView = NSHostingView(rootView: WindowContent(model: self))
         window.center()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            MainActor.assumeIsolated {
-                guard let self, event.window === self.window else { return event }
-                return self.handleKey(event) ? nil : event
+            let consumed = MainActor.assumeIsolated {
+                guard let self, event.window === self.window else { return false }
+                return self.handleKey(event)
             }
+            return consumed ? nil : event
         }
     }
 
@@ -157,18 +158,20 @@ private struct PageUpdate {
         options.native_nswindow = Unmanaged.passUnretained(window).toOpaque()
         options.context = Unmanaged.passUnretained(self).toOpaque()
         options.content_view = { context in
-            MainActor.assumeIsolated {
-                guard let context else { return nil }
+            let bits: UInt = MainActor.assumeIsolated {
+                guard let context else { return 0 }
                 let model = Unmanaged<HostWindow>.fromOpaque(context).takeUnretainedValue()
-                return Unmanaged.passUnretained(model.viewport).toOpaque()
+                return UInt(bitPattern: Unmanaged.passUnretained(model.viewport).toOpaque())
             }
+            return UnsafeMutableRawPointer(bitPattern: bits)
         }
         options.address_field = { context in
-            MainActor.assumeIsolated {
-                guard let context else { return nil }
+            let bits: UInt = MainActor.assumeIsolated {
+                guard let context else { return 0 }
                 let model = Unmanaged<HostWindow>.fromOpaque(context).takeUnretainedValue()
-                return Unmanaged.passUnretained(model.address).toOpaque()
+                return UInt(bitPattern: Unmanaged.passUnretained(model.address).toOpaque())
             }
+            return UnsafeMutableRawPointer(bitPattern: bits)
         }
         options.focus_address = { context in
             MainActor.assumeIsolated {
