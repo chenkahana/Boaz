@@ -32,7 +32,8 @@ final class MacModel {
     /// iCloud sync with the user's other devices (a picked folder only when iCloud isn't available).
     @ObservationIgnored private(set) var sync: LibrarySync?
     @ObservationIgnored weak var lastActiveBrowser: BrowserState?
-    @ObservationIgnored private var openWindowAction: OpenWindowAction?
+    @ObservationIgnored private var openWindowAction: ((String, URL?) -> Void)?
+    @ObservationIgnored private var usesNativeOpenWindow = false
     @ObservationIgnored private var pendingExternalURLs: [URL] = []
     /// A URL waiting for the next main window to appear ("Open in Boaz" from a Quick Window with no window open).
     @ObservationIgnored var pendingMainURL: URL?
@@ -221,7 +222,20 @@ final class MacModel {
     // MARK: Windows
 
     func registerOpenWindow(_ action: OpenWindowAction) {
+        guard !usesNativeOpenWindow else { return }
+        openWindowAction = { id, url in
+            if let url { action(id: id, value: url) } else { action(id: id) }
+        }
+        drainPendingExternalURLs()
+    }
+
+    func registerNativeOpenWindow(_ action: @escaping (String, URL?) -> Void) {
+        usesNativeOpenWindow = true
         openWindowAction = action
+        drainPendingExternalURLs()
+    }
+
+    private func drainPendingExternalURLs() {
         guard !pendingExternalURLs.isEmpty else { return }
         let pending = pendingExternalURLs
         pendingExternalURLs = []
@@ -233,7 +247,7 @@ final class MacModel {
     func openExternal(_ urls: [URL]) {
         let urls = urls.filter { ["http", "https"].contains($0.scheme?.lowercased() ?? "") && $0.host() != nil }
         guard let openWindowAction else { pendingExternalURLs += urls; return }
-        for url in urls { openWindowAction(id: "little", value: url) }
+        for url in urls { openWindowAction("little", url) }
     }
 
     /// Opens a URL as a Today tab in the most recent main window, creating one if needed.
@@ -244,11 +258,11 @@ final class MacModel {
             NSApp.activate()
         } else {
             pendingMainURL = url
-            openWindowAction?(id: "main")
+            openWindowAction?("main", nil)
         }
     }
 
-    func openWindow(id: String) { openWindowAction?(id: id) }
+    func openWindow(id: String) { openWindowAction?(id, nil) }
 
     // MARK: Window restoration
 
@@ -306,14 +320,14 @@ final class MacModel {
         let saved = windowsToRestore.removeFirst()
         if !openedRestoredWindows {
             openedRestoredWindows = true
-            for _ in windowsToRestore { openWindowAction?(id: "main") }
+            for _ in windowsToRestore { openWindowAction?("main", nil) }
         }
         return saved
     }
 
     func openInNewWindow(_ tab: SidebarItem) {
         pendingMainTabID = tab.id
-        openWindowAction?(id: "main")
+        openWindowAction?("main", nil)
     }
 
     // MARK: Reads
