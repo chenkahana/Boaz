@@ -753,8 +753,8 @@ CreateNativeHostBrowserWindow(BrowserWindowInterface* browser) {
   Window record{weak, options, browser->RegisterBrowserCloseCancelled(base::BindRepeating(
       [](BrowserWindowInterface* browser, BrowserWindowInterface::ClosingStatus) {
         state->exit_requested = false;
-        for (auto& [id, window] : state->windows)
-          if (window.browser.get() == browser) window.explicit_close = false;
+        for (auto& [window_id, entry] : state->windows)
+          if (entry.browser.get() == browser) entry.explicit_close = false;
       })), nullptr, {}};
   record.closing = browser->RegisterBrowserDidClose(base::BindRepeating(
       [](BoazHostWindow id, BrowserWindowInterface*) {

@@ -155,6 +155,8 @@ def main():
                 "obj/boaz/launch/launch.o",
                 "obj/chrome/chrome_dll/chrome_main_delegate.o",
                 "obj/chrome/browser/core/chrome_browser_main.o",
+                "obj/chrome/browser/ui/core/browser.o",
+                "obj/chrome/browser/ui/unload_controller_impl/unload_controller.o",
                 "obj/chrome/browser/ui/views/frame/browser_window_factory/browser_window_factory.o",
                 "obj/chrome/browser/ui/views/permissions/impl/permission_prompt_factory.o",
                 "obj/chrome/browser/component_updater/impl/registration.o",
