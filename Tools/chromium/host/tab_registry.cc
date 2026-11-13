@@ -99,7 +99,7 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver {
   void BeforeUnloadFired(bool proceed) override { if (!proceed) CancelClose(); }
   void BeforeUnloadDialogCancelled() override { CancelClose(); }
   void CancelClose() {
-    if (closing || cancel_notified) return;
+    if (!close_requested || closing || cancel_notified) return;
     cancel_notified = true;
     close_requested = false;
     owner.Queue(*this, BOAZ_HOST_PAGE_CLOSE_CANCELLED);
@@ -160,6 +160,10 @@ struct TabRegistry::Impl::Window : TabStripModelObserver {
     if (auto* page = owner.FindContents(tab->GetContents())) page->CancelClose();
   }
   void OnTabStripModelDestroyed(TabStripModel*) override {
+    // Model destruction precedes destruction of its owned tab collection.
+    for (int i = 0; i < strip->count(); ++i)
+      if (auto* page = owner.FindContents(strip->GetWebContentsAt(i)))
+        owner.Closing(*page);
     strip = nullptr;
     browser = nullptr;
     owner.WindowDestroyed(id);
@@ -248,7 +252,10 @@ void TabRegistry::Impl::Deliver(BoazHostPageEvent event, Snapshot snapshot) {
   in_callback = true;
   if (callbacks.page_event) callbacks.page_event(callbacks.context, event, &snapshot.state);
   in_callback = false;
-  if (event == BOAZ_HOST_PAGE_CLOSED) pages.erase(snapshot.state.page);
+  if (event == BOAZ_HOST_PAGE_CLOSED) {
+    pages.erase(snapshot.state.page);
+    WindowDestroyed(snapshot.state.window);
+  }
 }
 void TabRegistry::Impl::Replace(Page& page, content::WebContents* replacement) {
   if (page.closing || page.destroyed || !replacement) return;
@@ -278,10 +285,12 @@ void TabRegistry::Impl::Closing(Page& page) {
   in_callback = false;
 }
 void TabRegistry::Impl::Destroyed(Page& page) {
-  // kRemoved supplies the pre-destruction native-view barrier. Unexpected
-  // destruction is terminal but cannot retroactively provide that barrier.
   if (page.destroyed) return;
-  auto snapshot = page.final_snapshot ? *page.final_snapshot : Capture(page);
+  // Never query a half-destroyed WebContents. Its registered owner must have
+  // supplied a removal or model-destruction barrier before this callback.
+  CHECK(page.closing);
+  CHECK(page.final_snapshot.has_value());
+  auto snapshot = *page.final_snapshot;
   page.destroyed = true;
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
       FROM_HERE, base::BindOnce(&Impl::Deliver, weak.GetWeakPtr(), BOAZ_HOST_PAGE_CLOSED,
@@ -291,6 +300,10 @@ void TabRegistry::Impl::WindowDestroyed(BoazHostWindow id) {
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
       FROM_HERE, base::BindOnce([](base::WeakPtr<Impl> self, BoazHostWindow id) {
         if (!self) return;
+        auto* window = self->FindWindow(id);
+        if (!window || window->strip) return;
+        for (const auto& [page_id, page] : self->pages)
+          if (page->window == id) return;
         self->in_callback = true;
         if (self->callbacks.window_closed)
           self->callbacks.window_closed(self->callbacks.context, id);
@@ -304,6 +317,9 @@ TabRegistry::TabRegistry() : impl_(std::make_unique<Impl>()) {
 }
 TabRegistry::~TabRegistry() {
   CHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
+  CHECK(impl_->pages.empty());
+  CHECK(impl_->windows.empty());
+  CHECK(!impl_->in_callback);
 }
 BoazHostResult TabRegistry::SetCallbacks(const BoazHostCallbacks* callbacks) {
   if (auto result = impl_->Check(); result != BOAZ_HOST_OK) return result;
