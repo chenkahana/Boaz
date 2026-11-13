@@ -8,6 +8,11 @@
 set -euo pipefail
 
 VERSION=${1:?usage: Tools/release-mac.sh VERSION [--no-publish]}
+for argument in "$@"; do
+    if [ "$argument" = "--chromium-app" ]; then
+        exec /opt/homebrew/bin/python3.12 "$(dirname "$0")/chromium/package-candidate.py" "$@"
+    fi
+done
 PUBLISH=${2:-}
 TAG=v$VERSION
 TEAM_ID=DPF8459C2J

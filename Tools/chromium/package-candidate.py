@@ -95,6 +95,16 @@ def package(args):
     key, _ = run(str(sparkle / 'generate_keys'), '-p')
     if not info.get('SUPublicEDKey') or key.decode().strip() != info['SUPublicEDKey']:
         raise RuntimeError('Application Sparkle public key does not match signing key')
+    for path in app.rglob('*'):
+        if path.is_symlink() or not path.is_file():
+            continue
+        with path.open('rb') as stream:
+            magic = stream.read(4)
+        if magic not in (b'\xcf\xfa\xed\xfe', b'\xce\xfa\xed\xfe', b'\xca\xfe\xba\xbe', b'\xbe\xba\xfe\xca'):
+            continue
+        nested, _ = run('/usr/bin/codesign', '-d', '--entitlements', ':-', str(path))
+        if nested and plistlib.loads(nested).get('com.apple.security.get-task-allow', False):
+            raise RuntimeError('Nested debugging entitlement is not permitted')
     before = inventory(app)
     output.mkdir(parents=True)
     receipt = {'version': args.version, 'build': build, 'source': str(app), 'published': False,
@@ -104,8 +114,8 @@ def package(args):
                                 'no-get-task-allow', 'staple-valid', 'gatekeeper-approved', 'Sparkle-key-match'],
                'required_gates': ['product-parity', 'DRM-playback', 'migration', 'private-profile-isolation',
                    'performance-budgets', 'signed-clean-account-launch', 'Sparkle-upgrade',
-                   'last-three-version-deltas-at-most-40MiB', 'higher-version-WebKit-rollback',
-                   'three-day-dogfooding-no-P0-P1'], 'complete': False}
+                   'last-three-version-deltas-at-most-40000000-bytes', 'higher-version-WebKit-rollback',
+                   'three-day-dogfooding-no-P0-P1'], 'packaging_complete': False}
     receipt_path = output / 'candidate-receipt.json'
     receipt_path.write_text(json.dumps(receipt, indent=2) + '\n')
     staging = output / 'dmg'
@@ -118,8 +128,8 @@ def package(args):
     run('/usr/bin/hdiutil', 'create', '-volname', 'Boaz', '-srcfolder', str(staging),
         '-fs', 'HFS+', '-format', 'UDZO', str(dmg))
     size = dmg.stat().st_size
-    if size > 160 * 1024 * 1024:
-        raise RuntimeError('Compressed DMG exceeds 160 MiB; artifacts preserved')
+    if size > 160_000_000:
+        raise RuntimeError('Compressed DMG exceeds 160 MB; artifacts preserved')
     sha = digest(dmg)
     (output / 'Boaz.dmg.sha256').write_text(f'{sha}  Boaz.dmg\n')
     signature, _ = run(str(sparkle / 'sign_update'), '-p', str(dmg))
@@ -135,7 +145,7 @@ def package(args):
     ET.SubElement(item, 'enclosure', {'url': dmg.as_uri(), 'length': str(size),
         'type': 'application/octet-stream', f'{{{namespace}}}edSignature': signature.decode().strip()})
     ET.ElementTree(rss).write(output / 'candidate-appcast.xml', encoding='utf-8', xml_declaration=True)
-    receipt.update({'complete': True, 'dmg_sha256': sha, 'dmg_bytes': size,
+    receipt.update({'packaging_complete': True, 'dmg_sha256': sha, 'dmg_bytes': size,
                     'candidate_appcast': str(output / 'candidate-appcast.xml')})
     receipt_path.write_text(json.dumps(receipt, indent=2) + '\n')
 

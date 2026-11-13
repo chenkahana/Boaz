@@ -16,6 +16,7 @@
 @property(nonatomic, copy) void (^layoutChanged)(void);
 @end
 @implementation BoazDockContainer
+@synthesize layoutChanged = _layoutChanged;
 - (BOOL)isFlipped { return YES; }
 - (void)setFrameSize:(NSSize)size {
   [super setFrameSize:size];
