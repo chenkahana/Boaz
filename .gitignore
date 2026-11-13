@@ -7,7 +7,10 @@ xcuserdata/
 .DS_Store
 build-*/
 
-# AI coding agents: local state, memory and scratch notes. Agent guides (AGENTS.md, CLAUDE.md) stay tracked.
+# AI coding agents: instructions, local state, memory and scratch notes. Kept on your machine, never committed.
+AGENTS.md
+CLAUDE.md
+GEMINI.md
 .claude/
 .codex/
 .codex-recovery/
