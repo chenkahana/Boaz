@@ -158,6 +158,7 @@ def main():
                 "obj/chrome/browser/core/chrome_browser_interface_binders.o",
                 "obj/chrome/renderer/renderer/chrome_content_renderer_client.o",
                 "obj/boaz/renderer/protected_media_renderer.o",
+                "obj/content/renderer/renderer/media_factory.o",
                 "obj/chrome/browser/ui/core/browser.o",
                 "obj/chrome/browser/ui/unload_controller_impl/unload_controller.o",
                 "obj/chrome/browser/ui/views/frame/browser_window_factory/browser_window_factory.o",

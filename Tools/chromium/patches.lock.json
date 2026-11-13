@@ -226,6 +226,22 @@
           "after": "5146f0c6b6b82b1f938b1fc950e6c25bbf65794e7cb16f54ad2637d1b85978a9"
         }
       ]
+    },
+    {
+      "file": "patches/native-eme-observer-lifetime.patch",
+      "sha256": "b2b13438159e2b90c13b99855cdd815d49c2eb6c2a3e825b546e84fdcd007343",
+      "files": [
+        {
+          "path": "content/renderer/media/media_factory.cc",
+          "before": "bea0d753b00111578ff79d1dd9cf5182e1374bc573e0943baddedd3a740bb77c",
+          "after": "a99c7474c61c741bb778085887aac25e9f71ffbb736791099caaa1b77cce83e8"
+        },
+        {
+          "path": "content/renderer/media/media_factory.h",
+          "before": "27adb8c62dd3c55a8a1261eab08aa8798edbe85ab6c6ba0a1929d9b82ff5bf48",
+          "after": "e5ff015e3b048ee039dbe71f13e808c2c1ace8e9640b2b6cac4196601d3ccd34"
+        }
+      ]
     }
   ]
 }
