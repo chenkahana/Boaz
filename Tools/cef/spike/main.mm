@@ -2,6 +2,11 @@
 #include "include/cef_app.h"
 #include "include/cef_application_mac.h"
 #include "include/cef_client.h"
+#include "include/views/cef_browser_view.h"
+#include "include/views/cef_browser_view_delegate.h"
+#include "include/views/cef_box_layout.h"
+#include "include/views/cef_window.h"
+#include "include/views/cef_window_delegate.h"
 #include "include/wrapper/cef_helpers.h"
 #include "include/wrapper/cef_library_loader.h"
 
@@ -10,6 +15,8 @@
 #include <climits>
 
 extern "C" void *BZCreateRootView(void *host);
+extern "C" void *BZCreateToolbar(void *host);
+extern "C" void *BZCreateSidebar(void *host);
 
 static int gArgc;
 static char **gArgv;
@@ -120,6 +127,11 @@ private:
 @interface BZBrowserHost ()
 - (void)didCreate:(CefRefPtr<CefBrowser>)browser;
 - (void)didClose;
+- (void)startViewsWithURL:(NSString *)url;
+- (void)didCreateViewsWindow:(CefRefPtr<CefWindow>)window;
+- (void)didDestroyViewsWindow;
+- (BOOL)closeViewsWindow;
+- (void)setPageTitle:(NSString *)title;
 @end
 
 class SpikeClient final : public CefClient,
@@ -136,13 +148,12 @@ public:
         [host_ didCreate:browser];
         Report(browser->GetHost()->GetRuntimeStyle() == CEF_RUNTIME_STYLE_ALLOY
             ? @"Browser created · Alloy · sandbox requested"
-            : @"Browser created · unexpected runtime style");
+            : @"Browser created · Chrome · sandbox requested");
     }
     void OnBeforeClose(CefRefPtr<CefBrowser> browser) override {
         CEF_REQUIRE_UI_THREAD();
         [host_ didClose];
         Report(@"OnBeforeClose received");
-        StopNativeLoop();
     }
     bool OnBeforePopup(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame,
                        int popup_id, const CefString &target_url,
@@ -165,17 +176,60 @@ public:
     }
     void OnTitleChange(CefRefPtr<CefBrowser> browser, const CefString &title) override {
         CEF_REQUIRE_UI_THREAD();
-        host_.window.title = [NSString stringWithFormat:@"Boaz CEF Spike — %s", title.ToString().c_str()];
+        [host_ setPageTitle:[NSString stringWithFormat:@"Boaz CEF Spike — %s", title.ToString().c_str()]];
     }
 private:
     __weak BZBrowserHost *host_;
     IMPLEMENT_REFCOUNTING(SpikeClient);
 };
 
+class SpikeBrowserViewDelegate final : public CefBrowserViewDelegate {
+public:
+    ChromeToolbarType GetChromeToolbarType(CefRefPtr<CefBrowserView> view) override {
+        return CEF_CTT_NONE;
+    }
+    cef_runtime_style_t GetBrowserRuntimeStyle() override { return CEF_RUNTIME_STYLE_CHROME; }
+private:
+    IMPLEMENT_REFCOUNTING(SpikeBrowserViewDelegate);
+};
+
+class SpikeWindowDelegate final : public CefWindowDelegate {
+public:
+    SpikeWindowDelegate(BZBrowserHost *host, CefRefPtr<CefBrowserView> browser)
+        : host_(host), browser_(browser) {}
+    void OnWindowCreated(CefRefPtr<CefWindow> window) override {
+        CefBoxLayoutSettings layout;
+        layout.horizontal = false;
+        layout.inside_border_insets = CefInsets(60, 220, 0, 0);
+        layout.default_flex = 1;
+        window->SetToBoxLayout(layout);
+        window->AddChildView(browser_);
+        [host_ didCreateViewsWindow:window];
+        window->Show();
+    }
+    void OnWindowDestroyed(CefRefPtr<CefWindow> window) override {
+        browser_ = nullptr;
+        [host_ didDestroyViewsWindow];
+    }
+    bool CanClose(CefRefPtr<CefWindow> window) override {
+        auto browser = browser_ ? browser_->GetBrowser() : nullptr;
+        return browser && browser->GetHost()->TryCloseBrowser();
+    }
+    CefSize GetPreferredSize(CefRefPtr<CefView> view) override { return CefSize(1100, 760); }
+    cef_runtime_style_t GetWindowRuntimeStyle() override { return CEF_RUNTIME_STYLE_CHROME; }
+private:
+    __weak BZBrowserHost *host_;
+    CefRefPtr<CefBrowserView> browser_;
+    IMPLEMENT_REFCOUNTING(SpikeWindowDelegate);
+};
+
 @implementation BZBrowserHost {
     CefRefPtr<CefBrowser> browser_;
     CefRefPtr<SpikeClient> client_;
     BOOL closeRequested_;
+    CefRefPtr<CefWindow> viewsWindow_;
+    BOOL viewsMode_;
+    __weak NSWindow *presentationWindow_;
 }
 - (void)startWithURL:(NSString *)url {
     if (client_) return;
@@ -190,12 +244,62 @@ private:
         Report(@"Browser creation failed");
     }
 }
+- (void)startViewsWithURL:(NSString *)url {
+    viewsMode_ = YES;
+    client_ = new SpikeClient(self);
+    CefBrowserSettings settings;
+    auto browser = CefBrowserView::CreateBrowserView(client_, url.UTF8String, settings,
+                                                     nullptr, nullptr, new SpikeBrowserViewDelegate);
+    CefWindow::CreateTopLevelWindow(new SpikeWindowDelegate(self, browser));
+}
+- (void)didCreateViewsWindow:(CefRefPtr<CefWindow>)window {
+    viewsWindow_ = window;
+    NSView *root = CAST_CEF_WINDOW_HANDLE_TO_NSVIEW(window->GetWindowHandle());
+    presentationWindow_ = root.window;
+    NSView *cefContent = presentationWindow_.contentView;
+    NSView *container = [[NSView alloc] initWithFrame:cefContent.frame];
+    container.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    presentationWindow_.contentView = container;
+    cefContent.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    [container addSubview:cefContent];
+    cefContent.frame = container.bounds;
+    NSView *toolbar = (__bridge_transfer NSView *)BZCreateToolbar((__bridge void *)self);
+    NSView *sidebar = (__bridge_transfer NSView *)BZCreateSidebar((__bridge void *)self);
+    toolbar.translatesAutoresizingMaskIntoConstraints = NO;
+    sidebar.translatesAutoresizingMaskIntoConstraints = NO;
+    [container addSubview:toolbar positioned:NSWindowAbove relativeTo:nil];
+    [container addSubview:sidebar positioned:NSWindowAbove relativeTo:nil];
+    [NSLayoutConstraint activateConstraints:@[
+        [toolbar.leadingAnchor constraintEqualToAnchor:container.leadingAnchor],
+        [toolbar.trailingAnchor constraintEqualToAnchor:container.trailingAnchor],
+        [toolbar.topAnchor constraintEqualToAnchor:container.topAnchor],
+        [toolbar.heightAnchor constraintEqualToConstant:60],
+        [sidebar.leadingAnchor constraintEqualToAnchor:container.leadingAnchor],
+        [sidebar.topAnchor constraintEqualToAnchor:toolbar.bottomAnchor],
+        [sidebar.bottomAnchor constraintEqualToAnchor:container.bottomAnchor],
+        [sidebar.widthAnchor constraintEqualToConstant:220],
+    ]];
+}
+- (void)didDestroyViewsWindow {
+    viewsWindow_ = nullptr;
+    if (!browser_) StopNativeLoop();
+}
+- (BOOL)closeViewsWindow {
+    if (!viewsWindow_) return NO;
+    viewsWindow_->Close();
+    return YES;
+}
 - (void)didCreate:(CefRefPtr<CefBrowser>)browser {
     browser_ = browser;
-    NSView *view = CAST_CEF_WINDOW_HANDLE_TO_NSVIEW(browser->GetHost()->GetWindowHandle());
-    view.frame = self.bounds;
-    view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    if (!viewsMode_) {
+        NSView *view = CAST_CEF_WINDOW_HANDLE_TO_NSVIEW(browser->GetHost()->GetWindowHandle());
+        view.frame = self.bounds;
+        view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    }
     if (closeRequested_) browser_->GetHost()->CloseBrowser(false);
+}
+- (void)setPageTitle:(NSString *)title {
+    (viewsMode_ ? presentationWindow_ : self.window).title = title;
 }
 - (void)navigate:(NSString *)url {
     if (browser_) browser_->GetMainFrame()->LoadURL(url.UTF8String);
@@ -220,6 +324,7 @@ private:
 - (void)didClose {
     browser_ = nullptr;
     client_ = nullptr;
+    if (!viewsMode_ || !viewsWindow_) StopNativeLoop();
 }
 @end
 
@@ -245,6 +350,12 @@ private:
 - (void)createWindow {
     if (self.window || !gInitialized) return;
     self.host = [[BZBrowserHost alloc] initWithFrame:NSMakeRect(0, 0, 1000, 650)];
+    NSString *startURL = NSProcessInfo.processInfo.environment[@"BOAZ_CEF_SPIKE_URL"] ?: @"https://example.com";
+    if ([NSProcessInfo.processInfo.environment[@"BOAZ_CEF_SPIKE_HOST"] isEqualToString:@"views"]) {
+        [self.host startViewsWithURL:startURL];
+        [NSApp activateIgnoringOtherApps:YES];
+        return;
+    }
     self.window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 1100, 760)
         styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
                   NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable
@@ -256,7 +367,6 @@ private:
     [self.window center];
     [self.window makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
-    NSString *startURL = NSProcessInfo.processInfo.environment[@"BOAZ_CEF_SPIKE_URL"] ?: @"https://example.com";
     [self.host startWithURL:startURL];
 }
 - (BOOL)windowShouldClose:(NSWindow *)sender { return [self.host tryClose]; }
@@ -266,6 +376,7 @@ private:
 }
 - (void)requestQuit {
     if (self.window) [self.window performClose:nil];
+    else if ([self.host closeViewsWindow]) return;
     else StopNativeLoop();
 }
 - (BOOL)applicationSupportsSecureRestorableState:(NSApplication *)app { return YES; }
