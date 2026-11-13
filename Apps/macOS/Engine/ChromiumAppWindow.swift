@@ -14,6 +14,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
     var onClosed: (() -> Void)?
     private var finished = false
     private var closing = false
+    private var layoutQueued = false
 
     init(runtime: ChromiumRuntime, profile: ChromiumProfile, model: MacModel) throws {
         self.runtime = runtime
@@ -35,6 +36,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
             if result != BOAZ_HOST_OK { window.subtitle = "Could not activate page (\(result.rawValue))." }
         }
         addressField.setAccessibilityLabel("Address")
+        browser.chromiumLayoutChanged = { [weak self] in self?.queueLayout() }
         browser.createChromiumPage = { [weak self] tab in
             guard let self, !self.finished, self.handle != 0 else { throw EnginePageError.closed }
             guard self.profile.identity.isPrivate || (tab.profileID ?? "default") == self.profile.identity.id else {
@@ -106,6 +108,50 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         return options
     }
 
+    private func queueLayout() {
+        guard !finished, !layoutQueued else { return }
+        layoutQueued = true
+        queue { owner in
+            owner.layoutQueued = false
+            owner.synchronizeLayout()
+        }
+    }
+
+    private func synchronizeLayout() {
+        guard handle != 0, let getLayout = runtime.api.get_window_layout,
+              let setSplit = runtime.api.set_split, let clearSplit = runtime.api.clear_split else {
+            window.subtitle = "Chromium split view is unavailable."
+            return
+        }
+        var actual = BoazHostWindowLayout()
+        actual.size = MemoryLayout<BoazHostWindowLayout>.size
+        var result = getLayout(handle, &actual)
+        guard result == BOAZ_HOST_OK else {
+            window.subtitle = "Could not read browser layout (\(result.rawValue))."
+            return
+        }
+        if let split = browser.split {
+            guard let first = browser.cachedChromiumPage(for: split.leading),
+                  let second = browser.cachedChromiumPage(for: split.trailing),
+                  first.state.lifecycle == .active, second.state.lifecycle == .active else { return }
+            let ratio = Double(split.fraction)
+            if actual.first != first.handle || actual.second != second.handle ||
+                actual.vertical != 0 || abs(actual.first_ratio - ratio) > 0.000001 {
+                result = setSplit(handle, first.handle, second.handle, 0, ratio)
+                if result == BOAZ_HOST_OK, let activeID = browser.activeTabID,
+                   let active = browser.cachedChromiumPage(for: activeID),
+                   active.handle != first.handle, let activate = runtime.api.activate_page {
+                    result = activate(active.handle, 0)
+                }
+            }
+        } else if actual.second != 0 {
+            result = clearSplit(handle)
+        }
+        if result != BOAZ_HOST_OK {
+            window.subtitle = "Could not update split view (\(result.rawValue))."
+        }
+    }
+
     private func queue(_ action: @escaping (ChromiumAppWindow) -> Void) {
         DispatchQueue.main.async { [weak self] in
             guard let self, !self.finished else { return }
@@ -146,6 +192,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         finished = true
         browser.createChromiumPage = nil
         browser.activateChromiumPage = nil
+        browser.chromiumLayoutChanged = nil
         browser.chromiumAddressField = nil
         window.delegate = nil
         window.orderOut(nil)

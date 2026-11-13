@@ -45,12 +45,20 @@ final class BrowserState {
                 if let activeTabID, let engine = enginePages[activeTabID], engine.kind == .chromium {
                     activateChromiumPage?(engine)
                 }
+                chromiumLayoutChanged?()
                 #endif
             }
         }
     }
     var split: Split? {
-        didSet { if oldValue != split { pagesInViewChanged(from: Self.pagesInView(activeTabID, oldValue)) } }
+        didSet {
+            if oldValue != split {
+                pagesInViewChanged(from: Self.pagesInView(activeTabID, oldValue))
+                #if BOAZ_CHROMIUM
+                chromiumLayoutChanged?()
+                #endif
+            }
+        }
     }
     var peek: Peek?
     /// A window a page opened as a pop-up, such as a sign-in (`PagePopups`).
@@ -93,6 +101,10 @@ final class BrowserState {
     @ObservationIgnored var createChromiumPage: ((SidebarItem) throws -> EnginePage)?
     @ObservationIgnored var chromiumAddressField: NSTextField?
     @ObservationIgnored var activateChromiumPage: ((EnginePage) -> Void)?
+    @ObservationIgnored var chromiumLayoutChanged: (() -> Void)?
+    func cachedChromiumPage(for tabID: String) -> ChromiumEnginePageAdapter? {
+        enginePages[tabID]?.adapter as? ChromiumEnginePageAdapter
+    }
     @ObservationIgnored private var pendingChromiumCloses: [String: SidebarItem] = [:]
     @ObservationIgnored private var pendingChromiumUnloads: Set<String> = []
     #endif
@@ -349,6 +361,7 @@ final class BrowserState {
             let engine = try createChromiumPage(tab)
             enginePages[tab.id] = engine
             if activeTabID == tab.id { activateChromiumPage?(engine) }
+            chromiumLayoutChanged?()
             return engine
         }
         #endif
@@ -426,6 +439,9 @@ final class BrowserState {
         pictureInPicture(tabID)?.detach()
         pages[tabID] = nil
         enginePages[tabID] = nil
+        #if BOAZ_CHROMIUM
+        chromiumLayoutChanged?()
+        #endif
         loadFailures[tabID] = nil
         devTools.drop(tabID)
         savedURLs[tabID] = nil
