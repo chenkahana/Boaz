@@ -119,6 +119,7 @@ void PageEmulation::DispatchProtocolMessage(content::DevToolsAgentHost* host,
 void PageEmulation::Fail(Result result) {
   if (!completion_) return;
   if (resetting_) { Cancel(failure_); return; }
+  weak_factory_.InvalidateWeakPtrs();
   failure_ = result;
   resetting_ = true;
   clearing_ = true;
@@ -129,6 +130,7 @@ void PageEmulation::Fail(Result result) {
   SendNext();
 }
 void PageEmulation::Finish(Result result) {
+  weak_factory_.InvalidateWeakPtrs();
   timer_.Stop();
   pending_id_ = 0;
   Reply(std::move(completion_), result);
@@ -159,6 +161,7 @@ bool PageEmulation::MayAttachToURL(const GURL& url, bool is_webui) {
 }
 bool PageEmulation::MayAttachToRenderFrameHost(content::RenderFrameHost* frame) {
   return frame && web_contents() && frame == web_contents()->GetPrimaryMainFrame() &&
+      frame->IsActive() && frame->IsRenderFrameLive() &&
       !frame->GetLastCommittedOrigin().opaque() && MayAttachToURL(frame->GetLastCommittedURL(), false);
 }
 void PageEmulation::DidStartNavigation(content::NavigationHandle* navigation) {
