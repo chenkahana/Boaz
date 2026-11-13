@@ -12,9 +12,11 @@ struct ManagedExtension {
   bool enabled;
   bool can_disable;
   bool can_enable;
+  bool can_uninstall;
 };
 std::vector<ManagedExtension> ListManagedExtensions(Profile* profile);
 BoazHostResult EnableManagedExtension(Profile* profile, const std::string& id);
 BoazHostResult DisableManagedExtension(Profile* profile, const std::string& id);
+BoazHostResult UninstallManagedExtension(Profile* profile, const std::string& id);
 }
 #endif

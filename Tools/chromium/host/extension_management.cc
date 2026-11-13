@@ -10,6 +10,7 @@
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/management_policy.h"
+#include "extensions/browser/uninstall_reason.h"
 #include "extensions/common/extension.h"
 #include "extensions/common/manifest.h"
 
@@ -35,6 +36,13 @@ bool CanEnable(Profile* profile, const extensions::Extension& extension) {
   auto granted = prefs->GetGrantedPermissions(extension.id());
   return granted && granted->Contains(extension.permissions_data()->active_permissions());
 }
+bool CanUninstall(Profile* profile, const extensions::Extension& extension) {
+  if (extensions::Manifest::IsComponentLocation(extension.location())) return false;
+  auto* system = extensions::ExtensionSystem::Get(profile);
+  auto* policy = system ? system->management_policy() : nullptr;
+  return policy && policy->UserMayModifySettings(&extension, nullptr) &&
+         !policy->MustRemainInstalled(&extension, nullptr);
+}
 bool ValidID(const std::string& id) {
   return id.size() == 32 && std::ranges::all_of(id, [](char c) { return c >= 'a' && c <= 'p'; });
 }
@@ -47,13 +55,28 @@ std::vector<ManagedExtension> ListManagedExtensions(Profile* profile) {
   if (!registry) return result;
   for (const auto& extension : registry->enabled_extensions()) {
     result.push_back({extension->id(), extension->name(), extension->version().GetString(),
-                      true, CanDisable(profile, *extension), false});
+                      true, CanDisable(profile, *extension), false, CanUninstall(profile, *extension)});
   }
   for (const auto& extension : registry->disabled_extensions()) {
-    result.push_back({extension->id(), extension->name(), extension->version().GetString(), false, false, CanEnable(profile, *extension)});
+    result.push_back({extension->id(), extension->name(), extension->version().GetString(), false, false, CanEnable(profile, *extension), CanUninstall(profile, *extension)});
   }
   std::ranges::sort(result, {}, &ManagedExtension::id);
   return result;
+}
+BoazHostResult UninstallManagedExtension(Profile* profile, const std::string& id) {
+  CHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  if (!profile || profile->IsOffTheRecord() || profile->ShutdownStarted()) return BOAZ_HOST_UNAVAILABLE;
+  if (!ValidID(id)) return BOAZ_HOST_INVALID_ARGUMENT;
+  auto* registry = extensions::ExtensionRegistry::Get(profile);
+  auto* registrar = extensions::ExtensionRegistrar::Get(profile);
+  if (!registry || !registrar) return BOAZ_HOST_UNAVAILABLE;
+  const auto* extension = registry->GetInstalledExtension(id);
+  if (!extension) return BOAZ_HOST_INVALID_ARGUMENT;
+  if (!CanUninstall(profile, *extension)) return BOAZ_HOST_UNAVAILABLE;
+  // Registry removal is synchronous; disk and site-data cleanup is asynchronous.
+  if (!registrar->UninstallExtension(id, extensions::UNINSTALL_REASON_USER_INITIATED,
+                                    nullptr)) return BOAZ_HOST_UNAVAILABLE;
+  return !registry->GetInstalledExtension(id) ? BOAZ_HOST_OK : BOAZ_HOST_UNAVAILABLE;
 }
 BoazHostResult EnableManagedExtension(Profile* profile, const std::string& id) {
   CHECK_CURRENTLY_ON(content::BrowserThread::UI);
