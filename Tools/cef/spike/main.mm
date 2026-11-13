@@ -193,7 +193,8 @@ private:
 class SpikeBrowserViewDelegate final : public CefBrowserViewDelegate {
 public:
     ChromeToolbarType GetChromeToolbarType(CefRefPtr<CefBrowserView> view) override {
-        return CEF_CTT_NONE;
+        return [NSProcessInfo.processInfo.environment[@"BOAZ_CEF_SPIKE_CHROME_TOOLBAR"] isEqualToString:@"1"]
+            ? CEF_CTT_NORMAL : CEF_CTT_NONE;
     }
     cef_runtime_style_t GetBrowserRuntimeStyle() override { return CEF_RUNTIME_STYLE_CHROME; }
 private:
