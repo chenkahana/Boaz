@@ -48,6 +48,12 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         app.addItem(.separator())
         add(app, "Quit Boaz", enabled: { _ in true }, perform: { [weak self] _ in self?.quit() }, key: "q")
 
+        let hasEnginePage: (BrowserState?) -> Bool = {
+            $0?.activeEnginePage?.state.lifecycle == .active
+        }
+        let hasWebKitPage: (BrowserState?) -> Bool = {
+            $0?.activeEnginePage?.kind == .webKit && $0?.activeEnginePage?.state.lifecycle == .active
+        }
         let file = menu("File")
         add(file, "New Tab", command: .newTab) { $0?.commandMode = .newTab }
         for (title, scene, command) in [("New Window", "main", BrowserCommand.newWindow),
@@ -68,14 +74,16 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
             enabled: { $0 != nil && $0?.isIncognito == false }) { $0?.reopenClosedTab() }
 
         file.addItem(.separator())
-        add(file, "Print…", enabled: { $0?.activeEnginePage?.adapter is ChromiumEnginePageAdapter }, perform: {
-            guard let page = $0?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter else { return }
-            do { try page.printPage() } catch { MacModel.shared.showToast(error.localizedDescription) }
+        add(file, "Print…", enabled: hasEnginePage, perform: { browser in
+            if let page = browser?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter {
+                do { try page.printPage() } catch { MacModel.shared.showToast(error.localizedDescription) }
+            } else if hasWebKitPage(browser) { browser?.printActive() }
         }, key: "p")
 
-        add(file, "Save Page as PDF…", enabled: { $0?.activeEnginePage?.adapter is ChromiumEnginePageAdapter }) { browser in
-            guard let page = browser?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter else { return }
-            ChromiumPageCapture.exportPDF(from: page, window: browser?.window) { MacModel.shared.showToast($0) }
+        add(file, "Save Page as PDF…", enabled: hasEnginePage) { browser in
+            if let page = browser?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter {
+                ChromiumPageCapture.exportPDF(from: page, window: browser?.window) { MacModel.shared.showToast($0) }
+            } else if hasWebKitPage(browser) { browser?.exportPDF() }
         }
 
         let edit = menu("Edit")
@@ -156,9 +164,10 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
 
         let develop = menu("Develop")
         add(develop, "Responsive Viewport…", command: .responsiveDesignMode,
-            enabled: { ($0?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter) != nil }) {
-                guard let page = $0?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter else { return }
-                page.responsiveVisible = true
+            enabled: hasEnginePage) { browser in
+                if let page = browser?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter {
+                    page.responsiveVisible = true
+                } else if hasWebKitPage(browser) { browser?.toggleResponsiveDesign() }
             }
         let hasPage: (BrowserState?) -> Bool = {
             $0?.activeEnginePage?.adapter is ChromiumEnginePageAdapter
@@ -166,19 +175,26 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         add(develop, "Show Developer Tools", enabled: hasPage, perform: {
             Self.showDevTools(BOAZ_DEVTOOLS_SHOW, browser: $0)
         }, key: "i", modifiers: [.command, .option])
-        add(develop, "Show JavaScript Console", command: .javaScriptConsole, enabled: hasPage) {
-            Self.showDevTools(BOAZ_DEVTOOLS_CONSOLE, browser: $0)
+        add(develop, "Show JavaScript Console", command: .javaScriptConsole, enabled: hasEnginePage) { browser in
+            if hasWebKitPage(browser) { browser?.devTools.toggleConsole() }
+            else { Self.showDevTools(BOAZ_DEVTOOLS_CONSOLE, browser: browser) }
         }
         add(develop, "Inspect Element", enabled: hasPage, perform: {
             Self.showDevTools(BOAZ_DEVTOOLS_INSPECT, browser: $0)
         }, key: "c", modifiers: [.command, .option])
+        add(develop, "WebKit Inspect Element: Right-click the page", enabled: { _ in false }) { _ in }
         develop.addItem(.separator())
-        add(develop, "Capture Visible Area…", enabled: hasPage) { browser in
-            guard let adapter = browser?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter else { return }
-            ChromiumPageCapture.exportVisible(from: adapter, window: browser?.window) {
-                MacModel.shared.showToast($0)
-            }
+        add(develop, "Capture Visible Area…", enabled: hasEnginePage) { browser in
+            if let adapter = browser?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter {
+                ChromiumPageCapture.exportVisible(from: adapter, window: browser?.window) {
+                    MacModel.shared.showToast($0)
+                }
+            } else if hasWebKitPage(browser) { browser?.captureScreenshot(fullPage: false) }
         }
+        add(develop, "Capture Full Page (WebKit)", enabled: hasWebKitPage) { $0?.captureScreenshot(fullPage: true) }
+        add(develop, "View Page Source (WebKit)", command: .viewSource, enabled: hasWebKitPage) { $0?.viewPageSource() }
+        add(develop, "Show Storage (WebKit)…", enabled: hasWebKitPage) { $0?.showStorage() }
+        add(develop, "Empty Caches (WebKit)", command: .emptyCaches, enabled: hasWebKitPage) { $0?.emptyCaches() }
         let window = menu("Window")
         responder(window, "Minimize", #selector(NSWindow.performMiniaturize(_:)), key: "m")
         responder(window, "Zoom", #selector(NSWindow.performZoom(_:)))
