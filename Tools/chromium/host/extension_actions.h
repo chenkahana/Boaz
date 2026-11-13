@@ -9,6 +9,9 @@ namespace boaz {
 class NativeExtensionActions {
  public:
   enum class Result { kOk, kInvalidTarget, kUnavailable, kInvalidAnchor, kUnsupported };
+  struct Metadata { std::string title; std::string badge_text; };
+  Result GetMetadata(content::WebContents* expected_active, const std::string& extension_id,
+                     Metadata* output) const;
   explicit NativeExtensionActions(BrowserWindowInterface* browser);
   ~NativeExtensionActions();
   // Only call directly from a real native action-button activation.

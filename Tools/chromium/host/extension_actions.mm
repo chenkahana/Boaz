@@ -2,6 +2,8 @@
 #include "extension_actions.h"
 #include "extension_popup.h"
 #include "base/check.h"
+#include "base/strings/string_util.h"
+#include "extensions/browser/extension_action.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/task/single_thread_task_runner.h"
@@ -84,6 +86,29 @@ class NativeExtensionActions::Impl final : public extensions::ExtensionRegistryO
     auto popup = std::move(popup_);
     if (popup) popup->Close();
   }
+  Result GetMetadata(content::WebContents* expected, const std::string& id,
+                     Metadata* output) const {
+    DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+    CHECK([NSThread isMainThread]);
+    if (!output) return Result::kInvalidTarget;
+    *output = {};
+    auto* tab = browser_->GetActiveTabInterface();
+    if (!expected || !tab || tab->GetContents() != expected ||
+        expected->GetBrowserContext() != browser_->GetProfile()) return Result::kInvalidTarget;
+    auto* extension = registry_ ? registry_->enabled_extensions().GetByID(id) : nullptr;
+    auto* manager = extensions::ExtensionActionManager::Get(browser_->GetProfile());
+    auto* action = extension && manager ? manager->GetExtensionAction(*extension) : nullptr;
+    if (!action) return Result::kUnavailable;
+    const int tab_id = extensions::ExtensionTabUtil::GetTabId(expected);
+    if (tab_id < 0) return Result::kInvalidTarget;
+    Metadata metadata{action->GetTitle(tab_id), action->GetDisplayBadgeText(tab_id)};
+    if (metadata.title.size() > 4096 || metadata.badge_text.size() > 256 ||
+        !base::IsStringUTF8(metadata.title) || !base::IsStringUTF8(metadata.badge_text) ||
+        metadata.title.find('\0') != std::string::npos ||
+        metadata.badge_text.find('\0') != std::string::npos) return Result::kUnsupported;
+    *output = std::move(metadata);
+    return Result::kOk;
+  }
   Result Invoke(content::WebContents* expected, const std::string& id,
                 void* anchor, const gfx::Rect& bounds) {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
@@ -147,6 +172,10 @@ NativeExtensionActions::~NativeExtensionActions() = default;
 NativeExtensionActions::Result NativeExtensionActions::Invoke(content::WebContents* contents,
     const std::string& id, void* anchor, const gfx::Rect& bounds) {
   return impl_->Invoke(contents, id, anchor, bounds);
+}
+NativeExtensionActions::Result NativeExtensionActions::GetMetadata(
+    content::WebContents* contents, const std::string& id, Metadata* output) const {
+  return impl_->GetMetadata(contents, id, output);
 }
 void NativeExtensionActions::ClosePopup() { impl_->Close(); }
 }
