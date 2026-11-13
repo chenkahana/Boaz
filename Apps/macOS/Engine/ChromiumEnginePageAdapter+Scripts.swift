@@ -14,8 +14,51 @@ extension ChromiumEnginePageAdapter {
     func executeTrusted(function: String, arguments: [String: EngineJavaScriptValue]) async throws -> EngineJavaScriptValue {
         try Task.checkCancellation()
         guard state.lifecycle != .closed, state.lifecycle != .closing else { throw EnginePageError.closed }
-        guard let capture = api.capture_document, let execute = api.execute_trusted,
+        guard let capture = api.capture_document, api.execute_trusted != nil,
               let release = api.release_document else { throw EnginePageError.incompatibleBridge }
+        var document: BoazHostDocument = 0
+        try check(capture(handle, &document))
+        guard document != 0 else { throw ChromiumTrustedScriptError.invalidTarget }
+        var accepted = false
+        defer { if !accepted { _ = release(handle, document) } }
+        return try await executeTrustedDocument(document, navigationID: state.navigationID,
+            function: function, arguments: arguments, accepted: { accepted = true })
+    }
+
+    func captureTrustedDocument() throws -> ChromiumCapturedDocument {
+        guard state.lifecycle == .active else { throw EnginePageError.closed }
+        guard let capture = api.capture_document_origin, let release = api.release_document else {
+            throw EnginePageError.incompatibleBridge
+        }
+        var document: BoazHostDocument = 0
+        var buffer = [CChar](repeating: 0, count: 2048)
+        try check(capture(handle, &document, &buffer, buffer.count))
+        guard document != 0 else { throw ChromiumTrustedScriptError.invalidTarget }
+        guard let end = buffer.firstIndex(of: 0), end > 0,
+              let text = String(bytes: buffer[..<end].map { UInt8(bitPattern: $0) }, encoding: .utf8),
+              let origin = URL(string: text),
+              ["http", "https"].contains(origin.scheme?.lowercased() ?? ""),
+              origin.host != nil else {
+            _ = release(handle, document)
+            throw ChromiumTrustedScriptError.invalidTarget
+        }
+        return ChromiumCapturedDocument(owner: self, origin: origin, token: document)
+    }
+
+    func executeTrusted(on target: ChromiumCapturedDocument, function: String,
+                        arguments: [String: EngineJavaScriptValue]) async throws -> EngineJavaScriptValue {
+        defer { target.release() }
+        try Task.checkCancellation()
+        let document = try target.validatedToken(for: self)
+        return try await executeTrustedDocument(document, navigationID: target.navigationID,
+            function: function, arguments: arguments, accepted: { target.consumed() })
+    }
+
+    private func executeTrustedDocument(_ document: BoazHostDocument, navigationID: UInt64,
+        function: String, arguments: [String: EngineJavaScriptValue],
+        accepted: () -> Void) async throws -> EngineJavaScriptValue {
+        try Task.checkCancellation()
+        guard let execute = api.execute_trusted else { throw EnginePageError.incompatibleBridge }
         let argumentData: Data
         do { argumentData = try JSONEncoder().encode(arguments) }
         catch { throw ChromiumTrustedScriptError.invalidArgument }
@@ -24,10 +67,6 @@ extension ChromiumEnginePageAdapter {
             throw ChromiumTrustedScriptError.invalidArgument
         }
         let argumentJSON = String(decoding: argumentData, as: UTF8.self)
-        let navigationID = state.navigationID
-        var document: BoazHostDocument = 0
-        try check(capture(handle, &document))
-        guard document != 0 else { throw ChromiumTrustedScriptError.invalidTarget }
         do {
             let value: EngineJavaScriptValue = try await withCheckedThrowingContinuation { continuation in
                 let request = TrustedScriptRequest(page: handle, document: document, continuation: continuation)
@@ -56,9 +95,10 @@ extension ChromiumEnginePageAdapter {
                 if result != BOAZ_HOST_OK {
                     // A rejected call promises no callback and has not consumed the token.
                     Unmanaged<TrustedScriptRequest>.fromOpaque(context).release()
-                    _ = release(handle, document)
                     do { try check(result) }
                     catch { request.fail(error) }
+                } else {
+                    accepted()
                 }
             }
             try Task.checkCancellation()
