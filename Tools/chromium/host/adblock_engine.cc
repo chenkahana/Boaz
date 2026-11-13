@@ -35,7 +35,7 @@ base::expected<std::string, std::string> ReadAsset(
     return base::unexpected("Blocking asset changed size");
   if (base::HexEncodeLower(crypto::hash::Sha256(bytes)) != sha256)
     return base::unexpected("Blocking asset checksum mismatch");
-  return bytes;
+  return base::ok(std::move(bytes));
 }
 BoazAdblockBytes Bytes(std::string_view value) {
   return {reinterpret_cast<const uint8_t*>(value.data()), value.size()};
