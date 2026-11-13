@@ -73,6 +73,7 @@ struct State {
   bool cleanup_pending = false;
 };
 State* state = nullptr;
+std::vector<std::vector<std::string>> pending_external_urls;
 BoazHostResult Check() {
   if (!content::BrowserThread::CurrentlyOn(content::BrowserThread::UI))
     return BOAZ_HOST_WRONG_THREAD;
@@ -83,6 +84,17 @@ BoazHostResult Check() {
 template <typename F> auto Notify(F callback) {
   base::AutoReset<bool> guard(&state->in_callback, true);
   return callback();
+}
+void DeliverExternalURLs() {
+  if (!state || state->finished || !state->callbacks.external_urls) return;
+  auto batches = std::exchange(pending_external_urls, {});
+  for (const auto& batch : batches) {
+    std::vector<const char*> values;
+    values.reserve(batch.size());
+    for (const auto& url : batch) values.push_back(url.c_str());
+    Notify([&] { state->callbacks.external_urls(state->callbacks.context,
+        values.data(), values.size()); });
+  }
 }
 bool ValidOptions(const BoazHostWindowOptions* o) {
   if (!o || o->size < sizeof(*o) || !o->native_nswindow || !o->context ||
@@ -129,7 +141,12 @@ BoazHostResult SetCallbacks(const BoazHostCallbacks* callbacks) {
     state->windows.erase(window);
     FinishIfDrained();
   };
-  return state->tabs->SetCallbacks(&proxy);
+  auto result = state->tabs->SetCallbacks(&proxy);
+  if (result == BOAZ_HOST_OK) {
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(&DeliverExternalURLs));
+  }
+  return result;
 }
 BoazHostResult CreateWindowWithProfile(Profile* profile, const BoazHostWindowOptions* options, BoazHostWindow* output) {
   if (output) *output = 0;
@@ -414,6 +431,16 @@ class MainParts final : public ChromeBrowserMainExtraParts {
 };
 }  // namespace
 
+bool RouteExternalURLs(std::vector<std::string> urls) {
+  if (!NativeHostEnabled() ||
+      !base::CommandLine::ForCurrentProcess()->HasSwitch("boaz-app-ui")) return false;
+  if (!urls.empty()) pending_external_urls.push_back(std::move(urls));
+  if (state && state->callbacks.external_urls) {
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(&DeliverExternalURLs));
+  }
+  return true;
+}
 bool NativeHostEnabled() {
   return base::CommandLine::ForCurrentProcess()->HasSwitch("boaz-native-host");
 }

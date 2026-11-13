@@ -5,13 +5,14 @@ import SwiftUI
 @MainActor private var chromiumApplication: ChromiumApplication?
 
 @MainActor
-private final class ChromiumApplication: NSObject, NSApplicationDelegate {
+private final class ChromiumApplication: NSObject {
     let runtime: ChromiumRuntime
     let model = MacModel.shared
     let legacyDelegate = AppDelegate()
     var windows: [ChromiumAppWindow] = []
     var auxiliaryWindows: [NSWindow] = []
     var finished = false
+    private var applicationMenu: ChromiumApplicationMenu?
 
     init(runtime: ChromiumRuntime) {
         self.runtime = runtime
@@ -39,8 +40,11 @@ private final class ChromiumApplication: NSObject, NSApplicationDelegate {
             auxiliaryWindows.forEach { $0.close() }
             auxiliaryWindows.removeAll()
         }
+        runtime.externalURLs = { [weak self] urls in self?.model.openExternal(urls) }
         try runtime.startCallbacks()
-        NSApp.delegate = self
+        // Chromium retains its AppController delegate and termination machinery.
+        NotificationCenter.default.addObserver(self, selector: #selector(willTerminate),
+            name: NSApplication.willTerminateNotification, object: nil)
         installMenu()
         model.registerNativeOpenWindow { [weak self] id, url in
             Task { @MainActor in await self?.openScene(id, url: url) }
@@ -97,39 +101,26 @@ private final class ChromiumApplication: NSObject, NSApplicationDelegate {
     }
 
     private func installMenu() {
-        let menu = NSMenu()
-        let app = NSMenuItem()
-        let appMenu = NSMenu(title: "Boaz")
-        appMenu.addItem(withTitle: "Settings…", action: #selector(settings), keyEquivalent: ",").target = self
-        appMenu.addItem(.separator())
-        appMenu.addItem(withTitle: "Quit Boaz", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        app.submenu = appMenu
-        menu.addItem(app)
-        let file = NSMenuItem()
-        let fileMenu = NSMenu(title: "File")
-        fileMenu.addItem(withTitle: "New Window", action: #selector(newWindow), keyEquivalent: "n").target = self
-        fileMenu.addItem(withTitle: "New Private Window", action: #selector(newPrivateWindow), keyEquivalent: "").target = self
-        fileMenu.addItem(withTitle: "Close", action: #selector(closeTab), keyEquivalent: "w").target = self
-        file.submenu = fileMenu
-        menu.addItem(file)
-        NSApp.mainMenu = menu
+        let menu = ChromiumApplicationMenu(activeBrowser: { [weak self] in
+            self?.windows.first(where: { $0.window.isKeyWindow })?.browser
+        }, openScene: { [weak self] id in
+            Task { @MainActor in await self?.openScene(id, url: nil) }
+        }, quit: { [weak self] in self?.quit() })
+        applicationMenu = menu
+        menu.install()
     }
 
-    @objc private func settings() { Task { await openScene("settings", url: nil) } }
-    @objc private func newWindow() { Task { await openScene("main", url: nil) } }
-    @objc private func newPrivateWindow() { Task { await openScene("incognito", url: nil) } }
-    @objc private func closeTab() {
-        if let window = windows.first(where: { $0.window.isKeyWindow }) { window.browser.closeActive() }
-        else { NSApp.keyWindow?.performClose(nil) }
+    @objc private func willTerminate() {
+        guard !finished else { return }
+        legacyDelegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
     }
-
-    func application(_ application: NSApplication, open urls: [URL]) { model.openExternal(urls) }
-    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        if finished { return .terminateNow }
+    @objc private func quit() {
+        model.isQuitting = true
         do { try runtime.requestShutdown() }
-        catch { showError(error.localizedDescription) }
-        return .terminateCancel
+        catch { model.isQuitting = false; showError(error.localizedDescription) }
     }
+
+
 }
 
 @_cdecl("BoazNativeUIStart")

@@ -99,6 +99,17 @@
           "after": "c9ebb8d78f61fd4d1658e4975d73058ceee97959814ce044c8a376c95fac55b8"
         }
       ]
+    },
+    {
+      "file": "patches/native-external-urls.patch",
+      "sha256": "45d7d4b2f24178bcb34b7710c0f488a61a82e8e4db289a7e555242217dfe4440",
+      "files": [
+        {
+          "path": "chrome/browser/app_controller_mac.mm",
+          "before": "02599209e0cd946487a6ae54c924e2d6749794c97ce96144dc2cd001320790c7",
+          "after": "3fa6ba6c0dd9ee35ac5d825683b3967c454bede82efdfd518eed2698fbb600c0"
+        }
+      ]
     }
   ]
 }

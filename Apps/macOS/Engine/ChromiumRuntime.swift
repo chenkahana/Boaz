@@ -18,6 +18,7 @@ final class ChromiumRuntime {
     var windowCreated: ((BoazHostWindow, UnsafeMutableRawPointer?) -> Void)?
     var windowClosed: ((BoazHostWindow) -> Void)?
     var shutdownReady: (() -> Void)?
+    var externalURLs: (([URL]) -> Void)?
     var pageEvent: ((BoazHostPage, BoazHostPageEvent) -> Void)?
 
     private static weak var callbackOwner: ChromiumRuntime?
@@ -69,6 +70,20 @@ final class ChromiumRuntime {
                     adapter.apply(event: event, snapshot: copied.snapshot)
                     owner.pageEvent?(copied.page, event)
                     if event == BOAZ_HOST_PAGE_CLOSED { owner.pages.removeValue(forKey: copied.page) }
+                }
+            }
+        }
+        callbacks.external_urls = { context, values, count in
+            guard let context, let values else { return }
+            let urls = (0..<count).compactMap { index -> URL? in
+                guard let value = values[index] else { return nil }
+                return URL(string: String(cString: value))
+            }
+            MainActor.assumeIsolated {
+                let owner = Unmanaged<ChromiumRuntime>.fromOpaque(context).takeUnretainedValue()
+                DispatchQueue.main.async { [weak owner] in
+                    guard let owner, !owner.stopped else { return }
+                    owner.externalURLs?(urls)
                 }
             }
         }

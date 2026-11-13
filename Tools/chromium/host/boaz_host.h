@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 7u
+#define BOAZ_HOST_ABI_VERSION 8u
 
 typedef uint64_t BoazHostWindow;
 typedef uint64_t BoazHostPage;
@@ -100,6 +100,8 @@ typedef struct BoazHostCallbacks {
                          void* window_context);
   void (*window_closed)(void* context, BoazHostWindow window);
   void (*shutdown_ready)(void* context);
+  /* Borrowed ordered URL batch, copied before callback returns. */
+  void (*external_urls)(void* context, const char* const* urls, size_t count);
 } BoazHostCallbacks;
 
 /* Enumeration values are borrowed for the visitor call. Visitors must copy
