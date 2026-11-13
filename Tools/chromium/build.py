@@ -47,7 +47,8 @@ def verified_adblock_library(scripts, root):
     if receipt["exit_code"] != 0:
         raise RuntimeError("Content-blocking library did not build successfully.")
     crate = scripts / "adblock"
-    names = {"Cargo.toml", "Cargo.lock"} | {
+    manifest = json.loads((crate / "patches.lock.json").read_text())
+    names = {"Cargo.toml", "Cargo.lock", "patches.lock.json"} | {p["file"] for p in manifest["patches"]} | {
         str(p.relative_to(crate)) for p in (crate / "src").rglob("*.rs")}
     for name in names:
         if hashlib.sha256((crate / name).read_bytes()).hexdigest() != receipt["inputs"].get(name):

@@ -9,7 +9,51 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tarfile
 import uuid
+
+
+def vendor_source(stage, root):
+    manifest = json.loads((stage / 'patches.lock.json').read_text())
+    revision = manifest['revision']
+    if len(revision) != 40 or any(c not in '0123456789abcdef' for c in revision):
+        raise RuntimeError('Invalid pinned blocking source revision.')
+    upstream = root / 'adblock/upstream.git'
+    if upstream.resolve() != upstream:
+        raise RuntimeError('Blocking source cache is redirected.')
+    if not upstream.exists():
+        subprocess.run(['git', 'init', '--bare', str(upstream)], check=True)
+    if subprocess.check_output(['git', '-C', str(upstream), 'rev-parse', '--is-bare-repository'], text=True).strip() != 'true':
+        raise RuntimeError('Expected dedicated bare blocking source cache.')
+    present = subprocess.run(['git', '-C', str(upstream), 'cat-file', '-e', revision + '^{commit}'],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if present.returncode:
+        subprocess.run(['git', '-C', str(upstream), 'fetch', '--depth=1',
+                        manifest['repository'], revision], check=True)
+    archive = stage.parent / 'upstream.tar'
+    with archive.open('xb') as stream:
+        subprocess.run(['git', '-C', str(upstream), 'archive', '--format=tar', revision],
+                       stdout=stream, check=True)
+    destination = stage / 'vendor/adblock'
+    destination.mkdir(parents=True)
+    with tarfile.open(archive) as source:
+        source.extractall(destination, filter='data')
+    for patch in manifest['patches']:
+        patch_path = stage / patch['file']
+        if hashlib.sha256(patch_path.read_bytes()).hexdigest() != patch['sha256']:
+            raise RuntimeError('Blocking patch checksum changed.')
+        for entry in patch['files']:
+            path = destination / entry['path']
+            if path.resolve() != path or not path.is_relative_to(destination):
+                raise RuntimeError('Blocking patch path is redirected.')
+            if hashlib.sha256(path.read_bytes()).hexdigest() != entry['before']:
+                raise RuntimeError('Blocking patch preimage changed: ' + entry['path'])
+        subprocess.run(['git', 'apply', '--check', str(patch_path)], cwd=destination, check=True)
+        subprocess.run(['git', 'apply', str(patch_path)], cwd=destination, check=True)
+        for entry in patch['files']:
+            if hashlib.sha256((destination / entry['path']).read_bytes()).hexdigest() != entry['after']:
+                raise RuntimeError('Blocking patch postimage changed: ' + entry['path'])
+    return manifest
 
 
 def main():
@@ -54,6 +98,7 @@ def main():
     run.mkdir(parents=True)
     stage = run / 'source'
     shutil.copytree(crate, stage)
+    vendor_source(stage, root)
     inputs = {str(p.relative_to(stage)): hashlib.sha256(p.read_bytes()).hexdigest()
               for p in sorted(stage.rglob('*')) if p.is_file()}
     env = dict(os.environ, CARGO_HOME=str(root / 'cache/cargo'),

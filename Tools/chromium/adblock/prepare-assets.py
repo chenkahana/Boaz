@@ -143,7 +143,9 @@ def main():
         raise ValueError('Native blocker build failed')
     if build['header_sha256'] != digest(read(HERE.parent / 'host/boaz_adblock.h')):
         raise ValueError('Native blocker C ABI header changed')
-    for name in ['Cargo.toml', 'Cargo.lock', 'src/lib.rs']:
+    patch_manifest = json.loads(read(HERE / 'patches.lock.json'))
+    for name in ['Cargo.toml', 'Cargo.lock', 'src/lib.rs', 'patches.lock.json',
+                 *(entry['file'] for entry in patch_manifest['patches'])]:
         if build['inputs'].get(name) != digest(read(HERE / name)):
             raise ValueError('Native blocker source differs from build: ' + name)
     library = confined(build['library'], STORAGE / 'adblock')
