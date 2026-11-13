@@ -66,6 +66,7 @@ typedef struct BoazHostWindowOptions {
   void* native_nswindow;
   void* context;
   void* (*content_view)(void* context);
+  void* (*address_field)(void* context);
   void (*focus_address)(void* context);
   void (*focus_toolbar)(void* context);
   uint8_t (*handle_key)(void* context, void* native_nsevent);

@@ -15,6 +15,7 @@ namespace boaz {
 struct NativeWindowServices {
   base::RepeatingClosure request_close;
   base::RepeatingCallback<void*()> content_view;
+  base::RepeatingCallback<void*()> address_field;
   base::RepeatingClosure focus_address;
   base::RepeatingClosure focus_toolbar;
   base::RepeatingCallback<bool(const input::NativeWebKeyboardEvent&)> handle_key;
