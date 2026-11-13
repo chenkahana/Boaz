@@ -188,9 +188,12 @@ class NativeExtensionPopup::Impl final
                              extensions::kExtensionPopupMaxSize);
   }
   bool HandleKeyboardEvent(content::WebContents*, const input::NativeWebKeyboardEvent& event) override {
+    CheckUI();
     if (event.skip_if_unhandled || !event.os_event.Get()) return false;
-    if ([event.os_event.Get() keyCode] == 53) { Close(); return true; }
-    return false;
+    NSEvent* native_event = event.os_event.Get();
+    if (native_event.type != NSEventTypeKeyDown) return false;
+    if (native_event.keyCode == 53) { Close(); return true; }
+    return [NSApp.mainMenu performKeyEquivalent:native_event];
   }
   // Experimental host rejects JS dialogs; native dialog parity remains gated.
   // Requires the root-owned ExtensionView/ExtensionViewHost suppression patch.
