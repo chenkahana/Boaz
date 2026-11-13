@@ -14,10 +14,12 @@ within thumb reach and a layout that follows every posture of iPhone Duo. On the
 ![macOS 26+](https://img.shields.io/badge/macOS-26%2B-000000?logo=apple)
 ![Swift 6](https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white)
 [![License](https://img.shields.io/badge/license-MPL--2.0-brightgreen)](LICENSE)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-6E4BFF)](CONTRIBUTING.md)
 
+[![Download on the App Store](https://img.shields.io/badge/App_Store-iPhone_%26_Mac-0D96F6?style=for-the-badge&logo=appstore&logoColor=white)](https://apps.apple.com/app/boaz-browser/id6832646304)
 [![Download for Mac](https://img.shields.io/badge/Download_for_Mac-Boaz.dmg-6E4BFF?style=for-the-badge&logo=apple)](https://github.com/chenkahana/Boaz/releases/latest/download/Boaz.dmg)
 
-[Features](#features) · [Screenshots](#screenshots) · [Architecture](#architecture) · [Getting started](#getting-started) · [Privacy](#privacy) · [Contributing](#contributing)
+[Website](https://chenkahana.com/boaz) · [Features](#features) · [Screenshots](#screenshots) · [Architecture](#architecture) · [Getting started](#getting-started) · [Privacy](#privacy) · [Contributing](#contributing)
 
 <img src="docs/assets/hero.png" alt="Boaz on Mac and iPhone" width="900">
 
@@ -52,6 +54,17 @@ iPhone Duo, folded:
     <td align="center"><img src="docs/screenshots/duo-2-tabs.png" alt="The tab carousel" width="210"><br><sub>Your tabs</sub></td>
     <td align="center"><img src="docs/screenshots/duo-3-search.png" alt="Search with suggestions" width="210"><br><sub>Search</sub></td>
     <td align="center"><img src="docs/screenshots/duo-4-menu.png" alt="The page menu" width="210"><br><sub>Page menu</sub></td>
+  </tr>
+</table>
+
+iPhone:
+
+<table>
+  <tr>
+    <td align="center"><img src="docs/screenshots/iphone-63-1-page.png" alt="A page with the bar across the bottom" width="190"><br><sub>The page</sub></td>
+    <td align="center"><img src="docs/screenshots/iphone-63-2-tabs.png" alt="The tab carousel" width="190"><br><sub>Your tabs</sub></td>
+    <td align="center"><img src="docs/screenshots/iphone-63-3-search.png" alt="Search with suggestions" width="190"><br><sub>Search</sub></td>
+    <td align="center"><img src="docs/screenshots/iphone-63-4-menu.png" alt="The page menu" width="190"><br><sub>Page menu</sub></td>
   </tr>
 </table>
 
@@ -110,8 +123,9 @@ More detail: [docs/architecture.md](docs/architecture.md).
 
 - macOS 26 or later with **Xcode 27.2** (iOS 27.1 SDK)
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`)
-- An Apple Developer team with the iCloud container `iCloud.com.chenkahana.boaz` and the app group
-  `group.com.chenkahana.boaz`, for running on devices and testing sync
+- For simulators and `make build`, nothing else: builds are unsigned. To run on a device or test sync, use your own
+  Apple Developer team: replace `DEVELOPMENT_TEAM` and the `com.chenkahana` identifiers in `project.yml` locally (don't commit them),
+  and create a matching iCloud container and app group
 
 ### Build and run
 
@@ -152,7 +166,7 @@ Boaz/
 │   ├── Browser/          WebKit glue shared by both apps
 │   └── Shared/           Theme, assets, privacy manifest
 ├── Packages/BoazKit/    Core library: model, store, sync, importers
-├── Tools/                Icon generator
+├── Tools/                Icon generator and release scripts
 ├── docs/                 Architecture, privacy policy, release guide, screenshots
 ├── .github/              CI, issue and pull-request templates
 ├── project.yml           XcodeGen project definition
@@ -172,9 +186,17 @@ Changes are recorded in [CHANGELOG.md](CHANGELOG.md).
 
 ## Contributing
 
-Bug reports and feature requests are welcome through
-[GitHub Issues](https://github.com/chenkahana/Boaz/issues/new/choose). Read [CONTRIBUTING.md](CONTRIBUTING.md) before
-opening a pull request, and report security issues as described in [SECURITY.md](SECURITY.md), not in public issues.
+Contributions are welcome, from a typo fix to a new feature.
+
+- Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, conventions and the review checklist.
+- Looking for a place to start? Try an issue labelled
+  [`good first issue`](https://github.com/chenkahana/Boaz/labels/good%20first%20issue) or
+  [`help wanted`](https://github.com/chenkahana/Boaz/labels/help%20wanted).
+- Found a bug? Open a [bug report](https://github.com/chenkahana/Boaz/issues/new?template=bug_report.yml).
+- Security issues go through [SECURITY.md](SECURITY.md), never public issues.
+- Questions: see [SUPPORT.md](SUPPORT.md).
+
+Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
