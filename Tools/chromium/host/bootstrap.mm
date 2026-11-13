@@ -667,6 +667,10 @@ BoazHostResult ClearSplit(BoazHostWindow window) {
   if (auto r = Check(); r != BOAZ_HOST_OK) return r;
   return state->tabs->ClearSplit(window);
 }
+BoazHostResult TogglePictureInPicture(BoazHostPage page) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  return state->tabs->TogglePictureInPicture(page);
+}
 BoazHostResult SetAudioMuted(BoazHostPage page, uint8_t muted) {
   if (auto result = Check(); result != BOAZ_HOST_OK) return result;
   if (muted > 1) return BOAZ_HOST_INVALID_ARGUMENT;
@@ -992,7 +996,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension, InstallExtension, InstallUnpackedExtension, UninstallExtension, ExtensionMetadata, ReviewExtensionPermissions};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension, InstallExtension, InstallUnpackedExtension, UninstallExtension, ExtensionMetadata, ReviewExtensionPermissions, TogglePictureInPicture};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:

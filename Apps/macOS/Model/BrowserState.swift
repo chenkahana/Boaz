@@ -686,6 +686,13 @@ final class BrowserState {
 
     /// Floats the active tab's video, or brings it back.
     func togglePictureInPicture() {
+        #if BOAZ_CHROMIUM
+        if let page = activeEnginePage?.adapter as? ChromiumEnginePageAdapter {
+            do { try page.togglePictureInPicture() }
+            catch { model.showToast("Picture in Picture is unavailable for this page.") }
+            return
+        }
+        #endif
         activePage.flatMap(PictureInPicture.controller(of:))?.toggle()
     }
 

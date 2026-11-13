@@ -114,6 +114,11 @@ final class ChromiumEnginePageAdapter: EnginePageAdapter {
         try requireOpen()
         try check(api.go_forward!(handle))
     }
+    func togglePictureInPicture() throws {
+        try requireOpen()
+        guard let toggle = api.toggle_picture_in_picture else { throw EnginePageError.unavailable }
+        try check(toggle(handle))
+    }
     func setAudioMuted(_ muted: Bool) throws {
         try requireOpen()
         guard let setMuted = api.set_audio_muted else { throw EnginePageError.incompatibleBridge }

@@ -125,6 +125,9 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         }
 
         let view = menu("View")
+        add(view, "Picture in Picture", command: .pictureInPicture, enabled: hasEnginePage) {
+            $0?.togglePictureInPicture()
+        }
         add(view, "Hide Sidebar", command: .toggleSidebar,
             title: { $0?.sidebarVisible == false ? "Show Sidebar" : "Hide Sidebar" }) { $0?.toggleSidebar() }
         add(view, "Reload Page", command: .reload, enabled: { $0?.activeTab != nil }) { $0?.reload() }
