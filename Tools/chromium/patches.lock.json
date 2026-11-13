@@ -659,6 +659,27 @@
           "after": "c017c275d572af8e9de10b6fd57fcb59c2d7fab6f69cad55f7829a8ed1d6d8ad"
         }
       ]
+    },
+    {
+      "file": "patches/native-http-security-warning.patch",
+      "sha256": "3025b6d599950f76daeb4f9023723e4a9e6e92ff656586a8807b26b2b651288a",
+      "files": [
+        {
+          "path": "chrome/browser/ssl/ask_before_http_dialog_controller.h",
+          "before": "fc25396f8536bfb15d7db363e4243aa71109580819501386de501061a96ac7ca",
+          "after": "195ff49fa54209bcd8b1590bf85bee0308f98bb68b565c06738ce66a2e0eb408"
+        },
+        {
+          "path": "chrome/browser/ssl/ask_before_http_dialog_controller.cc",
+          "before": "f794f60e41fcad9b414f2eef4c6660ead72c1935c0a477ec0bc02ef4a2787671",
+          "after": "bd5825bfe5028f465259aad8d5806d7c32f4d914f348cbf185eb7f04aec00c4e"
+        },
+        {
+          "path": "chrome/browser/ssl/BUILD.gn",
+          "before": "4a536772beb908a79d7ed3c584572778d86fe9d8df089223015e69894cb7c607",
+          "after": "7514972cccb13fecd4cb40f78045e4214eb4c949b024cb53de7f9534272b0de3"
+        }
+      ]
     }
   ]
 }

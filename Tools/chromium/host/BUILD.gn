@@ -17,13 +17,14 @@ buildflag_header("buildflags") {
 }
 
 source_set("headers") {
-  public = [ "extension_optional_permissions.h", "native_extension_store_dialogs.h", "native_extension_prompt.h", "native_password_submission.h", "native_devtools.h", "bootstrap.h", "native_permission_prompt.h", "protected_media.h" ]
+  public = [ "native_http_warning.h", "extension_optional_permissions.h", "native_extension_store_dialogs.h", "native_extension_prompt.h", "native_password_submission.h", "native_devtools.h", "bootstrap.h", "native_permission_prompt.h", "protected_media.h" ]
   public_deps = [
     "//base",
     "//extensions/browser",
     ":protected_media_mojom",
     "//chrome/browser/ui:browser_window_deleter",
     "//components/permissions",
+    "//components/security_interstitials/core",
   ]
 }
 
@@ -31,6 +32,8 @@ source_set("host") {
   public_deps = [ ":launch", ":protected_media_mojom" ]
   sources = [
     "boaz_host.h",
+    "native_http_warning.h",
+    "native_http_warning.mm",
     "adblock_popup.h",
     "adblock_popup.cc",
     "adblock_profile_state.h",

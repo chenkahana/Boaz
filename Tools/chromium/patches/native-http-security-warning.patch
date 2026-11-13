@@ -1,0 +1,147 @@
+--- a/chrome/browser/ssl/ask_before_http_dialog_controller.h
++++ b/chrome/browser/ssl/ask_before_http_dialog_controller.h
+@@ -23,6 +23,8 @@
+ #if !BUILDFLAG(IS_ANDROID)
+ #include "ui/views/widget/widget.h"
+ #endif
++
++namespace boaz { class NativeHttpWarning; }
+ 
+ namespace content {
+ class WebContents;
+@@ -102,6 +104,9 @@
+ #if !BUILDFLAG(IS_ANDROID)
+   // Pointer to the widget that contains the current open dialog, if any.
+   std::unique_ptr<views::Widget> dialog_widget_;
++#if BUILDFLAG(IS_MAC)
++  std::unique_ptr<boaz::NativeHttpWarning> native_dialog_;
++#endif
+ #else
+   // Pointer to the dialog model, if any.
+   raw_ptr<ui::DialogModel> current_dialog_model_ = nullptr;
+--- a/chrome/browser/ssl/ask_before_http_dialog_controller.cc
++++ b/chrome/browser/ssl/ask_before_http_dialog_controller.cc
+@@ -9,6 +9,10 @@
+ #include "base/memory/weak_ptr.h"
+ #include "base/task/single_thread_task_runner.h"
+ #include "build/build_config.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/bootstrap.h"
++#include "boaz/native_http_warning.h"
++#endif
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ssl/https_only_mode_tab_helper.h"
+ #include "chrome/browser/ssl/https_upgrades_util.h"
+@@ -194,6 +198,9 @@
+     return;
+   }
+ #endif
++#if BUILDFLAG(IS_MAC)
++  if (native_dialog_) CloseDialog();
++#endif
+   Observe(web_contents);
+   // Track the source ID for the navigation that triggered the dialog.
+   navigation_source_id_ = navigation_source_id;
+@@ -207,6 +214,35 @@
+         security_interstitials::MetricsHelper::TOTAL_VISITS);
+   }
+   is_suspended_ = false;
++
++#if BUILDFLAG(IS_MAC)
++  if (boaz::NativeHostEnabled()) {
++    warning_reason_ = security_interstitials::https_only_mode::GetInterstitialReason(
++        ComputeInterstitialState(web_contents, request_url));
++    native_dialog_ = boaz::ShowNativeHttpWarning(
++        web_contents, warning_reason_,
++        base::BindOnce([](base::WeakPtr<AskBeforeHttpDialogController> controller,
++                          ukm::SourceId source_id, const GURL& url,
++                          boaz::HttpWarningDecision decision) {
++          if (!controller || !controller->native_dialog_ ||
++              controller->navigation_source_id_ != source_id ||
++              controller->request_url_ != url) return;
++          switch (decision) {
++            case boaz::HttpWarningDecision::kGoBack:
++              controller->OnGoBackButtonClicked(); return;
++            case boaz::HttpWarningDecision::kContinue:
++              controller->OnContinueButtonClicked(url); return;
++            case boaz::HttpWarningDecision::kLearnMore: {
++              controller->CloseDialog();
++              ui::MouseEvent event(ui::EventType::kMousePressed, gfx::Point(),
++                                   gfx::Point(), base::TimeTicks(), 0, 0);
++              controller->OnHelpCenterLinkClicked(event); return;
++            }
++          }
++        }, weak_ptr_factory_.GetWeakPtr(), navigation_source_id, request_url));
++    return;
++  }
++#endif
+ 
+   std::unique_ptr<ui::DialogModel> dialog_model =
+       CreateDialogModel(request_url);
+@@ -262,6 +298,9 @@
+ }
+ 
+ bool AskBeforeHttpDialogController::HasOpenDialog() const {
++#if BUILDFLAG(IS_MAC)
++  if (native_dialog_) return true;
++#endif
+ #if !BUILDFLAG(IS_ANDROID)
+   return dialog_widget_ && !dialog_widget_->IsClosed();
+ #else
+@@ -328,6 +367,9 @@
+         security_interstitials::MetricsHelper::DONT_PROCEED);
+   }
+   navigation_source_id_ = ukm::kInvalidSourceId;
++#if BUILDFLAG(IS_MAC)
++  native_dialog_.reset();
++#endif
+   dialog_widget_.reset();
+ }
+ #endif
+@@ -388,6 +430,10 @@
+ 
+ void AskBeforeHttpDialogController::OnVisibilityChanged(
+     content::Visibility visibility) {
++#if BUILDFLAG(IS_MAC)
++  if (native_dialog_ && visibility != content::Visibility::VISIBLE)
++    CloseDialog();
++#endif
+ #if BUILDFLAG(IS_ANDROID)
+   if (visibility == content::Visibility::VISIBLE && is_suspended_) {
+     // Post a task so that the dialog is re-created after Java tab-switching
+@@ -515,7 +561,10 @@
+ #if BUILDFLAG(IS_ANDROID)
+     current_dialog_model_ = nullptr;
+ #else
+-    dialog_widget_.reset();
++  #if BUILDFLAG(IS_MAC)
++  native_dialog_.reset();
++#endif
++  dialog_widget_.reset();
+ #endif
+   }
+ 
+@@ -547,7 +596,10 @@
+     current_dialog_model_ = nullptr;
+     // Android automatically closes the dialog on button click.
+ #else
+-    dialog_widget_.reset();
++  #if BUILDFLAG(IS_MAC)
++  native_dialog_.reset();
++#endif
++  dialog_widget_.reset();
+ #endif
+   }
+ 
+--- a/chrome/browser/ssl/BUILD.gn
++++ b/chrome/browser/ssl/BUILD.gn
+@@ -113,6 +113,9 @@
+   ]
+ 
+   public_deps = [ ":ssl" ]
++  if (is_mac) {
++    public_deps += [ "//boaz:headers" ]
++  }
+ 
+   deps = [
+     "//chrome/browser:browser_process",
