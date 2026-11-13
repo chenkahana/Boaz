@@ -18,6 +18,11 @@ final class ChromiumEnginePageAdapter: EnginePageAdapter {
     let profile: EngineProfileIdentity
     let handle: BoazHostPage
     private(set) var state = EnginePageState()
+    var responsiveVisible = false
+    var appliedViewport: ChromiumViewport?
+    var emulationPending = false
+    var emulationError: String?
+    @ObservationIgnored var emulationRequest: UInt64 = 0
     @ObservationIgnored let api: BoazHostAPI
     @ObservationIgnored private var closeRequested = false
     @ObservationIgnored private weak var attachedView: NSView?
@@ -45,6 +50,10 @@ final class ChromiumEnginePageAdapter: EnginePageAdapter {
     func apply(event: BoazHostPageEvent, snapshot: EnginePageState) {
         guard state.lifecycle != .closed else { return }
         let previousLifecycle = state.lifecycle
+        if state.navigationID != snapshot.navigationID || snapshot.isLoading && !state.isLoading ||
+            event == BOAZ_HOST_PAGE_RENDERER_FAILED || event == BOAZ_HOST_PAGE_CLOSED {
+            appliedViewport = nil
+        }
         state = snapshot
         if event == BOAZ_HOST_PAGE_VIEW_CHANGED { viewGeneration += 1 }
         switch event {

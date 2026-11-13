@@ -130,6 +130,11 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         }
         add(spaces, "New Space", command: .newSpace) { $0?.newSpace() }
         let develop = menu("Develop")
+        add(develop, "Responsive Viewport…", command: .responsiveDesignMode,
+            enabled: { ($0?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter) != nil }) {
+                guard let page = $0?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter else { return }
+                page.responsiveVisible = true
+            }
         let hasPage: (BrowserState?) -> Bool = {
             $0?.activeEnginePage?.adapter is ChromiumEnginePageAdapter
         }

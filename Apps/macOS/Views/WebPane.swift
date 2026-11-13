@@ -65,6 +65,9 @@ private struct ChromiumTabPane: View {
                 .onTapGesture { browser.focusPane(tab.id) }
                 .onHover { hovering = $0 }
             }
+            if let adapter = engine?.adapter as? ChromiumEnginePageAdapter, adapter.responsiveVisible {
+                ChromiumResponsiveBar(adapter: adapter)
+            }
             if browser.findVisible, browser.activeTabID == tab.id,
                let adapter = engine?.adapter as? ChromiumEnginePageAdapter {
                 ChromiumFindBar(adapter: adapter) { browser.findVisible = false }
@@ -79,6 +82,7 @@ private struct ChromiumTabPane: View {
                 }
             } else if let engine, let adapter = engine.adapter as? ChromiumEnginePageAdapter {
                 ChromiumPageView(adapter: adapter)
+                    .modifier(ChromiumViewportLayout(viewport: adapter.appliedViewport))
                     .overlay {
                         if surfaceDocument == nil || revealedSurface != surfaceDocument,
                            let preview = browser.chromiumPreview(for: tab.id, url: engine.state.url ?? tab.url) {
