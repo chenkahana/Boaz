@@ -31,6 +31,7 @@
 #include "chrome/browser/ui/find_bar/find_bar.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/tabs/public/tab_interface.h"
+#include "components/input/native_web_keyboard_event.h"
 #include "components/web_modal/web_contents_modal_dialog_host.h"
 #include "content/public/browser/eye_dropper.h"
 #include "content/public/browser/keyboard_event_processing_result.h"
@@ -249,7 +250,13 @@ class NativeWindow final : public BrowserWindow,
     return services_.handle_key.Run(event) ? content::KeyboardEventProcessingResult::HANDLED
                                         : content::KeyboardEventProcessingResult::NOT_HANDLED;
   }
-  bool HandleKeyboardEvent(const input::NativeWebKeyboardEvent&) override { return false; }
+  bool HandleKeyboardEvent(const input::NativeWebKeyboardEvent& event) override {
+    Main();
+    if (event.skip_if_unhandled || !event.os_event.Get()) return false;
+    NSEvent* native_event = event.os_event.Get();
+    if (native_event.type != NSEventTypeKeyDown) return false;
+    return [NSApp.mainMenu performKeyEquivalent:native_event];
+  }
   std::unique_ptr<FindBar> CreateFindBar() override { Unsupported("find bar"); return nullptr; }
   web_modal::WebContentsModalDialogHost* GetWebContentsModalDialogHost() override { return this; }
   web_modal::WebContentsModalDialogHost* GetWebContentsModalDialogHostFor(content::WebContents* contents) override {
