@@ -196,8 +196,26 @@ public:
         return [NSProcessInfo.processInfo.environment[@"BOAZ_CEF_SPIKE_CHROME_TOOLBAR"] isEqualToString:@"1"]
             ? CEF_CTT_NORMAL : CEF_CTT_NONE;
     }
+    void OnWindowChanged(CefRefPtr<CefView> view, bool added) override {
+        if (!added || toolbarAdded_ ||
+            ![NSProcessInfo.processInfo.environment[@"BOAZ_CEF_SPIKE_CHROME_TOOLBAR"] isEqualToString:@"1"]) return;
+        auto browserView = view->AsBrowserView();
+        auto window = view->GetWindow();
+        auto toolbar = browserView ? browserView->GetChromeToolbar() : nullptr;
+        NSLog(@"CEF toolbar diagnostic: OnWindowChanged available=%d window=%d",
+              !!toolbar, !!window);
+        if (!toolbar || !window) return;
+        toolbarAdded_ = true;
+        window->AddChildViewAt(toolbar, 0);
+        window->GetLayout()->AsBoxLayout()->SetFlexForView(toolbar, 0);
+        window->Layout();
+        auto bounds = toolbar->GetBounds();
+        NSLog(@"CEF toolbar diagnostic: bounds=%d,%d %dx%d", bounds.x, bounds.y,
+              bounds.width, bounds.height);
+    }
     cef_runtime_style_t GetBrowserRuntimeStyle() override { return CEF_RUNTIME_STYLE_CHROME; }
 private:
+    bool toolbarAdded_ = false;
     IMPLEMENT_REFCOUNTING(SpikeBrowserViewDelegate);
 };
 
@@ -210,12 +228,8 @@ public:
         layout.horizontal = false;
         layout.inside_border_insets = CefInsets(60, 220, 0, 0);
         layout.default_flex = 1;
-        auto box = window->SetToBoxLayout(layout);
+        window->SetToBoxLayout(layout);
         window->AddChildView(browser_);
-        if (auto toolbar = browser_->GetChromeToolbar()) {
-            window->AddChildViewAt(toolbar, 0);
-            box->SetFlexForView(toolbar, 0);
-        }
         [host_ didCreateViewsWindow:window];
         window->Show();
     }
