@@ -1,5 +1,6 @@
 #include "trusted_script_channel.h"
 #include <limits>
+#include <algorithm>
 #include <utility>
 #include "base/check.h"
 #include "base/functional/bind.h"
@@ -37,16 +38,27 @@ TrustedScriptChannel::TrustedScriptChannel(content::WebContents* contents)
 }
 TrustedScriptChannel::~TrustedScriptChannel() { Close(); }
 
-std::optional<uint64_t> TrustedScriptChannel::Capture(std::string* origin) {
+std::optional<uint64_t> TrustedScriptChannel::Capture(std::string* origin, bool focused) {
   CheckUI();
   if (origin) origin->clear();
+  std::erase_if(targets_, [this](const auto& entry) { return !executor_.IsValid(entry.second); });
   if (closed_ || targets_.size() >= 64) return std::nullopt;
-  auto target = executor_.CaptureTarget();
+  auto target = executor_.CaptureTarget(focused);
   if (!target) return std::nullopt;
   if (origin) *origin = target->origin.Serialize();
   const uint64_t token = NextToken();
   targets_.emplace(token, std::move(*target));
   return token;
+}
+
+std::optional<uint64_t> TrustedScriptChannel::Clone(uint64_t token) {
+  CheckUI();
+  std::erase_if(targets_, [this](const auto& entry) { return !executor_.IsValid(entry.second); });
+  auto found = targets_.find(token);
+  if (closed_ || targets_.size() >= 64 || found == targets_.end()) return std::nullopt;
+  const auto clone = NextToken();
+  targets_.emplace(clone, found->second);
+  return clone;
 }
 
 bool TrustedScriptChannel::Release(uint64_t token) {
@@ -83,13 +95,23 @@ void TrustedScriptChannel::Close() {
 
 void TrustedScriptChannel::DidStartNavigation(content::NavigationHandle* navigation) {
   CheckUI();
-  if (navigation->IsInPrimaryMainFrame() && !navigation->IsSameDocument())
-    targets_.clear();
+  if (navigation->IsSameDocument()) return;
+  const auto node = navigation->GetFrameTreeNodeId();
+  std::erase_if(targets_, [node](const auto& entry) {
+    auto& validity = entry.second.validity;
+    if (std::ranges::find(validity->ancestors, node) == validity->ancestors.end()) return false;
+    validity->valid = false;
+    return true;
+  });
 }
 void TrustedScriptChannel::RenderFrameDeleted(content::RenderFrameHost* frame) {
   CheckUI();
   for (auto it = targets_.begin(); it != targets_.end();) {
-    if (it->second.frame == frame->GetGlobalId()) it = targets_.erase(it);
+    if (std::ranges::find(it->second.validity->frames, frame->GetGlobalId()) !=
+        it->second.validity->frames.end()) {
+      it->second.validity->valid = false;
+      it = targets_.erase(it);
+    }
     else ++it;
   }
 }

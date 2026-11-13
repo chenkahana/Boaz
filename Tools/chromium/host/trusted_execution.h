@@ -5,6 +5,8 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
+#include "content/public/browser/frame_tree_node_id.h"
 #include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -21,16 +23,23 @@ class TrustedExecution final : public content::WebContentsObserver {
   enum class Status { kSuccess, kInvalidTarget, kNavigation, kClosed,
                       kRendererFailed, kTimeout, kInvalidArgument, kBusy };
   struct Outcome { Status status; base::Value value; };
+  struct Validity {
+    bool valid = true;
+    std::vector<content::FrameTreeNodeId> ancestors;
+    std::vector<content::GlobalRenderFrameHostId> frames;
+  };
   struct Target {
     content::GlobalRenderFrameHostId frame;
     content::WeakDocumentPtr document;
     url::Origin origin;
     uint64_t epoch;
+    std::shared_ptr<Validity> validity;
   };
   using Completion = base::OnceCallback<void(Outcome)>;
   explicit TrustedExecution(content::WebContents* contents);
   ~TrustedExecution() override;
-  std::optional<Target> CaptureTarget() const;
+  std::optional<Target> CaptureTarget(bool focused = false);
+  bool IsValid(const Target& target) const;
   void Execute(Target target, std::u16string trusted_function_source,
                base::DictValue arguments, Completion completion);
   void Close();
@@ -45,7 +54,9 @@ class TrustedExecution final : public content::WebContentsObserver {
   void Finish(uint64_t id, Status status, base::Value result = base::Value());
   void Result(uint64_t id, base::Value result);
   void Cancel(Status status);
+  void InvalidateNode(content::FrameTreeNodeId node, Status status);
   void DidStartNavigation(content::NavigationHandle*) override;
+  void DidFinishNavigation(content::NavigationHandle*) override;
   void RenderFrameDeleted(content::RenderFrameHost*) override;
   void PrimaryMainFrameRenderProcessGone(base::TerminationStatus) override;
   void WebContentsDestroyed() override;
@@ -54,6 +65,8 @@ class TrustedExecution final : public content::WebContentsObserver {
   uint64_t next_id_ = 1;
   bool closed_ = false;
   std::map<uint64_t, Pending> pending_;
+  std::vector<std::weak_ptr<Validity>> targets_;
+  std::map<int64_t, content::FrameTreeNodeId> navigations_;
   base::WeakPtrFactory<TrustedExecution> weak_factory_{this};
 };
 }
