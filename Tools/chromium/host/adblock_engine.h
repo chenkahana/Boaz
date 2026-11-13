@@ -20,7 +20,7 @@ class AdblockEngine {
   base::expected<std::string, int> Selectors(std::string_view input) const;
  private:
   explicit AdblockEngine(BoazAdblockSnapshot* snapshot);
-  BoazAdblockSnapshot* const snapshot_;
+  const std::unique_ptr<BoazAdblockSnapshot, decltype(&boaz_adblock_destroy)> snapshot_;
 };
 }
 #endif
