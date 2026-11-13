@@ -2,6 +2,7 @@
 #include "native_location_bar.h"
 
 #include <algorithm>
+#include <optional>
 #include "base/check.h"
 #include "base/memory/weak_ptr.h"
 #include "base/memory/raw_ptr.h"
@@ -189,8 +190,11 @@ class NativeLocationBar final : public LocationBar,
   base::WeakPtrFactory<NativeLocationBar> weak_{this};
 };
 }
-std::unique_ptr<LocationBar> CreateNativeLocationBar(
+void NativeLocationBarDeleter::operator()(LocationBar* bar) const {
+  delete static_cast<NativeLocationBar*>(bar);
+}
+NativeLocationBarPtr CreateNativeLocationBar(
     BrowserWindowInterface* browser, base::RepeatingCallback<void*()> field) {
-  return std::make_unique<NativeLocationBar>(browser, std::move(field));
+  return NativeLocationBarPtr(new NativeLocationBar(browser, std::move(field)));
 }
 }

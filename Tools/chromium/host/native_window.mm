@@ -317,7 +317,7 @@ class NativeWindow final : public BrowserWindow,
   ui::mojom::WindowShowState restored_state_ = ui::mojom::WindowShowState::kNormal;
   NSInteger attention_ = 0;
   std::unique_ptr<NativeNotice> notice_;
-  std::unique_ptr<LocationBar> location_bar_;
+  NativeLocationBarPtr location_bar_;
   base::ObserverList<web_modal::ModalDialogHostObserver> modal_observers_;
   base::WeakPtrFactory<NativeWindow> weak_factory_{this};
 };
