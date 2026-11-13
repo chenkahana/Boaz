@@ -1,6 +1,7 @@
 #if BOAZ_CHROMIUM
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 @MainActor
 @Observable
@@ -34,6 +35,49 @@ final class ChromiumExtensionManagement {
             window.endSheet(sheet)
         })
         window.beginSheet(sheet) { _ in sheet.orderOut(nil); sheet.contentViewController = nil }
+    }
+
+    private final class InstallRequest {
+        weak var window: NSWindow?
+        init(window: NSWindow) { self.window = window }
+        func finish(_ result: BoazHostExtensionInstallResult) {
+            guard window?.isVisible == true else { return }
+            switch result {
+            case BOAZ_EXTENSION_INSTALLED: MacModel.shared.showToast("Extension installed.")
+            case BOAZ_EXTENSION_INSTALL_CANCELLED: break
+            default: MacModel.shared.showToast("The extension could not be installed. The file may be invalid or its permissions may need additional approval.")
+            }
+        }
+    }
+
+    static func install(api: BoazHostAPI, handle: BoazHostWindow, window: NSWindow) {
+        guard window.attachedSheet == nil, let install = api.install_extension else { return }
+        let panel = NSOpenPanel()
+        panel.title = "Install Chromium Extension"
+        panel.message = "Choose a signed CRX file. Boaz will ask you to review its permissions before installing."
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = [UTType(filenameExtension: "crx") ?? .data]
+        panel.beginSheetModal(for: window) { response in
+            guard response == .OK, let url = panel.url, window.isVisible else { return }
+            let path = url.resolvingSymlinksInPath().path
+            guard url.pathExtension.lowercased() == "crx" else {
+                MacModel.shared.showToast("Choose a signed CRX extension file.")
+                return
+            }
+            let context = Unmanaged.passRetained(InstallRequest(window: window)).toOpaque()
+            let result = path.withCString { install(handle, $0, 1, { context, _, _, result in
+                guard let context else { return }
+                MainActor.assumeIsolated {
+                    let request = Unmanaged<InstallRequest>.fromOpaque(context).takeRetainedValue()
+                    DispatchQueue.main.async { request.finish(result) }
+                }
+            }, context) }
+            if result != BOAZ_HOST_OK {
+                Unmanaged<InstallRequest>.fromOpaque(context).release()
+                MacModel.shared.showToast("Extension installation is unavailable for this window or another installation is still running.")
+            }
+        }
     }
 
     func refresh() {

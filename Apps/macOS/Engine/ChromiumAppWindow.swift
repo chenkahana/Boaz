@@ -82,6 +82,10 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         guard !installed else { return }
         self.handle = handle
         installed = true
+        browser.installChromiumExtension = { [weak self] in
+            guard let self, !finished, !profile.identity.isPrivate else { return }
+            ChromiumExtensionManagement.install(api: runtime.api, handle: handle, window: window)
+        }
         browser.manageChromiumExtensions = { [weak self] in
             guard let self, !finished, !profile.identity.isPrivate else { return }
             ChromiumExtensionManagement.present(api: runtime.api, profile: profile.handle, window: window)

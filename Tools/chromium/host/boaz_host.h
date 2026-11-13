@@ -226,6 +226,12 @@ typedef void (*BoazHostHistoryVisitor)(void* context, int32_t entry_id,
 typedef void (*BoazHostManagedExtensionVisitor)(void* context, const char* id,
     const char* name, const char* version, uint8_t enabled, uint8_t can_disable, uint8_t can_enable);
 
+typedef enum BoazHostExtensionInstallResult {
+  BOAZ_EXTENSION_INSTALLED, BOAZ_EXTENSION_INSTALL_CANCELLED, BOAZ_EXTENSION_INSTALL_FAILED
+} BoazHostExtensionInstallResult;
+typedef void (*BoazHostExtensionInstallCompletion)(void* context, BoazHostWindow window,
+    uint64_t request, BoazHostExtensionInstallResult result);
+
 typedef struct BoazHostAPI {
   size_t size;
   uint32_t version;
@@ -344,6 +350,8 @@ typedef struct BoazHostAPI {
       BoazHostManagedExtensionVisitor visitor, void* context);
   BoazHostResult (*disable_extension)(BoazHostProfile profile, const char* id);
   BoazHostResult (*enable_extension)(BoazHostProfile profile, const char* id);
+  BoazHostResult (*install_extension)(BoazHostWindow window, const char* path, uint64_t request,
+      BoazHostExtensionInstallCompletion completion, void* context);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

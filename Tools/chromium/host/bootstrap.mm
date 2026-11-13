@@ -1,3 +1,4 @@
+#include "extension_install.h"
 #include "extension_management.h"
 #import <AppKit/AppKit.h>
 #include <dlfcn.h>
@@ -86,12 +87,14 @@ struct State {
   uint64_t pending_emulations = 0;
   uint64_t pending_cache_clears = 0;
   uint64_t pending_profiles = 0;
+  uint64_t pending_extension_installs = 0;
+  bool exit_started = false;
   std::unique_ptr<NativeProfiles> profiles;
   bool in_callback = false;
   bool exit_requested = false;
   bool finished = false;
   bool cleanup_pending = false;
-  std::optional<std::array<uint64_t, 8>> shutdown_diagnostic;
+  std::optional<std::array<uint64_t, 9>> shutdown_diagnostic;
 };
 State* state = nullptr;
 auto& PendingExternalURLs() {
@@ -132,23 +135,29 @@ bool ValidOptions(const BoazHostWindowOptions* o) {
         [field isKindOfClass:[NSTextField class]] && (!field.window || field.window == window);
   });
 }
+void StartShutdownIfReady() {
+  if (!state->exit_requested || state->exit_started || state->pending_extension_installs) return;
+  state->exit_started = true;
+  chrome::AttemptExit();
+}
 void FinishIfDrained() {
   if (state->exit_requested || state->shutdown_diagnostic) {
-    const std::array<uint64_t, 8> values = {
+    const std::array<uint64_t, 9> values = {
         state->exit_requested, state->windows.size(), state->pending_scripts,
         state->pending_captures, state->pending_emulations,
-        state->pending_cache_clears, state->pending_profiles, state->finished};
+        state->pending_cache_clears, state->pending_profiles, state->finished, state->pending_extension_installs};
     if (state->shutdown_diagnostic != values) {
       state->shutdown_diagnostic = values;
       LOG(INFO) << "Boaz shutdown drain: requested=" << values[0]
                 << " windows=" << values[1] << " scripts=" << values[2]
                 << " captures=" << values[3] << " emulations=" << values[4]
                 << " cache_clears=" << values[5] << " profiles=" << values[6]
-                << " finished=" << values[7];
+                << " finished=" << values[7]
+                << " extension_installs=" << values[8];
     }
   }
   if (!state->exit_requested || !state->windows.empty() ||
-      state->pending_scripts || state->pending_captures || state->pending_emulations || state->pending_cache_clears || state->pending_profiles || state->finished) return;
+      state->pending_scripts || state->pending_captures || state->pending_emulations || state->pending_cache_clears || state->pending_profiles || state->pending_extension_installs || state->finished) return;
   state->finished = true;
   if (state->automation) state->automation->Stop();
   Notify([] { state->callbacks.shutdown_ready(state->callbacks.context); });
@@ -350,7 +359,8 @@ BoazHostResult Shutdown() {
   }
   LOG(INFO) << "Boaz shutdown accepted";
   state->exit_requested = true;
-  chrome::AttemptExit();
+  CancelNativeExtensionInstalls();
+  StartShutdownIfReady();
   FinishIfDrained();
   return BOAZ_HOST_OK;
 }
@@ -382,6 +392,33 @@ BoazHostResult NativeView(BoazHostPage p, void** v) {
 }
 FORWARD(ClosePage, (BoazHostPage p), ClosePage(p))
 #undef FORWARD
+BoazHostResult InstallExtension(BoazHostWindow id, const char* path, uint64_t request,
+    BoazHostExtensionInstallCompletion completion, void* context) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  if (state->exit_requested) return BOAZ_HOST_CLOSING;
+  if (!path || !completion || !request || strlen(path) > 16384 || !base::IsStringUTF8(path))
+    return BOAZ_HOST_INVALID_ARGUMENT;
+  auto it = state->windows.find(id);
+  if (it == state->windows.end() || !it->second.browser || it->second.browser->IsDeleteScheduled())
+    return BOAZ_HOST_INVALID_HANDLE;
+  auto* profile = it->second.browser->GetProfile();
+  if (!state->profiles->Owns(profile) || profile->IsOffTheRecord()) return BOAZ_HOST_UNAVAILABLE;
+  CHECK_LT(state->pending_extension_installs, std::numeric_limits<uint64_t>::max());
+  ++state->pending_extension_installs;
+  bool accepted = InstallNativeExtension(profile, it->second.options.native_nswindow, base::FilePath(path),
+      base::BindOnce([](BoazHostWindow id, uint64_t request, BoazHostExtensionInstallCompletion completion,
+          void* context, ExtensionInstallResult result) {
+        BoazHostExtensionInstallResult outcome = BOAZ_EXTENSION_INSTALL_FAILED;
+        if (result == ExtensionInstallResult::kInstalled) outcome = BOAZ_EXTENSION_INSTALLED;
+        if (result == ExtensionInstallResult::kCancelled) outcome = BOAZ_EXTENSION_INSTALL_CANCELLED;
+        --state->pending_extension_installs;
+        Notify([&] { completion(context, id, request, outcome); });
+        StartShutdownIfReady();
+        FinishIfDrained();
+      }, id, request, completion, context));
+  if (!accepted) --state->pending_extension_installs;
+  return accepted ? BOAZ_HOST_OK : BOAZ_HOST_UNAVAILABLE;
+}
 BoazHostResult EnumerateManagedExtensions(BoazHostProfile handle,
     BoazHostManagedExtensionVisitor visitor, void* context) {
   if (auto r = Check(); r != BOAZ_HOST_OK) return r;
@@ -859,7 +896,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension, InstallExtension};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
@@ -1051,6 +1088,7 @@ CreateNativeHostBrowserWindow(BrowserWindowInterface* browser) {
         if (status != BrowserWindowInterface::ClosingStatus::kDeniedByUser &&
             status != BrowserWindowInterface::ClosingStatus::kDeniedByPolicy) return;
         state->exit_requested = false;
+        state->exit_started = false;
         for (auto& [window_id, entry] : state->windows)
           if (entry.browser.get() == browser) entry.explicit_close = false;
       })), nullptr, {}};
