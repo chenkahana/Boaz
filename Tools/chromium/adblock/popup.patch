@@ -1,0 +1,104 @@
+--- a/src/request.rs
++++ b/src/request.rs
+@@ -57,6 +57,7 @@
+     Websocket,
+     Xlst,
+     Xmlhttprequest,
++    Popup,
+ }
+ 
+ /// Possible failure reasons when creating a [`Request`].
+@@ -80,6 +81,7 @@
+         "media" => RequestType::Media,
+         "object" | "object_subrequest" => RequestType::Object,
+         "ping" => RequestType::Ping,
++        "popup" => RequestType::Popup,
+         "script" => RequestType::Script,
+         "stylesheet" => RequestType::Stylesheet,
+         "sub_frame" | "subdocument" => RequestType::Subdocument,
+--- a/src/filters/abstract_network.rs
++++ b/src/filters/abstract_network.rs
+@@ -85,6 +85,7 @@
+     Object(bool),
+     Other(bool),
+     Ping(bool),
++    Popup(bool),
+     Script(bool),
+     Stylesheet(bool),
+     Subdocument(bool),
+@@ -105,6 +106,7 @@
+                 | Self::Object(..)
+                 | Self::Other(..)
+                 | Self::Ping(..)
++                | Self::Popup(..)
+                 | Self::Script(..)
+                 | Self::Stylesheet(..)
+                 | Self::Subdocument(..)
+@@ -267,6 +269,7 @@
+             }
+             ("other", negated) => NetworkFilterOption::Other(!negated),
+             ("ping", negated) | ("beacon", negated) => NetworkFilterOption::Ping(!negated),
++            ("popup", negated) => NetworkFilterOption::Popup(!negated),
+             ("script", negated) => NetworkFilterOption::Script(!negated),
+             ("stylesheet", negated) | ("css", negated) => NetworkFilterOption::Stylesheet(!negated),
+             ("subdocument", negated) | ("frame", negated) => {
+--- a/src/filters/network.rs
++++ b/src/filters/network.rs
+@@ -120,6 +120,7 @@
+         const FROM_HTTPS = 1 << 12;
+         const IS_IMPORTANT = 1 << 13;
+         const MATCH_CASE = 1 << 14;
++        const FROM_POPUP = 1 << 15;
+         const THIRD_PARTY = 1 << 16;
+         const FIRST_PARTY = 1 << 17;
+         // Full document rules are not implied by negated types.
+@@ -159,9 +160,10 @@
+             Self::FROM_XMLHTTPREQUEST.bits();
+ 
+         // Includes all remaining types, not implied by any negated types.
+-        // TODO Could also include popup, inline-font, inline-script
++        // TODO Could also include inline-font, inline-script
+         const FROM_ALL_TYPES = Self::FROM_NETWORK_TYPES.bits() |
+-            Self::FROM_DOCUMENT.bits();
++            Self::FROM_DOCUMENT.bits() |
++            Self::FROM_POPUP.bits();
+ 
+         // Unless filter specifies otherwise, all these options are set by default
+         const DEFAULT_OPTIONS = Self::FROM_NETWORK_TYPES.bits() |
+@@ -312,6 +314,7 @@
+             request::RequestType::Object => NetworkFilterMask::FROM_OBJECT,
+             request::RequestType::Other => NetworkFilterMask::FROM_OTHER,
+             request::RequestType::Ping => NetworkFilterMask::FROM_PING,
++            request::RequestType::Popup => NetworkFilterMask::FROM_POPUP,
+             request::RequestType::Script => NetworkFilterMask::FROM_SCRIPT,
+             request::RequestType::Stylesheet => NetworkFilterMask::FROM_STYLESHEET,
+             request::RequestType::Subdocument => NetworkFilterMask::FROM_SUBDOCUMENT,
+@@ -633,6 +636,7 @@
+                     }
+                     NetworkFilterOption::Other(enabled) => apply_content_type!(FROM_OTHER, enabled),
+                     NetworkFilterOption::Ping(enabled) => apply_content_type!(FROM_PING, enabled),
++                    NetworkFilterOption::Popup(enabled) => apply_content_type!(FROM_POPUP, enabled),
+                     NetworkFilterOption::Script(enabled) => {
+                         apply_content_type!(FROM_SCRIPT, enabled)
+                     }
+@@ -868,7 +872,7 @@
+             && !end_url_anchor
+             && !features_mask.contains(NetworkFilterFeaturesMask::IS_REMOVEPARAM)
+         {
+-            mask |= NetworkFilterMask::FROM_ALL_TYPES;
++            mask |= NetworkFilterMask::FROM_NETWORK_TYPES | NetworkFilterMask::FROM_DOCUMENT;
+         }
+         // Finally, apply any explicitly negated request types
+         mask &= !cpt_mask_negative;
+--- a/src/data_format/mod.rs
++++ b/src/data_format/mod.rs
+@@ -20,7 +20,8 @@
+ 
+ /// The version of the data format.
+ /// If the data format version is incremented, the data is considered as incompatible.
+-const ADBLOCK_RUST_DAT_VERSION: u8 = 8;
++// Boaz popup-mask format; reject upstream DAT caches with different matching semantics.
++const ADBLOCK_RUST_DAT_VERSION: u8 = 128;
+ 
+ /// Offset of the 8-byte seahash checksum within the serialized header.
+ const HASH_OFFSET: usize = ADBLOCK_RUST_DAT_MAGIC.len() + 1;

@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "repository": "https://github.com/brave/adblock-rust",
+  "revision": "0016bc16a75ca9f87354a537a8b006fdd2b5b5b9",
+  "serialization_fork_version": 128,
+  "patches": [
+    {
+      "file": "popup.patch",
+      "sha256": "cbd2823eb2d24b0446c697e8e6cff2702d39970be627cb0e8507b009a0790775",
+      "files": [
+        {
+          "path": "src/request.rs",
+          "before": "42b435cec00103e9ce977256aea21125da3a3acd0dc22c24bc2dec6ecf33e2ce",
+          "after": "57477408617e1210bfac1b49c7252b456b99a20af4fff7ea68069065a12517e4"
+        },
+        {
+          "path": "src/filters/abstract_network.rs",
+          "before": "42cfcb9ea8ed42d3952ef9bb71c71804a47b682204f6a6d26e6bf3ab9d917cf1",
+          "after": "7f49d575681bfc9b5f34e331ded35feb4bf672e8f1cce43019d4165d7dd5081f"
+        },
+        {
+          "path": "src/filters/network.rs",
+          "before": "33289b3556ade25d8ef4f5d28d7dd764db96b5f62931bbb90a36b5eedd60fd6b",
+          "after": "8601aa7160409b41acc9b6999f33ec8da0a1346d6840b63f9c3f4de01d0c33b8"
+        },
+        {
+          "path": "src/data_format/mod.rs",
+          "before": "4894c991a79abe4d4d237f0298f310025a923d83ee7b54c363f9634c865babbb",
+          "after": "d0f6e6a7867cd0287480c433828ceda93466444f5e00330cfdd7d7a3ba4a5b7b"
+        }
+      ]
+    }
+  ],
+  "semantics": {
+    "implicit_hostname": "Unqualified hostname rules retain network/document mask; no implicit popup.",
+    "explicit_all": "Includes popup.",
+    "mixed_negation": "Existing upstream algorithm retained: popup,~subdocument also enables other ordinary network types.",
+    "pinned_list_mixed_positive_popup_negated_network_count": 0
+  }
+}
