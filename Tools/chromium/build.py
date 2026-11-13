@@ -148,7 +148,7 @@ def main():
                        cwd=source, env=env, check=True)
     if args.build or args.host_objects:
         targets = (["obj/boaz/host/" + name + ".o" for name in
-                    ("bootstrap", "native_profiles", "native_cache_clearer", "native_automation", "native_downloads", "page_print", "page_pdf", "protected_media", "visible_page_capture", "page_emulation", "native_view", "native_devtools", "native_window", "native_location_bar", "native_permission_prompt", "tab_registry", "trusted_execution", "password_submission", "native_password_submission", "trusted_script_channel", "extension_actions", "extension_popup", "extension_management", "extension_install", "extension_permission_review", "extension_optional_permissions", "extension_unpacked_install", "native_extension_prompt", "native_extension_store_dialogs")]
+                    ("bootstrap", "native_profiles", "native_cache_clearer", "native_automation", "native_downloads", "page_print", "page_pdf", "protected_media", "visible_page_capture", "page_emulation", "native_view", "native_devtools", "native_window", "native_location_bar", "native_permission_prompt", "native_site_permissions", "tab_registry", "trusted_execution", "password_submission", "native_password_submission", "trusted_script_channel", "extension_actions", "extension_popup", "extension_management", "extension_install", "extension_permission_review", "extension_optional_permissions", "extension_unpacked_install", "native_extension_prompt", "native_extension_store_dialogs")]
                    if args.host_objects else ["chrome", "chrome/installer/mac"])
         if args.host_objects:
             targets += [

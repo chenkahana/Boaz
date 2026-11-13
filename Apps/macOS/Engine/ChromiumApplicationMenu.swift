@@ -172,6 +172,14 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         }
         add(spaces, "New Space", command: .newSpace) { $0?.newSpace() }
         let pageMenu = menu("Page")
+        add(pageMenu, "Site Permissions…", enabled: {
+            guard let page = $0?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter else { return false }
+            return page.state.lifecycle == .active && !page.state.isLoading
+        }) { browser in
+            guard let page = browser?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter,
+                  let window = browser?.window else { return }
+            ChromiumSitePermissions.present(page: page, window: window)
+        }
         add(pageMenu, "Open Page in WebKit", enabled: { browser in
             guard let browser, let tab = browser.activeTab else { return false }
             return browser.engineKind(for: tab) != .webKit

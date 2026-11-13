@@ -236,6 +236,11 @@ typedef void (*BoazHostExtensionInstallCompletion)(void* context, BoazHostWindow
 typedef void (*BoazHostExtensionMetadataVisitor)(void* context, const char* title, const char* badge,
     const uint8_t* png, size_t png_size);
 
+/* Saved top-level site permissions: kind camera/microphone/notifications (0..2),
+ * setting ask/allow/block/other (0..3). Origin is borrowed during visitor. */
+typedef void (*BoazHostSitePermissionVisitor)(void* context, const char* origin,
+    int32_t kind, int32_t setting, uint8_t can_reset, uint8_t embargoed);
+
 typedef struct BoazHostAPI {
   size_t size;
   uint32_t version;
@@ -364,6 +369,9 @@ typedef struct BoazHostAPI {
   BoazHostResult (*review_extension_permissions)(BoazHostWindow window, const char* id, uint64_t request,
       BoazHostExtensionInstallCompletion completion, void* context);
   BoazHostResult (*toggle_picture_in_picture)(BoazHostPage page);
+  BoazHostResult (*enumerate_site_permissions)(BoazHostPage page, uint64_t navigation,
+      BoazHostSitePermissionVisitor visitor, void* context);
+  BoazHostResult (*reset_site_permission)(BoazHostPage page, uint64_t navigation, int32_t kind);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

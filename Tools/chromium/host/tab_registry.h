@@ -49,6 +49,9 @@ class TabRegistry {
   BoazHostResult GoToHistoryEntry(BoazHostPage page, int32_t entry_id);
   BoazHostResult FindText(BoazHostPage page, const char* text, bool forward);
   BoazHostResult StopFind(BoazHostPage page);
+  BoazHostResult EnumerateSitePermissions(BoazHostPage page, uint64_t navigation,
+      BoazHostSitePermissionVisitor visitor, void* context);
+  BoazHostResult ResetSitePermission(BoazHostPage page, uint64_t navigation, int32_t kind);
   BoazHostResult TogglePictureInPicture(BoazHostPage page);
   BoazHostResult SetAudioMuted(BoazHostPage page, bool muted);
   BoazHostResult IsBusyForResidency(BoazHostPage page, uint8_t* busy);

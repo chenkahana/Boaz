@@ -67,6 +67,8 @@ source_set("host") {
     "native_location_bar.mm",
     "native_permission_prompt.h",
     "native_permission_prompt.mm",
+    "native_site_permissions.h",
+    "native_site_permissions.cc",
     "native_downloads.h",
     "native_downloads.cc",
     "native_cache_clearer.h",

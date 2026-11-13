@@ -1,3 +1,4 @@
+#include "native_site_permissions.h"
 #include "page_print.h"
 #include "native_devtools.h"
 #include "tab_registry.h"
@@ -738,6 +739,36 @@ BoazHostResult TabRegistry::GoToHistoryEntry(BoazHostPage id, int32_t entry_id) 
     }
   }
   return BOAZ_HOST_UNAVAILABLE;
+}
+BoazHostResult TabRegistry::EnumerateSitePermissions(BoazHostPage id, uint64_t navigation,
+    BoazHostSitePermissionVisitor visitor, void* context) {
+  BOAZ_FIND_PAGE();
+  if (!visitor) return BOAZ_HOST_INVALID_ARGUMENT;
+  auto* contents = page->web_contents();
+  auto* frame = contents->GetPrimaryMainFrame();
+  if (page->generation != navigation || contents->IsLoading() || contents->GetController().GetPendingEntry() ||
+      !frame || !frame->IsActive() || !frame->IsRenderFrameLive()) return BOAZ_HOST_UNAVAILABLE;
+  const auto origin = frame->GetLastCommittedOrigin();
+  if (origin.opaque() || !origin.GetURL().SchemeIsHTTPOrHTTPS()) return BOAZ_HOST_UNAVAILABLE;
+  auto permissions = boaz::ReadSitePermissions(Profile::FromBrowserContext(contents->GetBrowserContext()), origin, origin);
+  if (permissions.size() != 3) return BOAZ_HOST_UNAVAILABLE;
+  const std::string serialized = origin.Serialize();
+  base::AutoReset<bool> callback_guard(&impl_->in_callback, true);
+  for (const auto& permission : permissions)
+    visitor(context, serialized.c_str(), static_cast<int32_t>(permission.kind),
+        static_cast<int32_t>(permission.setting), permission.can_reset, permission.embargoed);
+  return BOAZ_HOST_OK;
+}
+BoazHostResult TabRegistry::ResetSitePermission(BoazHostPage id, uint64_t navigation, int32_t kind) {
+  BOAZ_FIND_PAGE();
+  if (kind < 0 || kind > 2) return BOAZ_HOST_INVALID_ARGUMENT;
+  auto* contents = page->web_contents();
+  auto* frame = contents->GetPrimaryMainFrame();
+  if (page->generation != navigation || contents->IsLoading() || contents->GetController().GetPendingEntry() ||
+      !frame || !frame->IsActive() || !frame->IsRenderFrameLive()) return BOAZ_HOST_UNAVAILABLE;
+  const auto origin = frame->GetLastCommittedOrigin();
+  return boaz::ResetSitePermission(Profile::FromBrowserContext(contents->GetBrowserContext()),
+      origin, origin, static_cast<SitePermissionKind>(kind));
 }
 BoazHostResult TabRegistry::TogglePictureInPicture(BoazHostPage id) {
   BOAZ_FIND_PAGE();
