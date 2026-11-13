@@ -1,0 +1,26 @@
+--- a/chrome/browser/extensions/chrome_extension_registrar_delegate.cc
++++ b/chrome/browser/extensions/chrome_extension_registrar_delegate.cc
+@@ -7,6 +7,11 @@
+ #include <set>
+ #include <string>
+ #include <utility>
++
++#include "build/build_config.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/bootstrap.h"
++#endif
+ 
+ #include "base/barrier_closure.h"
+ #include "base/files/file_util.h"
+@@ -306,6 +311,11 @@
+ void ChromeExtensionRegistrarDelegate::ShowExtensionDisabledError(
+     const Extension* extension,
+     bool is_remote_install) {
++#if BUILDFLAG(IS_MAC)
++  if (boaz::NativeHostEnabled()) {
++    return;
++  }
++#endif
+   AddExtensionDisabledError(profile_, extension, is_remote_install);
+ }
+ 
