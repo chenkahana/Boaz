@@ -280,7 +280,17 @@ private struct ContentArea: View {
             WebStoreBanner().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
             #endif
             if let peek = browser.peek {
-                PeekOverlay(peek: peek)
+                Group {
+                    #if BOAZ_CHROMIUM
+                    if let native = peek.nativePage, let adapter = native.adapter as? ChromiumEnginePageAdapter {
+                        ChromiumPeekView(adapter: adapter, backdrop: peek.backdrop)
+                    } else if let page = peek.page {
+                        PeekOverlay(page: page)
+                    }
+                    #else
+                    if let page = peek.page { PeekOverlay(page: page) }
+                    #endif
+                }
                     .transition(reduceMotion ? .opacity : .scale(scale: 0.9).combined(with: .opacity))
             }
         }
@@ -388,7 +398,7 @@ private struct SplitDivider: View {
 /// Floating preview for links that would leave a pinned tab.
 private struct PeekOverlay: View {
     @Environment(BrowserState.self) private var browser
-    let peek: BrowserState.Peek
+    let page: WebPage
 
     var body: some View {
         ZStack {
@@ -397,17 +407,17 @@ private struct PeekOverlay: View {
                 .onTapGesture { browser.closePeek() }
             VStack(spacing: 0) {
                 HStack(spacing: 8) {
-                    Image(systemName: peek.page.url?.scheme == "https" && peek.page.serverTrust != nil ? "lock.fill" : "globe")
+                    Image(systemName: page.url?.scheme == "https" && page.serverTrust != nil ? "lock.fill" : "globe")
                         .font(.caption).foregroundStyle(.secondary)
-                    Text(peek.page.title.isEmpty ? (peek.page.url?.host() ?? "Loading…") : peek.page.title)
+                    Text(page.title.isEmpty ? (page.url?.host() ?? "Loading…") : page.title)
                         .font(.callout.weight(.medium)).lineLimit(1)
                     Spacer()
                     HoverIconButton(symbol: "arrow.up.left.and.arrow.down.right", help: "Open as Tab") { browser.promotePeek() }
                     HoverIconButton(symbol: "xmark", help: "Close", hint: "Close (Esc)") { browser.closePeek() }
                 }
                 .padding(.horizontal, 12).frame(height: 38)
-                WebView(peek.page)
-                    .overlay(alignment: .top) { LoadingGlow(page: peek.page) }
+                WebView(page)
+                    .overlay(alignment: .top) { LoadingGlow(page: page) }
             }
             .background(.regularMaterial)
             .clipShape(.rect(cornerRadius: MacRadius.panel, style: .continuous))

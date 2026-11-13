@@ -18,8 +18,12 @@ final class BrowserState {
 
     struct Peek: Identifiable {
         let id = UUID()
-        let page: WebPage
+        let page: WebPage?
         let profileID: String?
+        #if BOAZ_CHROMIUM
+        var nativePage: EnginePage? = nil
+        var backdrop: NSImage? = nil
+        #endif
     }
 
     struct SpaceEditorRequest: Identifiable {
@@ -124,6 +128,10 @@ final class BrowserState {
         }
         return true
     }
+    @ObservationIgnored var createChromiumPeekPage: ((URL) throws -> EnginePage)?
+    @ObservationIgnored private var chromiumPeekTask: Task<Void, Never>?
+    @ObservationIgnored private var queuedChromiumPeek: (url: URL, profileID: String?)?
+    private(set) var chromiumPeekClosing = false
     var chromiumProfileIdentity: EngineProfileIdentity?
     var chromiumExtensions: ChromiumExtensionActionsModel?
     @ObservationIgnored var createChromiumPage: ((SidebarItem) throws -> EnginePage)?
@@ -243,6 +251,8 @@ final class BrowserState {
             MainActor.assumeIsolated {
                 guard let self else { return }
                 #if BOAZ_CHROMIUM
+                self.chromiumPeekTask?.cancel()
+                self.queuedChromiumPeek = nil
                 self.chromiumPreviews.removeAll()
                 #endif
                 self.windowWillCloseForPictureInPicture()
@@ -895,6 +905,22 @@ final class BrowserState {
     }
 
     func chromiumPageEvent(_ handle: BoazHostPage, event: BoazHostPageEvent) {
+        if let native = peek?.nativePage,
+           (native.adapter as? ChromiumEnginePageAdapter)?.handle == handle {
+            if event == BOAZ_HOST_PAGE_CLOSED {
+                peek = nil
+                chromiumPeekClosing = false
+                chromiumLayoutChanged?()
+                if let next = queuedChromiumPeek {
+                    queuedChromiumPeek = nil
+                    openPeek(next.url, profileID: next.profileID)
+                }
+            } else if event == BOAZ_HOST_PAGE_CLOSE_CANCELLED {
+                chromiumPeekClosing = false
+                queuedChromiumPeek = nil
+            }
+            return
+        }
         guard let entry = enginePages.first(where: {
             ($0.value.adapter as? ChromiumEnginePageAdapter)?.handle == handle
         }) else { return }
@@ -1186,33 +1212,105 @@ final class BrowserState {
 
     func openPeek(_ url: URL, profileID: String?) {
         let profileID = profileID ?? currentSpace?.profileID
+        #if BOAZ_CHROMIUM
+        if createChromiumPage != nil {
+            chromiumPeekTask?.cancel()
+            guard let factory = createChromiumPeekPage, let identity = chromiumProfileIdentity,
+                  identity.isPrivate == isIncognito,
+                  isIncognito || (profileID ?? "default") == identity.id else {
+                model.showToast("Peek is unavailable for this browser profile.")
+                return
+            }
+            if peek?.nativePage != nil {
+                closePeek()
+                if chromiumPeekClosing { queuedChromiumPeek = (url, profileID) }
+                return
+            }
+            chromiumPeekTask = Task { @MainActor [weak self] in
+                guard let self else { return }
+                do {
+                    var backdrop: NSImage?
+                    if let source = activeEnginePage?.adapter as? ChromiumEnginePageAdapter {
+                        let navigation = source.state.navigationID
+                        let data = try await source.captureVisible()
+                        try Task.checkCancellation()
+                        guard activeEnginePage?.adapter === source,
+                              source.state.navigationID == navigation,
+                              let image = NSImage(data: data) else { throw EnginePageError.unavailable }
+                        backdrop = image
+                    }
+                    try Task.checkCancellation()
+                    let native = try factory(url)
+                    guard native.profile == identity else {
+                        try? native.close()
+                        throw EnginePageError.invalidRequest
+                    }
+                    peek = Peek(page: nil, profileID: profileID, nativePage: native, backdrop: backdrop)
+                    chromiumPeekClosing = false
+                } catch is CancellationError {
+                } catch {
+                    model.showToast("Could not open Peek: \(error.localizedDescription)")
+                }
+            }
+            return
+        }
+        #endif
         let page = makePage(profileID: profileID, context: .peek, loading: url)
         withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) { peek = Peek(page: page, profileID: profileID) }
     }
 
     func closePeek() {
+        #if BOAZ_CHROMIUM
+        chromiumPeekTask?.cancel()
+        chromiumPeekTask = nil
+        queuedChromiumPeek = nil
+        if let native = peek?.nativePage {
+            guard !chromiumPeekClosing else { return }
+            do { try native.close(); chromiumPeekClosing = true }
+            catch { model.showToast(error.localizedDescription) }
+            return
+        }
+        #endif
         withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) { peek = nil }
     }
 
     /// Keeps the peeked page alive and turns it into a Today tab. The peek's WebView has to be gone before a
     /// tab's WebView can host the same page, so the overlay closes without animation first.
     func promotePeek() {
-        guard let peek, let url = peek.page.url else { closePeek(); return }
+        #if BOAZ_CHROMIUM
+        if let native = peek?.nativePage {
+            guard !chromiumPeekClosing,
+                  native.state.lifecycle == .active,
+                  let adapter = native.adapter as? ChromiumEnginePageAdapter else { return }
+            let retainedPeek = peek
+            adapter.detachNativeView()
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                peek = nil
+                do { try adoptChromiumPage(native, active: true) }
+                catch { peek = retainedPeek; model.showToast(error.localizedDescription) }
+            }
+            chromiumLayoutChanged?()
+            return
+        }
+        #endif
+        guard let peek, let page = peek.page, let url = page.url else { closePeek(); return }
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) { self.peek = nil }
         Task {
             try? await Task.sleep(for: .milliseconds(60))
             if isIncognito {
-                openTab(url, title: peek.page.title)
+                openTab(url, title: page.title)
             } else if let tab = withAnimation(.spring(response: 0.4, dampingFraction: 0.85), {
-                model.newTab(url, title: peek.page.title, in: spaceID)
+                model.newTab(url, title: page.title, in: spaceID)
             }) {
-                pages[tab.id] = peek.page
-                enginePages[tab.id] = wrapPage(peek.page, profileID: peek.profileID)
+                pages[tab.id] = page
+                enginePages[tab.id] = wrapPage(page, profileID: peek.profileID)
                 recency.append(tab.id)
-                if let peekRouter, peekRouter.page == ObjectIdentifier(peek.page) { peekRouter.target.context = .tab(tab.id) }
-                PictureInPicture.controller(of: peek.page)?.onRestore = { [weak browser = self] in
+                if let peekRouter, peekRouter.page == ObjectIdentifier(page) { peekRouter.target.context = .tab(tab.id) }
+                PictureInPicture.controller(of: page)?.onRestore = { [weak browser = self] in
                     browser?.showTabReturningFromPictureInPicture(tab.id)
                 }
                 activate(tab)
