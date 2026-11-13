@@ -296,7 +296,7 @@ private struct WebsiteEngineSettings: View {
             try store.removeSiteEngineRule(rule)
             ChromiumEnginePreferences.rulesDidChange()
             load()
-        } catch { error = "The website rule could not be removed. Try again." }
+        } catch { self.error = "The website rule could not be removed. Try again." }
     }
 }
 #endif
