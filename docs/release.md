@@ -41,6 +41,17 @@ arrive in the app.
   one: copies already installed only accept updates signed with the key they carry. Never commit the private key.
   `release-mac.sh` stops if the public key in the app isn't the one in the keychain.
 
+## Betas from master
+
+Each commit merged to master becomes a beta: the next patch version, tagged on that commit and published with
+`release-mac.sh`. [`Tools/release-watch.sh`](../Tools/release-watch.sh) does it from launchd on the maintainer's Mac,
+checking `origin/master` every 5 minutes, because the signing account and the Sparkle key are in that Mac's keychain.
+Commits merged between two checks ship as one release, whose notes are the commit titles since the previous release.
+Set it up once with `Tools/release-watch.sh --install`, and again after changing the script. It releases from its own
+worktree, `~/.worktrees/Boaz/release`, and writes each release's log to `~/Library/Application Support/BoazRelease`.
+A failed release deletes its tag, posts a notification and isn't retried for that commit; the next commit retries.
+The Mac has to be awake and logged in for a release to go out.
+
 ## Each release
 
 1. Move the `[Unreleased]` notes in `CHANGELOG.md` under `## [X.Y.Z] - YYYY-MM-DD`, update the links at the bottom,

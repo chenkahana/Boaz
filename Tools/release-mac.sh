@@ -112,6 +112,10 @@ title="Boaz $VERSION"
 # 0.x versions are betas. Not marked as pre-releases, which "latest" (the README button) would skip.
 if [[ $VERSION == 0.* ]]; then title="$title (beta)"; fi
 awk -v v="$VERSION" '$0 ~ "^## \\[" v "\\]" {on=1; next} on && /^## \[/ {exit} on' CHANGELOG.md > "$OUT/notes.md"
+# A beta release-watch.sh made from master has no section of its own: its notes are the titles of the commits since
+# the previous release.
+[ -s "$OUT/notes.md" ] || git log --format='- %s' "$(git describe --tags --abbrev=0 --match 'v*' "$TAG^")..$TAG" \
+    > "$OUT/notes.md"
 printf '\n---\nOpen the DMG and drag Boaz to Applications. Requires macOS 26. Signed with Developer ID and notarized by Apple.\n' \
     >> "$OUT/notes.md"
 # Installed copies read the newest release's appcast: releases/latest/download/appcast.xml (SUFeedURL).
