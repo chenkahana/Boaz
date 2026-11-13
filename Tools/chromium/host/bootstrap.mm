@@ -3,6 +3,7 @@
 #include "extension_unpacked_install.h"
 #include <set>
 #include "extension_install.h"
+#include "extension_permission_review.h"
 #include "extension_management.h"
 #import <AppKit/AppKit.h>
 #include <dlfcn.h>
@@ -141,7 +142,7 @@ bool ValidOptions(const BoazHostWindowOptions* o) {
   });
 }
 void StartShutdownIfReady() {
-  if (!state->exit_requested || state->exit_started || state->pending_extension_installs || PendingNativeExtensionPrompts() || PendingNativeExtensionStoreDialogs()) return;
+  if (!state->exit_requested || state->exit_started || state->pending_extension_installs || PendingNativeExtensionPrompts() || PendingNativeExtensionStoreDialogs() || PendingExtensionPermissionReviews()) return;
   state->exit_started = true;
   chrome::AttemptExit();
 }
@@ -162,7 +163,7 @@ void FinishIfDrained() {
     }
   }
   if (!state->exit_requested || !state->windows.empty() ||
-      state->pending_scripts || state->pending_captures || state->pending_emulations || state->pending_cache_clears || state->pending_profiles || state->pending_extension_installs || PendingNativeExtensionPrompts() || PendingNativeExtensionStoreDialogs() || state->finished) return;
+      state->pending_scripts || state->pending_captures || state->pending_emulations || state->pending_cache_clears || state->pending_profiles || state->pending_extension_installs || PendingNativeExtensionPrompts() || PendingNativeExtensionStoreDialogs() || PendingExtensionPermissionReviews() || state->finished) return;
   state->finished = true;
   if (state->automation) state->automation->Stop();
   Notify([] { state->callbacks.shutdown_ready(state->callbacks.context); });
@@ -366,6 +367,7 @@ BoazHostResult Shutdown() {
   state->exit_requested = true;
   CancelNativeExtensionInstalls();
   CancelNativeUnpackedExtensionInstalls();
+  CancelExtensionPermissionReviews();
   CancelNativeExtensionPrompts();
   CancelNativeExtensionStoreDialogs();
   StartShutdownIfReady();
@@ -434,6 +436,39 @@ BoazHostResult StartExtensionInstall(BoazHostWindow id, const char* path, uint64
   }
   return accepted ? BOAZ_HOST_OK : BOAZ_HOST_UNAVAILABLE;
 }
+BoazHostResult ReviewExtensionPermissions(BoazHostWindow id, const char* path, uint64_t request,
+    BoazHostExtensionInstallCompletion completion, void* context) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  if (state->exit_requested) return BOAZ_HOST_CLOSING;
+  if (!path || !completion || !request || strlen(path) != 32)
+    return BOAZ_HOST_INVALID_ARGUMENT;
+  auto it = state->windows.find(id);
+  if (it == state->windows.end() || !it->second.browser || it->second.browser->IsDeleteScheduled())
+    return BOAZ_HOST_INVALID_HANDLE;
+  auto* profile = it->second.browser->GetProfile();
+  if (!state->profiles->Owns(profile) || profile->IsOffTheRecord()) return BOAZ_HOST_UNAVAILABLE;
+  if (state->extension_install_profiles.contains(profile)) return BOAZ_HOST_UNAVAILABLE;
+  state->extension_install_profiles.insert(profile);
+  CHECK_LT(state->pending_extension_installs, std::numeric_limits<uint64_t>::max());
+  ++state->pending_extension_installs;
+  bool accepted = StartExtensionPermissionReview(profile, it->second.options.native_nswindow, path,
+      base::BindOnce([](BoazHostWindow id, uint64_t request, BoazHostExtensionInstallCompletion completion,
+          void* context, Profile* profile, ExtensionInstallResult result) {
+        BoazHostExtensionInstallResult outcome = BOAZ_EXTENSION_INSTALL_FAILED;
+        if (result == ExtensionInstallResult::kInstalled) outcome = BOAZ_EXTENSION_INSTALLED;
+        if (result == ExtensionInstallResult::kCancelled) outcome = BOAZ_EXTENSION_INSTALL_CANCELLED;
+        --state->pending_extension_installs;
+        state->extension_install_profiles.erase(profile);
+        Notify([&] { completion(context, id, request, outcome); });
+        StartShutdownIfReady();
+        FinishIfDrained();
+      }, id, request, completion, context, profile));
+  if (!accepted) {
+    --state->pending_extension_installs;
+    state->extension_install_profiles.erase(profile);
+  }
+  return accepted ? BOAZ_HOST_OK : BOAZ_HOST_UNAVAILABLE;
+}
 BoazHostResult InstallExtension(BoazHostWindow window, const char* path, uint64_t request,
     BoazHostExtensionInstallCompletion completion, void* context) {
   return StartExtensionInstall(window, path, request, completion, context, false);
@@ -451,7 +486,7 @@ BoazHostResult EnumerateManagedExtensions(BoazHostProfile handle,
   if (profile->IsOffTheRecord()) return BOAZ_HOST_UNAVAILABLE;
   for (const auto& extension : ListManagedExtensions(profile)) {
     Notify([&] { visitor(context, extension.id.c_str(), extension.name.c_str(),
-        extension.version.c_str(), extension.enabled, extension.can_disable, extension.can_enable, extension.can_uninstall); });
+        extension.version.c_str(), extension.enabled, extension.can_disable, extension.can_enable, extension.can_uninstall, extension.needs_permission_review); });
   }
   return BOAZ_HOST_OK;
 }
@@ -954,7 +989,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension, InstallExtension, InstallUnpackedExtension, UninstallExtension, ExtensionMetadata};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension, InstallExtension, InstallUnpackedExtension, UninstallExtension, ExtensionMetadata, ReviewExtensionPermissions};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:

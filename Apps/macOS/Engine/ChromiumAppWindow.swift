@@ -92,7 +92,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         }
         browser.manageChromiumExtensions = { [weak self] in
             guard let self, !finished, !profile.identity.isPrivate else { return }
-            ChromiumExtensionManagement.present(api: runtime.api, profile: profile.handle, window: window)
+            ChromiumExtensionManagement.present(api: runtime.api, profile: profile.handle, handle: handle, window: window)
         }
         browser.restoreChromiumDockPreferences = { [weak self] current, last in
             guard let self, !finished else { return }

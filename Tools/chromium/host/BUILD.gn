@@ -48,6 +48,8 @@ source_set("host") {
     "extension_unpacked_install.mm",
     "extension_install.h",
     "extension_install.mm",
+    "extension_permission_review.h",
+    "extension_permission_review.mm",
     "extension_management.h",
     "extension_management.cc",
     "extension_actions.h",
