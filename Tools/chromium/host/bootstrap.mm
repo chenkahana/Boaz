@@ -1,6 +1,8 @@
 #import <AppKit/AppKit.h>
 #include <dlfcn.h>
 #include <map>
+#include <array>
+#include "base/logging.h"
 #include <limits>
 #include <optional>
 #include <string_view>
@@ -88,6 +90,7 @@ struct State {
   bool exit_requested = false;
   bool finished = false;
   bool cleanup_pending = false;
+  std::optional<std::array<uint64_t, 8>> shutdown_diagnostic;
 };
 State* state = nullptr;
 auto& PendingExternalURLs() {
@@ -129,6 +132,20 @@ bool ValidOptions(const BoazHostWindowOptions* o) {
   });
 }
 void FinishIfDrained() {
+  if (state->exit_requested || state->shutdown_diagnostic) {
+    const std::array<uint64_t, 8> values = {
+        state->exit_requested, state->windows.size(), state->pending_scripts,
+        state->pending_captures, state->pending_emulations,
+        state->pending_cache_clears, state->pending_profiles, state->finished};
+    if (state->shutdown_diagnostic != values) {
+      state->shutdown_diagnostic = values;
+      LOG(INFO) << "Boaz shutdown drain: requested=" << values[0]
+                << " windows=" << values[1] << " scripts=" << values[2]
+                << " captures=" << values[3] << " emulations=" << values[4]
+                << " cache_clears=" << values[5] << " profiles=" << values[6]
+                << " finished=" << values[7];
+    }
+  }
   if (!state->exit_requested || !state->windows.empty() ||
       state->pending_scripts || state->pending_captures || state->pending_emulations || state->pending_cache_clears || state->pending_profiles || state->finished) return;
   state->finished = true;
@@ -305,7 +322,12 @@ BoazHostResult CloseWindow(BoazHostWindow id) {
   return BOAZ_HOST_OK;
 }
 BoazHostResult Shutdown() {
-  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  LOG(INFO) << "Boaz shutdown requested";
+  if (auto r = Check(); r != BOAZ_HOST_OK) {
+    LOG(INFO) << "Boaz shutdown rejected: result=" << static_cast<int>(r);
+    return r;
+  }
+  LOG(INFO) << "Boaz shutdown accepted";
   state->exit_requested = true;
   chrome::AttemptExit();
   FinishIfDrained();
