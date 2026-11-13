@@ -2,6 +2,8 @@
 
 This standalone application isolates S1 from Boaz's production targets and profile data. It embeds one Alloy browser in an AppKit view inside a SwiftUI shell. Popups are deliberately blocked; extension hosting belongs to S2a.
 
+Current verdict: **S1 incomplete**. The local data page renders, accepts text, and survives native window resizing. Closing reaches `OnBeforeClose`, but `CefShutdown` subsequently hits CEF's teardown watchdog even with the upstream bounded work drain. Do not use this host for production integration until shutdown is diagnosed and fixed. HTTPS loading also remains unverified.
+
 Build against the checksum-verified standard arm64 distribution selected in the migration ledger:
 
 ```sh
