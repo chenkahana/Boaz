@@ -162,7 +162,7 @@ final class BrowserState {
               let entry = enginePages.first(where: { ($0.value.adapter as? ChromiumEnginePageAdapter)?.handle == handle }),
               let page = entry.value.adapter as? ChromiumEnginePageAdapter,
               page.profile == profile, page.state.navigationID == navigation,
-              page.state.lifecycle == .active, !page.state.isLoading,
+              page.state.lifecycle == .active,
               !pendingChromiumUnloads.contains(entry.key), pendingEngineSwitches[entry.key] == nil,
               let item = tab(entry.key), let url = page.state.url,
               ["http", "https"].contains(url.scheme?.lowercased() ?? ""), let host = url.host() else { return }
@@ -178,7 +178,7 @@ final class BrowserState {
             let rule = try SiteEngineRule(profileID: item.profileID, host: host, engine: .webkit, reason: .protectedMedia)
             Task {
                 guard cachedChromiumPage(for: item.id) === page, page.state.navigationID == navigation,
-                      page.state.url == url, page.state.lifecycle == .active, !page.state.isLoading else { return }
+                      page.state.url == url, page.state.lifecycle == .active else { return }
                 await switchEngine(of: item, to: .webKit, protectedTransition: ProtectedTransition(rule: rule, url: url, movingBack: false))
             }
         } catch { model.showToast("Protected-video routing could not read this profile's preferences.") }
