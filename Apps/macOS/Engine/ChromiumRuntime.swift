@@ -1,6 +1,15 @@
 #if BOAZ_CHROMIUM
 import Foundation
 
+struct ChromiumProfile: Equatable {
+    let handle: BoazHostProfile
+    let identity: EngineProfileIdentity
+    fileprivate init(handle: BoazHostProfile, identity: EngineProfileIdentity) {
+        self.handle = handle
+        self.identity = identity
+    }
+}
+
 /// The application retains this sole callback owner until shutdownReady runs.
 @MainActor
 final class ChromiumRuntime {
@@ -12,6 +21,9 @@ final class ChromiumRuntime {
 
     private static weak var callbackOwner: ChromiumRuntime?
     private var pages: [BoazHostPage: ChromiumEnginePageAdapter] = [:]
+    private var preparedProfiles: [BoazHostProfile: ChromiumProfile] = [:]
+    private var windowProfiles: [BoazHostWindow: ChromiumProfile] = [:]
+    private var preparingIdentities: Set<EngineProfileIdentity> = []
     private var started = false
     private var stopped = false
     private var inCallback = false
@@ -22,7 +34,8 @@ final class ChromiumRuntime {
             throw EnginePageError.incompatibleBridge
         }
         let table = pointer.pointee
-        guard table.set_callbacks != nil, table.create_window != nil,
+        guard table.set_callbacks != nil, table.prepare_profile != nil,
+              table.create_profile_window != nil, table.release_profile != nil,
               table.create_page != nil, table.navigate != nil,
               table.go_back != nil, table.go_forward != nil, table.reload != nil,
               table.get_native_view != nil, table.close_page != nil,
@@ -86,6 +99,7 @@ final class ChromiumRuntime {
                 let owner = Unmanaged<ChromiumRuntime>.fromOpaque(context).takeUnretainedValue()
                 DispatchQueue.main.async { [weak owner] in
                     guard let owner, !owner.stopped else { return }
+                    owner.windowProfiles.removeValue(forKey: window)
                     owner.windowClosed?(window)
                 }
             }
@@ -99,6 +113,8 @@ final class ChromiumRuntime {
                     owner.stopped = true
                     owner.pages.values.forEach { $0.detachNativeView() }
                     owner.pages.removeAll()
+                    owner.windowProfiles.removeAll()
+                    owner.preparedProfiles.removeAll()
                     Self.callbackOwner = nil
                     owner.shutdownReady?()
                 }
@@ -111,6 +127,8 @@ final class ChromiumRuntime {
 
     func createPage(window: BoazHostWindow, url: URL, profile: EngineProfileIdentity) throws -> EnginePage {
         try requireRunning()
+        guard let verified = windowProfiles[window], verified.identity == profile,
+              preparedProfiles[verified.handle] == verified else { throw EnginePageError.invalidRequest }
         var handle: BoazHostPage = 0
         try url.absoluteString.withCString { try check(api.create_page!(window, $0, &handle)) }
         guard handle != 0, pages[handle] == nil else { throw EnginePageError.invalidRequest }
@@ -119,12 +137,86 @@ final class ChromiumRuntime {
         return EnginePage(adapter: adapter)
     }
 
-    func createWindow(options: inout BoazHostWindowOptions) throws -> BoazHostWindow {
+    func prepareProfile(_ identity: EngineProfileIdentity) async throws -> ChromiumProfile {
         try requireRunning()
+        try Task.checkCancellation()
+        guard !identity.id.isEmpty, !identity.id.contains("\0") else { throw EnginePageError.invalidRequest }
+        if let existing = preparedProfiles.values.first(where: { $0.identity == identity }) { return existing }
+        guard preparingIdentities.insert(identity).inserted else { throw EnginePageError.unavailable }
+        defer { preparingIdentities.remove(identity) }
+        let profile: ChromiumProfile = try await withCheckedThrowingContinuation { continuation in
+            let request = ProfileRequest(owner: self, identity: identity, continuation: continuation)
+            let context = Unmanaged.passRetained(request).toOpaque()
+            let result = identity.id.withCString {
+                api.prepare_profile!($0, identity.isPrivate ? 1 : 0, { context, result, handle in
+                    guard let context else { return }
+                    MainActor.assumeIsolated {
+                        let request = Unmanaged<ProfileRequest>.fromOpaque(context).takeRetainedValue()
+                        DispatchQueue.main.async { request.finish(result, handle: handle) }
+                    }
+                }, context)
+            }
+            if result != BOAZ_HOST_OK {
+                Unmanaged<ProfileRequest>.fromOpaque(context).release()
+                request.finish(result, handle: 0)
+            }
+        }
+        if Task.isCancelled {
+            if !windowProfiles.values.contains(profile) { try? releaseProfile(profile) }
+            throw CancellationError()
+        }
+        return profile
+    }
+
+    func createWindow(profile: ChromiumProfile, options: inout BoazHostWindowOptions) throws -> BoazHostWindow {
+        try requireRunning()
+        guard preparedProfiles[profile.handle] == profile else { throw EnginePageError.invalidRequest }
         var handle: BoazHostWindow = 0
-        try check(api.create_window!(&options, &handle))
-        guard handle != 0 else { throw EnginePageError.invalidRequest }
+        try check(api.create_profile_window!(profile.handle, &options, &handle))
+        guard handle != 0, windowProfiles[handle] == nil else { throw EnginePageError.invalidRequest }
+        windowProfiles[handle] = profile
         return handle
+    }
+
+    func createWindow(options: inout BoazHostWindowOptions) throws -> BoazHostWindow {
+        throw EnginePageError.unavailable
+    }
+
+    func releaseProfile(_ profile: ChromiumProfile) throws {
+        try requireRunning()
+        guard preparedProfiles[profile.handle] == profile else { throw EnginePageError.invalidRequest }
+        guard !windowProfiles.values.contains(profile) else { throw EnginePageError.unavailable }
+        try check(api.release_profile!(profile.handle))
+        preparedProfiles.removeValue(forKey: profile.handle)
+    }
+
+    private final class ProfileRequest {
+        let owner: ChromiumRuntime
+        let identity: EngineProfileIdentity
+        var continuation: CheckedContinuation<ChromiumProfile, Error>?
+        init(owner: ChromiumRuntime, identity: EngineProfileIdentity,
+             continuation: CheckedContinuation<ChromiumProfile, Error>) {
+            self.owner = owner
+            self.identity = identity
+            self.continuation = continuation
+        }
+        func finish(_ result: BoazHostResult, handle: BoazHostProfile) {
+            guard let continuation else { return }
+            self.continuation = nil
+            do {
+                try owner.check(result)
+                try owner.requireRunning()
+                guard handle != 0 else { throw EnginePageError.invalidRequest }
+                let profile = ChromiumProfile(handle: handle, identity: identity)
+                if let existing = owner.preparedProfiles[handle], existing != profile {
+                    throw EnginePageError.invalidRequest
+                }
+                owner.preparedProfiles[handle] = profile
+                continuation.resume(returning: profile)
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
     }
 
     func adapter(for handle: BoazHostPage) -> ChromiumEnginePageAdapter? { pages[handle] }
