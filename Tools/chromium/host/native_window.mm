@@ -2,6 +2,7 @@
 
 #include "native_window.h"
 #include "native_location_bar.h"
+#include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
 
 #include <algorithm>
@@ -254,8 +255,13 @@ class NativeWindow final : public BrowserWindow,
   web_modal::WebContentsModalDialogHost* GetWebContentsModalDialogHostFor(content::WebContents* contents) override {
     Main();
     auto* tabs = browser_->GetTabStripModel();
-    return contents && tabs && tabs->GetIndexOfWebContents(contents) != TabStripModel::kNoTab
-        ? this : nullptr;
+    if (!contents || !tabs) return nullptr;
+    if (tabs->GetIndexOfWebContents(contents) != TabStripModel::kNoTab) return this;
+    for (int index = 0; index < tabs->count(); ++index) {
+      if (DevToolsWindow::GetInTabWebContents(tabs->GetWebContentsAt(index), nullptr) == contents)
+        return this;
+    }
+    return nullptr;
   }
   void ShowAvatarBubbleFromAvatarButton(bool) override { Unsupported("avatar UI"); }
   void ShowHatsDialog(const std::string&, const std::optional<std::string>&,

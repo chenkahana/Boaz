@@ -343,6 +343,27 @@
           "after": "0d074e6f0a7a3ce59dbb182d08e06e71e30e1f64580848326f320a2213127adf"
         }
       ]
+    },
+    {
+      "file": "patches/native-devtools-docking.patch",
+      "sha256": "f0b45c5437646a5bdab1f08966202494007c35b9cf5afb704a194156d8f5d6c6",
+      "files": [
+        {
+          "path": "chrome/browser/devtools/devtools_window.cc",
+          "before": "0d074e6f0a7a3ce59dbb182d08e06e71e30e1f64580848326f320a2213127adf",
+          "after": "df3c79d2043db08ea21cec80c1ee29acb57a3c3059c7f1c6ceeb105712a3b4ae"
+        },
+        {
+          "path": "chrome/browser/devtools/devtools_window_views.cc",
+          "before": "1a573f59f8a485d46eed80a138c947b5e786aa9bcda4c4f858b40bb08c80dc86",
+          "after": "111b7b56bd54e28b75dc29b5fe8bdfdebef7ddb54a9239967f0d82aa0a5fd941"
+        },
+        {
+          "path": "chrome/browser/devtools/BUILD.gn",
+          "before": "9042051655d68c9dbb526c5d6de71c6203d0c65dddde5d8ebf849f7cbf727833",
+          "after": "373d2d44b3039447610f77b37281834bc55c438dd227d1c459355b61a62bb2da"
+        }
+      ]
     }
   ]
 }

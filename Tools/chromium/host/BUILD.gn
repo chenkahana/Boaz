@@ -16,7 +16,7 @@ buildflag_header("buildflags") {
 }
 
 source_set("headers") {
-  public = [ "bootstrap.h", "native_permission_prompt.h", "protected_media.h" ]
+  public = [ "native_devtools.h", "bootstrap.h", "native_permission_prompt.h", "protected_media.h" ]
   public_deps = [
     ":protected_media_mojom",
     "//chrome/browser/ui:browser_window_deleter",
@@ -43,6 +43,8 @@ source_set("host") {
     "bootstrap.h",
     "bootstrap.mm",
     "native_view.mm",
+    "native_devtools.h",
+    "native_devtools.mm",
     "native_location_bar.h",
     "native_location_bar.mm",
     "native_permission_prompt.h",

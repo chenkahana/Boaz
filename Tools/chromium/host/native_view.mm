@@ -1,6 +1,7 @@
 #import <AppKit/AppKit.h>
 
 #include "tab_registry.h"
+#include "native_devtools.h"
 
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/web_contents.h"
@@ -13,7 +14,7 @@ void* NativeViewForContents(content::WebContents* contents) {
       ![NSThread isMainThread]) {
     return nullptr;
   }
-  return (__bridge void*)contents->GetNativeView().GetNativeNSView();
+  return NativePageContainer(contents);
 }
 
 }  // namespace boaz
