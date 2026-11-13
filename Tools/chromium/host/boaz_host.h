@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 45u
+#define BOAZ_HOST_ABI_VERSION 46u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT,
@@ -84,6 +84,8 @@ typedef enum BoazHostResult {
   BOAZ_HOST_WRONG_THREAD = 4,
   BOAZ_HOST_UNAVAILABLE = 5
 } BoazHostResult;
+
+typedef void (*BoazHostBlockingCompletion)(void* context, BoazHostResult result);
 
 typedef void (*BoazHostProfileCompletion)(void* context, BoazHostResult result,
                                           BoazHostProfile profile);
@@ -374,6 +376,12 @@ typedef struct BoazHostAPI {
       BoazHostSitePermissionVisitor visitor, void* context);
   BoazHostResult (*reset_site_permission)(BoazHostPage page, uint64_t navigation, int32_t kind);
   BoazHostResult (*set_automatic_picture_in_picture_enabled)(uint8_t enabled);
+  /* Accepted preparation completes once on UI thread, including shutdown cancellation. */
+  BoazHostResult (*prepare_blocking_assets)(const char* absolute_directory,
+      BoazHostBlockingCompletion completion, void* context);
+  /* JSON array of canonical schemeful sites. Enabled requires prepared assets. */
+  BoazHostResult (*configure_profile_blocking)(BoazHostProfile profile, uint8_t enabled,
+      const char* exception_sites_json);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.
