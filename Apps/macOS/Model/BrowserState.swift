@@ -142,6 +142,59 @@ final class BrowserState {
     @ObservationIgnored private var reservedWebKitTabs: Set<String> = []
     @ObservationIgnored private var engineSwitchPrompt = false
 
+    private struct ProtectedTransition {
+        let rule: SiteEngineRule
+        let url: URL
+        let movingBack: Bool
+    }
+    private struct ProtectedBanner {
+        let transition: ProtectedTransition
+        let pageID: UUID
+    }
+    @ObservationIgnored private var protectedTransitions: [String: ProtectedTransition] = [:]
+    private var protectedBanners: [String: ProtectedBanner] = [:]
+    @ObservationIgnored private var explicitPrivateEngineChoices: [String: BrowserEngineKind] = [:]
+
+    func protectedMediaRequested(page handle: BoazHostPage, navigation: UInt64,
+                                 profile: EngineProfileIdentity, keySystem: ProtectedMediaService.KeySystem) {
+        guard keySystem == .widevine || keySystem == .playReady,
+              keySystem != .widevine || !ProtectedMediaService.widevineAvailable,
+              let entry = enginePages.first(where: { ($0.value.adapter as? ChromiumEnginePageAdapter)?.handle == handle }),
+              let page = entry.value.adapter as? ChromiumEnginePageAdapter,
+              page.profile == profile, page.state.navigationID == navigation,
+              page.state.lifecycle == .active, !page.state.isLoading,
+              !pendingChromiumUnloads.contains(entry.key), pendingEngineSwitches[entry.key] == nil,
+              let item = tab(entry.key), let url = page.state.url,
+              ["http", "https"].contains(url.scheme?.lowercased() ?? ""), let host = url.host() else { return }
+        do {
+            if isIncognito {
+                guard explicitPrivateEngineChoices[item.id] != .chromium else { return }
+            } else {
+                guard let store = model.store else { throw EnginePageError.unavailable }
+                guard try store.tabEngine(tabID: item.id, profileID: item.profileID) != .chromium else { return }
+                let rules = try store.siteEngineRules(profileID: item.profileID)
+                guard !rules.contains(where: { $0.reason == .user && $0.matches(url) }) else { return }
+            }
+            let rule = try SiteEngineRule(profileID: item.profileID, host: host, engine: .webkit, reason: .protectedMedia)
+            Task {
+                guard cachedChromiumPage(for: item.id) === page, page.state.navigationID == navigation,
+                      page.state.url == url, page.state.lifecycle == .active, !page.state.isLoading else { return }
+                await switchEngine(of: item, to: .webKit, protectedTransition: ProtectedTransition(rule: rule, url: url, movingBack: false))
+            }
+        } catch { model.showToast("Protected-video routing could not read this profile's preferences.") }
+    }
+
+    func showsProtectedMediaBanner(for id: String) -> Bool {
+        guard let banner = protectedBanners[id], let page = enginePages[id] else { return false }
+        return page.id == banner.pageID && page.kind == .webKit && page.state.url == banner.transition.url
+    }
+
+    func moveProtectedMediaBack(_ id: String) async {
+        guard showsProtectedMediaBanner(for: id), let banner = protectedBanners[id], let item = tab(id) else { return }
+        await switchEngine(of: item, to: .chromium, protectedTransition:
+            ProtectedTransition(rule: banner.transition.rule, url: banner.transition.url, movingBack: true))
+    }
+
     func engineKind(for tab: SidebarItem) -> BrowserEngineKind {
         guard createChromiumPage != nil else { return .webKit }
         if engineRulesRevision != ChromiumEnginePreferences.revision {
@@ -196,6 +249,11 @@ final class BrowserState {
     }
 
     func switchEngine(of tab: SidebarItem, to kind: BrowserEngineKind) async {
+        await switchEngine(of: tab, to: kind, protectedTransition: nil)
+    }
+
+    private func switchEngine(of tab: SidebarItem, to kind: BrowserEngineKind,
+                              protectedTransition: ProtectedTransition?) async {
         guard createChromiumPage != nil, !engineSwitchPrompt, pendingEngineSwitches[tab.id] == nil,
               engineKind(for: tab) != kind, let window else { return }
         let original = enginePages[tab.id]
@@ -214,6 +272,15 @@ final class BrowserState {
               enginePages[tab.id] === original,
               (original?.state.url ?? self.tab(tab.id)?.url) == url,
               original?.state.navigationID == navigation else { return }
+        if let transition = protectedTransition, !transition.movingBack, !isIncognito {
+            do {
+                guard let store = model.store else { throw EnginePageError.unavailable }
+                guard try store.tabEngine(tabID: tab.id, profileID: tab.profileID) != .chromium,
+                      !store.siteEngineRules(profileID: tab.profileID).contains(where: {
+                          $0.reason == .user && $0.matches(transition.url)
+                      }) else { return }
+            } catch { model.showToast("Protected-video preferences could not be checked."); return }
+        }
         if kind == .webKit {
             reservedWebKitTabs.insert(tab.id)
             guard reportExternalTabs() else {
@@ -222,6 +289,7 @@ final class BrowserState {
                 return
             }
         }
+        if let protectedTransition { protectedTransitions[tab.id] = protectedTransition }
         if let original, original.kind == .chromium {
             pendingEngineSwitches.updateValue(url, forKey: tab.id)
             requestChromiumClose(tab.id, engine: original)
@@ -230,21 +298,55 @@ final class BrowserState {
                 try original?.close()
                 finishUnload(tab.id)
                 commitEngineSwitch(tab.id, to: kind, url: url)
-            } catch { model.showToast("The page could not switch engines.") }
+            } catch {
+                protectedTransitions[tab.id] = nil
+                model.showToast("The page could not switch engines.")
+            }
         }
     }
 
     private func commitEngineSwitch(_ id: String, to kind: BrowserEngineKind, url: URL?) {
         guard var item = tab(id) else { return }
         engineChoices[id] = kind
-        if !isIncognito {
-            do { try model.store?.setTabEngine(kind == .chromium ? .chromium : .webkit,
-                                               tabID: id, profileID: item.profileID) }
-            catch { model.showToast("Engine changed, but the choice could not be saved.") }
+        let transition = protectedTransitions.removeValue(forKey: id)
+        if transition == nil {
+            if isIncognito { explicitPrivateEngineChoices[id] = kind }
+            else {
+                do { try model.store?.setTabEngine(kind == .chromium ? .chromium : .webkit,
+                                                   tabID: id, profileID: item.profileID) }
+                catch { model.showToast("Engine changed, but the choice could not be saved.") }
+            }
         }
         if let url { item.url = url }
-        do { _ = try enginePage(for: item) }
-        catch { model.showToast("The selected browser engine could not open this page.") }
+        do {
+            let replacement = try enginePage(for: item)
+            if let transition {
+                if transition.movingBack {
+                    if !isIncognito {
+                        guard let store = model.store else { throw EnginePageError.unavailable }
+                        try store.setTabEngine(.chromium, tabID: id, profileID: item.profileID)
+                        if try store.siteEngineRules(profileID: item.profileID).contains(transition.rule) {
+                            try store.removeSiteEngineRule(transition.rule)
+                            ChromiumEnginePreferences.rulesDidChange()
+                        }
+                    }
+                    explicitPrivateEngineChoices[id] = .chromium
+                    protectedBanners[id] = nil
+                } else {
+                    var savedRule = transition.rule
+                    if !isIncognito {
+                        guard let store = model.store else { throw EnginePageError.unavailable }
+                        try store.upsertSiteEngineRule(savedRule)
+                        savedRule = try store.siteEngineRules(profileID: item.profileID).first {
+                            $0.host == savedRule.host && $0.pathPrefix == savedRule.pathPrefix && $0.reason == .protectedMedia
+                        } ?? savedRule
+                        ChromiumEnginePreferences.rulesDidChange()
+                    }
+                    protectedBanners[id] = ProtectedBanner(transition:
+                        ProtectedTransition(rule: savedRule, url: transition.url, movingBack: false), pageID: replacement.id)
+                }
+            } else { protectedBanners[id] = nil }
+        } catch { model.showToast("The selected engine or protected-video preference could not be updated.") }
         _ = reportExternalTabs()
     }
 
@@ -1049,6 +1151,7 @@ final class BrowserState {
             } catch {
                 pendingChromiumUnloads.remove(tabID)
                 pendingChromiumCloses[tabID] = nil
+                protectedTransitions[tabID] = nil
                 pendingEngineSwitches.removeValue(forKey: tabID)
                 reservedWebKitTabs.remove(tabID)
                 _ = reportExternalTabs()
@@ -1090,6 +1193,7 @@ final class BrowserState {
         if event == BOAZ_HOST_PAGE_CLOSE_CANCELLED {
             pendingChromiumUnloads.remove(id)
             pendingChromiumCloses[id] = nil
+            protectedTransitions[id] = nil
             pendingEngineSwitches.removeValue(forKey: id)
             reservedWebKitTabs.remove(id)
             _ = reportExternalTabs()

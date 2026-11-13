@@ -11,10 +11,19 @@ struct TabPane: View {
 
     var body: some View {
         #if BOAZ_CHROMIUM
+        VStack(spacing: 0) {
+            if browser.showsProtectedMediaBanner(for: tab.id) {
+                HStack {
+                    Text("Opened in WebKit for protected video")
+                    Spacer()
+                    Button("Move Back") { Task { await browser.moveProtectedMediaBack(tab.id) } }
+                }.font(.caption).padding(8).background(.bar)
+            }
         if browser.engineKind(for: tab) == .chromium {
             ChromiumTabPane(tab: tab, inSplit: inSplit).id(tab.id + ":chromium")
         } else {
             RoutedWebKitPane(tab: tab, inSplit: inSplit).id(tab.id + ":webkit")
+        }
         }
         #else
         WebKitTabPane(tab: tab, inSplit: inSplit)
