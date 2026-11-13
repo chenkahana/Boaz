@@ -22,6 +22,7 @@ targets:REPLACE:
     settings:
       base:
         PRODUCT_NAME: BoazApplicationUI
+        EXECUTABLE_PREFIX: lib
         PRODUCT_MODULE_NAME: BoazApplicationUI
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) BOAZ_CHROMIUM DIRECT_DISTRIBUTION SPARKLE
         SWIFT_OBJC_BRIDGING_HEADER: $(SRCROOT)/../../Tools/chromium/host/boaz_host.h
