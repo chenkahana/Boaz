@@ -29,6 +29,9 @@ class NativeProfiles::Impl {
     std::string identifier;
     bool is_private;
     std::unique_ptr<NativeDownloads> downloads;
+    std::unique_ptr<NativeCacheClearer> cache_clearer;
+    bool cache_pending = false;
+    bool release_requested = false;
   };
   Impl(base::FilePath root, Profile* primary) : root_(std::move(root)), primary_(primary) {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
@@ -40,6 +43,9 @@ class NativeProfiles::Impl {
     CHECK(pending_.empty());
     weak_.InvalidateWeakPtrs();
     for (auto& [id, entry] : entries_) {
+      CHECK(!entry.cache_pending);
+      CHECK(!entry.cache_clearer || !entry.cache_clearer->busy());
+      entry.cache_clearer.reset();
       entry.downloads.reset();
       if (entry.is_private) ProfileDestroyer::DestroyOTRProfileWhenAppropriate(entry.profile);
     }
@@ -71,7 +77,7 @@ class NativeProfiles::Impl {
     auto downloads = std::make_unique<NativeDownloads>(profile);
     downloads->SetObserver(base::BindRepeating(&Impl::DownloadChanged, weak_.GetWeakPtr(), id));
     entries_.emplace(id, Entry{profile, std::move(keep_alive), std::move(identifier),
-                              private_session, std::move(downloads)});
+                              private_session, std::move(downloads), nullptr});
     return id;
   }
   void Acquire(std::string identifier, bool private_session, Completion callback) {
@@ -92,7 +98,8 @@ class NativeProfiles::Impl {
     }
     for (const auto& [id, entry] : entries_) {
       if (!entry.is_private && entry.identifier == identifier) {
-        Post(std::move(callback), BOAZ_HOST_OK, id); return;
+        Post(std::move(callback), entry.release_requested ? BOAZ_HOST_UNAVAILABLE : BOAZ_HOST_OK,
+             entry.release_requested ? 0 : id); return;
       }
     }
     auto found = pending_.find(identifier);
@@ -122,29 +129,32 @@ class NativeProfiles::Impl {
   Profile* Resolve(BoazHostProfile handle) const {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
     auto found = entries_.find(handle);
-    return found == entries_.end() ? nullptr : found->second.profile.get();
+    return found == entries_.end() || found->second.release_requested
+        ? nullptr : found->second.profile.get();
   }
   BoazHostProfile HandleFor(Profile* profile) const {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
     if (!profile) return 0;
     for (const auto& [handle, entry] : entries_)
-      if (entry.profile == profile) return handle;
+      if (entry.profile == profile && !entry.release_requested) return handle;
     return 0;
   }
   bool Owns(Profile* profile) const {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
     if (!profile) return false;
     for (const auto& [handle, entry] : entries_)
-      if (entry.profile == profile) return true;
+      if (entry.profile == profile && !entry.release_requested) return true;
     return false;
   }
   NativeDownloads* Downloads(BoazHostProfile handle) const {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
     auto found = entries_.find(handle);
-    return found == entries_.end() ? nullptr : found->second.downloads.get();
+    return found == entries_.end() || found->second.release_requested
+        ? nullptr : found->second.downloads.get();
   }
   void DownloadChanged(BoazHostProfile handle, NativeDownloads::Snapshot snapshot) {
-    if (!entries_.contains(handle) || !download_observer_) return;
+    auto found = entries_.find(handle);
+    if (found == entries_.end() || found->second.release_requested || !download_observer_) return;
     auto observer = download_observer_;
     observer.Run(handle, std::move(snapshot));
   }
@@ -154,12 +164,45 @@ class NativeProfiles::Impl {
     for (auto& [handle, entry] : entries_)
       entry.downloads->SetObserver(base::BindRepeating(&Impl::DownloadChanged, weak_.GetWeakPtr(), handle));
   }
+  BoazHostResult ClearCache(BoazHostProfile handle, NativeCacheClearer::Completion completion) {
+    DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+    auto found = entries_.find(handle);
+    if (found == entries_.end() || found->second.release_requested) return BOAZ_HOST_INVALID_HANDLE;
+    if (!completion) return BOAZ_HOST_INVALID_ARGUMENT;
+    auto& entry = found->second;
+    if (entry.cache_pending) return BOAZ_HOST_UNAVAILABLE;
+    if (!entry.cache_clearer)
+      entry.cache_clearer = std::make_unique<NativeCacheClearer>(entry.profile.get());
+    entry.cache_pending = true;
+    if (!entry.cache_clearer->Clear(base::BindOnce(&Impl::CacheCleared,
+            weak_.GetWeakPtr(), handle, std::move(completion)))) {
+      entry.cache_pending = false;
+      return BOAZ_HOST_UNAVAILABLE;
+    }
+    return BOAZ_HOST_OK;
+  }
+  void CacheCleared(BoazHostProfile handle, NativeCacheClearer::Completion completion,
+                    NativeCacheClearer::Result result) {
+    DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+    auto found = entries_.find(handle);
+    CHECK(found != entries_.end());
+    CHECK(found->second.cache_pending);
+    found->second.cache_pending = false;
+    if (found->second.release_requested) Release(handle);
+    std::move(completion).Run(result);
+  }
   BoazHostResult Release(BoazHostProfile handle) {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
     auto found = entries_.find(handle);
     if (found == entries_.end()) return BOAZ_HOST_INVALID_HANDLE;
+    if (found->second.cache_pending) {
+      found->second.release_requested = true;
+      return BOAZ_HOST_OK;
+    }
     auto entry = std::move(found->second);
     entries_.erase(found);
+    CHECK(!entry.cache_clearer || !entry.cache_clearer->busy());
+    entry.cache_clearer.reset();
     entry.downloads.reset();
     if (entry.is_private) ProfileDestroyer::DestroyOTRProfileWhenAppropriate(entry.profile);
     return BOAZ_HOST_OK;
@@ -186,5 +229,8 @@ void NativeProfiles::Acquire(std::string identifier, bool private_session,
 Profile* NativeProfiles::Resolve(BoazHostProfile handle) const { return impl_->Resolve(handle); }
 bool NativeProfiles::Owns(Profile* profile) const { return impl_->Owns(profile); }
 BoazHostProfile NativeProfiles::HandleFor(Profile* profile) const { return impl_->HandleFor(profile); }
+BoazHostResult NativeProfiles::ClearCache(BoazHostProfile handle, NativeCacheClearer::Completion completion) {
+  return impl_->ClearCache(handle, std::move(completion));
+}
 BoazHostResult NativeProfiles::Release(BoazHostProfile handle) { return impl_->Release(handle); }
 }

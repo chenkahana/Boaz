@@ -6,6 +6,7 @@
 #include "base/functional/callback.h"
 #include "boaz_host.h"
 #include "native_downloads.h"
+#include "native_cache_clearer.h"
 class Profile;
 namespace boaz {
 class NativeProfiles {
@@ -18,6 +19,7 @@ class NativeProfiles {
   bool Owns(Profile* profile) const;
   BoazHostProfile HandleFor(Profile* profile) const;
   BoazHostResult Release(BoazHostProfile handle);
+  BoazHostResult ClearCache(BoazHostProfile handle, NativeCacheClearer::Completion completion);
   NativeDownloads* Downloads(BoazHostProfile handle) const;
   using DownloadObserver = base::RepeatingCallback<void(BoazHostProfile, NativeDownloads::Snapshot)>;
   void SetDownloadObserver(DownloadObserver observer);
