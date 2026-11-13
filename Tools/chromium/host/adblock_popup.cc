@@ -1,5 +1,5 @@
 #include "adblock_popup.h"
-#include <optional>
+#include <set>
 #include <utility>
 #include "adblock_profile_state.h"
 #include "base/memory/weak_ptr.h"
@@ -11,6 +11,7 @@
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
+#include "net/base/net_errors.h"
 namespace boaz {
 namespace {
 bool IsBlank(const GURL& url) { return url.is_empty() || url.IsAboutBlank(); }
@@ -20,21 +21,21 @@ class Popup final : public content::WebContentsObserver,
   ~Popup() override = default;
   base::WeakPtr<Popup> Claim(content::NavigationHandle& navigation) {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-    if (retired_ || !navigation.IsInPrimaryMainFrame() || navigation.IsSameDocument()) return {};
+    if (!navigation.IsInPrimaryMainFrame() || navigation.IsSameDocument()) return {};
+    if (denied_) return weak_.GetWeakPtr();
+    if (retired_) return {};
     if (!navigation.GetURL().SchemeIsHTTPOrHTTPS()) {
-      if (!IsBlank(navigation.GetURL())) Retire();
       return {};
     }
-    if (navigation_id_ && *navigation_id_ != navigation.GetNavigationId()) return {};
-    navigation_id_ = navigation.GetNavigationId();
+    active_navigations_.insert(navigation.GetNavigationId());
     return weak_.GetWeakPtr();
   }
   content::NavigationThrottle::ThrottleCheckResult Check(content::NavigationHandle& navigation) {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
     using Throttle = content::NavigationThrottle;
-    if (retired_ || navigation_id_ != navigation.GetNavigationId()) return Throttle::PROCEED;
+    if (denied_) return {Throttle::CANCEL, net::ERR_BLOCKED_BY_CLIENT};
+    if (retired_ || !active_navigations_.contains(navigation.GetNavigationId())) return Throttle::PROCEED;
     if (!navigation.GetURL().SchemeIsHTTPOrHTTPS()) {
-      if (!IsBlank(navigation.GetURL())) Retire();
       return Throttle::PROCEED;
     }
     const auto result = state_->Evaluate(navigation.GetURL(), opener_url_, "popup",
@@ -42,6 +43,7 @@ class Popup final : public content::WebContentsObserver,
     if (result.action == AdblockDecision::Action::kAllow &&
         !result.rewritten_url && result.replacement_data_url.empty()) return Throttle::PROCEED;
     const bool blocked = result.action == AdblockDecision::Action::kBlock;
+    denied_ = true;
     auto close = std::move(close_owned_);
     Retire();
     if (close) base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE, std::move(close));
@@ -56,26 +58,40 @@ class Popup final : public content::WebContentsObserver,
         state_(std::move(state)), close_owned_(std::move(close)) {}
   void Retire() {
     retired_ = true;
+    active_navigations_.clear();
     close_owned_.Reset();
     state_.reset();
   }
+  void DidStartNavigation(content::NavigationHandle* navigation) override;
   void DidFinishNavigation(content::NavigationHandle* navigation) override;
   void WebContentsDestroyed() override;
   GURL opener_url_;
   url::Origin top_origin_;
   std::shared_ptr<AdblockProfileState> state_;
   base::OnceClosure close_owned_;
-  std::optional<int64_t> navigation_id_;
+  std::set<int64_t> active_navigations_;
   bool retired_ = false;
+  bool denied_ = false;
   base::WeakPtrFactory<Popup> weak_{this};
   WEB_CONTENTS_USER_DATA_KEY_DECL();
 };
 WEB_CONTENTS_USER_DATA_KEY_IMPL(Popup);
-void Popup::DidFinishNavigation(content::NavigationHandle* navigation) {
-    if (retired_ || !navigation->IsInPrimaryMainFrame() || navigation->IsSameDocument()) return;
-    if ((navigation_id_ && *navigation_id_ == navigation->GetNavigationId()) ||
-        !IsBlank(navigation->GetURL())) Retire();
+void Popup::DidStartNavigation(content::NavigationHandle* navigation) {
+  if (!retired_ && navigation->IsInPrimaryMainFrame() &&
+      !navigation->IsSameDocument() && navigation->GetURL().SchemeIsHTTPOrHTTPS()) {
+    // Track before throttle construction so superseded completion cannot retire
+    // provenance while the replacement navigation is being initialized.
+    active_navigations_.insert(navigation->GetNavigationId());
   }
+}
+void Popup::DidFinishNavigation(content::NavigationHandle* navigation) {
+  if (retired_ || !navigation->IsInPrimaryMainFrame() || navigation->IsSameDocument()) return;
+  const bool tracked = active_navigations_.erase(navigation->GetNavigationId()) != 0;
+  if (IsBlank(navigation->GetURL())) return;
+  // An aborted older request cannot retire another pending request. A committed
+  // nonblank document (including an error document) ends blank-popup provenance.
+  if (navigation->HasCommitted() || (tracked && active_navigations_.empty())) Retire();
+}
 void Popup::WebContentsDestroyed() { Retire(); weak_.InvalidateWeakPtrs(); }
 
 class PopupThrottle final : public content::NavigationThrottle {
