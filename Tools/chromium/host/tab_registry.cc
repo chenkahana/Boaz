@@ -651,6 +651,24 @@ BoazHostResult TabRegistry::CaptureDocument(BoazHostPage id, BoazHostDocument* o
   *output = *token;
   return BOAZ_HOST_OK;
 }
+BoazHostResult TabRegistry::CaptureDocumentOrigin(BoazHostPage id,
+    BoazHostDocument* output, char* origin, size_t capacity) {
+  if (output) *output = 0;
+  if (origin && capacity) origin[0] = '\0';
+  BOAZ_FIND_PAGE();
+  if (!output || !origin || capacity == 0) return BOAZ_HOST_INVALID_ARGUMENT;
+  if (!page->scripts) page->scripts = std::make_unique<TrustedScriptChannel>(page->web_contents());
+  std::string serialized;
+  auto token = page->scripts->Capture(&serialized);
+  if (!token) return BOAZ_HOST_UNAVAILABLE;
+  if (serialized.empty() || serialized.size() >= capacity || serialized.size() >= 2048) {
+    page->scripts->Release(*token);
+    return BOAZ_HOST_INVALID_ARGUMENT;
+  }
+  std::memcpy(origin, serialized.c_str(), serialized.size() + 1);
+  *output = *token;
+  return BOAZ_HOST_OK;
+}
 BoazHostResult TabRegistry::ReleaseDocument(BoazHostPage id, BoazHostDocument token) {
   BOAZ_FIND_PAGE();
   return page->scripts && page->scripts->Release(token) ? BOAZ_HOST_OK : BOAZ_HOST_INVALID_HANDLE;

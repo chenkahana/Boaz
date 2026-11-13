@@ -14,7 +14,7 @@ class TrustedScriptChannel final : public content::WebContentsObserver {
  public:
   explicit TrustedScriptChannel(content::WebContents* contents);
   ~TrustedScriptChannel() override;
-  std::optional<uint64_t> Capture();
+  std::optional<uint64_t> Capture(std::string* origin = nullptr);
   bool Release(uint64_t token);
   void Execute(uint64_t token, std::u16string trusted_function_source,
                base::DictValue arguments, TrustedExecution::Completion completion);

@@ -301,6 +301,13 @@ BoazHostResult CaptureDocument(BoazHostPage page, BoazHostDocument* document) {
   if (auto r = Check(); r != BOAZ_HOST_OK) return r;
   return state->tabs->CaptureDocument(page, document);
 }
+BoazHostResult CaptureDocumentOrigin(BoazHostPage page, BoazHostDocument* document,
+    char* origin, size_t capacity) {
+  if (document) *document = 0;
+  if (origin && capacity) origin[0] = '\0';
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  return state->tabs->CaptureDocumentOrigin(page, document, origin, capacity);
+}
 BoazHostResult ReleaseDocument(BoazHostPage page, BoazHostDocument document) {
   if (auto r = Check(); r != BOAZ_HOST_OK) return r;
   return state->tabs->ReleaseDocument(page, document);
@@ -415,7 +422,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:

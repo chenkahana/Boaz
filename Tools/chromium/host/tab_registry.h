@@ -42,6 +42,7 @@ class TabRegistry {
   BoazHostResult SetZoomFactor(BoazHostPage page, double factor);
   BoazHostResult ActivatePage(BoazHostPage page, bool focus);
   BoazHostResult GetNativeView(BoazHostPage page, void** native_view);
+  BoazHostResult CaptureDocumentOrigin(BoazHostPage page, BoazHostDocument* document, char* origin, size_t capacity);
   BoazHostResult CaptureDocument(BoazHostPage page, BoazHostDocument* document);
   BoazHostResult ReleaseDocument(BoazHostPage page, BoazHostDocument document);
   BoazHostResult ExecuteTrusted(BoazHostPage page, BoazHostDocument document,

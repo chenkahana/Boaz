@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 16u
+#define BOAZ_HOST_ABI_VERSION 17u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT
@@ -183,6 +183,11 @@ typedef struct BoazHostAPI {
   BoazHostResult (*go_to_history_entry)(BoazHostPage page, int32_t entry_id);
   BoazHostResult (*is_busy_for_residency)(BoazHostPage page, uint8_t* busy);
   BoazHostResult (*show_devtools)(BoazHostPage page, BoazHostDevToolsAction action);
+  /* Captures one validated document and its browser-authoritative origin atomically.
+   * Supply a 2048-byte origin buffer. Failure clears outputs and retains no token.
+   * Success uses the same single-use execution/release contract as capture_document. */
+  BoazHostResult (*capture_document_origin)(BoazHostPage page, BoazHostDocument* document,
+                                          char* origin, size_t capacity);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

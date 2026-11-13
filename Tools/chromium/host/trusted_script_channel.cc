@@ -37,11 +37,13 @@ TrustedScriptChannel::TrustedScriptChannel(content::WebContents* contents)
 }
 TrustedScriptChannel::~TrustedScriptChannel() { Close(); }
 
-std::optional<uint64_t> TrustedScriptChannel::Capture() {
+std::optional<uint64_t> TrustedScriptChannel::Capture(std::string* origin) {
   CheckUI();
+  if (origin) origin->clear();
   if (closed_ || targets_.size() >= 64) return std::nullopt;
   auto target = executor_.CaptureTarget();
   if (!target) return std::nullopt;
+  if (origin) *origin = target->origin.Serialize();
   const uint64_t token = NextToken();
   targets_.emplace(token, std::move(*target));
   return token;
