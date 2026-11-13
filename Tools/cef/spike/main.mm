@@ -157,6 +157,9 @@ public:
     void OnAfterCreated(CefRefPtr<CefBrowser> browser) override {
         CEF_REQUIRE_UI_THREAD();
         [host_ didCreate:browser];
+        if ([NSProcessInfo.processInfo.environment[@"BOAZ_CEF_SPIKE_ACCESSIBILITY"] isEqualToString:@"1"]) {
+            browser->GetHost()->SetAccessibilityState(STATE_ENABLED);
+        }
         Report(browser->GetHost()->GetRuntimeStyle() == CEF_RUNTIME_STYLE_ALLOY
             ? @"Browser created · Alloy · sandbox requested"
             : @"Browser created · Chrome · sandbox requested");
