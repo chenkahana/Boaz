@@ -1,6 +1,8 @@
 #ifndef BOAZ_CHROMIUM_EXTENSION_ACTIONS_H_
 #define BOAZ_CHROMIUM_EXTENSION_ACTIONS_H_
 #include <memory>
+#include <cstdint>
+#include <vector>
 #include "base/functional/callback.h"
 #include <string>
 class BrowserWindowInterface;
@@ -10,7 +12,7 @@ namespace boaz {
 class NativeExtensionActions {
  public:
   enum class Result { kOk, kInvalidTarget, kUnavailable, kInvalidAnchor, kUnsupported };
-  struct Metadata { std::string title; std::string badge_text; };
+  struct Metadata { std::string title; std::string badge_text; std::vector<uint8_t> icon_png; };
   Result GetMetadata(content::WebContents* expected_active, const std::string& extension_id,
                      Metadata* output) const;
   explicit NativeExtensionActions(BrowserWindowInterface* browser,
