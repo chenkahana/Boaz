@@ -200,7 +200,14 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
             } else if hasWebKitPage(browser) { browser.viewPageSource() }
         }
         add(develop, "Show Storage (WebKit)…", enabled: hasWebKitPage) { $0?.showStorage() }
-        add(develop, "Empty Caches (WebKit)", command: .emptyCaches, enabled: hasWebKitPage) { $0?.emptyCaches() }
+        add(develop, "Empty Caches", command: .emptyCaches, enabled: { browser in
+            hasEnginePage(browser) && !ChromiumCache.isPending(for: browser?.activeEnginePage?.profile)
+        }) { browser in
+            guard let browser else { return }
+            if browser.activeEnginePage?.adapter is ChromiumEnginePageAdapter {
+                ChromiumCache.clear(in: browser)
+            } else if hasWebKitPage(browser) { browser.emptyCaches() }
+        }
         develop.addItem(.separator())
         func webKitSubmenu(_ title: String) -> NSMenu {
             add(develop, title, enabled: hasWebKitPage) { _ in }

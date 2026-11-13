@@ -35,6 +35,8 @@ final class ChromiumRuntime {
     private var closedWindows: Set<BoazHostWindow> = []
     private var closingPages: Set<BoazHostPage> = []
     private var profileRequests: [EngineProfileIdentity: ProfileRequest] = [:]
+    private var cacheRequestID: UInt64 = 0
+    private var clearingCacheProfiles: Set<BoazHostProfile> = []
     private var started = false
     private var stopped = false
     private var inCallback = false
@@ -320,6 +322,52 @@ final class ChromiumRuntime {
 
     func createWindow(options: inout BoazHostWindowOptions) throws -> BoazHostWindow {
         throw EnginePageError.unavailable
+    }
+
+    static func clearCaches(for identity: EngineProfileIdentity) async throws {
+        guard let owner = callbackOwner else { throw EnginePageError.unavailable }
+        try await owner.clearCache(profile: identity)
+    }
+
+    func clearCache(profile identity: EngineProfileIdentity) async throws {
+        try requireRunning()
+        guard let profile = preparedProfiles.values.first(where: { $0.identity == identity }),
+              !clearingCacheProfiles.contains(profile.handle), cacheRequestID < UInt64.max,
+              let clear = api.clear_cache else { throw EnginePageError.unavailable }
+        cacheRequestID += 1
+        let requestID = cacheRequestID
+        clearingCacheProfiles.insert(profile.handle)
+        defer { clearingCacheProfiles.remove(profile.handle) }
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            let box = CacheRequest(profile: profile.handle, request: requestID, continuation: continuation)
+            let context = Unmanaged.passRetained(box).toOpaque()
+            let result = clear(profile.handle, requestID, { context, profile, request, status in
+                guard let context else { return }
+                MainActor.assumeIsolated {
+                    let box = Unmanaged<CacheRequest>.fromOpaque(context).takeRetainedValue()
+                    DispatchQueue.main.async {
+                        guard profile == box.profile, request == box.request, status == BOAZ_CACHE_SUCCESS else {
+                            box.continuation.resume(throwing: EnginePageError.unavailable)
+                            return
+                        }
+                        box.continuation.resume()
+                    }
+                }
+            }, context)
+            if result != BOAZ_HOST_OK {
+                Unmanaged<CacheRequest>.fromOpaque(context).release()
+                do { try check(result) } catch { continuation.resume(throwing: error) }
+            }
+        }
+    }
+
+    private final class CacheRequest {
+        let profile: BoazHostProfile
+        let request: UInt64
+        let continuation: CheckedContinuation<Void, Error>
+        init(profile: BoazHostProfile, request: UInt64, continuation: CheckedContinuation<Void, Error>) {
+            self.profile = profile; self.request = request; self.continuation = continuation
+        }
     }
 
     static func showDownloads(for identity: EngineProfileIdentity) {
