@@ -26,7 +26,7 @@ class AdblockProfileState final {
       std::string_view kind, std::string_view method,
       const std::optional<url::Origin>& top_level_origin) const;
  private:
-  std::atomic<std::shared_ptr<const Config>> config_;
+  std::shared_ptr<const Config> config_;
 };
 }
 #endif
