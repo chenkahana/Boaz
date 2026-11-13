@@ -8,6 +8,7 @@
 #include "bootstrap.h"
 #include "boaz_host.h"
 #include "native_window.h"
+#include "native_profiles.h"
 #include "extension_actions.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_action_manager.h"
@@ -64,6 +65,8 @@ struct State {
   raw_ptr<const BoazHostWindowOptions> pending = nullptr;
   std::map<BoazHostWindow, Window> windows;
   uint64_t pending_scripts = 0;
+  uint64_t pending_profiles = 0;
+  std::unique_ptr<NativeProfiles> profiles;
   bool in_callback = false;
   bool exit_requested = false;
   bool finished = false;
@@ -90,12 +93,12 @@ bool ValidOptions(const BoazHostWindowOptions* o) {
     NSView* view = (__bridge NSView*)o->content_view(o->context);
     NSTextField* field = (__bridge NSTextField*)o->address_field(o->context);
     return [window isKindOfClass:[NSWindow class]] && view.window == window &&
-        [field isKindOfClass:[NSTextField class]] && field.window == window;
+        [field isKindOfClass:[NSTextField class]] && (!field.window || field.window == window);
   });
 }
 void FinishIfDrained() {
   if (!state->exit_requested || !state->windows.empty() ||
-      state->pending_scripts || state->finished) return;
+      state->pending_scripts || state->pending_profiles || state->finished) return;
   state->finished = true;
   Notify([] { state->callbacks.shutdown_ready(state->callbacks.context); });
   // Swift queues its cleanup on this same main dispatch queue first.
@@ -103,6 +106,7 @@ void FinishIfDrained() {
   dispatch_async(dispatch_get_main_queue(), ^{
     CHECK(state);
     state->cleanup_pending = false;
+    state->profiles.reset();
     state->profile = nullptr;
     state->profile_keep_alive.reset();
     state->process_keep_alive.reset();
@@ -127,15 +131,15 @@ BoazHostResult SetCallbacks(const BoazHostCallbacks* callbacks) {
   };
   return state->tabs->SetCallbacks(&proxy);
 }
-BoazHostResult CreateWindow(const BoazHostWindowOptions* options, BoazHostWindow* output) {
+BoazHostResult CreateWindowWithProfile(Profile* profile, const BoazHostWindowOptions* options, BoazHostWindow* output) {
   if (output) *output = 0;
   if (auto r = Check(); r != BOAZ_HOST_OK) return r;
-  if (!output || !ValidOptions(options)) return BOAZ_HOST_INVALID_ARGUMENT;
+  if (!profile || !output || !ValidOptions(options)) return BOAZ_HOST_INVALID_ARGUMENT;
   if (state->pending || !state->callbacks.page_event || state->exit_requested)
     return BOAZ_HOST_UNAVAILABLE;
   base::AutoReset<raw_ptr<const BoazHostWindowOptions>> pending(
       &state->pending, raw_ptr<const BoazHostWindowOptions>(options));
-  BrowserWindowCreateParams params(state->profile.get(), true);
+  BrowserWindowCreateParams params(profile, true);
   params.omit_from_session_restore = true;
   params.should_trigger_session_restore = false;
   BrowserWindowInterface* browser = ::CreateBrowserWindow(std::move(params));
@@ -144,6 +148,49 @@ BoazHostResult CreateWindow(const BoazHostWindowOptions* options, BoazHostWindow
     if (window.browser.get() == browser) { *output = id; return BOAZ_HOST_OK; }
   }
   CHECK(false) << "Native browser factory did not register its window";
+}
+BoazHostResult CreateWindow(const BoazHostWindowOptions* options, BoazHostWindow* output) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  return CreateWindowWithProfile(state->profile.get(), options, output);
+}
+BoazHostResult PrepareProfile(const char* identifier, uint8_t is_private,
+    BoazHostProfileCompletion completion, void* context) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (!identifier || !completion || is_private > 1) return BOAZ_HOST_INVALID_ARGUMENT;
+  if (state->exit_requested || !state->profiles) return BOAZ_HOST_CLOSING;
+  CHECK_LT(state->pending_profiles, std::numeric_limits<uint64_t>::max());
+  ++state->pending_profiles;
+  state->profiles->Acquire(identifier, is_private != 0, base::BindOnce(
+      [](BoazHostProfileCompletion completion, void* context,
+         BoazHostResult result, BoazHostProfile profile) {
+        if (state->exit_requested && result == BOAZ_HOST_OK) {
+          state->profiles->Release(profile);
+          result = BOAZ_HOST_CLOSING;
+          profile = 0;
+        }
+        Notify([&] { completion(context, result, profile); });
+        CHECK_GT(state->pending_profiles, 0u);
+        --state->pending_profiles;
+        FinishIfDrained();
+      }, completion, context));
+  return BOAZ_HOST_OK;
+}
+BoazHostResult CreateProfileWindow(BoazHostProfile profile,
+    const BoazHostWindowOptions* options, BoazHostWindow* output) {
+  if (output) *output = 0;
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  Profile* resolved = state->profiles ? state->profiles->Resolve(profile) : nullptr;
+  if (!resolved) return BOAZ_HOST_INVALID_HANDLE;
+  return CreateWindowWithProfile(resolved, options, output);
+}
+BoazHostResult ReleaseProfile(BoazHostProfile profile) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (state->pending_profiles) return BOAZ_HOST_UNAVAILABLE;
+  Profile* resolved = state->profiles ? state->profiles->Resolve(profile) : nullptr;
+  if (!resolved) return BOAZ_HOST_INVALID_HANDLE;
+  for (const auto& [id, window] : state->windows)
+    if (window.browser && window.browser->GetProfile() == resolved) return BOAZ_HOST_UNAVAILABLE;
+  return state->profiles->Release(profile);
 }
 BoazHostResult CloseWindow(BoazHostWindow id) {
   if (auto r = Check(); r != BOAZ_HOST_OK) return r;
@@ -299,7 +346,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
@@ -338,6 +385,7 @@ class MainParts final : public ChromeBrowserMainExtraParts {
     CHECK(state->finished);
     CHECK(state->windows.empty());
     CHECK_EQ(state->pending_scripts, 0u);
+    CHECK_EQ(state->pending_profiles, 0u);
     CHECK(!state->cleanup_pending);
     CHECK(!state->profile);
     CHECK(!state->profile_keep_alive);
@@ -348,6 +396,7 @@ class MainParts final : public ChromeBrowserMainExtraParts {
   void PostBrowserStart() override {
     CHECK(state->profile);
     state->tabs = std::make_unique<TabRegistry>();
+    state->profiles = std::make_unique<NativeProfiles>(state->profile_path.DirName(), state->profile.get());
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
         base::BindOnce([] {
           const base::FilePath library(kLibrary);

@@ -7,6 +7,8 @@
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
+#include "base/strings/string_number_conversions.h"
+#include "crypto/sha2.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/task/single_thread_task_runner.h"
@@ -89,7 +91,7 @@ class NativeProfiles::Impl {
     }
     auto found = pending_.find(identifier);
     if (found != pending_.end()) { found->second.push_back(std::move(callback)); return; }
-    const auto path = root_.AppendASCII("Boaz-" + identifier);
+    const auto path = root_.AppendASCII("Boaz-" + base::HexEncode(crypto::SHA256HashString(identifier)));
     if (!SafePath(path) || !g_browser_process || !g_browser_process->profile_manager()) {
       Post(std::move(callback), BOAZ_HOST_UNAVAILABLE); return;
     }
