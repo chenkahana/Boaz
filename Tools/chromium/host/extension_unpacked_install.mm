@@ -10,6 +10,9 @@
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/pref_names.h"
+#include "chrome/browser/extensions/extension_util.h"
+#include "chrome/browser/extensions/extension_management.h"
+#include "chrome/browser/supervised_user/supervised_user_browser_utils.h"
 #include "components/prefs/pref_service.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/common/extension.h"
@@ -74,13 +77,18 @@ struct Operation : ProfileObserver, std::enable_shared_from_this<Operation> {
     UI();
     if (!completion || loading) return;
     if (!parent || !parent.isVisible) { Cancel(); return; }
+    if (supervised_user::AreExtensionsPermissionsEnabled(profile) ||
+        extensions::ExtensionManagementFactory::GetForBrowserContext(profile)->BlocklistedByDefault()) {
+      Finish(ExtensionInstallResult::kFailed);
+      return;
+    }
     auto* profile_prefs = profile->GetPrefs();
     if (!profile_prefs->GetBoolean(prefs::kExtensionsUIDeveloperMode)) {
       if (!profile_prefs->IsUserModifiablePreference(prefs::kExtensionsUIDeveloperMode)) {
         Finish(ExtensionInstallResult::kFailed);
         return;
       }
-      profile_prefs->SetBoolean(prefs::kExtensionsUIDeveloperMode, true);
+      extensions::util::SetDeveloperModeForProfile(profile, true);
     }
     if (!completion || !profile) return;
     loading = true;

@@ -123,6 +123,7 @@ source_set("host") {
     "//components/strings:components_strings",
     "//chrome/browser",
     "//chrome/browser/extensions",
+    "//chrome/browser/supervised_user",
     "//chrome/browser/media/webrtc",
     "//chrome/browser/printing",
     "//chrome/browser/printing:impl",
