@@ -75,6 +75,7 @@ struct State {
   uint64_t pending_scripts = 0;
   uint64_t pending_captures = 0;
   uint64_t pending_emulations = 0;
+  uint64_t pending_cache_clears = 0;
   uint64_t pending_profiles = 0;
   std::unique_ptr<NativeProfiles> profiles;
   bool in_callback = false;
@@ -123,7 +124,7 @@ bool ValidOptions(const BoazHostWindowOptions* o) {
 }
 void FinishIfDrained() {
   if (!state->exit_requested || !state->windows.empty() ||
-      state->pending_scripts || state->pending_captures || state->pending_emulations || state->pending_profiles || state->finished) return;
+      state->pending_scripts || state->pending_captures || state->pending_emulations || state->pending_cache_clears || state->pending_profiles || state->finished) return;
   state->finished = true;
   Notify([] { state->callbacks.shutdown_ready(state->callbacks.context); });
   // Swift queues its cleanup on this same main dispatch queue first.
@@ -261,6 +262,25 @@ BoazHostResult ReleaseProfile(BoazHostProfile profile) {
   for (const auto& [id, window] : state->windows)
     if (window.browser && window.browser->GetProfile() == resolved) return BOAZ_HOST_UNAVAILABLE;
   return state->profiles->Release(profile);
+}
+BoazHostResult ClearCache(BoazHostProfile profile, uint64_t request,
+    BoazHostCacheCompletion completion, void* context) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (!request || !completion || !state->profiles) return BOAZ_HOST_INVALID_ARGUMENT;
+  CHECK_LT(state->pending_cache_clears, std::numeric_limits<uint64_t>::max());
+  ++state->pending_cache_clears;
+  auto result = state->profiles->ClearCache(profile, base::BindOnce(
+      [](BoazHostProfile profile, uint64_t request, BoazHostCacheCompletion completion,
+         void* context, NativeCacheClearer::Result result) {
+        CHECK(state);
+        Notify([&] { completion(context, profile, request,
+            result == NativeCacheClearer::Result::kSuccess ? BOAZ_CACHE_SUCCESS : BOAZ_CACHE_FAILED); });
+        CHECK_GT(state->pending_cache_clears, 0u);
+        --state->pending_cache_clears;
+        FinishIfDrained();
+      }, profile, request, completion, context));
+  if (result != BOAZ_HOST_OK) --state->pending_cache_clears;
+  return result;
 }
 BoazHostResult SetExternalTabCount(BoazHostWindow id, uint32_t count) {
   if (auto result = Check(); result != BOAZ_HOST_OK) return result;
@@ -653,7 +673,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
@@ -701,6 +721,7 @@ class MainParts final : public ChromeBrowserMainExtraParts {
     CHECK_EQ(state->pending_scripts, 0u);
     CHECK_EQ(state->pending_captures, 0u);
     CHECK_EQ(state->pending_emulations, 0u);
+    CHECK_EQ(state->pending_cache_clears, 0u);
     CHECK_EQ(state->pending_profiles, 0u);
     CHECK(!state->cleanup_pending);
     CHECK(!state->profile);

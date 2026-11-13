@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 27u
+#define BOAZ_HOST_ABI_VERSION 28u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT
@@ -74,6 +74,10 @@ typedef enum BoazHostResult {
 
 typedef void (*BoazHostProfileCompletion)(void* context, BoazHostResult result,
                                           BoazHostProfile profile);
+
+typedef enum BoazHostCacheStatus { BOAZ_CACHE_SUCCESS, BOAZ_CACHE_FAILED } BoazHostCacheStatus;
+typedef void (*BoazHostCacheCompletion)(void* context, BoazHostProfile profile,
+    uint64_t request, BoazHostCacheStatus status);
 
 typedef enum BoazHostPageEvent {
   BOAZ_HOST_PAGE_CREATED = 0,
@@ -274,6 +278,9 @@ typedef struct BoazHostAPI {
   /* Null media resets all media and vision overrides. */
   BoazHostResult (*apply_media)(BoazHostPage page, const BoazHostMedia* media,
       uint64_t request, BoazHostEmulationCompletion completion, void* context);
+  /* Profile resource caches only; cookies and Cache Storage remain intact. */
+  BoazHostResult (*clear_cache)(BoazHostProfile profile, uint64_t request,
+      BoazHostCacheCompletion completion, void* context);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.
