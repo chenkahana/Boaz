@@ -57,6 +57,8 @@ class Request final : public network::mojom::URLLoader,
     replacement_.clear();
     rewrite.reset();
     current_url_ = url;
+    crossed_origin_ |= !context_.source_origin ||
+        !context_.source_origin->IsSameOriginWith(url::Origin::Create(url));
     const auto decision = decide_.Run(url, method_, destination_, resource_type_, context_);
     switch (decision.action) {
       case AdblockDecision::Action::kAllow:
@@ -91,7 +93,7 @@ class Request final : public network::mojom::URLLoader,
   void ServeReplacement() {
     // Synthetic bodies bypass NetworkService CORP/ORB; restrict no-cors replacement to same-origin.
     if (mode_ == network::mojom::RequestMode::kNoCors &&
-        (context_.status != AdblockRequestContext::Status::kAuthoritative ||
+        (crossed_origin_ || context_.status != AdblockRequestContext::Status::kAuthoritative ||
          !context_.source_origin || context_.source_origin->opaque() ||
          !context_.source_origin->IsSameOriginWith(url::Origin::Create(original_url_)) ||
          !context_.source_origin->IsSameOriginWith(url::Origin::Create(current_url_)))) {
@@ -194,6 +196,7 @@ class Request final : public network::mojom::URLLoader,
   const network::mojom::RequestMode mode_;
   const GURL original_url_;
   GURL current_url_;
+  bool crossed_origin_ = false;
   std::string method_;
   std::string replacement_;
   std::string replacement_body_;
