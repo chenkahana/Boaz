@@ -107,9 +107,26 @@ void TrustedExecution::Finish(uint64_t id, Status status, base::Value result) {
   auto it = pending_.find(id);
   if (it == pending_.end()) return;
   auto completion = std::move(it->second.completion);
+  auto target = std::move(it->second.target);
   pending_.erase(it);
-  if (status != Status::kSuccess) result = base::Value();
-  Post(std::move(completion), {status, std::move(result)});
+  if (status != Status::kSuccess) {
+    Post(std::move(completion), {status, {}});
+    return;
+  }
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(
+          [](base::WeakPtr<TrustedExecution> executor, Target target,
+             Completion completion, base::Value result) {
+            if (!completion) return;
+            if (!executor) {
+              std::move(completion).Run({Status::kClosed, {}});
+            } else if (!executor->Validate(target)) {
+              std::move(completion).Run({Status::kInvalidTarget, {}});
+            } else {
+              std::move(completion).Run({Status::kSuccess, std::move(result)});
+            }
+          }, weak_factory_.GetWeakPtr(), std::move(target),
+          std::move(completion), std::move(result)));
 }
 void TrustedExecution::Cancel(Status status) {
   CHECK_NE(epoch_, std::numeric_limits<uint64_t>::max());

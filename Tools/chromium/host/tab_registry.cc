@@ -531,8 +531,8 @@ BoazHostResult TabRegistry::SetSplit(BoazHostWindow id, BoazHostPage first,
     return BOAZ_HOST_CLOSING;
   auto* strip = window->strip.get();
   if (strip->closing_all() ||
-      a->web_contents()->GetBrowserContext() != window->browser->profile() ||
-      b->web_contents()->GetBrowserContext() != window->browser->profile())
+      a->web_contents()->GetBrowserContext() != window->browser->GetProfile() ||
+      b->web_contents()->GetBrowserContext() != window->browser->GetProfile())
     return BOAZ_HOST_UNAVAILABLE;
   int ai = strip->GetIndexOfWebContents(a->web_contents());
   int bi = strip->GetIndexOfWebContents(b->web_contents());
