@@ -1,5 +1,6 @@
 #include "page_print.h"
 #include "tab_registry.h"
+#include "content/public/browser/focused_node_details.h"
 #include "base/compiler_specific.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/devtools/devtools_toggle_action.h"
@@ -139,7 +140,65 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver, find_in_page::Fin
     DetachFind();
     owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED);
   }
+  void QueuePasswordFocus(content::WeakDocumentPtr document = {}, gfx::Rect bounds = {}) {
+    CHECK_NE(focus_sequence, std::numeric_limits<uint64_t>::max());
+    const auto sequence = ++focus_sequence;
+    focused_document = document;
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
+        base::BindOnce([](base::WeakPtr<Impl> owner, BoazHostPage id, uint64_t sequence,
+                          content::WeakDocumentPtr document, gfx::Rect bounds) {
+          if (!owner || !owner->callbacks.password_focus) return;
+          auto* page = owner->Find(id);
+          if (!page || page->focus_sequence != sequence) return;
+          uint64_t token = 0;
+          std::string origin;
+          auto* frame = document.AsRenderFrameHostIfValid();
+          if (frame) {
+            if (page->closing || page->destroyed || !page->view_available || !page->web_contents() ||
+                frame != page->web_contents()->GetFocusedFrame()) return;
+            if (!page->scripts) page->scripts = std::make_unique<TrustedScriptChannel>(page->web_contents());
+            auto captured = page->scripts->Capture(&origin, true);
+            if (!captured) return;
+            token = *captured;
+            if (origin.empty() || origin.size() >= 2048 ||
+                !frame->GetLastCommittedURL().SchemeIsHTTPOrHTTPS()) {
+              page->scripts->Release(token);
+              return;
+            }
+          }
+          owner->in_callback = true;
+          owner->callbacks.password_focus(owner->callbacks.context, id, sequence, token,
+              origin.c_str(), bounds.x(), bounds.y(), bounds.width(), bounds.height());
+          owner->in_callback = false;
+        }, owner->weak.GetWeakPtr(), id, sequence, document, bounds));
+  }
+  void OnFocusChangedInPage(const content::FocusedNodeDetails& details) override {
+    auto* frame = details.global_dom_node_id.document.AsRenderFrameHostIfValid();
+    const auto& bounds = details.node_bounds_in_screen;
+    if (details.editable_level == content::EditableLevel::kNotEditable || !frame ||
+        frame != web_contents()->GetFocusedFrame() || bounds.IsEmpty() ||
+        bounds.width() > 32768 || bounds.height() > 32768 ||
+        bounds.x() < -1000000 || bounds.x() > 1000000 ||
+        bounds.y() < -1000000 || bounds.y() > 1000000) {
+      QueuePasswordFocus(); return;
+    }
+    QueuePasswordFocus(details.global_dom_node_id.document, bounds);
+  }
+  void OnWebContentsLostFocus(content::RenderWidgetHost*) override { QueuePasswordFocus(); }
+  void RenderFrameDeleted(content::RenderFrameHost* deleted) override {
+    for (auto* frame = focused_document.AsRenderFrameHostIfValid(); frame; frame = frame->GetParent()) {
+      if (frame == deleted) { QueuePasswordFocus(); return; }
+    }
+  }
   void DidStartNavigation(content::NavigationHandle* navigation) override {
+    if (!navigation->IsSameDocument()) {
+      for (auto* frame = focused_document.AsRenderFrameHostIfValid(); frame; frame = frame->GetParent()) {
+        if (frame->GetFrameTreeNodeId() == navigation->GetFrameTreeNodeId()) {
+          QueuePasswordFocus(); break;
+        }
+      }
+      if (navigation->IsInPrimaryMainFrame()) QueuePasswordFocus();
+    }
     if (!navigation->IsInPrimaryMainFrame()) return;
     latest_navigation = navigation->GetNavigationId();
     load_error = net::OK;
@@ -167,6 +226,7 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver, find_in_page::Fin
   void OnAudioStateChanged(bool) override { owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED); }
   void DidUpdateAudioMutingState(bool) override { owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED); }
   void PrimaryMainFrameRenderProcessGone(base::TerminationStatus) override {
+    QueuePasswordFocus();
     find_active = false;
     find_result = {};
     owner->Queue(*this, BOAZ_HOST_PAGE_RENDERER_FAILED);
@@ -183,11 +243,13 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver, find_in_page::Fin
     owner->Queue(*this, BOAZ_HOST_PAGE_CLOSE_CANCELLED);
   }
   void WebContentsDestroyed() override { DetachFind(); owner->Destroyed(*this); }
-  void ObserveReplacement(content::WebContents* contents) { DetachFind(); emulation.reset(); capture.reset(); scripts.reset(); latest_navigation = -1; load_error = net::OK; failed_url.clear(); Observe(contents); AttachFind(); }
+  void ObserveReplacement(content::WebContents* contents) { QueuePasswordFocus(); DetachFind(); emulation.reset(); capture.reset(); scripts.reset(); latest_navigation = -1; load_error = net::OK; failed_url.clear(); Observe(contents); AttachFind(); }
 
   raw_ref<Impl> owner;
   BoazHostPage id = NextHandle();
   BoazHostWindow window;
+  uint64_t focus_sequence = 0;
+  content::WeakDocumentPtr focused_document;
   uint64_t generation = 0;
   std::optional<uint64_t> protected_media_generation;
   uint64_t view_revision = 0;
@@ -378,6 +440,7 @@ void TabRegistry::Impl::Replace(Page& page, content::WebContents* replacement) {
 }
 void TabRegistry::Impl::Closing(Page& page) {
   if (page.closing) return;
+  page.QueuePasswordFocus();
   page.closing = true;
   if (page.scripts) page.scripts->Close();
   if (page.capture) page.capture->Close();
