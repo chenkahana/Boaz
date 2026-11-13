@@ -531,7 +531,8 @@ BoazHostResult TabRegistry::SetSplit(BoazHostWindow id, BoazHostPage first,
   if (split != other) return BOAZ_HOST_UNAVAILABLE;
   const auto layout = vertical ? split_tabs::SplitTabLayout::kStacked
                                : split_tabs::SplitTabLayout::kSideBySide;
-  if (!split) {
+  const bool creating = !split.has_value();
+  if (creating) {
     split = strip->AddToNewSplit({ai, bi}, split_tabs::SplitTabVisualData(layout, ratio),
                                  split_tabs::SplitTabCreatedSource::kToolbarButton);
   }
@@ -540,8 +541,10 @@ BoazHostResult TabRegistry::SetSplit(BoazHostWindow id, BoazHostPage first,
   if (data->ListTabs()[0]->GetContents() != a->web_contents()) strip->ReverseTabsInSplit(*split);
   strip->UpdateSplitLayout(*split, layout);
   strip->UpdateSplitRatio(*split, ratio);
-  strip->ActivateTabAt(strip->GetIndexOfWebContents(a->web_contents()));
-  a->web_contents()->Focus();
+  if (creating) {
+    strip->ActivateTabAt(strip->GetIndexOfWebContents(a->web_contents()));
+    a->web_contents()->Focus();
+  }
   return BOAZ_HOST_OK;
 }
 BoazHostResult TabRegistry::ClearSplit(BoazHostWindow id) {
