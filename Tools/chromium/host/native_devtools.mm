@@ -1,6 +1,8 @@
 #include "native_devtools.h"
 #import <AppKit/AppKit.h>
 #include "bootstrap.h"
+#include <map>
+#include "base/no_destructor.h"
 #include "base/check.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/devtools/devtools_contents_resizing_strategy.h"
@@ -33,6 +35,40 @@ namespace {
 void CheckUI() {
   CHECK_CURRENTLY_ON(content::BrowserThread::UI);
   CHECK([NSThread isMainThread]);
+}
+struct DockPreferences {
+  int current = 0;
+  int last = 0;
+  base::RepeatingCallback<void(int, int)> changed;
+};
+auto& Preferences() {
+  static base::NoDestructor<std::map<BrowserWindowInterface*, DockPreferences>> preferences;
+  return *preferences;
+}
+DockPreferences* PreferencesFor(content::WebContents* contents) {
+  if (!contents) return nullptr;
+  auto* browser = GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(contents);
+  auto it = Preferences().find(browser);
+  return it == Preferences().end() ? nullptr : &it->second;
+}
+int PreferenceKind(const std::string& name) {
+  if (name == "currentDockState" || name == "current-dock-state") return 1;
+  if (name == "lastDockState" || name == "last-dock-state") return 2;
+  return 0;
+}
+const char* EncodedSide(int side) {
+  switch (side) {
+    case 1: return "\"bottom\"";
+    case 2: return "\"left\"";
+    case 3: return "\"undocked\"";
+    default: return "\"right\"";
+  }
+}
+void Change(DockPreferences& prefs, int current, int last) {
+  if (prefs.current == current && prefs.last == last) return;
+  prefs.current = current;
+  prefs.last = last;
+  if (prefs.changed) prefs.changed.Run(current, last);
 }
 class NativeDock final : public content::WebContentsObserver,
                          public content::WebContentsUserData<NativeDock> {
@@ -126,6 +162,55 @@ class NativeDock final : public content::WebContentsObserver,
   WEB_CONTENTS_USER_DATA_KEY_DECL();
 };
 WEB_CONTENTS_USER_DATA_KEY_IMPL(NativeDock);
+}
+void RegisterNativeDevToolsPreferences(BrowserWindowInterface* browser,
+    base::RepeatingCallback<void(int, int)> changed) {
+  CheckUI();
+  CHECK(browser);
+  CHECK(!Preferences().contains(browser));
+  Preferences().emplace(browser, DockPreferences{0, 0, std::move(changed)});
+}
+void UnregisterNativeDevToolsPreferences(BrowserWindowInterface* browser) {
+  CheckUI();
+  Preferences().erase(browser);
+}
+bool SetNativeDevToolsPreferences(BrowserWindowInterface* browser, int current, int last) {
+  CheckUI();
+  auto it = Preferences().find(browser);
+  if (it == Preferences().end() || current < 0 || current > 3 || last < 0 || last > 2)
+    return false;
+  Change(it->second, current, last);
+  return true;
+}
+std::optional<std::string> GetNativeDevToolsPreference(content::WebContents* contents,
+    const std::string& name) {
+  CheckUI();
+  auto* prefs = PreferencesFor(contents);
+  int kind = PreferenceKind(name);
+  if (!prefs || !kind) return std::nullopt;
+  return EncodedSide(kind == 1 ? prefs->current : prefs->last);
+}
+bool SetNativeDevToolsPreference(content::WebContents* contents,
+    const std::string& name, const std::string& value) {
+  CheckUI();
+  auto* prefs = PreferencesFor(contents);
+  int kind = PreferenceKind(name);
+  if (!prefs || !kind) return false;
+  for (int side = 0; side <= (kind == 1 ? 3 : 2); ++side) {
+    if (value == EncodedSide(side)) {
+      Change(*prefs, kind == 1 ? side : prefs->current, kind == 2 ? side : prefs->last);
+      break;
+    }
+  }
+  return true;  // A malformed native preference must never reach profile storage.
+}
+bool RemoveNativeDevToolsPreference(content::WebContents* contents, const std::string& name) {
+  return SetNativeDevToolsPreference(contents, name, EncodedSide(0));
+}
+std::optional<int> NativeDevToolsDockSide(content::WebContents* contents) {
+  CheckUI();
+  auto* prefs = PreferencesFor(contents);
+  return prefs ? std::optional<int>(prefs->current) : std::nullopt;
 }
 void* NativePageContainer(content::WebContents* contents) {
   CheckUI();

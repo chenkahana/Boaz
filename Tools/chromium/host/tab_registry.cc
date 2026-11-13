@@ -1,4 +1,5 @@
 #include "page_print.h"
+#include "native_devtools.h"
 #include "tab_registry.h"
 #include "content/public/browser/focused_node_details.h"
 #include "base/compiler_specific.h"
@@ -281,7 +282,10 @@ struct TabRegistry::Impl::Window : TabStripModelObserver {
         strip(browser->GetTabStripModel()) {
     strip->AddObserver(this);
   }
-  ~Window() override { if (strip) strip->RemoveObserver(this); }
+  ~Window() override {
+    if (browser) UnregisterNativeDevToolsPreferences(browser);
+    if (strip) strip->RemoveObserver(this);
+  }
   void OnTabStripModelChanged(TabStripModel*, const TabStripModelChange& change,
                               const TabStripSelectionChange& selection) override {
     if (change.type() == TabStripModelChange::kInserted) {
@@ -322,6 +326,7 @@ struct TabRegistry::Impl::Window : TabStripModelObserver {
     for (int i = 0; i < strip->count(); ++i)
       if (auto* page = owner->FindContents(strip->GetWebContentsAt(i)))
         owner->Closing(*page);
+    UnregisterNativeDevToolsPreferences(browser);
     strip = nullptr;
     browser = nullptr;
     owner->WindowDestroyed(id);
@@ -511,9 +516,33 @@ BoazHostWindow TabRegistry::RegisterWindow(Browser* browser, void* native_window
   auto* registered = window.get();
   auto id = registered->id;
   impl_->windows.emplace(id, std::move(window));
+  RegisterNativeDevToolsPreferences(browser, base::BindRepeating(
+      [](base::WeakPtr<Impl> owner, BoazHostWindow id, int current, int last) {
+        base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
+            base::BindOnce([](base::WeakPtr<Impl> owner, BoazHostWindow id,
+                              int current, int last) {
+              if (!owner) return;
+              auto* window = owner->FindWindow(id);
+              if (!window || !window->browser || !owner->callbacks.devtools_dock_changed) return;
+              base::AutoReset<bool> guard(&owner->in_callback, true);
+              owner->callbacks.devtools_dock_changed(owner->callbacks.context, id, current, last);
+            }, owner, id, current, last));
+      }, impl_->weak.GetWeakPtr(), id));
   for (int i = 0; i < registered->strip->count(); ++i)
     impl_->Track(*registered, registered->strip->GetWebContentsAt(i));
   return id;
+}
+BoazHostResult TabRegistry::SetDevToolsDockPreferences(
+    BoazHostWindow id, int32_t current, int32_t last) {
+  if (auto result = impl_->Check(); result != BOAZ_HOST_OK) return result;
+  if (current < 0 || current > 3 || last < 0 || last > 2) return BOAZ_HOST_INVALID_ARGUMENT;
+  auto* window = impl_->FindWindow(id);
+  if (!window || !window->browser || !window->strip) return BOAZ_HOST_INVALID_HANDLE;
+  for (int i = 0; i < window->strip->count(); ++i)
+    if (DevToolsWindow::GetInstanceForInspectedWebContents(window->strip->GetWebContentsAt(i)))
+      return BOAZ_HOST_UNAVAILABLE;
+  return SetNativeDevToolsPreferences(window->browser, current, last)
+      ? BOAZ_HOST_OK : BOAZ_HOST_UNAVAILABLE;
 }
 BoazHostResult TabRegistry::CreatePage(BoazHostWindow window_id, const char* url, BoazHostPage* output) {
   if (output) *output = 0;

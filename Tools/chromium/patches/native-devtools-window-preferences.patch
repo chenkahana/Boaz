@@ -1,0 +1,86 @@
+--- a/chrome/browser/devtools/devtools_ui_bindings.cc
++++ b/chrome/browser/devtools/devtools_ui_bindings.cc
+@@ -38,6 +38,9 @@
+ #include "base/version_info/channel.h"
+ #include "build/branding_buildflags.h"
+ #include "build/build_config.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/native_devtools.h"
++#endif
+ #include "chrome/browser/about_flags.h"
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/devtools/aida_service_handler.h"
+@@ -1791,26 +1794,49 @@
+ 
+ void DevToolsUIBindings::RegisterPreference(const std::string& name,
+                                             const RegisterOptions& options) {
++#if BUILDFLAG(IS_MAC)
++  if (boaz::GetNativeDevToolsPreference(delegate_->GetInspectedWebContents(), name)) return;
++#endif
+   settings_.Register(name, options);
+ }
+ 
+ void DevToolsUIBindings::GetPreferences(DispatchCallback callback) {
+-  base::Value settings = base::Value(settings_.Get());
++  auto values = settings_.Get();
++#if BUILDFLAG(IS_MAC)
++  for (const char* name : {"currentDockState", "lastDockState", "current-dock-state", "last-dock-state"}) {
++    if (auto value = boaz::GetNativeDevToolsPreference(delegate_->GetInspectedWebContents(), name))
++      values.Set(name, *value);
++  }
++#endif
++  base::Value settings(std::move(values));
+   std::move(callback).Run(&settings);
+ }
+ 
+ void DevToolsUIBindings::GetPreference(DispatchCallback callback,
+                                        const std::string& name) {
++#if BUILDFLAG(IS_MAC)
++  if (auto value = boaz::GetNativeDevToolsPreference(delegate_->GetInspectedWebContents(), name)) {
++    base::Value pref(*value);
++    std::move(callback).Run(&pref);
++    return;
++  }
++#endif
+   base::Value pref = settings_.Get(name).value_or(base::Value());
+   std::move(callback).Run(&pref);
+ }
+ 
+ void DevToolsUIBindings::SetPreference(const std::string& name,
+                                        const std::string& value) {
++#if BUILDFLAG(IS_MAC)
++  if (boaz::SetNativeDevToolsPreference(delegate_->GetInspectedWebContents(), name, value)) return;
++#endif
+   settings_.Set(name, value);
+ }
+ 
+ void DevToolsUIBindings::RemovePreference(const std::string& name) {
++#if BUILDFLAG(IS_MAC)
++  if (boaz::RemoveNativeDevToolsPreference(delegate_->GetInspectedWebContents(), name)) return;
++#endif
+   settings_.Remove(name);
+ }
+ 
+--- a/chrome/browser/devtools/devtools_window.cc
++++ b/chrome/browser/devtools/devtools_window.cc
+@@ -1795,7 +1795,19 @@
+ void DevToolsWindow::SetInspectedPageBounds(const gfx::Rect& rect) {
+   devtools::DockSide dock_side = devtools::DockSide::kNone;
+   if (is_docked_) {
+-    dock_side = DevToolsSettings::GetDockSide(profile_);
++#if BUILDFLAG(IS_MAC)
++    if (auto native_side = boaz::NativeDevToolsDockSide(GetInspectedWebContents())) {
++      switch (*native_side) {
++        case 1: dock_side = devtools::DockSide::kBottom; break;
++        case 2: dock_side = devtools::DockSide::kLeft; break;
++        case 3: dock_side = devtools::DockSide::kNone; break;
++        default: dock_side = devtools::DockSide::kRight; break;
++      }
++    } else
++#endif
++    {
++      dock_side = DevToolsSettings::GetDockSide(profile_);
++    }
+   }
+ 
+   DevToolsContentsResizingStrategy strategy(dock_side, rect);

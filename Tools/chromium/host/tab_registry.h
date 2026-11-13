@@ -27,6 +27,7 @@ class TabRegistry {
 
   BoazHostResult SetCallbacks(const BoazHostCallbacks* callbacks);
   BoazHostWindow RegisterWindow(Browser* browser, void* native_window);
+  BoazHostResult SetDevToolsDockPreferences(BoazHostWindow window, int32_t current, int32_t last);
   BoazHostResult CreatePage(BoazHostWindow window, const char* url,
                             BoazHostPage* page);
   BoazHostResult Navigate(BoazHostPage page, const char* url);
