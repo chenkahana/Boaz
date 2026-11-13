@@ -592,6 +592,29 @@ BoazHostResult ApplyViewport(BoazHostPage page, const BoazHostViewport* viewport
   if (result != BOAZ_HOST_OK) --state->pending_emulations;
   return result;
 }
+BoazHostResult ApplyNetwork(BoazHostPage page, const BoazHostNetwork* network,
+    uint64_t request, BoazHostEmulationCompletion completion, void* context) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (!request || !completion || (network && network->offline > 1)) return BOAZ_HOST_INVALID_ARGUMENT;
+  std::optional<PageEmulation::Network> value;
+  if (network) value = PageEmulation::Network{network->offline != 0, network->latency_ms,
+      network->download_bytes_per_second, network->upload_bytes_per_second};
+  CHECK_LT(state->pending_emulations, std::numeric_limits<uint64_t>::max());
+  ++state->pending_emulations;
+  auto result = state->tabs->ApplyNetwork(page, value, EmulationCompletion(page, request, completion, context));
+  if (result != BOAZ_HOST_OK) --state->pending_emulations;
+  return result;
+}
+BoazHostResult ApplyCPU(BoazHostPage page, double rate, uint64_t request,
+    BoazHostEmulationCompletion completion, void* context) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (!request || !completion) return BOAZ_HOST_INVALID_ARGUMENT;
+  CHECK_LT(state->pending_emulations, std::numeric_limits<uint64_t>::max());
+  ++state->pending_emulations;
+  auto result = state->tabs->ApplyCPU(page, rate, EmulationCompletion(page, request, completion, context));
+  if (result != BOAZ_HOST_OK) --state->pending_emulations;
+  return result;
+}
 BoazHostResult ApplyMedia(BoazHostPage page, const BoazHostMedia* media,
     uint64_t request, BoazHostEmulationCompletion completion, void* context) {
   if (auto result = Check(); result != BOAZ_HOST_OK) return result;
@@ -674,7 +697,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:

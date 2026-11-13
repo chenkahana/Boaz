@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 28u
+#define BOAZ_HOST_ABI_VERSION 29u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT
@@ -34,6 +34,10 @@ typedef struct BoazHostMedia {
   int32_t type, color_scheme, reduced_motion, contrast, vision;
   uint8_t forced_colors;
 } BoazHostMedia;
+typedef struct BoazHostNetwork {
+  double latency_ms, download_bytes_per_second, upload_bytes_per_second;
+  uint8_t offline;
+} BoazHostNetwork;
 typedef enum BoazHostEmulationStatus {
   BOAZ_EMULATION_SUCCESS, BOAZ_EMULATION_INVALID, BOAZ_EMULATION_UNAVAILABLE,
   BOAZ_EMULATION_PROTOCOL_ERROR, BOAZ_EMULATION_TIMEOUT,
@@ -282,6 +286,10 @@ typedef struct BoazHostAPI {
   BoazHostResult (*clear_cache)(BoazHostProfile profile, uint64_t request,
       BoazHostCacheCompletion completion, void* context);
   BoazHostResult (*reload_from_origin)(BoazHostPage page);
+  BoazHostResult (*apply_network)(BoazHostPage page, const BoazHostNetwork* network,
+      uint64_t request, BoazHostEmulationCompletion completion, void* context);
+  BoazHostResult (*apply_cpu)(BoazHostPage page, double rate,
+      uint64_t request, BoazHostEmulationCompletion completion, void* context);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.
