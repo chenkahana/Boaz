@@ -11,6 +11,7 @@ final class ChromiumExtensionManagement {
         let version: String
         let enabled: Bool
         let canDisable: Bool
+        let canEnable: Bool
     }
     private let api: BoazHostAPI
     private let profile: BoazHostProfile
@@ -42,12 +43,12 @@ final class ChromiumExtensionManagement {
             return
         }
         installed = []
-        let result = enumerate(profile, { context, id, name, version, enabled, canDisable in
+        let result = enumerate(profile, { context, id, name, version, enabled, canDisable, canEnable in
             guard let context, let id, let name, let version else { return }
             MainActor.assumeIsolated {
                 let model = Unmanaged<ChromiumExtensionManagement>.fromOpaque(context).takeUnretainedValue()
                 model.installed.append(Installed(id: String(cString: id), name: String(cString: name),
-                    version: String(cString: version), enabled: enabled != 0, canDisable: canDisable != 0))
+                    version: String(cString: version), enabled: enabled != 0, canDisable: canDisable != 0, canEnable: canEnable != 0))
             }
         }, Unmanaged.passUnretained(self).toOpaque())
         if result != BOAZ_HOST_OK {
@@ -63,6 +64,16 @@ final class ChromiumExtensionManagement {
         refresh()
         if result != BOAZ_HOST_OK {
             error = "This extension could not be disabled. It may be required by a policy or the profile may have closed."
+        }
+    }
+
+    func enable(_ extensionID: String) {
+        guard installed.contains(where: { $0.id == extensionID && !$0.enabled && $0.canEnable }),
+              let enable = api.enable_extension else { return }
+        let result = extensionID.withCString { enable(profile, $0) }
+        refresh()
+        if result != BOAZ_HOST_OK {
+            error = "This extension could not be enabled. It may need additional permission approval or be restricted by a policy."
         }
     }
 
@@ -90,12 +101,18 @@ final class ChromiumExtensionManagement {
                                     if item.enabled && !item.canDisable {
                                         Text("Required by the browser or a policy.")
                                             .font(.caption).foregroundStyle(.secondary)
+                                    } else if !item.enabled && !item.canEnable {
+                                        Text("Additional approval or policy review is required.")
+                                            .font(.caption).foregroundStyle(.secondary)
                                     }
                                 }
                                 Spacer()
                                 if item.enabled && item.canDisable {
                                     Button("Disable") { model.disable(item.id) }
                                         .accessibilityLabel("Disable \(item.name)")
+                                } else if !item.enabled && item.canEnable {
+                                    Button("Enable") { model.enable(item.id) }
+                                        .accessibilityLabel("Enable \(item.name)")
                                 }
                             }
                             Divider()

@@ -219,7 +219,7 @@ typedef void (*BoazHostHistoryVisitor)(void* context, int32_t entry_id,
  * native-view detachment. Other events wait until model mutation unwinds. */
 /* Borrowed installed-extension metadata; copy before returning, no API reentry. */
 typedef void (*BoazHostManagedExtensionVisitor)(void* context, const char* id,
-    const char* name, const char* version, uint8_t enabled, uint8_t can_disable);
+    const char* name, const char* version, uint8_t enabled, uint8_t can_disable, uint8_t can_enable);
 
 typedef struct BoazHostAPI {
   size_t size;
@@ -338,6 +338,7 @@ typedef struct BoazHostAPI {
   BoazHostResult (*enumerate_managed_extensions)(BoazHostProfile profile,
       BoazHostManagedExtensionVisitor visitor, void* context);
   BoazHostResult (*disable_extension)(BoazHostProfile profile, const char* id);
+  BoazHostResult (*enable_extension)(BoazHostProfile profile, const char* id);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.
