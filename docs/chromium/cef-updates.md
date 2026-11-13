@@ -1,4 +1,12 @@
-# CEF updates and security response
+# Chromium updates and security response
+
+The active application uses the direct Chromium source pin. Run `python3 Tools/chromium/check-update.py`; it checks the official Mac stable ChromiumDash metadata against `Tools/chromium/source.lock.json`, without changing inputs or downloading binaries. Errors return nonzero with `updateAvailable: null`. HTTPS stays on the official host; response limit is 1 MiB, socket timeout 20 seconds and checked read budget 60 seconds.
+
+The live check on 2026-11-13 passed and found stable `158.0.8127.37`, published 2026-11-12, ahead of the current `157.0.8103.51` feasibility pin. This is an update finding, not a security-advisory classification. Keep running builds frozen; review upstream advisories and validate the new source archive/revision/checksum before a separate rebuild checkpoint in this same PR. Production acceptance requires resolving this stale-pin finding.
+
+For the direct build, update the verified source lock, SDK/toolchain pins if required, and every patch preimage/postimage. Use `Tools/chromium/apply-patches.py --apply`, `install-host.py --install`, then guarded focused/full builds and the application build/stage/sign commands. Preserve previous compiled and signed artifacts. Never rewrite an already-applied patch entry in place; use an incremental correction or a new clean source checkout for the revision update. The response ownership, 72-hour target and unchanged acceptance gates below apply to the direct application.
+
+## Retained CEF feasibility checker
 
 Run `python3 Tools/cef/check-update.py` from the checkout, or pass `--lock PATH`. The checker reads the official CEF build metadata and compares numeric Chromium and CEF version components with `Vendor/CEF.lock`. It selects the newest stable macosarm64 standard artifact, reports its URL, size, publication time and published SHA1, and downloads no binary. The full new CEF commit and independently calculated SHA256 must be verified before changing the lock; the CDN supplies only a commit prefix and SHA1 here.
 
