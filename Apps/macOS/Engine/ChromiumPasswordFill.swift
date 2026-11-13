@@ -7,8 +7,9 @@ enum ChromiumPasswordFill {
     private static var filling = false
 
     static func run(on page: ChromiumEnginePageAdapter, window: NSWindow,
+                    capturedTarget: ChromiumCapturedDocument? = nil,
                     report: @escaping (String) -> Void) async {
-        guard !filling else { return }
+        guard !filling else { capturedTarget?.release(); return }
         filling = true
         defer { filling = false }
         let navigation = page.state.navigationID
@@ -18,7 +19,7 @@ enum ChromiumPasswordFill {
             page.state.lifecycle == .active && page.state.navigationID == navigation && page.state.url == url
         }
         do {
-            let target = try page.captureTrustedDocument(focused: true)
+            let target = try capturedTarget ?? page.captureTrustedDocument(focused: true)
             defer { target.release() }
             let preparation = try target.clone()
             defer { preparation.release() }
