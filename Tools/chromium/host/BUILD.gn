@@ -18,6 +18,8 @@ buildflag_header("buildflags") {
 source_set("headers") {
   public = [ "native_extension_prompt.h", "native_password_submission.h", "native_devtools.h", "bootstrap.h", "native_permission_prompt.h", "protected_media.h" ]
   public_deps = [
+    "//base",
+    "//extensions/browser:browser_sources",
     ":protected_media_mojom",
     "//chrome/browser/ui:browser_window_deleter",
     "//components/permissions",
