@@ -387,7 +387,9 @@ private struct CopiedPageState {
             canGoForward: value.can_go_forward != 0, navigationID: value.document_generation,
             isAudible: value.audible != 0, isMuted: value.muted != 0,
             findMatchCount: Int(value.find_match_count), findActiveMatch: Int(value.find_active_match),
-            findFinal: value.find_final != 0)
+            findFinal: value.find_final != 0,
+            loadFailure: value.load_error == 0 ? nil : EngineLoadFailure(code: Int(value.load_error),
+                url: value.failed_url.flatMap { URL(string: String(cString: $0)) }))
     }
 }
 #endif

@@ -20,6 +20,11 @@ enum EnginePageLifecycle: Sendable {
     case crashed
 }
 
+struct EngineLoadFailure: Equatable, Sendable {
+    let code: Int
+    let url: URL?
+}
+
 struct EnginePageState: Equatable, Sendable {
     var url: URL?
     var title = ""
@@ -33,6 +38,7 @@ struct EnginePageState: Equatable, Sendable {
     var findMatchCount = -1
     var findActiveMatch = -1
     var findFinal = false
+    var loadFailure: EngineLoadFailure?
 }
 
 enum EnginePageError: Error, LocalizedError {

@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 13u
+#define BOAZ_HOST_ABI_VERSION 14u
 
 typedef uint64_t BoazHostWindow;
 typedef uint64_t BoazHostPage;
@@ -66,6 +66,8 @@ typedef struct BoazHostPageState {
   int32_t find_match_count;
   int32_t find_active_match;
   uint8_t find_final;
+  int32_t load_error;
+  const char* failed_url;
 } BoazHostPageState;
 
 typedef struct BoazHostWindowLayout {
