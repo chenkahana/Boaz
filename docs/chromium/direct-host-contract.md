@@ -49,3 +49,12 @@ The bootstrap counts accepted script operations and delays `shutdown_ready` unti
 `get_window_layout` returns actual ordered foreground page IDs and a separate active page. `set_split` creates or updates Chromium's split collection, with a finite first-pane ratio between 0.1 and 0.9; vertical means stacked top/bottom. Both pages must be live and belong to the same window/profile. Existing incompatible splits, groups, pin states and unavailable layouts are rejected. New splits focus the first page; resizing/reorienting an existing pair preserves focus. `clear_split` dissolves the active pair while retaining its pages.
 
 The native UI attaches the outer WebContents native views to stable NSSplitView panes. Attachment/hiding owns visibility; unfocused visible panes are not explicitly backgrounded. Layout refreshes happen after model callbacks unwind. Synchronous close/replacement barriers only detach the affected view. This packet and ABI 5 are not installed over the active ABI 4 build; compilation and split lifecycle acceptance remain pending.
+
+
+## ABI 15–17 application operations
+
+ABI15 adds a synchronous residency busy query over native playback, capture, PiP and fullscreen state. Unavailable state must protect the page from automatic eviction. ABI16 adds typed detached DevTools, Console and inspect operations; policy rejection is explicit. Docking needs a separate native layout contract.
+
+ABI17 adds origin-bearing document capture. The copied ASCII origin and opaque single-use token come from the same authoritative target. Callers capture before authentication, retain page/profile/navigation identity, release on cancellation, and execute only against that target. Password callers restrict origins to HTTP/HTTPS. Page JavaScript never supplies the trusted origin. The older general capture operation remains available to non-password page services.
+
+Host objects through ABI17 compiled at ab93cfc. The full application runtime security scenarios remain required.

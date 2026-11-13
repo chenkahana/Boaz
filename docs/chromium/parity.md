@@ -73,20 +73,25 @@ Scroll-state values/storage and pinned-anchor comparisons are also separated fro
 
 ## Real application implementation checkpoint, 2026-11-13
 
-The existing full Chromium build continues with six jobs and its installed ABI4 inputs unchanged. Repository changes now target ABI9 and await installation/build at a safe checkpoint. No second application build or benchmark runs concurrently. PR #70 remains draft.
+The ABI4 full Chromium build passed (`20261113T132348.491152Z.log`) and its unsigned and development-signed applications are preserved under `/Volumes/BoazBuild/cef/direct/artifacts/20261113-abi4-*`. The signed prototype rendered local content and HTTPS Example Domain through native controls. An earlier process sample showed an OSCrypt Keychain wait; it subsequently cleared without an agent ACL change. This is prototype evidence, not real-application runtime acceptance.
+
+The real Boaz UI library built and staged successfully at `d1a4a29`, after fixing callback code generation and the product filename. The newer host at `ab93cfc` passed focused C++ compilation with ABI17 (`20261113T155745.143510Z.log`); its incremental full build is underway. Later Swift packets await the next application build. Builds remain serial, inputs frozen, compiled outputs preserved. PR #70 remains draft.
 
 | Work | Integrated implementation | Verification actually passed | Remaining dependency |
 |---|---|---|---|
-| Engine facade | Concrete observable page, WebKit adapter, Chromium adapter, typed JSON values | Focused Swift 6 typechecks | Full dual-engine application builds and runtime parity |
-| Real application | Chromium startup loads actual BrowserWindow, BrowserState, native renderer and address field; independent UI-library project | Project generation, conditional parsing | Full target typecheck/build, signed launch, resource packaging |
-| Profiles | Authoritative profile handles, regular/private native contexts, coalesced concurrent preparation | Swift runtime typecheck and pinned-source inspection | Native compile; profile/private disk acceptance; multiple profiles in one Boaz window still needs implementation |
-| Tabs | Navigation, back/forward/reload, activation, close completion/cancellation, native split synchronization | Conditional parsing and adapter typechecks | Rapid close/before-unload, split focus/fullscreen and restoration runtime scenarios |
-| External URLs | Chromium application delegate preserved; ordered pre-start URL batches feed existing MacModel routing | Patch dry-run against pinned source; runtime Swift typecheck | Cold/warm OS delivery, native Quick Window port and signed bundle registration |
-| Menus | Native application/edit/window/navigation/tab/space commands reuse existing actions and key bindings | Parse and source checks | Full application typecheck; page-service/Develop commands remain implementation work |
-| Page scripts and AI | Document-bound typed isolated scripts; actual Chromium page text feeds existing assistant | Swift 6 adapter/extraction typechecks | Hostile-page/navigation security scenarios; long-page extraction beyond bridge result size |
-| Audio | Native audible/muted snapshot and per-page mute command | Pinned header/observer checks | UI integration and playback/mute runtime acceptance |
+| Engine facade | Observable facade, WebKit and Chromium adapters, typed JSON | Focused Swift 6 checks; real app library build at d1a4a29 | Updated app build and both-engine runtime acceptance |
+| Real application | Real BrowserWindow/BrowserState, native page/address field, Quick Window, split layout | Real UI compile/link/staging; host objects compile | Bundled assets/frameworks, signed actual-app launch and focus/lifecycle checks |
+| Profiles | Authoritative handles, regular/private contexts, concurrent preparation | Swift checks and native C++ compilation | Private disk acceptance; profile-aware space transitions still need implementation |
+| Tabs and operations | History menus, stop/reload, zoom, find counts, native close cancellation, errors/reconnect | Earlier UI build; latest host objects | Rapid close, before-unload, renderer failure, split focus/fullscreen |
+| Residency | Native ten-live-page accounting, actual media/capture/PiP/fullscreen protection, isolated scroll capture/restore | Script equivalence, focused Swift checks, native busy-query compile | Integrated app build and 15-tab/long-page/private restoration scenarios |
+| External URLs/default browser | Ordered startup batches, existing handler detection/settings action | Native/Swift compilation; installed SDK API check | Signed registration, user-consented default change, cold/warm multiple-URL delivery |
+| Page scripts and AI | Exact-document isolated execution; bounded long-page chunk transfer; visible extraction-limit errors | Focused Swift 6 checks; native isolated channel compilation | Long articles, concurrent extraction and navigation/cancellation runtime checks |
+| Passwords | Origin-bearing captured token retained across authentication | C++ and focused Swift checks | User-initiated fill UI packet, hostile/navigation/private acceptance; submission/save integration still required |
+| Audio/extensions | Native audio indicators/mute and toolbar actions on actual pages | Earlier real app build and host compilation | Playback/mute, complete extension cohort, badges/icons/install/update/permissions |
+| Developer tools | Real native menu actions for detached DevTools, Console and inspect mode | Focused Swift checks and native C++ compilation | Detached frontend lifecycle/runtime; docking/emulation/throttling/capture/automation still required |
+| Packaging | Bundled UI lookup, Boaz resource bundle, unpublished assembly command | Python syntax checks | Execute assembly with latest artifacts, nested signing, notarization and final branding |
 
-The first real-application typecheck found two Sendable errors in native view callbacks. Those were fixed by returning pointer bits across the synchronous actor assertion; the repeat check is pending. This is not a passed application build.
+No row is runtime-complete merely because its implementation or compilation passed. No new tests were added.
 
 ### Ready work
 
