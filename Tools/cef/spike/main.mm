@@ -289,6 +289,7 @@ private:
     viewsWindow_ = window;
     NSView *root = CAST_CEF_WINDOW_HANDLE_TO_NSVIEW(window->GetWindowHandle());
     presentationWindow_ = root.window;
+    if ([NSProcessInfo.processInfo.environment[@"BOAZ_CEF_SPIKE_NATIVE_WRAPPER"] isEqualToString:@"0"]) return;
     NSView *cefContent = presentationWindow_.contentView;
     NSView *container = [[NSView alloc] initWithFrame:cefContent.frame];
     container.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
