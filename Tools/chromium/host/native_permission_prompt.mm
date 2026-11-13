@@ -7,6 +7,8 @@
 #include "base/strings/sys_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "components/permissions/permission_request.h"
+#include "components/permissions/permission_request_data.h"
+#include "components/permissions/resolvers/permission_prompt_options.h"
 #include "components/permissions/permission_util.h"
 #include "components/permissions/request_type.h"
 #include "content/public/browser/browser_thread.h"
@@ -65,12 +67,17 @@ class NativePermissionPrompt final : public permissions::PermissionPrompt {
       return;
     completed_ = true;
     auto delegate = delegate_;
+    if (accuracy_picker_) {
+      prompt_options_ = GeolocationPromptOptions{
+          accuracy_picker_.indexOfSelectedItem == 0 ? GeolocationAccuracy::kApproximate
+                                                   : GeolocationAccuracy::kPrecise};
+    }
     switch (decision) {
-      case Decision::kAllow: delegate->Accept(std::monostate()); return;
-      case Decision::kOnce: delegate->AcceptThisTime(std::monostate()); return;
-      case Decision::kDeny: delegate->Deny(std::monostate()); return;
-      case Decision::kDismiss: delegate->Dismiss(std::monostate()); return;
-      case Decision::kIgnore: delegate->Ignore(std::monostate()); return;
+      case Decision::kAllow: delegate->Accept(prompt_options_); return;
+      case Decision::kOnce: delegate->AcceptThisTime(prompt_options_); return;
+      case Decision::kDeny: delegate->Deny(prompt_options_); return;
+      case Decision::kDismiss: delegate->Dismiss(prompt_options_); return;
+      case Decision::kIgnore: delegate->Ignore(prompt_options_); return;
     }
   }
   void Show() {
@@ -81,8 +88,7 @@ class NativePermissionPrompt final : public permissions::PermissionPrompt {
     NSWindow* window = Window();
     if (!window || window.attachedSheet ||
         delegate_->ShouldCurrentRequestUseQuietUI() ||
-        delegate_->ShouldDropCurrentRequestIfCannotShowQuietly() ||
-        delegate_->GetGeolocationPromptType().has_value()) {
+        delegate_->ShouldDropCurrentRequestIfCannotShowQuietly()) {
       Finish(Decision::kIgnore);
       return;
     }
@@ -92,6 +98,23 @@ class NativePermissionPrompt final : public permissions::PermissionPrompt {
       Finish(Decision::kIgnore);
       return;
     }
+    const auto geo_type = delegate_->GetGeolocationPromptType();
+    const bool geolocation = delegate_->Requests().size() == 1 &&
+        delegate_->Requests().front()->request_type() == permissions::RequestType::kGeolocation;
+    if (geo_type && !geolocation) { Finish(Decision::kIgnore); return; }
+    if (geo_type) {
+      switch (*geo_type) {
+        case permissions::GeolocationPromptType::kApproximateOrPrecise:
+          prompt_options_ = GeolocationPromptOptions{delegate_->GetInitialGeolocationAccuracySelection()};
+          break;
+        case permissions::GeolocationPromptType::kApproximateOnly:
+          prompt_options_ = GeolocationPromptOptions{GeolocationAccuracy::kApproximate};
+          break;
+        case permissions::GeolocationPromptType::kUpgradeToPrecise:
+          prompt_options_ = GeolocationPromptOptions{GeolocationAccuracy::kPrecise};
+          break;
+      }
+    }
     NSMutableArray<NSString*>* labels = [NSMutableArray array];
     bool temporary = true;
     for (const auto& request : delegate_->Requests()) {
@@ -99,7 +122,8 @@ class NativePermissionPrompt final : public permissions::PermissionPrompt {
       if (request->IsEmbeddedPermissionElementInitiated() ||
           (type != permissions::RequestType::kCameraStream &&
            type != permissions::RequestType::kMicStream &&
-           type != permissions::RequestType::kNotifications)) {
+           type != permissions::RequestType::kNotifications &&
+           !(type == permissions::RequestType::kGeolocation && geolocation))) {
         LOG(WARNING) << "Boaz native permission unsupported request type: "
                      << permissions::PermissionKeyForRequestType(type);
         Finish(Decision::kIgnore);
@@ -111,14 +135,32 @@ class NativePermissionPrompt final : public permissions::PermissionPrompt {
           permissions::PermissionUtil::DoesSupportTemporaryGrants(*setting);
     }
     alert_ = [[NSAlert alloc] init];
-    alert_.messageText = @"Website permission";
+    alert_.messageText = geolocation ? @"Website location permission" : @"Website permission";
+    if (geo_type == permissions::GeolocationPromptType::kApproximateOnly)
+      [labels addObject:@"Allow this website to use your approximate location?"];
+    if (geo_type == permissions::GeolocationPromptType::kUpgradeToPrecise) {
+      alert_.messageText = @"Allow precise location?";
+      [labels addObject:@"This website already has approximate location access. Blocking precise location keeps its existing approximate access."];
+    }
+    if (geo_type == permissions::GeolocationPromptType::kApproximateOrPrecise) {
+      NSStackView* accessory = [[NSStackView alloc] initWithFrame:NSMakeRect(0, 0, 300, 34)];
+      accessory.orientation = NSUserInterfaceLayoutOrientationHorizontal;
+      accessory.spacing = 12;
+      [accessory addArrangedSubview:[NSTextField labelWithString:@"Location accuracy"]];
+      accuracy_picker_ = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(0, 0, 160, 28) pullsDown:NO];
+      [accuracy_picker_ addItemsWithTitles:@[@"Approximate", @"Precise"]];
+      [accuracy_picker_ selectItemAtIndex:std::get<GeolocationPromptOptions>(prompt_options_).selected_accuracy == GeolocationAccuracy::kApproximate ? 0 : 1];
+      [accuracy_picker_ setAccessibilityLabel:@"Location accuracy"];
+      [accessory addArrangedSubview:accuracy_picker_];
+      alert_.accessoryView = accessory;
+    }
     alert_.informativeText = [NSString stringWithFormat:
         @"Requesting origin: %@\nEmbedding origin: %@\n\n%@",
         base::SysUTF8ToNSString(requesting.Serialize()),
         base::SysUTF8ToNSString(embedding.Serialize()),
         [labels componentsJoinedByString:@"\n"]];
     [alert_ addButtonWithTitle:@"Not Now"];
-    [alert_ addButtonWithTitle:@"Block"];
+    [alert_ addButtonWithTitle:geo_type == permissions::GeolocationPromptType::kUpgradeToPrecise ? @"Block Precise Location" : @"Block"];
     [alert_ addButtonWithTitle:@"Allow"];
     if (temporary)
       [alert_ addButtonWithTitle:@"Allow Once"];
@@ -136,6 +178,8 @@ class NativePermissionPrompt final : public permissions::PermissionPrompt {
   }
   base::WeakPtr<Delegate> delegate_;
   NSAlert* __strong alert_ = nil;
+  NSPopUpButton* __strong accuracy_picker_ = nil;
+  PromptOptions prompt_options_ = std::monostate();
   bool completed_ = false;
   base::WeakPtrFactory<NativePermissionPrompt> weak_factory_{this};
 };
