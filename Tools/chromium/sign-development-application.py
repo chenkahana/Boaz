@@ -50,7 +50,8 @@ def main():
             targets.append(path)
     targets += sorted((p for p in framework.rglob('*') if p.suffix in ('.app', '.xpc') and not p.is_symlink()),
                       key=lambda p: len(p.parts), reverse=True)
-    targets += [framework, app / 'Contents/Frameworks/libBoazApplicationUI.dylib']
+    targets += [framework, app / 'Contents/Frameworks/libBoazApplicationUI.dylib',
+                app / 'Contents/Frameworks/libboaz_adblock.dylib']
     cli = app / 'Contents/MacOS/boaz'
     if cli.is_file():
         targets.append(cli)

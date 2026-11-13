@@ -30,6 +30,11 @@ def assemble(base, receipt, output, native_launch=False, production_version=None
         raise RuntimeError('Refusing to overwrite an existing application artifact')
     record = json.loads(receipt.read_text())
     library = checked(record['immutable_copy'])
+    blocker_receipt = json.loads((ROOT / 'adblock-built.json').read_text())
+    blocker = checked(blocker_receipt['library'])
+    if (blocker.name != 'libboaz_adblock.dylib' or
+            hashlib.sha256(blocker.read_bytes()).hexdigest() != blocker_receipt['library_sha256']):
+        raise RuntimeError('Completed content-blocking library checksum differs')
     cli = checked(record['cli'])
     if not cli.is_file() or not os.access(cli, os.X_OK):
         raise RuntimeError('Completed UI build must include the executable CLI')
@@ -79,7 +84,7 @@ def assemble(base, receipt, output, native_launch=False, production_version=None
         raise RuntimeError('CLI conflicts with base application')
     shutil.copy2(cli, cli_target)
     frameworks, destination = output / 'Contents/Frameworks', output / 'Contents/Resources'
-    for item in [library, *resources]:
+    for item in [library, blocker, *resources]:
         if item.name == 'Assets.car':
             continue  # The catalog belongs to BoazResources.bundle.
         parent = frameworks if item.suffix in ('.dylib', '.framework') else destination
@@ -92,6 +97,7 @@ def assemble(base, receipt, output, native_launch=False, production_version=None
             shutil.copy2(item, target)
     manifest = {'application': str(output), 'base': str(base), 'ui_receipt': str(receipt),
                 'ui_sha256': hashlib.sha256(library.read_bytes()).hexdigest(),
+                'blocking_sha256': blocker_receipt['library_sha256'],
                 'signed': False, 'published': False, 'production_metadata': bool(production_version),
                 'remaining': 'Development signing, launch acceptance, Boaz distribution branding and release gates.'}
     with output.with_suffix('.assembly.json').open('x') as stream:

@@ -5,7 +5,7 @@ edition = "2024"
 publish = false
 
 [lib]
-crate-type = ["staticlib"]
+crate-type = ["cdylib"]
 
 [dependencies]
 adblock = { git = "https://github.com/brave/adblock-rust", rev = "0016bc16a75ca9f87354a537a8b006fdd2b5b5b9", default-features = false, features = ["embedded-domain-resolver", "full-regex-handling"] }

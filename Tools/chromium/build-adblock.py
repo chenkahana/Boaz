@@ -1,5 +1,5 @@
 #!/opt/homebrew/bin/python3.12
-"""Build the pinned content-blocking static library inside the guarded SSD image."""
+"""Build the pinned content-blocking C ABI library inside the guarded SSD image."""
 import argparse
 import fcntl
 import hashlib
@@ -58,7 +58,8 @@ def main():
               for p in sorted(stage.rglob('*')) if p.is_file()}
     env = dict(os.environ, CARGO_HOME=str(root / 'cache/cargo'),
                CARGO_TARGET_DIR=str(root / 'adblock/target'),
-               RUSTC=str(toolchain / 'rustc'), RUSTDOC=str(toolchain / 'rustdoc'))
+               RUSTC=str(toolchain / 'rustc'), RUSTDOC=str(toolchain / 'rustdoc'),
+               RUSTFLAGS='-C link-arg=-Wl,-install_name,@loader_path/../../../libboaz_adblock.dylib')
     command = [str(toolchain / 'cargo')]
     command += ['generate-lockfile'] if args.resolve_lock else [
         'build', '--locked', '--release', '--target', 'aarch64-apple-darwin',
@@ -75,7 +76,7 @@ def main():
         receipt['resolved_lock'] = str(stage / 'Cargo.lock')
         print(f'Review and integrate resolved lock: {stage / "Cargo.lock"}', flush=True)
     elif result.returncode == 0:
-        library = Path(env['CARGO_TARGET_DIR']) / 'aarch64-apple-darwin/release/libboaz_adblock.a'
+        library = Path(env['CARGO_TARGET_DIR']) / 'aarch64-apple-darwin/release/libboaz_adblock.dylib'
         shutil.copy2(library, run / library.name)
         receipt['library_sha256'] = hashlib.sha256(library.read_bytes()).hexdigest()
         receipt['library'] = str(run / library.name)

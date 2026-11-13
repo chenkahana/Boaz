@@ -107,6 +107,7 @@ def sign(args):
         targets += sorted((p for p in sparkle.rglob('*') if p.suffix in ('.app', '.xpc') and not p.is_symlink()),
                           key=lambda p: len(p.parts), reverse=True)
         targets += [sparkle, copied_app / 'Contents/Frameworks/libBoazApplicationUI.dylib',
+                    copied_app / 'Contents/Frameworks/libboaz_adblock.dylib',
                     copied_app / 'Contents/MacOS/boaz']
         # Capture before any inner executable is re-signed: a bundle and its
         # executable share their signature, including service entitlements.
