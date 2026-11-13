@@ -132,6 +132,7 @@ private:
 - (void)didCreateViewsWindow:(CefRefPtr<CefWindow>)window;
 - (void)didDestroyViewsWindow;
 - (BOOL)closeViewsWindow;
+- (BOOL)toggleViewsFullscreen;
 - (void)setPageTitle:(NSString *)title;
 @end
 
@@ -147,8 +148,10 @@ public:
     CefRefPtr<CefCommandHandler> GetCommandHandler() override { return this; }
     bool OnChromeCommand(CefRefPtr<CefBrowser> browser, int command_id,
                          cef_window_open_disposition_t disposition) override {
-        if (command_id != cef_id_for_command_id_name("IDC_EXIT")) return false;
-        return [host_ closeViewsWindow];
+        CEF_REQUIRE_UI_THREAD();
+        if (command_id == cef_id_for_command_id_name("IDC_EXIT")) return [host_ closeViewsWindow];
+        if (command_id == cef_id_for_command_id_name("IDC_FULLSCREEN")) return [host_ toggleViewsFullscreen];
+        return false;
     }
     void OnAfterCreated(CefRefPtr<CefBrowser> browser) override {
         CEF_REQUIRE_UI_THREAD();
@@ -309,6 +312,11 @@ private:
 - (void)didDestroyViewsWindow {
     viewsWindow_ = nullptr;
     if (!browser_) StopNativeLoop();
+}
+- (BOOL)toggleViewsFullscreen {
+    if (!viewsWindow_) return NO;
+    viewsWindow_->SetFullscreen(!viewsWindow_->IsFullscreen());
+    return YES;
 }
 - (BOOL)closeViewsWindow {
     if (!viewsWindow_) return NO;
