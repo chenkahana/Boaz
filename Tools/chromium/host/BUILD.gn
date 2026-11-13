@@ -154,7 +154,7 @@ source_set("launch") {
 }
 
 source_set("renderer") {
-  sources = [ "protected_media_renderer.h", "protected_media_renderer.cc" ]
+  sources = [ "protected_media_renderer.h", "protected_media_renderer.cc", "adblock_renderer.h", "adblock_renderer.cc" ]
   public_deps = [ ":protected_media_mojom" ]
   deps = [ "//base", "//content/public/renderer", "//third_party/blink/public:blink_headers" ]
 }

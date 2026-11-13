@@ -648,6 +648,17 @@
           "after": "6a3fcc97effc3042e1e88e2edc4aff3531b6e838e9ca4c2e22d924ebc207d1a4"
         }
       ]
+    },
+    {
+      "file": "patches/native-blocking-renderer-lifetime.patch",
+      "sha256": "c3ac3663d98c19f3743ac97af45349b175ea32f4cdadd829af25d959e27502bb",
+      "files": [
+        {
+          "path": "chrome/renderer/chrome_content_renderer_client.cc",
+          "before": "b0eb1edfee430208a4ac6d3008ae1c74147becebefc65eea3cca69bb16f7dd6b",
+          "after": "c017c275d572af8e9de10b6fd57fcb59c2d7fab6f69cad55f7829a8ed1d6d8ad"
+        }
+      ]
     }
   ]
 }
