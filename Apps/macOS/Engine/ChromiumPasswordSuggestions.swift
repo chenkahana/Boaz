@@ -57,7 +57,12 @@ final class ChromiumPasswordSuggestions: NSObject, NSPopoverDelegate {
         }
         scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
             let relevant = MainActor.assumeIsolated { self?.window === event.window }
-            if relevant { Task { @MainActor [weak self] in self?.dismiss(page: page.handle) } }
+            if relevant {
+                Task { @MainActor [weak self] in
+                    guard let self, self.generation == current else { return }
+                    self.dismiss(page: page.handle)
+                }
+            }
             return event
         }
     }

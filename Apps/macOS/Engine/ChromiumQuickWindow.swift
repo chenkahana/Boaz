@@ -13,6 +13,9 @@ final class ChromiumQuickWindow: NSObject, ObservableObject, NSWindowDelegate {
     private let addressField = NSTextField()
     private(set) var handle: BoazHostWindow = 0
     @Published private var page: EnginePage?
+    var chromiumPageHandle: BoazHostPage? {
+        (page?.adapter as? ChromiumEnginePageAdapter)?.handle
+    }
     @Published private var address = ""
     @Published private var failure = ""
     @Published private var notice = ""
