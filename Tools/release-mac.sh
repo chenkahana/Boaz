@@ -16,12 +16,7 @@ done
 PUBLISH=${2:-}
 TAG=v$VERSION
 TEAM_ID=DPF8459C2J
-OUT=build/release
-ARCHIVE=$OUT/Boaz-macOS.xcarchive
 BUILD=$(date +%Y%m%d%H%M)
-# Where the archive resolves Sparkle, whose package carries sign_update and generate_keys.
-PACKAGES=$OUT/SourcePackages
-SPARKLE_BIN=$PACKAGES/artifacts/sparkle/Sparkle/bin
 
 cd "$(dirname "$0")/.."
 # Before an archive that would only fail at the key check.
@@ -32,7 +27,16 @@ if [ "$PUBLISH" != "--no-publish" ]; then
     # Not checked out here: bash reads this script as it runs, so it can't change underneath itself.
     [ "$(git rev-parse HEAD)" = "$(git rev-parse "$TAG^{commit}")" ] || { echo "Check out $TAG first."; exit 1; }
 fi
-rm -rf "$OUT" && mkdir -p "$OUT"
+# Each invocation retains its artifacts, including failed signing or notarization runs.
+[ ! -L build ] && [ ! -L build/release ] || {
+    echo "Release output directories must not be symbolic links."; exit 1; }
+mkdir -p build/release
+OUT=$(mktemp -d "$(pwd -P)/build/release/$(date -u +%Y%m%dT%H%M%SZ)-XXXXXX")
+ARCHIVE=$OUT/Boaz-macOS.xcarchive
+# Where this archive resolves Sparkle's signing tools.
+PACKAGES=$OUT/SourcePackages
+SPARKLE_BIN=$PACKAGES/artifacts/sparkle/Sparkle/bin
+echo "==> Release artifacts: $OUT"
 
 echo "==> Archiving Boaz $VERSION"
 # The DMG build: project.yml plus Sparkle (project-dmg.yml). The App Store build never contains Sparkle.
@@ -84,7 +88,7 @@ echo "==> Making the DMG"
 mkdir -p "$OUT/dmg"
 cp -R "$APP" "$OUT/dmg/"
 ln -s /Applications "$OUT/dmg/Applications"
-hdiutil create -volname Boaz -srcfolder "$OUT/dmg" -fs HFS+ -format UDZO -ov "$OUT/Boaz.dmg" -quiet
+hdiutil create -volname Boaz -srcfolder "$OUT/dmg" -fs HFS+ -format UDZO "$OUT/Boaz.dmg" -quiet
 (cd "$OUT" && shasum -a 256 Boaz.dmg > Boaz.dmg.sha256 && cat Boaz.dmg.sha256)
 
 echo "==> Signing the DMG for Sparkle and writing the appcast"
