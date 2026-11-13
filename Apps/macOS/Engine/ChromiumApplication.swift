@@ -436,6 +436,12 @@ public func boazApplicationStart(_ api: UnsafePointer<BoazHostAPI>?) -> BoazHost
             try app.start()
             return BOAZ_HOST_OK
         } catch {
+            let alert = NSAlert()
+            alert.messageText = "Boaz could not start"
+            alert.informativeText = error.localizedDescription
+            alert.alertStyle = .critical
+            alert.addButton(withTitle: "Quit")
+            alert.runModal()
             return BOAZ_HOST_UNAVAILABLE
         }
     }
