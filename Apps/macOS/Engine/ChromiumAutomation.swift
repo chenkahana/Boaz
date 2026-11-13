@@ -27,21 +27,40 @@ final class ChromiumAutomation {
         polling = Task { @MainActor [weak self] in
             // Leave the startup callback stack before querying the host.
             await Task.yield()
-            for _ in 0..<60 {
-                guard !Task.isCancelled, let self else { return }
+            let clock = ContinuousClock()
+            var startupDeadline: ContinuousClock.Instant?
+            while !Task.isCancelled {
+                guard let self else { return }
+                let delay: Duration
                 do {
                     let value = try ChromiumRuntime.automationStatus()
                     self.status = value
                     self.error = value.error
-                    if value.state != .starting { return }
+                    switch value.state {
+                    case .disabled, .failed:
+                        return
+                    case .ready:
+                        startupDeadline = nil
+                        delay = .seconds(2)
+                    case .starting:
+                        if startupDeadline == nil {
+                            startupDeadline = clock.now.advanced(by: .seconds(15))
+                        }
+                        if let startupDeadline, clock.now >= startupDeadline {
+                            self.status = nil
+                            self.error = "Automation startup status is unavailable."
+                            return
+                        }
+                        delay = .milliseconds(250)
+                    }
                 } catch {
+                    self.status = nil
                     self.error = error.localizedDescription
                     return
                 }
-                do { try await Task.sleep(for: .milliseconds(250)) }
+                do { try await Task.sleep(for: delay) }
                 catch { return }
             }
-            self?.error = "Automation startup status is unavailable."
         }
     }
     func stop() {
