@@ -4,7 +4,7 @@ Recorded 2026-11-13 against Boaz `045132d7bd3b7a191730031a018554ad1f0bcfbe`, fet
 
 ## Current prerequisite
 
-The dual-engine revision requires S0 Crest source inspection before further Wave 0 implementation. [S0](spikes/S0-crest.md) now selects an independently authored direct Chromium host; CEF-specific S2a/S2b are frozen and their acceptance moves to the direct-host proof. The owned custom build stopped cleanly with exit 130; all outputs are preserved. Earlier CEF architecture selection is superseded by the S0 verdict. See [dual-engine revision](dual-engine.md). Widevine approval now gates dormant Chromium DRM enablement; release instead requires working protected playback in WebKit.
+The dual-engine revision requires S0 Crest source inspection before further Wave 0 implementation. [S0](spikes/S0-crest.md) now selects an independently authored direct Chromium host; CEF-specific S2a/S2b are frozen and their acceptance moves to the direct-host proof. The current full build is running at six jobs, with prior outputs preserved. New real-application source is queued separately from its unchanged installed inputs. Earlier CEF architecture selection is superseded by the S0 verdict. See [dual-engine revision](dual-engine.md). Widevine approval now gates dormant Chromium DRM enablement; release instead requires working protected playback in WebKit.
 
 ## Gate status
 

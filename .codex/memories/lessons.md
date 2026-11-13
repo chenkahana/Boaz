@@ -13,3 +13,8 @@
 - Trigger: Ended the implementation turn at a prototype progress checkpoint despite ready authorized work.
 - Rule: Continue through ready implementation packets; a progress update is not a completion boundary. Stop only at an actual dependency, requested review, or completed scope.
 - Scope: repo / long-running migration
+
+- Date: 2026-11-13
+- Trigger: Repeated compilation polling while independent migration implementation remained ready.
+- Rule: Keep build inputs stable, dispatch bounded source implementation in parallel, and scope runtime blockers to the exact dependent work. Code complete is a milestone, never a substitute for acceptance.
+- Scope: repo / long-running builds and migrations

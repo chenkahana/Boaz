@@ -1,6 +1,6 @@
 # Chromium parity ledger
 
-Baseline: Boaz `045132d7bd3b7a191730031a018554ad1f0bcfbe`. Every row below is **pending**, with source-inventory evidence only. No Chromium runtime behavior is verified. Owners are task packets, not currently running agents. All feature packets depend on the approved host, contracts, and bridge; additional prerequisites are listed where important.
+Baseline: Boaz `045132d7bd3b7a191730031a018554ad1f0bcfbe`. Every acceptance row below remains pending. Source implementation progress is recorded separately below; it does not establish runtime parity. Runtime uncertainty blocks only the acceptance or implementation that needs that finding. Verified pinned APIs and existing contracts permit independent implementation while the custom build runs.
 
 Paths below are repository-relative. Existing behavior is a source reference, not proof that the requested enhancement already exists. Acceptance extends [the existing QA checklist](../qa.md) and [Develop menu inventory](../devtools.md).
 
@@ -69,3 +69,34 @@ Passkeys remain mandatory in PR #70. [The passkey packet](passkeys.md) records p
 `PageText.swift` now contains the engine-neutral value and existing extraction script; `PageText+WebKit.swift` retains the unchanged WebKit adapter. Reader and PageAssistant call sites stay unchanged. Exact script/adapter comparison and Swift 6 typechecking passed for macOS 26 and the iOS 26 simulator using the project's MainActor default isolation. Both project specifications already include `Apps/Browser`, so no source-list changes are needed. This is preparation for Chromium page services, not a passed Chromium extraction or application-build gate.
 
 Scroll-state values/storage and pinned-anchor comparisons are also separated from their WebKit adapters. Exact scroll script/adapter/store comparison passed; paired macOS and iOS Swift 6 typechecks passed. The subsequent App Store and DMG Debug application builds passed with all three extractions included. Chromium runtime parity remains pending.
+
+
+## Real application implementation checkpoint, 2026-11-13
+
+The existing full Chromium build continues with six jobs and its installed ABI4 inputs unchanged. Repository changes now target ABI9 and await installation/build at a safe checkpoint. No second application build or benchmark runs concurrently. PR #70 remains draft.
+
+| Work | Integrated implementation | Verification actually passed | Remaining dependency |
+|---|---|---|---|
+| Engine facade | Concrete observable page, WebKit adapter, Chromium adapter, typed JSON values | Focused Swift 6 typechecks | Full dual-engine application builds and runtime parity |
+| Real application | Chromium startup loads actual BrowserWindow, BrowserState, native renderer and address field; independent UI-library project | Project generation, conditional parsing | Full target typecheck/build, signed launch, resource packaging |
+| Profiles | Authoritative profile handles, regular/private native contexts, coalesced concurrent preparation | Swift runtime typecheck and pinned-source inspection | Native compile; profile/private disk acceptance; multiple profiles in one Boaz window still needs implementation |
+| Tabs | Navigation, back/forward/reload, activation, close completion/cancellation, native split synchronization | Conditional parsing and adapter typechecks | Rapid close/before-unload, split focus/fullscreen and restoration runtime scenarios |
+| External URLs | Chromium application delegate preserved; ordered pre-start URL batches feed existing MacModel routing | Patch dry-run against pinned source; runtime Swift typecheck | Cold/warm OS delivery, native Quick Window port and signed bundle registration |
+| Menus | Native application/edit/window/navigation/tab/space commands reuse existing actions and key bindings | Parse and source checks | Full application typecheck; page-service/Develop commands remain implementation work |
+| Page scripts and AI | Document-bound typed isolated scripts; actual Chromium page text feeds existing assistant | Swift 6 adapter/extraction typechecks | Hostile-page/navigation security scenarios; long-page extraction beyond bridge result size |
+| Audio | Native audible/muted snapshot and per-page mute command | Pinned header/observer checks | UI integration and playback/mute runtime acceptance |
+
+The first real-application typecheck found two Sendable errors in native view callbacks. Those were fixed by returning pointer bits across the synchronous actor assertion; the repeat check is pending. This is not a passed application build.
+
+### Ready work
+
+Continue native page operations, Quick Window/Peek, profile-aware space transitions, extension actions, developer tools, page services, migration, and dual-engine routing against verified source contracts. Adapter compile errors are implementation work, not reasons to wait for the full Chromium link. Root owns contracts, application entry, build configuration and security-sensitive integration; two workers own disjoint bounded packets.
+
+### Dependencies requiring runtime or external evidence
+
+- Native lifecycle, IME, accessibility, extension real-tab identity and passkeys require the signed linked host.
+- Codec/hardware decode, complete extension cohort and protected playback require working application artifacts and appropriate test accounts/devices.
+- Performance requires the finished app and a quiet reference machine; no measurement during the custom build.
+- Developer ID/notarization, update/delta/rollback and distribution size require final packaged artifacts and signing access.
+- Widevine enablement requires approval; mandatory protected playback follows the approved WebKit/FairPlay route.
+- Three days of dogfooding requires the integrated candidate and elapsed use. No source check substitutes for it.
