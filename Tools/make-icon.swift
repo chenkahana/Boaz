@@ -11,7 +11,7 @@
 //       AppIcon-Tinted.png (iOS 1024) and mac-16 … mac-1024.png (macOS squircle on the Apple grid)
 //   Apps/Shared/Resources/Assets.xcassets/AppIcon-<Name>.appiconset/   one 1024 PNG + Contents.json per alternate
 //   Apps/iOS/Delight/IconPreviews/AppIcon[-<Name>]-Preview.png         180 px previews for Settings › App Icon
-//   docs/assets/icon.png                                                256 px README icon
+//   docs/assets/icon.png                                                256 px README icon (the macOS grid version)
 //   build/icon-contact-sheet.png                                        review sheet: 1024 tiles + 60/29 px rows
 import AppKit
 import UniformTypeIdentifiers
@@ -332,7 +332,7 @@ for px in [16, 32, 64, 128, 256, 512, 1024] {
     write(px == 1024 ? mac : scaled(mac, to: px, alpha: true), primaryDir.appendingPathComponent("mac-\(px).png"))
 }
 write(scaled(primaryArt, to: 180, alpha: false), previews.appendingPathComponent("AppIcon-Preview.png"))
-write(scaled(masked(primaryArt, inset: 0), to: 256, alpha: true), root.appendingPathComponent("docs/assets/icon.png"))
+write(scaled(mac, to: 256, alpha: true), root.appendingPathComponent("docs/assets/icon.png"))
 
 // Alternates.
 var sheet: [(String, CGImage)] = [("Default", primaryArt)]

@@ -9,17 +9,16 @@
 On iPhone, the page fills the screen and opens where you left it, with your tabs, New Tab and the page menu
 within thumb reach and a layout that follows every posture of iPhone Duo. On the Mac, spaces that keep work, home and projects apart. Both stay in step through your private iCloud.
 
-[![CI](https://github.com/chenkahana/Boaz/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/chenkahana/Boaz/actions/workflows/ci.yml)
 ![iOS 27.1+](https://img.shields.io/badge/iOS-27.1%2B-000000?logo=apple)
 ![macOS 26+](https://img.shields.io/badge/macOS-26%2B-000000?logo=apple)
 ![Swift 6](https://img.shields.io/badge/Swift-6-F05138?logo=swift&logoColor=white)
-[![License](https://img.shields.io/badge/license-MPL--2.0-brightgreen)](LICENSE)
-[![PRs welcome](https://img.shields.io/badge/PRs-welcome-6E4BFF)](CONTRIBUTING.md)
+[![License: MPL-2.0](https://img.shields.io/badge/license-MPL--2.0-blue)](LICENSE)
+[![CI](https://github.com/chenkahana/Boaz/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/chenkahana/Boaz/actions/workflows/ci.yml)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
 
-[![Download on the App Store](https://img.shields.io/badge/App_Store-iPhone_%26_Mac-0D96F6?style=for-the-badge&logo=appstore&logoColor=white)](https://apps.apple.com/app/boaz-browser/id6832646304)
-[![Download for Mac](https://img.shields.io/badge/Download_for_Mac-Boaz.dmg-6E4BFF?style=for-the-badge&logo=apple)](https://github.com/chenkahana/Boaz/releases/latest/download/Boaz.dmg)
+[![Download on the App Store](https://img.shields.io/badge/App_Store-iPhone_%26_Mac-6E4BFF?style=for-the-badge&logo=appstore&logoColor=white)](https://apps.apple.com/app/boaz-browser/id6832646304) [![Download for Mac](https://img.shields.io/badge/Download-Boaz.dmg-111111?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/chenkahana/Boaz/releases/latest/download/Boaz.dmg) [![Website](https://img.shields.io/badge/Website-chenkahana.com%2Fboaz-111111?style=for-the-badge&logo=safari&logoColor=white)](https://chenkahana.com/boaz)
 
-[Website](https://chenkahana.com/boaz) · [Features](#features) · [Screenshots](#screenshots) · [Architecture](#architecture) · [Getting started](#getting-started) · [Privacy](#privacy) · [Contributing](#contributing)
+[Features](#features) · [Screenshots](#screenshots) · [Architecture](#architecture) · [Getting started](#getting-started) · [Privacy](#privacy) · [Contributing](#contributing)
 
 <img src="docs/assets/hero.png" alt="Boaz on Mac and iPhone" width="900">
 
@@ -197,6 +196,21 @@ Contributions are welcome, from a typo fix to a new feature.
 - Questions: see [SUPPORT.md](SUPPORT.md).
 
 Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## The family
+
+Boaz, Jimmy and Edison are made by one independent developer, on the same principles: native Swift and SwiftUI,
+private by design (no accounts, analytics or tracking), and open source under the Mozilla Public License 2.0.
+
+<table>
+  <tr>
+    <td align="center" width="33%"><a href="https://github.com/chenkahana/Boaz"><img src="https://raw.githubusercontent.com/chenkahana/Boaz/master/docs/assets/icon.png" width="88" alt="Boaz app icon"></a><br><b><a href="https://github.com/chenkahana/Boaz">Boaz</a></b><br><sub>A calm web browser for iPhone and Mac</sub></td>
+    <td align="center" width="33%"><a href="https://github.com/chenkahana/Jimmy"><img src="https://raw.githubusercontent.com/chenkahana/Jimmy/main/docs/assets/icon.png" width="88" alt="Jimmy app icon"></a><br><b><a href="https://github.com/chenkahana/Jimmy">Jimmy</a></b><br><sub>A queue-centric podcast player for iPhone</sub></td>
+    <td align="center" width="33%"><a href="https://github.com/chenkahana/Edison"><img src="https://raw.githubusercontent.com/chenkahana/Edison/main/docs/assets/icon.png" width="88" alt="Edison app icon"></a><br><b><a href="https://github.com/chenkahana/Edison">Edison</a></b><br><sub>Clipboard history and screenshots for Mac</sub></td>
+  </tr>
+</table>
+
+<p align="center"><sub>More at <a href="https://chenkahana.com">chenkahana.com</a></sub></p>
 
 ## License
 
