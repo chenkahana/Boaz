@@ -460,10 +460,10 @@ class MainParts final : public ChromeBrowserMainExtraParts {
     state->profiles = std::make_unique<NativeProfiles>(state->profile_path.DirName(), state->profile.get());
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
         base::BindOnce([] {
-          const base::FilePath library(
-              base::CommandLine::ForCurrentProcess()->HasSwitch("boaz-app-ui")
-                  ? "/Volumes/BoazBuild/cef/direct/app/libBoazApplicationUI.dylib"
-                  : kLibrary);
+          const bool application_ui = base::CommandLine::ForCurrentProcess()->HasSwitch("boaz-app-ui");
+          NSString* bundled_ui = [[[NSBundle mainBundle] privateFrameworksPath]
+              stringByAppendingPathComponent:@"libBoazApplicationUI.dylib"];
+          const base::FilePath library(application_ui ? [bundled_ui fileSystemRepresentation] : kLibrary);
           CHECK_EQ(base::MakeAbsoluteFilePath(library), library);
           void* handle = dlopen(library.value().c_str(), RTLD_NOW | RTLD_LOCAL);
           CHECK(handle) << "Native UI library could not load";

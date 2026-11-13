@@ -5,6 +5,7 @@ import datetime
 import fcntl
 import json
 import os
+import plistlib
 from pathlib import Path
 import shutil
 import subprocess
@@ -109,6 +110,20 @@ def build(jobs, resume_run=None):
         else:
             shutil.copy2(item, copied)
         resources.append({'source': str(item), 'staged': str(copied)})
+    resource_bundle = artifacts / 'BoazResources.bundle'
+    bundle_contents = resource_bundle / 'Contents'
+    bundle_resources = bundle_contents / 'Resources'
+    bundle_resources.mkdir(parents=True)
+    asset_catalog = products / 'Assets.car'
+    if not asset_catalog.is_file():
+        raise RuntimeError('Boaz asset catalog was not produced')
+    shutil.copy2(asset_catalog, bundle_resources / 'Assets.car')
+    shutil.copy2(REPO / 'Apps/Browser/easylist_min_content_blocker.json', bundle_resources)
+    with (bundle_contents / 'Info.plist').open('xb') as stream:
+        plistlib.dump({'CFBundleIdentifier': 'com.chenkahana.boaz.resources',
+                      'CFBundleName': 'BoazResources', 'CFBundlePackageType': 'BNDL',
+                      'CFBundleVersion': '1'}, stream)
+    resources.append({'source': str(REPO), 'staged': str(resource_bundle)})
     available(final)
     previous = None
     if final.exists():
