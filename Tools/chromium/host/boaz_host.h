@@ -28,7 +28,9 @@ typedef enum BoazHostPageEvent {
   BOAZ_HOST_PAGE_CLOSING = 2,
   BOAZ_HOST_PAGE_CLOSE_CANCELLED = 3,
   BOAZ_HOST_PAGE_CLOSED = 4,
-  BOAZ_HOST_PAGE_RENDERER_FAILED = 5
+  BOAZ_HOST_PAGE_RENDERER_FAILED = 5,
+  BOAZ_HOST_PAGE_VIEW_WILL_CHANGE = 6,
+  BOAZ_HOST_PAGE_VIEW_CHANGED = 7
 } BoazHostPageEvent;
 
 /* Callback strings are borrowed UTF-8 and expire when the callback returns. */
@@ -44,6 +46,7 @@ typedef struct BoazHostPageState {
   uint8_t loading;
   uint8_t can_go_back;
   uint8_t can_go_forward;
+  uint8_t active;
 } BoazHostPageState;
 
 typedef struct BoazHostCallbacks {
@@ -56,8 +59,9 @@ typedef struct BoazHostCallbacks {
 } BoazHostCallbacks;
 
 /* All calls and callbacks use Chromium's UI thread, also the AppKit main thread.
- * Handles are never reused during a process. Callbacks must not reenter the API;
- * enqueue commands on the next main-loop turn. */
+ * Handles are never reused during a process. Callbacks must not reenter the API.
+ * PAGE_CLOSING and PAGE_VIEW_WILL_CHANGE are synchronous and permit only
+ * native-view detachment. Other events wait until model mutation unwinds. */
 typedef struct BoazHostAPI {
   size_t size;
   uint32_t version;
@@ -71,7 +75,7 @@ typedef struct BoazHostAPI {
   BoazHostResult (*go_forward)(BoazHostPage page);
   BoazHostResult (*reload)(BoazHostPage page);
   BoazHostResult (*activate_page)(BoazHostPage page, uint8_t focus);
-  /* Borrowed NSView. Valid until PAGE_CLOSING; the UI must detach it then. */
+  /* Borrowed NSView. Detach on PAGE_CLOSING or PAGE_VIEW_WILL_CHANGE. */
   BoazHostResult (*get_native_view)(BoazHostPage page, void** native_nsview);
   BoazHostResult (*close_page)(BoazHostPage page);
   BoazHostResult (*close_window)(BoazHostWindow window);
