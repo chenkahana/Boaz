@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 1u
+#define BOAZ_HOST_ABI_VERSION 2u
 
 typedef uint64_t BoazHostWindow;
 typedef uint64_t BoazHostPage;
@@ -58,6 +58,21 @@ typedef struct BoazHostCallbacks {
   void (*shutdown_ready)(void* context);
 } BoazHostCallbacks;
 
+/* Native UI owns these objects through window_closed. Service callbacks are
+ * synchronous, must not reenter the API, and may only update native UI.
+ * The event is a borrowed NSEvent, valid only during handle_key. */
+typedef struct BoazHostWindowOptions {
+  size_t size;
+  void* native_nswindow;
+  void* context;
+  void* (*content_view)(void* context);
+  void (*focus_address)(void* context);
+  void (*focus_toolbar)(void* context);
+  uint8_t (*handle_key)(void* context, void* native_nsevent);
+  void (*exclusive_access_notice)(void* context, const char* text,
+                                  uint8_t visible);
+} BoazHostWindowOptions;
+
 /* All calls and callbacks use Chromium's UI thread, also the AppKit main thread.
  * Handles are never reused during a process. Callbacks must not reenter the API.
  * PAGE_CLOSING and PAGE_VIEW_WILL_CHANGE are synchronous and permit only
@@ -66,7 +81,7 @@ typedef struct BoazHostAPI {
   size_t size;
   uint32_t version;
   BoazHostResult (*set_callbacks)(const BoazHostCallbacks* callbacks);
-  BoazHostResult (*create_window)(void* native_nswindow,
+  BoazHostResult (*create_window)(const BoazHostWindowOptions* options,
                                   BoazHostWindow* window);
   BoazHostResult (*create_page)(BoazHostWindow window, const char* url,
                                 BoazHostPage* page);
