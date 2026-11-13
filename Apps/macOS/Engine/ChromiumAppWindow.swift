@@ -75,7 +75,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
                 browser?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter
             })
         let hosting = NSHostingView(rootView: BrowserWindow(browser: browser)
-            .environment(model).task { await model.start() })
+            .environment(model).task { await self.model.start() })
         hosting.frame = contentContainer.bounds
         hosting.autoresizingMask = [.width, .height]
         contentContainer.addSubview(hosting)

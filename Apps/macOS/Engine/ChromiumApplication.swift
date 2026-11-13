@@ -43,6 +43,9 @@ private final class ChromiumApplication: NSObject {
                 _ = runtime.api.close_window?(handle)
             }
         }
+        runtime.pageActivated = { [weak self] window, page in
+            self?.windows.first(where: { $0.handle == window })?.browser.activateChromiumPageFromEngine(page)
+        }
         runtime.pageCreated = { [weak self] window, page, active in
             guard let self, let owner = windows.first(where: { $0.handle == window }) else { return }
             do { try owner.browser.adoptChromiumPage(page, active: active) }
