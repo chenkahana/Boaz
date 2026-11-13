@@ -50,18 +50,20 @@ final class ChromiumExtensionManagement {
         }
     }
 
-    static func install(api: BoazHostAPI, handle: BoazHostWindow, window: NSWindow) {
-        guard window.attachedSheet == nil, let install = api.install_extension else { return }
+    static func install(api: BoazHostAPI, handle: BoazHostWindow, window: NSWindow, unpacked: Bool = false) {
+        guard window.attachedSheet == nil,
+              let install = unpacked ? api.install_unpacked_extension : api.install_extension else { return }
         let panel = NSOpenPanel()
-        panel.title = "Install Chromium Extension"
-        panel.message = "Choose a signed CRX file. Boaz will ask you to review its permissions before installing."
-        panel.canChooseDirectories = false
+        panel.title = unpacked ? "Load Developer Extension" : "Install Chromium Extension"
+        panel.message = unpacked ? "Choose a developer extension folder. Boaz will ask you to confirm that you trust it before loading." : "Choose a signed CRX file. Boaz will ask you to review its permissions before installing."
+        panel.canChooseDirectories = unpacked
+        panel.canChooseFiles = !unpacked
         panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [UTType(filenameExtension: "crx") ?? .data]
+        if !unpacked { panel.allowedContentTypes = [UTType(filenameExtension: "crx") ?? .data] }
         panel.beginSheetModal(for: window) { response in
             guard response == .OK, let url = panel.url, window.isVisible else { return }
             let path = url.resolvingSymlinksInPath().path
-            guard url.pathExtension.lowercased() == "crx" else {
+            guard unpacked || url.pathExtension.lowercased() == "crx" else {
                 MacModel.shared.showToast("Choose a signed CRX extension file.")
                 return
             }

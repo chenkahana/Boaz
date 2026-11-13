@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 39u
+#define BOAZ_HOST_ABI_VERSION 40u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT,
@@ -351,6 +351,8 @@ typedef struct BoazHostAPI {
   BoazHostResult (*disable_extension)(BoazHostProfile profile, const char* id);
   BoazHostResult (*enable_extension)(BoazHostProfile profile, const char* id);
   BoazHostResult (*install_extension)(BoazHostWindow window, const char* path, uint64_t request,
+      BoazHostExtensionInstallCompletion completion, void* context);
+  BoazHostResult (*install_unpacked_extension)(BoazHostWindow window, const char* path, uint64_t request,
       BoazHostExtensionInstallCompletion completion, void* context);
 } BoazHostAPI;
 

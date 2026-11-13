@@ -1,3 +1,5 @@
+#include "extension_unpacked_install.h"
+#include <set>
 #include "extension_install.h"
 #include "extension_management.h"
 #import <AppKit/AppKit.h>
@@ -88,6 +90,7 @@ struct State {
   uint64_t pending_cache_clears = 0;
   uint64_t pending_profiles = 0;
   uint64_t pending_extension_installs = 0;
+  std::set<Profile*> extension_install_profiles;
   bool exit_started = false;
   std::unique_ptr<NativeProfiles> profiles;
   bool in_callback = false;
@@ -360,6 +363,7 @@ BoazHostResult Shutdown() {
   LOG(INFO) << "Boaz shutdown accepted";
   state->exit_requested = true;
   CancelNativeExtensionInstalls();
+  CancelNativeUnpackedExtensionInstalls();
   StartShutdownIfReady();
   FinishIfDrained();
   return BOAZ_HOST_OK;
@@ -392,8 +396,8 @@ BoazHostResult NativeView(BoazHostPage p, void** v) {
 }
 FORWARD(ClosePage, (BoazHostPage p), ClosePage(p))
 #undef FORWARD
-BoazHostResult InstallExtension(BoazHostWindow id, const char* path, uint64_t request,
-    BoazHostExtensionInstallCompletion completion, void* context) {
+BoazHostResult StartExtensionInstall(BoazHostWindow id, const char* path, uint64_t request,
+    BoazHostExtensionInstallCompletion completion, void* context, bool unpacked) {
   if (auto r = Check(); r != BOAZ_HOST_OK) return r;
   if (state->exit_requested) return BOAZ_HOST_CLOSING;
   if (!path || !completion || !request || strlen(path) > 16384 || !base::IsStringUTF8(path))
@@ -403,21 +407,36 @@ BoazHostResult InstallExtension(BoazHostWindow id, const char* path, uint64_t re
     return BOAZ_HOST_INVALID_HANDLE;
   auto* profile = it->second.browser->GetProfile();
   if (!state->profiles->Owns(profile) || profile->IsOffTheRecord()) return BOAZ_HOST_UNAVAILABLE;
+  if (state->extension_install_profiles.contains(profile)) return BOAZ_HOST_UNAVAILABLE;
+  state->extension_install_profiles.insert(profile);
   CHECK_LT(state->pending_extension_installs, std::numeric_limits<uint64_t>::max());
   ++state->pending_extension_installs;
-  bool accepted = InstallNativeExtension(profile, it->second.options.native_nswindow, base::FilePath(path),
+  auto install = unpacked ? InstallNativeUnpackedExtension : InstallNativeExtension;
+  bool accepted = install(profile, it->second.options.native_nswindow, base::FilePath(path),
       base::BindOnce([](BoazHostWindow id, uint64_t request, BoazHostExtensionInstallCompletion completion,
-          void* context, ExtensionInstallResult result) {
+          void* context, Profile* profile, ExtensionInstallResult result) {
         BoazHostExtensionInstallResult outcome = BOAZ_EXTENSION_INSTALL_FAILED;
         if (result == ExtensionInstallResult::kInstalled) outcome = BOAZ_EXTENSION_INSTALLED;
         if (result == ExtensionInstallResult::kCancelled) outcome = BOAZ_EXTENSION_INSTALL_CANCELLED;
         --state->pending_extension_installs;
+        state->extension_install_profiles.erase(profile);
         Notify([&] { completion(context, id, request, outcome); });
         StartShutdownIfReady();
         FinishIfDrained();
-      }, id, request, completion, context));
-  if (!accepted) --state->pending_extension_installs;
+      }, id, request, completion, context, profile));
+  if (!accepted) {
+    --state->pending_extension_installs;
+    state->extension_install_profiles.erase(profile);
+  }
   return accepted ? BOAZ_HOST_OK : BOAZ_HOST_UNAVAILABLE;
+}
+BoazHostResult InstallExtension(BoazHostWindow window, const char* path, uint64_t request,
+    BoazHostExtensionInstallCompletion completion, void* context) {
+  return StartExtensionInstall(window, path, request, completion, context, false);
+}
+BoazHostResult InstallUnpackedExtension(BoazHostWindow window, const char* path, uint64_t request,
+    BoazHostExtensionInstallCompletion completion, void* context) {
+  return StartExtensionInstall(window, path, request, completion, context, true);
 }
 BoazHostResult EnumerateManagedExtensions(BoazHostProfile handle,
     BoazHostManagedExtensionVisitor visitor, void* context) {
@@ -896,7 +915,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension, InstallExtension};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension, InstallExtension, InstallUnpackedExtension};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:

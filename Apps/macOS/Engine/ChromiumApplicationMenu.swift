@@ -37,6 +37,9 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         let app = menu("Boaz")
         responder(app, "About Boaz", #selector(NSApplication.orderFrontStandardAboutPanel(_:)))
         add(app, "Settings…", enabled: { _ in true }, perform: { [weak self] _ in self?.openScene("settings") }, key: ",")
+        add(app, "Load Developer Extension…", enabled: {
+            $0?.isIncognito == false && $0?.loadChromiumDeveloperExtension != nil
+        }) { $0?.loadChromiumDeveloperExtension?() }
         add(app, "Install Chromium Extension…", enabled: {
             $0?.isIncognito == false && $0?.installChromiumExtension != nil
         }) { $0?.installChromiumExtension?() }

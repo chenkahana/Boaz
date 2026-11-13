@@ -38,6 +38,8 @@ source_set("host") {
     "page_emulation.cc",
     "native_password_submission.h",
     "native_password_submission.cc",
+    "extension_unpacked_install.h",
+    "extension_unpacked_install.mm",
     "extension_install.h",
     "extension_install.mm",
     "extension_management.h",
