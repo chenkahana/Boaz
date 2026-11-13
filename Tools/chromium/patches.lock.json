@@ -169,6 +169,63 @@
           "after": "abb1fe8eda4d06ee6ad0943aeb672f393dbe82abe0467aec5214752649abaa85"
         }
       ]
+    },
+    {
+      "file": "patches/native-eme-observation.patch",
+      "sha256": "5c1219a04eb096e292890dfd09dd9860c6869a194c852af64e337afb7dd9b863",
+      "files": [
+        {
+          "path": "third_party/blink/public/platform/media/web_encrypted_media_client_impl.h",
+          "before": "dedf4411de6d3ef5747ce2d47b22eb992b43fd312cf53363cd580671ffd2e805",
+          "after": "5ca0dba0f387cc7635fae946dfc765befe2a0409252ebc9368ccb29a15a1e059"
+        },
+        {
+          "path": "third_party/blink/renderer/platform/media/web_encrypted_media_client_impl.cc",
+          "before": "df6165533cf5a4945f30684de96aae56bc916c7d8ad29310b2ac4ca67c78ec3d",
+          "after": "0e29ecbd923b782da1fef36d87907f54d921f50860239e990e08cd6612ab8fd2"
+        },
+        {
+          "path": "content/renderer/media/media_factory.cc",
+          "before": "8899cededdf073669c05e24f9254b5cd1d3f5e274a2d7c2e8c1fa0a9a313c18f",
+          "after": "bea0d753b00111578ff79d1dd9cf5182e1374bc573e0943baddedd3a740bb77c"
+        },
+        {
+          "path": "content/public/renderer/content_renderer_client.h",
+          "before": "eef66395134e636a4f340a2f080a33598ff71faef7350dc82d15c69db1610cec",
+          "after": "85a942ab0e33a03fdbe54a341c8930120a9a76d7d326a41c838c94993467cffd"
+        },
+        {
+          "path": "content/public/renderer/content_renderer_client.cc",
+          "before": "4f3f65130e9151255bc29f550b91dac954a3e269ff9b42404e8a9d2bdfbd6906",
+          "after": "eecdc30059cfdf57086c053fb8c0074d7a566da29e54c36e9780a1412b958af8"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-eme-browser-routing.patch",
+      "sha256": "07d47908c7f4fb34e4aadcc1ddc3c132e3222bfd708ab1622bddc4610f7485a6",
+      "files": [
+        {
+          "path": "chrome/browser/chrome_browser_interface_binders.cc",
+          "before": "a33bfefc6aa45afc87689bba7f1c97a8a67af2f262ae3d9a68d5e8994b3a62e7",
+          "after": "9ce9cd3cad391d35f5b487eccb1b6328cfffe29c15a713d64393f6fc9503a4bd"
+        },
+        {
+          "path": "chrome/renderer/chrome_content_renderer_client.h",
+          "before": "e11c4717ca3167495c180b51dfe708e008ebb1a9ca0b22c21f7288d5ba54d280",
+          "after": "67b751fb941bdcd5be1414cb51ff2a59476d148924c0e047d6da276ef350dac6"
+        },
+        {
+          "path": "chrome/renderer/chrome_content_renderer_client.cc",
+          "before": "5344bebff76601d605ad3b3cc96a8a507742ada486580b945a20a9515c338be6",
+          "after": "b0eb1edfee430208a4ac6d3008ae1c74147becebefc65eea3cca69bb16f7dd6b"
+        },
+        {
+          "path": "chrome/renderer/BUILD.gn",
+          "before": "f8da68988358e8cdef3e40f7e115070fa7b519774bb5a10848641c7627d06e70",
+          "after": "5146f0c6b6b82b1f938b1fc950e6c25bbf65794e7cb16f54ad2637d1b85978a9"
+        }
+      ]
     }
   ]
 }
