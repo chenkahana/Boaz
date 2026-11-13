@@ -258,6 +258,22 @@
           "after": "1651b31cd1de4c5276eb2ca483b5980749d1b65e105defb19394b051a94735db"
         }
       ]
+    },
+    {
+      "file": "patches/native-reader-detach.patch",
+      "sha256": "c861f34bf910f9ac965d55cd7552875dd408b3df6f95e9ff79d2a47c30f2a199",
+      "files": [
+        {
+          "path": "chrome/browser/ui/read_anything/read_anything_side_panel_controller.cc",
+          "before": "e2f2802eaf7913049e848a92d3a9e7b3035a4a73301482df47251e0a282ff965",
+          "after": "b265286f3eef8f384dbf78e6307a644f35c27d205fb3a1fb93340c59a7a63903"
+        },
+        {
+          "path": "chrome/browser/ui/read_anything/BUILD.gn",
+          "before": "df38dbf19fd9fb6a0fce16aa224e3f499723cc69814528fe8967de4d6ff56c96",
+          "after": "c835a2b58ba323b3ce23d3c5e9f6f6568eacce0d2140c5ef7221c43de84f1643"
+        }
+      ]
     }
   ]
 }
