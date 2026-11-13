@@ -45,6 +45,10 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
             if result != BOAZ_HOST_OK { window.subtitle = "Could not activate page (\(result.rawValue))." }
         }
         addressField.setAccessibilityLabel("Address")
+        browser.updateChromiumExternalTabCount = { [weak self] count in
+            guard let self, !finished, handle != 0, let update = runtime.api.set_external_tab_count else { return false }
+            return update(handle, count) == BOAZ_HOST_OK
+        }
         browser.chromiumLayoutChanged = { [weak self] in self?.queueLayout() }
         browser.createChromiumPage = { [weak self] tab in
             guard let self, !self.finished, self.handle != 0 else { throw EnginePageError.closed }
@@ -270,6 +274,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         browser.createChromiumPeekPage = nil
         browser.createChromiumPage = nil
         browser.activateChromiumPage = nil
+        browser.updateChromiumExternalTabCount = nil
         browser.chromiumLayoutChanged = nil
         browser.chromiumAddressField = nil
         window.delegate = nil

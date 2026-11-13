@@ -181,6 +181,14 @@ private struct AddressPill: View {
                 if browser.activeIsSecure {
                     Image(systemName: "lock.fill").font(.system(size: 10)).foregroundStyle(.secondary)
                 }
+                #if BOAZ_CHROMIUM
+                if let tab = browser.activeTab, browser.engineKind(for: tab) == .webKit {
+                    Text("WebKit").font(.system(size: 9, weight: .medium))
+                        .padding(.horizontal, 4).padding(.vertical, 2)
+                        .background(.primary.opacity(0.08), in: .capsule)
+                        .help("This page uses WebKit. Website data is separate; extensions run in Chromium.")
+                }
+                #endif
                 Text(url?.host()?.replacingOccurrences(of: "www.", with: "") ?? "Search or enter address")
                     .font(SidebarStyle.rowFont(size: textSize))
                     .foregroundStyle(url == nil ? .secondary : .primary)

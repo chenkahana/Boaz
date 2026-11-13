@@ -139,6 +139,16 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
                 }, perform: { $0?.selectSpace(number) }, key: String(number), modifiers: .control)
         }
         add(spaces, "New Space", command: .newSpace) { $0?.newSpace() }
+        let pageMenu = menu("Page")
+        add(pageMenu, "Open Page in WebKit", enabled: { browser in
+            guard let browser, let tab = browser.activeTab else { return false }
+            return browser.engineKind(for: tab) != .webKit
+        }) { browser in Task { await browser?.switchActiveEngine(to: .webKit) } }
+        add(pageMenu, "Open Page in Chromium", enabled: { browser in
+            guard let browser, let tab = browser.activeTab else { return false }
+            return browser.engineKind(for: tab) != .chromium
+        }) { browser in Task { await browser?.switchActiveEngine(to: .chromium) } }
+
         let develop = menu("Develop")
         add(develop, "Responsive Viewport…", command: .responsiveDesignMode,
             enabled: { ($0?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter) != nil }) {
