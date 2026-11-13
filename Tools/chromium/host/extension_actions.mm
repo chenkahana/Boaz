@@ -2,6 +2,7 @@
 #include "extension_actions.h"
 #include "extension_popup.h"
 #include "base/check.h"
+#include "chrome/browser/extensions/extension_action_dispatcher.h"
 #include "base/strings/string_util.h"
 #include "extensions/browser/extension_action.h"
 #include "base/functional/bind.h"
@@ -26,7 +27,8 @@
 #include "ui/base/base_window.h"
 #include "ui/gfx/geometry/rect.h"
 namespace boaz {
-class NativeExtensionActions::Impl final : public extensions::ExtensionRegistryObserver {
+class NativeExtensionActions::Impl final : public extensions::ExtensionRegistryObserver,
+                                           public extensions::ExtensionActionDispatcher::Observer {
  public:
   class Delegate final : public ExtensionActionDelegate {
    public:
@@ -65,13 +67,18 @@ class NativeExtensionActions::Impl final : public extensions::ExtensionRegistryO
    private:
     raw_ptr<Impl> owner_;
   };
-  explicit Impl(BrowserWindowInterface* browser) : browser_(browser) {
+  explicit Impl(BrowserWindowInterface* browser, base::RepeatingClosure changed)
+      : browser_(browser), changed_(std::move(changed)) {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
     CHECK(browser);
     registry_ = extensions::ExtensionRegistry::Get(browser->GetProfile());
     if (registry_) observation_.Observe(registry_);
+    if (auto* dispatcher = extensions::ExtensionActionDispatcher::Get(browser->GetProfile()))
+      action_observation_.Observe(dispatcher);
   }
   ~Impl() override {
+    changed_.Reset();
+    action_observation_.Reset();
     observation_.Reset();
     Close();
     model_.reset();
@@ -140,14 +147,30 @@ class NativeExtensionActions::Impl final : public extensions::ExtensionRegistryO
     invoking_ = false;
     return result_;
   }
-  void OnExtensionUnloaded(content::BrowserContext*, const extensions::Extension* extension,
+  void OnExtensionActionUpdated(extensions::ExtensionAction*, content::WebContents* contents,
+                                content::BrowserContext* context) override {
+    DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+    if (context != browser_->GetProfile()) return;
+    auto* tab = browser_->GetActiveTabInterface();
+    if (contents && (!tab || tab->GetContents() != contents)) return;
+    if (changed_) changed_.Run();
+  }
+  void OnShuttingDown() override { action_observation_.Reset(); }
+  void OnExtensionLoaded(content::BrowserContext* context, const extensions::Extension*) override {
+    DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+    if (context == browser_->GetProfile() && changed_) changed_.Run();
+  }
+  void OnExtensionUnloaded(content::BrowserContext* context, const extensions::Extension* extension,
       extensions::UnloadedExtensionReason) override {
     if (model_ && model_->GetId() == extension->id()) {
       model_invalid_ = true;
       Close();
     }
+    if (context == browser_->GetProfile() && changed_) changed_.Run();
   }
   void OnShutdown(extensions::ExtensionRegistry*) override {
+    action_observation_.Reset();
+    changed_.Reset();
     observation_.Reset();
     registry_ = nullptr;
     Close();
@@ -155,6 +178,9 @@ class NativeExtensionActions::Impl final : public extensions::ExtensionRegistryO
   }
  private:
   raw_ptr<BrowserWindowInterface> browser_;
+  base::RepeatingClosure changed_;
+  base::ScopedObservation<extensions::ExtensionActionDispatcher,
+      extensions::ExtensionActionDispatcher::Observer> action_observation_{this};
   raw_ptr<extensions::ExtensionRegistry> registry_ = nullptr;
   base::ScopedObservation<extensions::ExtensionRegistry, extensions::ExtensionRegistryObserver>
       observation_{this};
@@ -166,8 +192,9 @@ class NativeExtensionActions::Impl final : public extensions::ExtensionRegistryO
   bool model_invalid_ = false;
   Result result_ = Result::kUnavailable;
 };
-NativeExtensionActions::NativeExtensionActions(BrowserWindowInterface* browser)
-    : impl_(std::make_unique<Impl>(browser)) {}
+NativeExtensionActions::NativeExtensionActions(BrowserWindowInterface* browser,
+    base::RepeatingClosure changed)
+    : impl_(std::make_unique<Impl>(browser, std::move(changed))) {}
 NativeExtensionActions::~NativeExtensionActions() = default;
 NativeExtensionActions::Result NativeExtensionActions::Invoke(content::WebContents* contents,
     const std::string& id, void* anchor, const gfx::Rect& bounds) {
