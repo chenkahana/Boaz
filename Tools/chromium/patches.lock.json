@@ -537,6 +537,17 @@
           "after": "852f810fdc4bf336acb7aced3370c50c9de9e18f7874e9fc4a91f84a75154c1e"
         }
       ]
+    },
+    {
+      "file": "patches/native-extension-post-install-ui.patch",
+      "sha256": "5a81d2a086082e21f35e896c8d4653d45c3d96fd74e625d126e72dce3fe292e7",
+      "files": [
+        {
+          "path": "chrome/browser/extensions/extension_install_prompt.cc",
+          "before": "0fb04d8bc95c535ef3670214cbf55b16598378f665cf6d0b9bd0a496979a9fe6",
+          "after": "67126ade1a5f7c6d1b918a942978494abd54f147964812f7425380c69e7c8fa3"
+        }
+      ]
     }
   ]
 }

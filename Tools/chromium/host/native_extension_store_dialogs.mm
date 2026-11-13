@@ -29,6 +29,7 @@
 namespace boaz {
 namespace {
 void UI() { CHECK_CURRENTLY_ON(content::BrowserThread::UI); CHECK([NSThread isMainThread]); }
+enum class Kind { kBlocked, kFriction, kParentUnsupported };
 class Dialog;
 using Dialogs = std::map<Dialog*, std::shared_ptr<Dialog>>;
 Dialogs& Active() { static base::NoDestructor<Dialogs> dialogs; return *dialogs; }
@@ -37,7 +38,7 @@ class Dialog final : public content::WebContentsObserver, public ProfileObserver
  public:
   Dialog(content::WebContents* contents, base::OnceCallback<void(bool)> callback)
       : contents_(contents ? contents->GetWeakPtr() : base::WeakPtr<content::WebContents>()), callback_(std::move(callback)) {}
-  void Start(bool friction, const std::string& name, const std::string& id,
+  void Start(Kind kind, const std::string& name, const std::string& id,
              const std::u16string& admin_message) {
     UI();
     if (finishing_) return;
@@ -58,7 +59,12 @@ class Dialog final : public content::WebContentsObserver, public ProfileObserver
     }];
     alert_ = [[NSAlert alloc] init];
     alert_.alertStyle = NSAlertStyleWarning;
-    if (friction) {
+    const bool friction = kind == Kind::kFriction;
+    if (kind == Kind::kParentUnsupported) {
+      alert_.messageText = @"Parent Approval Unavailable";
+      alert_.informativeText = @"Extensions that need parent approval cannot be installed in this browser yet.";
+      [alert_ addButtonWithTitle:base::SysUTF16ToNSString(l10n_util::GetStringUTF16(IDS_CLOSE))];
+    } else if (friction) {
       alert_.messageText = base::SysUTF16ToNSString(l10n_util::GetStringUTF16(IDS_EXTENSION_PROMPT_INSTALL_FRICTION_TITLE));
       alert_.informativeText = base::SysUTF16ToNSString(l10n_util::GetStringFUTF16(
           IDS_EXTENSION_PROMPT_INSTALL_FRICTION_WARNING_TEXT, l10n_util::GetStringUTF16(IDS_LEARN_MORE)));
@@ -125,22 +131,26 @@ class Dialog final : public content::WebContentsObserver, public ProfileObserver
   bool finishing_ = false;
   bool cancelled_ = false;
 };
-void Show(content::WebContents* contents, bool friction, std::string name,
+void Show(content::WebContents* contents, Kind kind, std::string name,
           std::string id, std::u16string message, base::OnceCallback<void(bool)> callback) {
   UI();
   auto dialog = std::make_shared<Dialog>(contents, std::move(callback));
   Active().emplace(dialog.get(), dialog); NativeExtensionPromptsChanged();
-  dialog->Start(friction, name, id, message);
+  dialog->Start(kind, name, id, message);
 }
 }
 void ShowNativeExtensionBlocked(content::WebContents* contents, std::string name,
                                std::string id, std::u16string admin_message,
                                base::OnceClosure callback) {
-  Show(contents, false, std::move(name), std::move(id), std::move(admin_message),
+  Show(contents, Kind::kBlocked, std::move(name), std::move(id), std::move(admin_message),
+       base::BindOnce([](base::OnceClosure done, bool) { if (done) std::move(done).Run(); }, std::move(callback)));
+}
+void ShowNativeExtensionParentApprovalUnavailable(content::WebContents* contents, base::OnceClosure callback) {
+  Show(contents, Kind::kParentUnsupported, {}, {}, {},
        base::BindOnce([](base::OnceClosure done, bool) { if (done) std::move(done).Run(); }, std::move(callback)));
 }
 void ShowNativeExtensionFriction(content::WebContents* contents, base::OnceCallback<void(bool)> callback) {
-  Show(contents, true, {}, {}, {}, std::move(callback));
+  Show(contents, Kind::kFriction, {}, {}, {}, std::move(callback));
 }
 size_t PendingNativeExtensionStoreDialogs() { UI(); return Active().size(); }
 void CancelNativeExtensionStoreDialogs() {
