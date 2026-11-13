@@ -459,9 +459,9 @@ private struct WindowContent: View {
 public func boazNativeUIStart(_ pointer: UnsafePointer<BoazHostAPI>?) -> BoazHostResult {
     guard Thread.isMainThread else { return BOAZ_HOST_WRONG_THREAD }
     guard let pointer else { return BOAZ_HOST_INVALID_ARGUMENT }
+    guard pointer.pointee.size >= MemoryLayout<BoazHostAPI>.size,
+          pointer.pointee.version == BOAZ_HOST_ABI_VERSION else { return BOAZ_HOST_INVALID_ARGUMENT }
     let api = pointer.pointee
-    guard api.size >= MemoryLayout<BoazHostAPI>.size,
-          api.version == BOAZ_HOST_ABI_VERSION, api.version == 4 else { return BOAZ_HOST_INVALID_ARGUMENT }
     return MainActor.assumeIsolated {
         guard session == nil else { return BOAZ_HOST_UNAVAILABLE }
         guard api.set_callbacks != nil, api.create_window != nil, api.create_page != nil,
