@@ -3,7 +3,7 @@
 #include "base/strings/string_util.h"
 #include "components/find_in_page/find_tab_helper.h"
 #include "components/find_in_page/find_result_observer.h"
-#include "components/find_in_page/selection_action.h"
+#include "components/find_in_page/find_types.h"
 #include "components/zoom/zoom_controller.h"
 #include "third_party/blink/public/common/page/page_zoom.h"
 #include "trusted_script_channel.h"
