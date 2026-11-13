@@ -1,6 +1,23 @@
-# Direct-host development signing
+# Chromium application signing and candidates
 
-Use Chromium 157's generated packaging driver, not the CEF spike signer. The helper layout is different. The pinned sources are `chrome/installer/mac/signing/README.md`, `parts.py`, `driver.py` and `modification.py`. This procedure is preparation; no direct-host signing or launch has passed yet.
+Use Chromium 157's generated packaging driver, not the CEF spike signer. The helper layout is different. The pinned sources are `chrome/installer/mac/signing/README.md`, `parts.py`, `driver.py` and `modification.py`. Development-signed real-application launch and inspector-only close have passed. Normal browsing, whole-application quit, production signing and clean-account acceptance remain open.
+
+
+## Current application commands
+
+`build-application.py --build` emits an immutable receipt with the native UI, CLI, Boaz icon and resolved distribution metadata. `stage-application.py --native-launch` produces a development candidate by default. Development candidates disable automatic production updates and retain separate Chromium storage.
+
+Production assembly additionally requires explicit `--production-version VERSION --production-build BUILD`, with output ending in `Boaz.app`. It preserves the internal Chromium executable/framework layout, sets Boaz branding and Sparkle configuration, and uses `Boaz/Chromium` below Application Support. It does not alter the existing WebKit store. Resolve the published version before selecting these arguments; none is hardcoded.
+
+Use `sign-production-application.py --input ASSEMBLY_DIRECTORY --output NEW_DIRECTORY --identity DEVELOPER_ID_IDENTITY --notary-profile STORED_PROFILE_NAME` only for a production assembly. The script copies its input and packaging tools, applies the recorded secure-timestamp correction only to that copy, preserves Sparkle service entitlements, signs nested components, submits with the named notarytool credential profile, requires Apple acceptance, and validates stapling/Gatekeeper. No password or API secret belongs in its arguments. This workflow has not yet been executed: the current local identity check found no Developer ID identity, and no notarytool credential-profile name has been supplied.
+
+`Tools/release-mac.sh VERSION --chromium-app SIGNED_BOAZ_APP --output NEW_DIRECTORY --sparkle-bin SPARKLE_BIN --no-publish` verifies the actual production app and creates a local candidate DMG/appcast. Chromium mode requires `--no-publish`, refuses existing output, checks nested debugging entitlements, and enforces a 160,000,000-byte compressed DMG limit. Development signatures cannot pass this route. Existing WebKit release commands remain available.
+
+`prepare-deltas.py --candidate SIGNED_BOAZ_APP --previous OLD_APP_1 --previous OLD_APP_2 --previous OLD_APP_3 --output NEW_DIRECTORY --sparkle-bin SPARKLE_BIN --no-publish` builds format-4 deltas, enforces 40,000,000 bytes each, reconstructs each candidate, compares file/type/mode/link inventories, and verifies signatures. Historical apps must be the three approved supported releases. The tool conservatively requires their Sparkle version to be at least 2.10.1. It does not establish approval history or run actual Sparkle installation. No production feed is changed.
+
+All artifact commands use the SSD guard and preserve failed outputs. A prepared/signed artifact is not release acceptance. Protected playback, migration, performance, clean-account installation, Sparkle upgrade/deltas, a higher-version WebKit rollback and dogfooding still must pass.
+
+## Retained prototype procedure
 
 `Tools/chromium/build.py --build` now builds `chrome` and `chrome/installer/mac` in the non-component arm64 configuration. The resumed ABI 4 build includes both targets. The latter generates `Chromium Packaging/sign_chrome.py` and `signing/build_props_config.py`. Calling the source-tree driver without generated configuration is insufficient. The current build output is `/Volumes/BoazBuild/cef/direct/chromium/src/out/BoazDevelopment`.
 
