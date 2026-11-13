@@ -193,7 +193,12 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
             } else if hasWebKitPage(browser) { browser?.captureScreenshot(fullPage: false) }
         }
         add(develop, "Capture Full Page (WebKit)", enabled: hasWebKitPage) { $0?.captureScreenshot(fullPage: true) }
-        add(develop, "View Page Source (WebKit)", command: .viewSource, enabled: hasWebKitPage) { $0?.viewPageSource() }
+        add(develop, "View Page Source", command: .viewSource, enabled: hasEnginePage) { browser in
+            guard let browser else { return }
+            if browser.activeEnginePage?.adapter is ChromiumEnginePageAdapter {
+                ChromiumPageSource.show(in: browser)
+            } else if hasWebKitPage(browser) { browser.viewPageSource() }
+        }
         add(develop, "Show Storage (WebKit)…", enabled: hasWebKitPage) { $0?.showStorage() }
         add(develop, "Empty Caches (WebKit)", command: .emptyCaches, enabled: hasWebKitPage) { $0?.emptyCaches() }
         develop.addItem(.separator())
