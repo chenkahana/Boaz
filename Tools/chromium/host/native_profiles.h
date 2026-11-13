@@ -5,6 +5,7 @@
 #include "base/files/file_path.h"
 #include "base/functional/callback.h"
 #include "boaz_host.h"
+#include "native_downloads.h"
 class Profile;
 namespace boaz {
 class NativeProfiles {
@@ -17,6 +18,9 @@ class NativeProfiles {
   bool Owns(Profile* profile) const;
   BoazHostProfile HandleFor(Profile* profile) const;
   BoazHostResult Release(BoazHostProfile handle);
+  NativeDownloads* Downloads(BoazHostProfile handle) const;
+  using DownloadObserver = base::RepeatingCallback<void(BoazHostProfile, NativeDownloads::Snapshot)>;
+  void SetDownloadObserver(DownloadObserver observer);
  private:
   class Impl;
   std::unique_ptr<Impl> impl_;

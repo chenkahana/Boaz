@@ -28,6 +28,7 @@ class NativeProfiles::Impl {
     std::unique_ptr<ScopedProfileKeepAlive> keep_alive;
     std::string identifier;
     bool is_private;
+    std::unique_ptr<NativeDownloads> downloads;
   };
   Impl(base::FilePath root, Profile* primary) : root_(std::move(root)), primary_(primary) {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
@@ -38,8 +39,10 @@ class NativeProfiles::Impl {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
     CHECK(pending_.empty());
     weak_.InvalidateWeakPtrs();
-    for (auto& [id, entry] : entries_)
+    for (auto& [id, entry] : entries_) {
+      entry.downloads.reset();
       if (entry.is_private) ProfileDestroyer::DestroyOTRProfileWhenAppropriate(entry.profile);
+    }
   }
   static void Post(Completion callback, BoazHostResult result, BoazHostProfile handle = 0) {
     if (callback)
@@ -65,7 +68,10 @@ class NativeProfiles::Impl {
     static uint64_t next = 1;
     CHECK_NE(next, std::numeric_limits<uint64_t>::max());
     auto id = next++;
-    entries_.emplace(id, Entry{profile, std::move(keep_alive), std::move(identifier), private_session});
+    auto downloads = std::make_unique<NativeDownloads>(profile);
+    downloads->SetObserver(base::BindRepeating(&Impl::DownloadChanged, weak_.GetWeakPtr(), id));
+    entries_.emplace(id, Entry{profile, std::move(keep_alive), std::move(identifier),
+                              private_session, std::move(downloads)});
     return id;
   }
   void Acquire(std::string identifier, bool private_session, Completion callback) {
@@ -132,16 +138,34 @@ class NativeProfiles::Impl {
       if (entry.profile == profile) return true;
     return false;
   }
+  NativeDownloads* Downloads(BoazHostProfile handle) const {
+    DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+    auto found = entries_.find(handle);
+    return found == entries_.end() ? nullptr : found->second.downloads.get();
+  }
+  void DownloadChanged(BoazHostProfile handle, NativeDownloads::Snapshot snapshot) {
+    if (!entries_.contains(handle) || !download_observer_) return;
+    auto observer = download_observer_;
+    observer.Run(handle, std::move(snapshot));
+  }
+  void SetDownloadObserver(DownloadObserver observer) {
+    DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+    download_observer_ = std::move(observer);
+    for (auto& [handle, entry] : entries_)
+      entry.downloads->SetObserver(base::BindRepeating(&Impl::DownloadChanged, weak_.GetWeakPtr(), handle));
+  }
   BoazHostResult Release(BoazHostProfile handle) {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
     auto found = entries_.find(handle);
     if (found == entries_.end()) return BOAZ_HOST_INVALID_HANDLE;
     auto entry = std::move(found->second);
     entries_.erase(found);
+    entry.downloads.reset();
     if (entry.is_private) ProfileDestroyer::DestroyOTRProfileWhenAppropriate(entry.profile);
     return BOAZ_HOST_OK;
   }
  private:
+  DownloadObserver download_observer_;
   const base::FilePath root_;
   raw_ptr<Profile> primary_;
   std::map<BoazHostProfile, Entry> entries_;
@@ -151,6 +175,10 @@ class NativeProfiles::Impl {
 NativeProfiles::NativeProfiles(base::FilePath root, Profile* primary)
     : impl_(std::make_unique<Impl>(std::move(root), primary)) {}
 NativeProfiles::~NativeProfiles() = default;
+NativeDownloads* NativeProfiles::Downloads(BoazHostProfile handle) const { return impl_->Downloads(handle); }
+void NativeProfiles::SetDownloadObserver(DownloadObserver observer) {
+  impl_->SetDownloadObserver(std::move(observer));
+}
 void NativeProfiles::Acquire(std::string identifier, bool private_session,
     base::OnceCallback<void(BoazHostResult, BoazHostProfile)> callback) {
   impl_->Acquire(std::move(identifier), private_session, std::move(callback));
