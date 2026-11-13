@@ -739,6 +739,25 @@ BoazHostResult TabRegistry::GoToHistoryEntry(BoazHostPage id, int32_t entry_id) 
   }
   return BOAZ_HOST_UNAVAILABLE;
 }
+BoazHostResult TabRegistry::TogglePictureInPicture(BoazHostPage id) {
+  BOAZ_FIND_PAGE();
+  auto* contents = page->web_contents();
+  auto* frame = contents->GetPrimaryMainFrame();
+  if (!frame || !frame->IsActive() || !frame->IsRenderFrameLive()) return BOAZ_HOST_UNAVAILABLE;
+  auto* session = content::MediaSession::Get(contents);
+  if (!session) return BOAZ_HOST_UNAVAILABLE;
+  if (contents->HasPictureInPictureVideo() || contents->HasPictureInPictureDocument()) {
+    session->ExitPictureInPicture();
+    return BOAZ_HOST_OK;
+  }
+  for (auto action : session->GetMediaSessionActionsSync()) {
+    if (action == media_session::mojom::MediaSessionAction::kEnterPictureInPicture) {
+      session->EnterPictureInPicture();
+      return BOAZ_HOST_OK;
+    }
+  }
+  return BOAZ_HOST_UNAVAILABLE;
+}
 BoazHostResult TabRegistry::SetAudioMuted(BoazHostPage id, bool muted) {
   BOAZ_FIND_PAGE();
   auto* contents = page->web_contents();

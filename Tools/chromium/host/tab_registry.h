@@ -49,6 +49,7 @@ class TabRegistry {
   BoazHostResult GoToHistoryEntry(BoazHostPage page, int32_t entry_id);
   BoazHostResult FindText(BoazHostPage page, const char* text, bool forward);
   BoazHostResult StopFind(BoazHostPage page);
+  BoazHostResult TogglePictureInPicture(BoazHostPage page);
   BoazHostResult SetAudioMuted(BoazHostPage page, bool muted);
   BoazHostResult IsBusyForResidency(BoazHostPage page, uint8_t* busy);
   BoazHostResult GetUserAgentDefaults(BoazHostPage page, std::optional<PageEmulation::UserAgentDefaults>* output);
