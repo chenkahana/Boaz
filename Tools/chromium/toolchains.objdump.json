@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "chromium_version": "157.0.8103.51",
+  "root": "/Volumes/BoazBuild/cef/direct",
+  "package_version": "llvmorg-24-init-7747-g62397f8b-67",
+  "destination": "third_party/llvm-build/Release+Asserts",
+  "bucket": "chromium-browser-clang",
+  "object": "Mac_arm64/llvmobjdump-llvmorg-24-init-7747-g62397f8b-67.tar.xz",
+  "generation": "1791353577184760",
+  "published_md5_base64": "0aAEenRXgbytOzje20D+QA==",
+  "size_bytes": 5225884,
+  "sha256": "50392b193a67eedda0c6b27b228c9beb598ffe5beb4624831c8ba66b00f9208c",
+  "tree": {
+    "bin/llvm-bcanalyzer": [
+      "file",
+      "762797b220620b523bbf44417c9a146f7f11f61f424543fdfe464777fa3860a3",
+      true
+    ],
+    "bin/llvm-cxxfilt": [
+      "file",
+      "4ad1e157c8374b55f9361041b99b89de3a38769f47684d75460f6c7f9014d183",
+      true
+    ],
+    "bin/llvm-dwarfdump": [
+      "file",
+      "6139c7a1ed861778521bf2c1baa8accb72e5d3d523cbfe480fe464278e26cd4f",
+      true
+    ],
+    "bin/llvm-nm": [
+      "file",
+      "263b924ccd62e52757c58f608189666fb656b41932e020409a50281b68db66b7",
+      true
+    ],
+    "bin/llvm-objdump": [
+      "file",
+      "b8e69d5f0b32a6290d2c4d551032ff10a1840bef65e6f0f318b5157487de40a9",
+      true
+    ],
+    "bin/llvm-otool": [
+      "link",
+      "llvm-objdump"
+    ],
+    "llvmobjdump_build_revision": [
+      "file",
+      "f3c9ec13f0b972b4c7174ab81bf4a8d98575bdb3d7c94d6743df6d0989b856b5",
+      false
+    ]
+  }
+}

@@ -160,7 +160,20 @@ def prepare(lock):
         receipt = state / (entry["id"] + ".installed.json")
         if receipt.exists():
             saved = json.loads(receipt.read_text())
-            if saved["recipe_sha256"] != recipe_hash or tree(destination) != saved["tree"]:
+            expected_tree = dict(saved["tree"])
+            supplement = state / "llvmobjdump.installed.json"
+            if entry["id"] == "clang" and supplement.exists():
+                supplement_lock = HERE / "toolchains.objdump.json"
+                pinned = json.loads(supplement_lock.read_text())
+                installed = json.loads(supplement.read_text())
+                if supplement.is_symlink() or installed != {
+                        "lock_sha256": sha(supplement_lock), "tree": pinned["tree"]}:
+                    raise ValueError("LLVM supplement receipt differs from pin")
+                for name, value in pinned["tree"].items():
+                    if name in expected_tree and expected_tree[name] != value:
+                        raise ValueError(f"LLVM supplement conflicts with clang: {name}")
+                    expected_tree[name] = value
+            if saved["recipe_sha256"] != recipe_hash or tree(destination) != expected_tree:
                 raise ValueError(f"Installed package changed: {destination}")
             continue
         if stage.exists():
