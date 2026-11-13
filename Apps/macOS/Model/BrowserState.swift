@@ -42,7 +42,7 @@ final class BrowserState {
             if oldValue != activeTabID {
                 pagesInViewChanged(from: Self.pagesInView(oldValue, split))
                 #if BOAZ_CHROMIUM
-                if let activeTabID, let engine = enginePages[activeTabID], engine.kind == .chromium {
+                if !applyingChromiumActivation, let activeTabID, let engine = enginePages[activeTabID], engine.kind == .chromium {
                     activateChromiumPage?(engine)
                 }
                 chromiumLayoutChanged?()
@@ -103,6 +103,7 @@ final class BrowserState {
     var chromiumExtensions: ChromiumExtensionActionsModel?
     @ObservationIgnored var createChromiumPage: ((SidebarItem) throws -> EnginePage)?
     @ObservationIgnored var chromiumAddressField: NSTextField?
+    @ObservationIgnored private var applyingChromiumActivation = false
     @ObservationIgnored var activateChromiumPage: ((EnginePage) -> Void)?
     @ObservationIgnored var chromiumLayoutChanged: (() -> Void)?
     func cachedChromiumPage(for tabID: String) -> ChromiumEnginePageAdapter? {
@@ -396,7 +397,7 @@ final class BrowserState {
         if let createChromiumPage {
             let engine = try createChromiumPage(tab)
             enginePages[tab.id] = engine
-            if activeTabID == tab.id { activateChromiumPage?(engine) }
+            if !applyingChromiumActivation, activeTabID == tab.id { activateChromiumPage?(engine) }
             chromiumLayoutChanged?()
             return engine
         }
@@ -571,6 +572,17 @@ final class BrowserState {
     }
 
     // MARK: Tabs
+
+    #if BOAZ_CHROMIUM
+    func activateChromiumPageFromEngine(_ handle: BoazHostPage) {
+        guard let entry = enginePages.first(where: {
+            ($0.value.adapter as? ChromiumEnginePageAdapter)?.handle == handle
+        }), activeTabID != entry.key, let tab = tab(entry.key) else { return }
+        applyingChromiumActivation = true
+        defer { applyingChromiumActivation = false }
+        activate(tab)
+    }
+    #endif
 
     func activate(_ tab: SidebarItem) {
         guard tab.kind == .tab else { return }

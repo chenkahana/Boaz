@@ -19,10 +19,12 @@ final class ChromiumRuntime {
     var windowClosed: ((BoazHostWindow) -> Void)?
     var shutdownReady: (() -> Void)?
     var externalURLs: (([URL]) -> Void)?
+    var pageActivated: ((BoazHostWindow, BoazHostPage) -> Void)?
     var pageCreated: ((BoazHostWindow, EnginePage, Bool) -> Void)?
     var pageEvent: ((BoazHostPage, BoazHostPageEvent) -> Void)?
 
     private static weak var callbackOwner: ChromiumRuntime?
+    private var activePages: [BoazHostWindow: BoazHostPage] = [:]
     private var pages: [BoazHostPage: ChromiumEnginePageAdapter] = [:]
     private var preparedProfiles: [BoazHostProfile: ChromiumProfile] = [:]
     private var windowProfiles: [BoazHostWindow: ChromiumProfile] = [:]
@@ -133,6 +135,7 @@ final class ChromiumRuntime {
                 DispatchQueue.main.async { [weak owner] in
                     guard let owner, !owner.stopped else { return }
                     owner.closedWindows.insert(window)
+                    owner.activePages[window] = nil
                     owner.pendingPageEvents[window] = nil
                     owner.windowProfiles.removeValue(forKey: window)
                     owner.windowClosed?(window)
@@ -146,6 +149,7 @@ final class ChromiumRuntime {
                 DispatchQueue.main.async {
                     guard !owner.stopped else { return }
                     owner.stopped = true
+                    owner.activePages.removeAll()
                     owner.pendingPageEvents.removeAll()
                     owner.preparedWindowContexts.removeAll()
                     owner.closingPages.removeAll()
@@ -184,8 +188,22 @@ final class ChromiumRuntime {
             pages[copied.page]?.apply(event: event, snapshot: copied.snapshot)
         }
         if event == BOAZ_HOST_PAGE_CLOSE_CANCELLED { closingPages.remove(copied.page) }
-        if pages[copied.page] != nil { pageEvent?(copied.page, event) }
+        if pages[copied.page] != nil {
+            pageEvent?(copied.page, event)
+            if event != BOAZ_HOST_PAGE_CLOSING && event != BOAZ_HOST_PAGE_CLOSED &&
+                !closingPages.contains(copied.page) {
+                if copied.active {
+                    if activePages[copied.window] != copied.page {
+                        activePages[copied.window] = copied.page
+                        pageActivated?(copied.window, copied.page)
+                    }
+                } else if activePages[copied.window] == copied.page {
+                    activePages[copied.window] = nil
+                }
+            }
+        }
         if event == BOAZ_HOST_PAGE_CLOSED {
+            if activePages[copied.window] == copied.page { activePages[copied.window] = nil }
             pages.removeValue(forKey: copied.page)
             closingPages.remove(copied.page)
         }
