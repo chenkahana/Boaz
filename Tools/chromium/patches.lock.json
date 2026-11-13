@@ -478,6 +478,22 @@
           "after": "1b30fb71b5fda13297f88fd8001df62a4815715ef30ee6afd24c4d9d2959461a"
         }
       ]
+    },
+    {
+      "file": "patches/native-password-client-defaults.patch",
+      "sha256": "292e617e478e19449674079dd4ca5518db020e30e9820acf0c64ada0a6a178ae",
+      "files": [
+        {
+          "path": "components/password_manager/core/browser/password_manager_client.h",
+          "before": "141c8a3b970130e89498b450329d826bbae41a40547c559474e048230a746385",
+          "after": "81628c50f8f1903fd4b4d9d4f178aee56f459c0a7799563b7013007fdadf6e52"
+        },
+        {
+          "path": "components/password_manager/core/browser/password_manager_client.cc",
+          "before": "7ff738760ed47cd36792b58af090f38753da5bc56efe5f717fb0f584612a0d55",
+          "after": "485e676671c9eb1661989a72c57150708ba293c248d4ff86778977d2af835243"
+        }
+      ]
     }
   ]
 }
