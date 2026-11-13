@@ -9,6 +9,11 @@
 #include <utility>
 
 #include "base/check.h"
+#include "base/functional/bind.h"
+#include "base/memory/raw_ptr.h"
+#include "chrome/common/pref_names.h"
+#include "components/prefs/pref_change_registrar.h"
+#include "components/prefs/pref_service.h"
 #include "base/location.h"
 #include "base/containers/span.h"
 #include "base/files/scoped_file.h"
@@ -55,13 +60,24 @@ std::string RandomHex() {
 
 class NativeAutomation::Impl {
  public:
-  explicit Impl(base::FilePath root) : root_(std::move(root)) { RequireUI(); }
-  ~Impl() { Stop(); }
+  Impl(base::FilePath root, PrefService* local_state)
+      : root_(std::move(root)), local_state_(local_state) {
+    RequireUI();
+    CHECK(local_state_);
+    policy_registrar_.Init(local_state_);
+    policy_registrar_.Add(prefs::kDevToolsRemoteDebuggingAllowed,
+        base::BindRepeating(&Impl::PolicyChanged, base::Unretained(this)));
+  }
+  ~Impl() {
+    RequireUI();
+    policy_registrar_.RemoveAll();
+    Stop();
+  }
   void Start(bool enabled, bool allowed) {
     RequireUI();
     Stop();
     if (!enabled) return;
-    if (!allowed) { Fail("Automation is disabled by policy."); return; }
+    if (!allowed || !local_state_->GetBoolean(prefs::kDevToolsRemoteDebuggingAllowed)) { Fail("Automation is disabled by policy."); return; }
     if (!Canonical(root_)) { Fail("Automation storage is unavailable."); return; }
     base::ScopedFD root_fd(open(root_.value().c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC));
     struct stat root_stat;
@@ -111,6 +127,11 @@ class NativeAutomation::Impl {
   }
   Snapshot Status() const { RequireUI(); return snapshot_; }
  private:
+  void PolicyChanged() {
+    RequireUI();
+    if (!local_state_->GetBoolean(prefs::kDevToolsRemoteDebuggingAllowed))
+      Fail("Automation is disabled by policy.");
+  }
   void Fail(std::string error) {
     Stop();
     snapshot_ = {State::kFailed, 0, std::move(error)};
@@ -166,6 +187,8 @@ class NativeAutomation::Impl {
     return fsync(file.get()) == 0 && fsync(directory_.get()) == 0;
   }
   const base::FilePath root_;
+  raw_ptr<PrefService> local_state_;
+  PrefChangeRegistrar policy_registrar_;
   Snapshot snapshot_;
   base::ScopedFD directory_;
   std::string token_, run_, filename_;
@@ -175,8 +198,8 @@ class NativeAutomation::Impl {
   base::TimeTicks deadline_;
   base::RepeatingTimer timer_;
 };
-NativeAutomation::NativeAutomation(base::FilePath root)
-    : impl_(std::make_unique<Impl>(std::move(root))) {}
+NativeAutomation::NativeAutomation(base::FilePath root, PrefService* local_state)
+    : impl_(std::make_unique<Impl>(std::move(root), local_state)) {}
 NativeAutomation::~NativeAutomation() = default;
 void NativeAutomation::Start(bool enabled, bool policy_allowed) { impl_->Start(enabled, policy_allowed); }
 void NativeAutomation::Stop() { impl_->Stop(); }

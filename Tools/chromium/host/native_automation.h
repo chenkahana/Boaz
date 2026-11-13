@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include "base/files/file_path.h"
+class PrefService;
 namespace boaz {
 class NativeAutomation {
  public:
@@ -13,7 +14,7 @@ class NativeAutomation {
     uint16_t port = 0;
     std::string error;
   };
-  explicit NativeAutomation(base::FilePath canonical_product_root);
+  NativeAutomation(base::FilePath canonical_product_root, PrefService* local_state);
   ~NativeAutomation();
   void Start(bool enabled, bool policy_allowed);
   void Stop();
