@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import plistlib
 from pathlib import Path
 import shutil
 import subprocess
@@ -19,7 +20,7 @@ def checked(path):
     return path
 
 
-def assemble(base, receipt, output):
+def assemble(base, receipt, output, native_launch=False):
     base, receipt, output = map(checked, (base, receipt, output))
     if output.exists() or output.is_symlink():
         raise RuntimeError('Refusing to overwrite an existing application artifact')
@@ -37,7 +38,17 @@ def assemble(base, receipt, output):
         raise RuntimeError('Expected the pinned Chromium development app')
     output.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(['/usr/bin/ditto', '--clone', str(base), str(output)], check=True)
-    frameworks, destination = output / 'Contents/Frameworks', output / 'Contents/Resources'
+    if native_launch:
+        info = output / 'Contents/Info.plist'
+        with info.open('rb') as stream:
+            metadata = plistlib.load(stream)
+        metadata.update({'CFBundleIdentifier': 'com.chenkahana.boaz.chromium.dev',
+                         'CFBundleName': 'Boaz Development', 'CFBundleDisplayName': 'Boaz Development',
+                         'BoazNativeApplication': True, 'BoazDistributionChannel': 'development',
+                         'CrProductDirName': 'Boaz Chromium Development'})
+        with info.open('wb') as stream:
+            plistlib.dump(metadata, stream)
+    frameworks, destination = output / 'Contents/Frameworks', output / 'Contents/Resources' 
     for item in [library, *resources]:
         if item.name == 'Assets.car':
             continue  # The catalog belongs to BoazResources.bundle.
@@ -63,16 +74,17 @@ def main():
     parser.add_argument('--base-app', required=True)
     parser.add_argument('--ui-receipt', required=True)
     parser.add_argument('--output', required=True)
+    parser.add_argument('--native-launch', action='store_true', help='Requires packaged-launch-capable host; uses isolated development identity')
     parser.add_argument('--guarded', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
     if not args.guarded:
         command = ['/opt/homebrew/bin/python3.12', str(HERE.parent / 'cef/run-build.py'), '--',
                    '/opt/homebrew/bin/python3.12', str(Path(__file__).resolve()), '--guarded',
-                   '--base-app', args.base_app, '--ui-receipt', args.ui_receipt, '--output', args.output]
+                   '--base-app', args.base_app, '--ui-receipt', args.ui_receipt, '--output', args.output] + (['--native-launch'] if args.native_launch else [])
         return subprocess.call(command)
     if Path.cwd() != ROOT.parent or os.environ.get('TMPDIR') != str(ROOT.parent / 'tmp'):
         raise RuntimeError('Assembly requires the verified SSD guard')
-    assemble(args.base_app, args.ui_receipt, args.output)
+    assemble(args.base_app, args.ui_receipt, args.output, args.native_launch)
     return 0
 
 
