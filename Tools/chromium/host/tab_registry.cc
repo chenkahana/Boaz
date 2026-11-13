@@ -1,4 +1,9 @@
 #include "tab_registry.h"
+#include <cstring>
+#include "base/strings/string_util.h"
+#include "components/find_in_page/find_tab_helper.h"
+#include "components/find_in_page/find_result_observer.h"
+#include "components/find_in_page/selection_action.h"
 #include "components/zoom/zoom_controller.h"
 #include "third_party/blink/public/common/page/page_zoom.h"
 #include "trusted_script_channel.h"
@@ -92,8 +97,43 @@ struct TabRegistry::Impl {
   base::WeakPtrFactory<Impl> weak{this};
 };
 
-struct TabRegistry::Impl::Page : content::WebContentsObserver {
+struct TabRegistry::Impl::Page : content::WebContentsObserver, find_in_page::FindResultObserver {
   Page(Impl& owner, Window& window, content::WebContents* contents);
+  ~Page() override { DetachFind(); }
+  void DetachFind() {
+    if (find_helper) find_helper->RemoveObserver(this);
+    find_helper = nullptr;
+    find_active = false;
+    find_result = {};
+  }
+  void AttachFind() {
+    if (!find_helper && web_contents()) {
+      find_helper = find_in_page::FindTabHelper::FromWebContents(web_contents());
+      if (find_helper) find_helper->AddObserver(this);
+    }
+  }
+  void ResetFind() {
+    find_active = false;
+    find_result = {};
+    if (find_helper) find_helper->StopFinding(find_in_page::SelectionAction::kClear);
+  }
+  void OnFindResultAvailable(content::WebContents* contents) override {
+    if (!find_active || !find_helper || contents != web_contents()) return;
+    const auto& result = find_helper->find_result();
+    if (result.request_id() != find_helper->current_find_request_id()) return;
+    find_result = result;
+    owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED);
+  }
+  void OnFindTabHelperDestroyed(find_in_page::FindTabHelper*) override {
+    DetachFind();
+    owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED);
+  }
+  void DidStartNavigation(content::NavigationHandle* navigation) override {
+    if (navigation->IsInPrimaryMainFrame() && !navigation->IsSameDocument()) {
+      ResetFind();
+      owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED);
+    }
+  }
   void DidFinishNavigation(content::NavigationHandle* navigation) override {
     if (navigation->HasCommitted() && navigation->IsInPrimaryMainFrame()) {
       if (!navigation->IsSameDocument()) ++generation;
@@ -108,6 +148,8 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver {
   void OnAudioStateChanged(bool) override { owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED); }
   void DidUpdateAudioMutingState(bool) override { owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED); }
   void PrimaryMainFrameRenderProcessGone(base::TerminationStatus) override {
+    find_active = false;
+    find_result = {};
     owner->Queue(*this, BOAZ_HOST_PAGE_RENDERER_FAILED);
   }
   void DidToggleFullscreenModeForTab(bool, bool) override {
@@ -121,8 +163,8 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver {
     close_requested = false;
     owner->Queue(*this, BOAZ_HOST_PAGE_CLOSE_CANCELLED);
   }
-  void WebContentsDestroyed() override { owner->Destroyed(*this); }
-  void ObserveReplacement(content::WebContents* contents) { scripts.reset(); Observe(contents); }
+  void WebContentsDestroyed() override { DetachFind(); owner->Destroyed(*this); }
+  void ObserveReplacement(content::WebContents* contents) { DetachFind(); scripts.reset(); Observe(contents); AttachFind(); }
 
   raw_ref<Impl> owner;
   BoazHostPage id = NextHandle();
@@ -138,6 +180,9 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver {
   bool view_available = false;
   std::optional<Snapshot> final_snapshot;
   std::unique_ptr<TrustedScriptChannel> scripts;
+  raw_ptr<find_in_page::FindTabHelper> find_helper = nullptr;
+  find_in_page::FindNotificationDetails find_result;
+  bool find_active = false;
 };
 
 struct TabRegistry::Impl::Window : TabStripModelObserver {
@@ -231,6 +276,9 @@ TabRegistry::Impl::Snapshot TabRegistry::Impl::Capture(Page& page) {
   result.state.page = page.id;
   result.state.window = page.window;
   result.state.document_generation = page.generation;
+  result.state.find_match_count = page.find_result.number_of_matches();
+  result.state.find_active_match = page.find_result.active_match_ordinal();
+  result.state.find_final = page.find_result.final_update();
   result.state.extension_tab_id = -1;
   result.state.extension_window_id = page.extension_window_id;
   if (auto* contents = page.web_contents()) {
@@ -439,6 +487,29 @@ BoazHostResult TabRegistry::SetZoomFactor(BoazHostPage id, double factor) {
   if (!controller) return BOAZ_HOST_UNAVAILABLE;
   return controller->SetZoomLevel(blink::ZoomFactorToZoomLevel(factor))
       ? BOAZ_HOST_OK : BOAZ_HOST_UNAVAILABLE;
+}
+BoazHostResult TabRegistry::FindText(BoazHostPage id, const char* text, bool forward) {
+  BOAZ_FIND_PAGE();
+  if (!text) return BOAZ_HOST_INVALID_ARGUMENT;
+  const size_t length = strnlen(text, 8193);
+  if (length > 8192 || !base::IsStringUTF8(std::string_view(text, length)))
+    return BOAZ_HOST_INVALID_ARGUMENT;
+  if (!length) return StopFind(id);
+  page->AttachFind();
+  if (!page->find_helper) return BOAZ_HOST_UNAVAILABLE;
+  page->find_result = {};
+  page->find_active = true;
+  impl_->Queue(*page, BOAZ_HOST_PAGE_CHANGED);
+  page->find_helper->StartFinding(base::UTF8ToUTF16(std::string_view(text, length)), forward, false, true);
+  return BOAZ_HOST_OK;
+}
+BoazHostResult TabRegistry::StopFind(BoazHostPage id) {
+  BOAZ_FIND_PAGE();
+  page->AttachFind();
+  if (!page->find_helper) return BOAZ_HOST_UNAVAILABLE;
+  page->ResetFind();
+  impl_->Queue(*page, BOAZ_HOST_PAGE_CHANGED);
+  return BOAZ_HOST_OK;
 }
 BoazHostResult TabRegistry::ActivatePage(BoazHostPage id, bool focus) {
   BOAZ_FIND_PAGE();
