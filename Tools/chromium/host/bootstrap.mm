@@ -1,3 +1,4 @@
+#include "native_extension_store_dialogs.h"
 #include "native_extension_prompt.h"
 #include "extension_unpacked_install.h"
 #include <set>
@@ -140,7 +141,7 @@ bool ValidOptions(const BoazHostWindowOptions* o) {
   });
 }
 void StartShutdownIfReady() {
-  if (!state->exit_requested || state->exit_started || state->pending_extension_installs || PendingNativeExtensionPrompts()) return;
+  if (!state->exit_requested || state->exit_started || state->pending_extension_installs || PendingNativeExtensionPrompts() || PendingNativeExtensionStoreDialogs()) return;
   state->exit_started = true;
   chrome::AttemptExit();
 }
@@ -161,7 +162,7 @@ void FinishIfDrained() {
     }
   }
   if (!state->exit_requested || !state->windows.empty() ||
-      state->pending_scripts || state->pending_captures || state->pending_emulations || state->pending_cache_clears || state->pending_profiles || state->pending_extension_installs || PendingNativeExtensionPrompts() || state->finished) return;
+      state->pending_scripts || state->pending_captures || state->pending_emulations || state->pending_cache_clears || state->pending_profiles || state->pending_extension_installs || PendingNativeExtensionPrompts() || PendingNativeExtensionStoreDialogs() || state->finished) return;
   state->finished = true;
   if (state->automation) state->automation->Stop();
   Notify([] { state->callbacks.shutdown_ready(state->callbacks.context); });
@@ -366,6 +367,7 @@ BoazHostResult Shutdown() {
   CancelNativeExtensionInstalls();
   CancelNativeUnpackedExtensionInstalls();
   CancelNativeExtensionPrompts();
+  CancelNativeExtensionStoreDialogs();
   StartShutdownIfReady();
   FinishIfDrained();
   return BOAZ_HOST_OK;

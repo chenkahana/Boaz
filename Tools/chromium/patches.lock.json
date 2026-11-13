@@ -521,6 +521,22 @@
           "after": "e1514ba17c0ed184e74aaf5aae8834cd975d2eb4fa17fbfadd070aa4cd1ee2a0"
         }
       ]
+    },
+    {
+      "file": "patches/native-extension-store-dialogs.patch",
+      "sha256": "a06a4e5430984b09c18654606b48586e7a508d7e3ba6f4b14164fac5c2b8d5e5",
+      "files": [
+        {
+          "path": "chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.cc",
+          "before": "dbcc4b37946704755ef72948c6d9a739b901e371de7b14327981127d9c113882",
+          "after": "5c6023f44dd7e33f9d6b88d62893c717a2b5e90aee72bc5dc90e19c86edc152e"
+        },
+        {
+          "path": "chrome/browser/extensions/BUILD.gn",
+          "before": "4960c9dc18e351204cdeb1b0b0995520abfb306f08641d0b0b870867dc7c2061",
+          "after": "852f810fdc4bf336acb7aced3370c50c9de9e18f7874e9fc4a91f84a75154c1e"
+        }
+      ]
     }
   ]
 }
