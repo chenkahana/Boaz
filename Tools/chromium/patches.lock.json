@@ -574,6 +574,17 @@
           "after": "d7895e42f95caf6221fee4e928e8cafeb1156f93f528bb33fcce8be9668c969b"
         }
       ]
+    },
+    {
+      "file": "native-extension-disabled-ui.patch",
+      "sha256": "2c881324a08aa10c23c45a5efec585f6a2da2920e4956d9ae9e0f3cee7e62158",
+      "files": [
+        {
+          "path": "chrome/browser/extensions/chrome_extension_registrar_delegate.cc",
+          "before": "876a47835cc2de001acf30a23324b71039c631d95de8384b9b55a9111a28b44d",
+          "after": "a8a1b5d53f4c7f5a60d9923d6131c3b1b0dfe465e98bc6372d78028e9ba1fad0"
+        }
+      ]
     }
   ]
 }
