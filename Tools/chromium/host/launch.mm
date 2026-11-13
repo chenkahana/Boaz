@@ -46,6 +46,11 @@ void ConfigurePackagedApplicationLaunch() {
   if (command->HasSwitch("profile-directory")) {
     CHECK_EQ(command->GetSwitchValueASCII("profile-directory"), "Default");
   }
+  for (const char* name : {"remote-debugging-port", "remote-debugging-pipe",
+                           "remote-allow-origins", "remote-debugging-address",
+                           "custom-devtools-frontend"}) {
+    command->RemoveSwitch(name);
+  }
   command->AppendSwitch("boaz-native-host");
   command->AppendSwitch("boaz-app-ui");
   command->AppendSwitch("no-startup-window");
