@@ -121,6 +121,22 @@
           "after": "9aa46430a11482b2ebce0f4cefb5dce0dec76e97196f9f65a73f6519a2631d43"
         }
       ]
+    },
+    {
+      "file": "patches/native-application-launch.patch",
+      "sha256": "c5b85b5d39093b2cede0173dbe1e3142b420a233c82de1789629ef6e6b55e9e1",
+      "files": [
+        {
+          "path": "chrome/app/chrome_main_delegate.cc",
+          "before": "96728003d989ce72cfabf6fb13a16170a236aa3602198029dae44d7dd99c42ed",
+          "after": "2e9a6999251eb19c29253d65b827dbf260a0e11c0aaa25dd588d319b82e8a028"
+        },
+        {
+          "path": "chrome/app/BUILD.gn",
+          "before": "83acc2fc9df9edbe6b8913bfd611ef4b7f8e11bf27782597dc515d9587e739e3",
+          "after": "8458ad3b29eb3e765ebc7ff680ffebe6143d536b25e8ad8ea26aaa3dff9caedd"
+        }
+      ]
     }
   ]
 }
