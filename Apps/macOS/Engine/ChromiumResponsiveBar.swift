@@ -16,7 +16,7 @@ struct ChromiumResponsiveBar: View {
                 Text("×")
                 TextField("Height", value: $draft.height, format: .number).frame(width: 65).accessibilityLabel("Viewport height")
                 TextField("DPR", value: $draft.dpr, format: .number).frame(width: 45).accessibilityLabel("Device pixel ratio")
-                Button { swap(&draft.width, &draft.height); draft.landscape.toggle() } label: {
+                Button { let width = draft.width; draft.width = draft.height; draft.height = width; draft.landscape.toggle() } label: {
                     Image(systemName: "rotate.right")
                 }.help("Rotate viewport").accessibilityLabel("Rotate viewport")
                 Toggle("Mobile", isOn: $draft.mobile)
