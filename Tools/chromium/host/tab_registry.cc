@@ -103,6 +103,8 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver {
   }
   void DidStartLoading() override { owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED); }
   void DidStopLoading() override { owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED); }
+  void OnAudioStateChanged(bool) override { owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED); }
+  void DidUpdateAudioMutingState(bool) override { owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED); }
   void PrimaryMainFrameRenderProcessGone(base::TerminationStatus) override {
     owner->Queue(*this, BOAZ_HOST_PAGE_RENDERER_FAILED);
   }
@@ -234,6 +236,8 @@ TabRegistry::Impl::Snapshot TabRegistry::Impl::Capture(Page& page) {
     result.title = base::UTF16ToUTF8(contents->GetTitle());
     result.state.extension_tab_id = extensions::ExtensionTabUtil::GetTabId(contents);
     result.state.loading = contents->IsLoading();
+    result.state.audible = contents->IsCurrentlyAudible();
+    result.state.muted = contents->IsAudioMuted();
     auto* window = FindWindow(page.window);
     result.state.active = window && window->strip &&
         window->strip->GetActiveWebContents() == contents;
@@ -403,6 +407,15 @@ BoazHostResult TabRegistry::GoForward(BoazHostPage id) {
 BoazHostResult TabRegistry::Reload(BoazHostPage id) {
   BOAZ_FIND_PAGE();
   page->web_contents()->GetController().Reload(content::ReloadType::NORMAL, true);
+  return BOAZ_HOST_OK;
+}
+BoazHostResult TabRegistry::SetAudioMuted(BoazHostPage id, bool muted) {
+  BOAZ_FIND_PAGE();
+  auto* contents = page->web_contents();
+  const bool unchanged = contents->IsAudioMuted() == muted;
+  contents->SetAudioMuted(muted);
+  // Changed values queue through the synchronous muting observer.
+  if (unchanged) impl_->Queue(*page, BOAZ_HOST_PAGE_CHANGED);
   return BOAZ_HOST_OK;
 }
 BoazHostResult TabRegistry::ActivatePage(BoazHostPage id, bool focus) {

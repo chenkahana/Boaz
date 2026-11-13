@@ -29,6 +29,7 @@ class TabRegistry {
   BoazHostResult GoBack(BoazHostPage page);
   BoazHostResult GoForward(BoazHostPage page);
   BoazHostResult Reload(BoazHostPage page);
+  BoazHostResult SetAudioMuted(BoazHostPage page, bool muted);
   BoazHostResult ActivatePage(BoazHostPage page, bool focus);
   BoazHostResult GetNativeView(BoazHostPage page, void** native_view);
   BoazHostResult CaptureDocument(BoazHostPage page, BoazHostDocument* document);
