@@ -494,6 +494,17 @@
           "after": "485e676671c9eb1661989a72c57150708ba293c248d4ff86778977d2af835243"
         }
       ]
+    },
+    {
+      "file": "patches/native-password-generation-callback.patch",
+      "sha256": "2323445c95b288884432a18c5921aec8f7b070ee133151d0b63283b0b42502bb",
+      "files": [
+        {
+          "path": "components/password_manager/content/browser/content_password_manager_driver.cc",
+          "before": "44c1fe0119e6ef4823f9008b6c01452f7764cabd9d397603c0009f562478a536",
+          "after": "441b53e4a936e4652ad72f8374d1c048296e00d797576d53182a4f7b01cee1e6"
+        }
+      ]
     }
   ]
 }
