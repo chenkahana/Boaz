@@ -37,6 +37,8 @@ source_set("host") {
     "native_window.mm",
     "tab_registry.h",
     "tab_registry.cc",
+    "visible_page_capture.h",
+    "visible_page_capture.cc",
     "password_submission.h",
     "password_submission.cc",
     "trusted_script_channel.h",
@@ -70,6 +72,9 @@ source_set("host") {
     "//chrome/browser/devtools:devtools_toggle_action",
     "//ui/base",
     "//ui/gfx",
+    "//ui/gfx/codec",
+    "//components/viz/common",
+    "//skia",
     "//ui/native_theme",
   ]
   frameworks = [ "AppKit.framework" ]

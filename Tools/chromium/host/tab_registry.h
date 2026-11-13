@@ -3,6 +3,7 @@
 
 #include <memory>
 #include "boaz_host.h"
+#include "visible_page_capture.h"
 #include "trusted_execution.h"
 
 class Browser;
@@ -43,6 +44,9 @@ class TabRegistry {
   BoazHostResult ActivatePage(BoazHostPage page, bool focus);
   BoazHostResult GetNativeView(BoazHostPage page, void** native_view);
   BoazHostResult CaptureDocumentOrigin(BoazHostPage page, BoazHostDocument* document, char* origin, size_t capacity);
+  BoazHostResult CaptureVisible(BoazHostPage page, uint64_t request, int width, int height,
+                                VisiblePageCapture::Completion completion);
+  BoazHostResult CancelCapture(BoazHostPage page, uint64_t request);
   BoazHostResult CaptureDocument(BoazHostPage page, BoazHostDocument* document);
   BoazHostResult ReleaseDocument(BoazHostPage page, BoazHostDocument document);
   BoazHostResult ExecuteTrusted(BoazHostPage page, BoazHostDocument document,

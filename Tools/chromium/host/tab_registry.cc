@@ -182,7 +182,7 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver, find_in_page::Fin
     owner->Queue(*this, BOAZ_HOST_PAGE_CLOSE_CANCELLED);
   }
   void WebContentsDestroyed() override { DetachFind(); owner->Destroyed(*this); }
-  void ObserveReplacement(content::WebContents* contents) { DetachFind(); scripts.reset(); latest_navigation = -1; load_error = net::OK; failed_url.clear(); Observe(contents); AttachFind(); }
+  void ObserveReplacement(content::WebContents* contents) { DetachFind(); capture.reset(); scripts.reset(); latest_navigation = -1; load_error = net::OK; failed_url.clear(); Observe(contents); AttachFind(); }
 
   raw_ref<Impl> owner;
   BoazHostPage id = NextHandle();
@@ -201,6 +201,7 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver, find_in_page::Fin
   bool view_available = false;
   std::optional<Snapshot> final_snapshot;
   std::unique_ptr<TrustedScriptChannel> scripts;
+  std::unique_ptr<VisiblePageCapture> capture;
   raw_ptr<find_in_page::FindTabHelper> find_helper = nullptr;
   find_in_page::FindNotificationDetails find_result;
   bool find_active = false;
@@ -373,6 +374,7 @@ void TabRegistry::Impl::Closing(Page& page) {
   if (page.closing) return;
   page.closing = true;
   if (page.scripts) page.scripts->Close();
+  if (page.capture) page.capture->Close();
   auto snapshot = Capture(page);
   page.final_snapshot = snapshot;
   snapshot.state.url = snapshot.url.c_str();
@@ -642,6 +644,17 @@ BoazHostResult TabRegistry::GetNativeView(BoazHostPage id, void** output) {
   if (!page->view_available) return BOAZ_HOST_UNAVAILABLE;
   *output = NativeViewForContents(page->web_contents());
   return *output ? BOAZ_HOST_OK : BOAZ_HOST_UNAVAILABLE;
+}
+BoazHostResult TabRegistry::CaptureVisible(BoazHostPage id, uint64_t request,
+    int width, int height, VisiblePageCapture::Completion completion) {
+  BOAZ_FIND_PAGE();
+  if (!page->view_available) return BOAZ_HOST_UNAVAILABLE;
+  if (!page->capture) page->capture = std::make_unique<VisiblePageCapture>(page->web_contents());
+  return page->capture->Capture(request, width, height, std::move(completion));
+}
+BoazHostResult TabRegistry::CancelCapture(BoazHostPage id, uint64_t request) {
+  BOAZ_FIND_PAGE();
+  return page->capture ? page->capture->Cancel(request) : BOAZ_HOST_INVALID_ARGUMENT;
 }
 BoazHostResult TabRegistry::CaptureDocument(BoazHostPage id, BoazHostDocument* output) {
   if (output) *output = 0;

@@ -66,6 +66,7 @@ struct State {
   raw_ptr<const BoazHostWindowOptions> pending = nullptr;
   std::map<BoazHostWindow, Window> windows;
   uint64_t pending_scripts = 0;
+  uint64_t pending_captures = 0;
   uint64_t pending_profiles = 0;
   std::unique_ptr<NativeProfiles> profiles;
   bool in_callback = false;
@@ -114,7 +115,7 @@ bool ValidOptions(const BoazHostWindowOptions* o) {
 }
 void FinishIfDrained() {
   if (!state->exit_requested || !state->windows.empty() ||
-      state->pending_scripts || state->pending_profiles || state->finished) return;
+      state->pending_scripts || state->pending_captures || state->pending_profiles || state->finished) return;
   state->finished = true;
   Notify([] { state->callbacks.shutdown_ready(state->callbacks.context); });
   // Swift queues its cleanup on this same main dispatch queue first.
@@ -418,11 +419,35 @@ BoazHostResult ShowDevTools(BoazHostPage page, BoazHostDevToolsAction action) {
   if (auto result = Check(); result != BOAZ_HOST_OK) return result;
   return state->tabs->ShowDevTools(page, action);
 }
+BoazHostResult CaptureVisible(BoazHostPage page, uint64_t request, int32_t width,
+    int32_t height, BoazHostCaptureCompletion completion, void* context) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (!completion) return BOAZ_HOST_INVALID_ARGUMENT;
+  CHECK_LT(state->pending_captures, std::numeric_limits<uint64_t>::max());
+  ++state->pending_captures;
+  auto result = state->tabs->CaptureVisible(page, request, width, height,
+      base::BindOnce([](BoazHostPage page, uint64_t request,
+                       BoazHostCaptureCompletion completion, void* context,
+                       VisiblePageCapture::Outcome outcome) {
+        CHECK(state);
+        Notify([&] { completion(context, page, request, outcome.status,
+            outcome.png.empty() ? nullptr : outcome.png.data(), outcome.png.size()); });
+        CHECK_GT(state->pending_captures, 0u);
+        --state->pending_captures;
+        FinishIfDrained();
+      }, page, request, completion, context));
+  if (result != BOAZ_HOST_OK) --state->pending_captures;
+  return result;
+}
+BoazHostResult CancelCapture(BoazHostPage page, uint64_t request) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  return state->tabs->CancelCapture(page, request);
+}
 const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:

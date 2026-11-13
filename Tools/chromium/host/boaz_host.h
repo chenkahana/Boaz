@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 17u
+#define BOAZ_HOST_ABI_VERSION 18u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT
@@ -17,6 +17,15 @@ typedef uint64_t BoazHostWindow;
 typedef uint64_t BoazHostPage;
 typedef uint64_t BoazHostDocument;
 typedef uint64_t BoazHostProfile;
+typedef enum BoazHostCaptureStatus {
+  BOAZ_CAPTURE_SUCCESS, BOAZ_CAPTURE_INVALID_TARGET, BOAZ_CAPTURE_NAVIGATION,
+  BOAZ_CAPTURE_CLOSED, BOAZ_CAPTURE_RENDERER_FAILED, BOAZ_CAPTURE_TIMEOUT,
+  BOAZ_CAPTURE_BUSY, BOAZ_CAPTURE_TOO_LARGE, BOAZ_CAPTURE_FAILED, BOAZ_CAPTURE_CANCELLED
+} BoazHostCaptureStatus;
+/* Accepted requests complete once, posted on the UI thread. PNG bytes are borrowed
+ * during this callback only, at most 8 MiB. Failure supplies no bytes. */
+typedef void (*BoazHostCaptureCompletion)(void* context, BoazHostPage page,
+    uint64_t request, BoazHostCaptureStatus status, const uint8_t* png, size_t size);
 typedef enum BoazHostScriptStatus {
   BOAZ_SCRIPT_SUCCESS, BOAZ_SCRIPT_INVALID_TARGET, BOAZ_SCRIPT_NAVIGATION,
   BOAZ_SCRIPT_CLOSED, BOAZ_SCRIPT_RENDERER_FAILED, BOAZ_SCRIPT_TIMEOUT,
@@ -188,6 +197,11 @@ typedef struct BoazHostAPI {
    * Success uses the same single-use execution/release contract as capture_document. */
   BoazHostResult (*capture_document_origin)(BoazHostPage page, BoazHostDocument* document,
                                           char* origin, size_t capacity);
+  /* Request must be nonzero; max dimensions <=2048, area <=2097152 pixels.
+   * Captures only visible surfaces. Synchronous rejection produces no callback. */
+  BoazHostResult (*capture_visible)(BoazHostPage page, uint64_t request,
+      int32_t width, int32_t height, BoazHostCaptureCompletion completion, void* context);
+  BoazHostResult (*cancel_capture)(BoazHostPage page, uint64_t request);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.
