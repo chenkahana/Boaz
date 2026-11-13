@@ -1,4 +1,5 @@
 #include "extension_install.h"
+#include "native_extension_prompt.h"
 #import <AppKit/AppKit.h>
 #include <map>
 #include <memory>
@@ -37,27 +38,21 @@ Operations& Active() { static base::NoDestructor<Operations> operations; return 
 struct Operation : std::enable_shared_from_this<Operation> {
   raw_ptr<Profile> profile;
   NSWindow* __weak parent;
-  NSAlert* __strong alert;
   id __strong close_observer;
   std::unique_ptr<ScopedProfileKeepAlive> keep_alive;
   scoped_refptr<extensions::CrxInstaller> installer;
   base::OnceCallback<void(ExtensionInstallResult)> completion;
-  Done consent;
   std::string extension_id;
   bool cancelled = false;
   bool accepted = false;
   void Cancel() {
     UI(); cancelled = true;
-    if (consent) Reply(std::move(consent), Client::Result::ABORTED);
-    if (alert.window.sheetParent) [alert.window.sheetParent endSheet:alert.window returnCode:NSModalResponseCancel];
   }
   void Finish(bool failed) {
     UI();
     if (!completion) return;
     if (close_observer) [[NSNotificationCenter defaultCenter] removeObserver:close_observer];
     close_observer = nil;
-    if (consent) Reply(std::move(consent), Client::Result::ABORTED);
-    if (alert.window.sheetParent) [alert.window.sheetParent endSheet:alert.window returnCode:NSModalResponseCancel];
     auto* registry = extensions::ExtensionRegistry::Get(profile);
     const bool installed = !failed && registry && !extension_id.empty() &&
         registry->GetInstalledExtension(extension_id);
@@ -70,50 +65,7 @@ struct Operation : std::enable_shared_from_this<Operation> {
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
         base::BindOnce(std::move(callback), result));
   }
-  void Show(Done callback, std::unique_ptr<extensions::InstallPromptData> data) {
-    UI();
-    if (cancelled || !parent || !parent.isVisible || parent.attachedSheet ||
-        data->requires_parent_permission() || data->ShouldWithheldPermissionsOnDialogAccept()) {
-      cancelled = true; Reply(std::move(callback), Client::Result::ABORTED); return;
-    }
-    consent = std::move(callback);
-    alert = [[NSAlert alloc] init];
-    alert.messageText = base::SysUTF16ToNSString(data->GetDialogTitle());
-    [alert addButtonWithTitle:base::SysUTF16ToNSString(data->GetAcceptButtonLabel())];
-    [alert addButtonWithTitle:base::SysUTF16ToNSString(data->GetAbortButtonLabel())];
-    NSMutableString* text = [base::SysUTF16ToNSString(data->GetPermissionsHeading()) mutableCopy];
-    auto permissions = data->GetPermissions();
-    for (size_t i = 0; i < permissions.permissions.size(); ++i) {
-      [text appendFormat:@"\n\n%@", base::SysUTF16ToNSString(permissions.permissions[i])];
-      if (i < permissions.details.size()) [text appendFormat:@"\n%@", base::SysUTF16ToNSString(permissions.details[i])];
-    }
-    NSScrollView* scroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(0, 0, 420, 220)];
-    scroll.hasVerticalScroller = YES;
-    NSTextView* view = [[NSTextView alloc] initWithFrame:scroll.bounds];
-    view.editable = NO; view.selectable = YES; view.verticallyResizable = YES;
-    view.autoresizingMask = NSViewWidthSizable;
-    view.textContainer.widthTracksTextView = YES;
-    view.string = text;
-    [view setAccessibilityLabel:@"Requested extension permissions"];
-    scroll.documentView = view; alert.accessoryView = scroll;
-    std::weak_ptr<Operation> weak = shared_from_this();
-    [alert beginSheetModalForWindow:parent completionHandler:^(NSModalResponse response) {
-      if (auto op = weak.lock(); op && op->consent) {
-        bool accept = !op->cancelled && response == NSAlertFirstButtonReturn;
-        op->accepted = accept;
-        if (!accept) op->cancelled = true;
-        auto decision = std::move(op->consent);
-        base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
-            base::BindOnce([](std::weak_ptr<Operation> weak, Done callback, bool accept) {
-              auto current = weak.lock();
-              const bool approved = current && !current->cancelled && accept;
-              if (current) current->accepted = approved;
-              std::move(callback).Run(Client::DoneCallbackPayload(
-                  approved ? Client::Result::ACCEPTED : Client::Result::USER_CANCELED));
-            }, weak, std::move(decision), accept));
-      }
-    }];
-  }
+
 };
 class NativePrompt final : public Client {
  public:
@@ -136,10 +88,20 @@ class NativePrompt final : public Client {
     prompt_ = std::make_unique<ExtensionInstallPrompt>(op->profile, gfx::NativeWindow(op->parent),
         std::make_unique<extensions::InstallPromptData>(extensions::InstallPromptData::INSTALL_PROMPT));
     prompt_->ShowDialog(std::move(callback), extension, icon, base::BindRepeating(
-        [](std::weak_ptr<Operation> weak, std::unique_ptr<ExtensionInstallPromptShowParams>, Done done,
+        [](std::weak_ptr<Operation> weak, std::unique_ptr<ExtensionInstallPromptShowParams> params, Done done,
            std::unique_ptr<extensions::InstallPromptData> data) {
-          if (auto operation = weak.lock()) operation->Show(std::move(done), std::move(data));
-          else Reply(std::move(done), Result::ABORTED);
+          auto operation = weak.lock();
+          if (!operation || operation->cancelled) { Reply(std::move(done), Result::ABORTED); return; }
+          ShowNativeExtensionPrompt(std::move(params), base::BindOnce(
+              [](std::weak_ptr<Operation> weak, Done done, Client::DoneCallbackPayload payload) {
+                auto current = weak.lock();
+                const auto result = !current || current->cancelled ? Result::ABORTED : payload.result;
+                if (current) {
+                  current->accepted = result == Result::ACCEPTED;
+                  if (!current->accepted) current->cancelled = true;
+                }
+                std::move(done).Run(Client::DoneCallbackPayload(result));
+              }, weak, std::move(done)), std::move(data));
         }, operation_));
   }
   std::weak_ptr<Operation> operation_;
@@ -178,5 +140,6 @@ void CancelNativeExtensionInstalls() {
   UI();
   auto copy = Active();
   for (const auto& [profile, operation] : copy) operation->Cancel();
+  CancelNativeExtensionPrompts();
 }
 }
