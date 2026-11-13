@@ -210,8 +210,12 @@ public:
         layout.horizontal = false;
         layout.inside_border_insets = CefInsets(60, 220, 0, 0);
         layout.default_flex = 1;
-        window->SetToBoxLayout(layout);
+        auto box = window->SetToBoxLayout(layout);
         window->AddChildView(browser_);
+        if (auto toolbar = browser_->GetChromeToolbar()) {
+            window->AddChildViewAt(toolbar, 0);
+            box->SetFlexForView(toolbar, 0);
+        }
         [host_ didCreateViewsWindow:window];
         window->Show();
     }
