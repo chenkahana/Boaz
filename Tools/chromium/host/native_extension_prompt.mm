@@ -26,10 +26,11 @@ Prompts& Active() { static base::NoDestructor<Prompts> prompts; return *prompts;
 class Prompt final : public content::WebContentsObserver, public ProfileObserver,
                      public std::enable_shared_from_this<Prompt> {
  public:
-  Prompt(std::unique_ptr<ExtensionInstallPromptShowParams> params,
+  Prompt(uint64_t token, std::unique_ptr<ExtensionInstallPromptShowParams> params,
          Client::DoneCallback callback,
          std::unique_ptr<extensions::InstallPromptData> data)
-      : params_(std::move(params)), callback_(std::move(callback)), data_(std::move(data)) {}
+      : token_(token), params_(std::move(params)), callback_(std::move(callback)), data_(std::move(data)) {}
+  uint64_t token() const { return token_; }
   void Start() {
     UI();
     if (finishing_) return;
@@ -38,7 +39,8 @@ class Prompt final : public content::WebContentsObserver, public ProfileObserver
     NSWindow* parent = params_->GetParentWindow().GetNativeNSWindow();
     if (!profile || profile->IsOffTheRecord() || !parent || !parent.isVisible || parent.attachedSheet ||
         !IsNativeExtensionPromptContext(profile, (__bridge void*)parent) ||
-        data_->type() != extensions::InstallPromptData::INSTALL_PROMPT ||
+        (data_->type() != extensions::InstallPromptData::INSTALL_PROMPT &&
+         data_->type() != extensions::InstallPromptData::RE_ENABLE_PROMPT) ||
         data_->requires_parent_permission() || data_->ShouldWithheldPermissionsOnDialogAccept()) {
       Finish(Client::Result::ABORTED); return;
     }
@@ -103,6 +105,7 @@ class Prompt final : public content::WebContentsObserver, public ProfileObserver
   }
   void WebContentsDestroyed() override { Finish(Client::Result::ABORTED); Observe(nullptr); }
   void OnProfileWillBeDestroyed(Profile*) override { profile_observation_.Reset(); Finish(Client::Result::ABORTED); }
+  const uint64_t token_;
   std::unique_ptr<ExtensionInstallPromptShowParams> params_;
   Client::DoneCallback callback_;
   std::unique_ptr<extensions::InstallPromptData> data_;
@@ -115,14 +118,24 @@ class Prompt final : public content::WebContentsObserver, public ProfileObserver
   bool aborted_ = false;
 };
 }
-void ShowNativeExtensionPrompt(std::unique_ptr<ExtensionInstallPromptShowParams> params,
+uint64_t ShowNativeExtensionPrompt(std::unique_ptr<ExtensionInstallPromptShowParams> params,
                               Client::DoneCallback callback,
                               std::unique_ptr<extensions::InstallPromptData> data) {
   UI();
-  auto prompt = std::make_shared<Prompt>(std::move(params), std::move(callback), std::move(data));
+  static uint64_t next_token = 0;
+  CHECK_NE(++next_token, 0u);
+  const uint64_t token = next_token;
+  auto prompt = std::make_shared<Prompt>(token, std::move(params), std::move(callback), std::move(data));
   Active().emplace(prompt.get(), prompt);
   NativeExtensionPromptsChanged();
   prompt->Start();
+  return token;
+}
+void CancelNativeExtensionPrompt(uint64_t token) {
+  UI();
+  for (const auto& [key, prompt] : Active()) {
+    if (prompt->token() == token) { prompt->Finish(Client::Result::ABORTED); return; }
+  }
 }
 void CancelNativeExtensionPrompts() {
   UI(); auto copy = Active();

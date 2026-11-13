@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 41u
+#define BOAZ_HOST_ABI_VERSION 42u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT,
@@ -208,6 +208,7 @@ typedef struct BoazHostCallbacks {
   void (*password_submission)(void* context, BoazHostPage page, BoazHostDocument document,
       const char* source_origin, const char* document_origin,
       const char* username, size_t username_length, const char* password, size_t password_length);
+  void (*extensions_changed)(void* context, BoazHostWindow window);
 } BoazHostCallbacks;
 
 /* Enumeration values are borrowed for the visitor call. Visitors must copy
@@ -231,6 +232,8 @@ typedef enum BoazHostExtensionInstallResult {
 } BoazHostExtensionInstallResult;
 typedef void (*BoazHostExtensionInstallCompletion)(void* context, BoazHostWindow window,
     uint64_t request, BoazHostExtensionInstallResult result);
+
+typedef void (*BoazHostExtensionMetadataVisitor)(void* context, const char* title, const char* badge);
 
 typedef struct BoazHostAPI {
   size_t size;
@@ -355,6 +358,8 @@ typedef struct BoazHostAPI {
   BoazHostResult (*install_unpacked_extension)(BoazHostWindow window, const char* path, uint64_t request,
       BoazHostExtensionInstallCompletion completion, void* context);
   BoazHostResult (*uninstall_extension)(BoazHostProfile profile, const char* id);
+  BoazHostResult (*extension_metadata)(BoazHostWindow window, BoazHostPage page,
+      const char* id, BoazHostExtensionMetadataVisitor visitor, void* context);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

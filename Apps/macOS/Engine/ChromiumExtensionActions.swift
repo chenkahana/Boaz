@@ -5,7 +5,7 @@ import SwiftUI
 
 @MainActor @Observable
 final class ChromiumExtensionActionsModel {
-    struct Action: Identifiable { let id: String; let name: String }
+    struct Action: Identifiable { let id: String; let name: String; var title = ""; var badge = "" }
     private(set) var actions: [Action] = []
     var failure: String?
     @ObservationIgnored private let api: BoazHostAPI
@@ -21,6 +21,7 @@ final class ChromiumExtensionActionsModel {
     var activeHandle: BoazHostPage? { activePage()?.handle }
 
     private final class Snapshot { var actions: [Action] = [] }
+    private final class Metadata { var title = ""; var badge = "" }
     func refresh() {
         guard api.size >= MemoryLayout<BoazHostAPI>.size,
               api.version == BOAZ_HOST_ABI_VERSION,
@@ -41,6 +42,25 @@ final class ChromiumExtensionActionsModel {
             actions = []
             failure = "Could not load extensions (\(result.rawValue))."
             return
+        }
+        if let page = activePage(), page.state.lifecycle == .active, let metadata = api.extension_metadata {
+            for index in snapshot.actions.indices {
+                let value = Metadata()
+                let result = snapshot.actions[index].id.withCString {
+                    metadata(window, page.handle, $0, { context, title, badge in
+                        guard let context, let title, let badge else { return }
+                        MainActor.assumeIsolated {
+                            let value = Unmanaged<Metadata>.fromOpaque(context).takeUnretainedValue()
+                            value.title = String(cString: title)
+                            value.badge = String(cString: badge)
+                        }
+                    }, Unmanaged.passUnretained(value).toOpaque())
+                }
+                if result == BOAZ_HOST_OK {
+                    snapshot.actions[index].title = value.title
+                    snapshot.actions[index].badge = value.badge
+                }
+            }
         }
         actions = snapshot.actions
         failure = nil
@@ -76,6 +96,14 @@ struct ChromiumExtensionActionsBar: View {
                 HStack(spacing: 4) {
                     ForEach(model.actions) { action in
                         NativeExtensionActionButton(model: model, action: action).frame(width: 28, height: 28)
+                            .overlay(alignment: .topTrailing) {
+                                if !action.badge.isEmpty {
+                                    Text(action.badge).font(.system(size: 9, weight: .semibold))
+                                        .lineLimit(1).padding(.horizontal, 3)
+                                        .background(.regularMaterial, in: Capsule())
+                                        .frame(maxWidth: 36).allowsHitTesting(false).accessibilityHidden(true)
+                                }
+                            }
                     }
                     Spacer(minLength: 0)
                 }
@@ -112,8 +140,8 @@ private struct NativeExtensionActionButton: NSViewRepresentable {
     func updateNSView(_ button: NSButton, context: Context) {
         context.coordinator.model = model
         context.coordinator.id = action.id
-        button.toolTip = action.name
-        button.setAccessibilityLabel(action.name)
+        button.toolTip = action.title.isEmpty ? action.name : action.title
+        button.setAccessibilityLabel(action.badge.isEmpty ? action.name : "\(action.name), \(action.badge)")
         button.isEnabled = model.activeHandle != nil
     }
     static func dismantleNSView(_ button: NSButton, coordinator: Coordinator) {

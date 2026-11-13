@@ -87,6 +87,16 @@ final class ChromiumRuntime {
                 }
             }
         }
+        callbacks.extensions_changed = { context, window in
+            guard let context else { return }
+            MainActor.assumeIsolated {
+                let owner = Unmanaged<ChromiumRuntime>.fromOpaque(context).takeUnretainedValue()
+                DispatchQueue.main.async { [weak owner] in
+                    guard let owner, !owner.stopped, !owner.closedWindows.contains(window) else { return }
+                    NotificationCenter.default.post(name: ChromiumExtensionManagement.installedExtensionsChanged, object: nil)
+                }
+            }
+        }
         callbacks.devtools_dock_changed = { context, window, current, last in
             guard let context, (0...3).contains(current), (0...2).contains(last) else { return }
             MainActor.assumeIsolated {
