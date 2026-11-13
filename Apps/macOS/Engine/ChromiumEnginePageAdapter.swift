@@ -20,6 +20,8 @@ final class ChromiumEnginePageAdapter: EnginePageAdapter {
     private(set) var state = EnginePageState()
     @ObservationIgnored private let api: BoazHostAPI
     @ObservationIgnored private var closeRequested = false
+    @ObservationIgnored private weak var attachedView: NSView?
+    private(set) var viewGeneration = 0
 
     /// The caller validates the pointer's size/version prefix before copying
     /// a full BoazHostAPI into this value parameter. This cannot validate a
@@ -44,6 +46,7 @@ final class ChromiumEnginePageAdapter: EnginePageAdapter {
         guard state.lifecycle != .closed else { return }
         let previousLifecycle = state.lifecycle
         state = snapshot
+        if event == BOAZ_HOST_PAGE_VIEW_CHANGED { viewGeneration += 1 }
         switch event {
         case BOAZ_HOST_PAGE_CLOSED:
             state.lifecycle = .closed
@@ -66,7 +69,14 @@ final class ChromiumEnginePageAdapter: EnginePageAdapter {
         var pointer: UnsafeMutableRawPointer?
         try check(api.get_native_view!(handle, &pointer))
         guard let pointer else { throw ChromiumPageBridgeError.unavailable }
-        return Unmanaged<NSView>.fromOpaque(pointer).takeUnretainedValue()
+        let view = Unmanaged<NSView>.fromOpaque(pointer).takeUnretainedValue()
+        attachedView = view
+        return view
+    }
+
+    func detachNativeView() {
+        attachedView?.removeFromSuperview()
+        attachedView = nil
     }
 
     func navigate(to url: URL) throws {
