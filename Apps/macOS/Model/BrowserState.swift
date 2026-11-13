@@ -276,7 +276,7 @@ final class BrowserState {
             do {
                 guard let store = model.store else { throw EnginePageError.unavailable }
                 guard try store.tabEngine(tabID: tab.id, profileID: tab.profileID) != .chromium,
-                      !store.siteEngineRules(profileID: tab.profileID).contains(where: {
+                      try !store.siteEngineRules(profileID: tab.profileID).contains(where: {
                           $0.reason == .user && $0.matches(transition.url)
                       }) else { return }
             } catch { model.showToast("Protected-video preferences could not be checked."); return }
