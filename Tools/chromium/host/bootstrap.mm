@@ -59,6 +59,8 @@ struct Window {
   base::CallbackListSubscription cancelled;
   std::unique_ptr<NativeExtensionActions> actions;
   base::CallbackListSubscription closing;
+  uint32_t external_tab_count = 0;
+  bool explicit_close = false;
 };
 struct State {
   raw_ptr<Profile> profile = nullptr;
@@ -259,10 +261,18 @@ BoazHostResult ReleaseProfile(BoazHostProfile profile) {
     if (window.browser && window.browser->GetProfile() == resolved) return BOAZ_HOST_UNAVAILABLE;
   return state->profiles->Release(profile);
 }
+BoazHostResult SetExternalTabCount(BoazHostWindow id, uint32_t count) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  auto it = state->windows.find(id);
+  if (it == state->windows.end() || !it->second.browser) return BOAZ_HOST_INVALID_HANDLE;
+  it->second.external_tab_count = count;
+  return BOAZ_HOST_OK;
+}
 BoazHostResult CloseWindow(BoazHostWindow id) {
   if (auto r = Check(); r != BOAZ_HOST_OK) return r;
   auto it = state->windows.find(id);
   if (it == state->windows.end() || !it->second.browser) return BOAZ_HOST_INVALID_HANDLE;
+  it->second.explicit_close = true;
   UnloadController::From(it->second.browser.get())->OnWindowClosing();
   return BOAZ_HOST_OK;
 }
@@ -582,7 +592,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
@@ -669,6 +679,15 @@ bool RouteExternalURLs(std::vector<std::string> urls) {
   }
   return true;
 }
+bool ShouldRetainEmptyBrowser(BrowserWindowInterface* browser) {
+  if (!NativeHostEnabled() || !state || state->exit_requested || !browser || browser->IsDeleteScheduled()) return false;
+  auto* unload = UnloadController::From(browser);
+  if (!unload || unload->is_attempting_to_close_browser() || unload->force_skip_warning_user_on_close()) return false;
+  for (const auto& [id, window] : state->windows)
+    if (window.browser.get() == browser)
+      return window.external_tab_count > 0 && !window.explicit_close;
+  return false;
+}
 bool NativeHostEnabled() {
   return base::CommandLine::ForCurrentProcess()->HasSwitch("boaz-native-host");
 }
@@ -701,7 +720,11 @@ CreateNativeHostBrowserWindow(BrowserWindowInterface* browser) {
   auto weak = browser->GetWeakPtr();
   NativeWindowServices services;
   services.request_close = base::BindRepeating([](base::WeakPtr<BrowserWindowInterface> b) {
-    if (b) UnloadController::From(b.get())->OnWindowClosing();
+    if (b) {
+      for (auto& [id, window] : state->windows)
+        if (window.browser.get() == b.get()) window.explicit_close = true;
+      UnloadController::From(b.get())->OnWindowClosing();
+    }
   }, weak);
   services.content_view = base::BindRepeating([](BoazHostWindowOptions options) {
     return Notify([&] { return options.content_view(options.context); });
@@ -728,8 +751,10 @@ CreateNativeHostBrowserWindow(BrowserWindowInterface* browser) {
   auto id = state->tabs->RegisterWindow(static_cast<Browser*>(browser), options.native_nswindow);
   CHECK(id);
   Window record{weak, options, browser->RegisterBrowserCloseCancelled(base::BindRepeating(
-      [](BrowserWindowInterface*, BrowserWindowInterface::ClosingStatus) {
+      [](BrowserWindowInterface* browser, BrowserWindowInterface::ClosingStatus) {
         state->exit_requested = false;
+        for (auto& [id, window] : state->windows)
+          if (window.browser.get() == browser) window.explicit_close = false;
       })), nullptr, {}};
   record.closing = browser->RegisterBrowserDidClose(base::BindRepeating(
       [](BoazHostWindow id, BrowserWindowInterface*) {

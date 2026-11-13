@@ -9,6 +9,7 @@ class BrowserWindowInterface;
 class ChromeBrowserMainExtraParts;
 namespace boaz {
 bool NativeHostEnabled();
+bool ShouldRetainEmptyBrowser(BrowserWindowInterface* browser);
 bool RouteExternalURLs(std::vector<std::string> urls);
 std::unique_ptr<ChromeBrowserMainExtraParts> CreateNativeHostMainParts();
 std::unique_ptr<BrowserWindow, BrowserWindowDeleter>

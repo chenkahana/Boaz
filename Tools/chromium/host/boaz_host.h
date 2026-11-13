@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 22u
+#define BOAZ_HOST_ABI_VERSION 23u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT
@@ -249,6 +249,8 @@ typedef struct BoazHostAPI {
   BoazHostResult (*download_action)(BoazHostProfile profile, uint64_t download, BoazHostDownloadAction action);
   /* Opens the native print dialog; OK means accepted, not printed. */
   BoazHostResult (*print_page)(BoazHostPage page);
+  /* Update before closing the last Chromium page. Does not close a window. */
+  BoazHostResult (*set_external_tab_count)(BoazHostWindow window, uint32_t count);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.
