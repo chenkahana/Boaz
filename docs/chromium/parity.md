@@ -131,3 +131,11 @@ Required open dependencies include protected-media request routing and actual Fa
 - Focused native compilation at `905ef16` passed in `20261113T170728.716394Z.log`, including PDF, renderer EME sender and document-bound browser receiver. Full compilation subsequently found a protected `RenderFrameImpl::GetWeakPtr` call in the upstream EME patch (`20261113T170815.677867Z.log`); correction is underway. Compiled outputs and failed logs are preserved.
 
 Code complete has not been reached. No production release, appcast change, acceptance waiver, new test, or benchmark was performed. The draft PR retains all earlier feature, DRM, distribution, performance and dogfooding gates.
+
+### Subsequent verified build checkpoint
+
+- Real UI at `969636e` passed in resumed run `20261113T171123Z-3affe4a7e8f24d01b2b24f8a2a038ad5`. This includes the dedicated DevTools shell, source viewer, protected routing, presets and media/vision controls. The first attempt exposed a Settings catch-variable assignment; fixed before the successful rerun.
+- Focused native compilation at `81c25f6` passed (`20261113T171804.453205Z.log`), followed by the full native build (`20261113T171922.214644Z.log`). This includes the incremental EME callback-lifetime correction, native WebAuthn window adapter, cache-clear observer/profile retention, and bypass-cache reload. The matching UI build is queued separately.
+- Cache clearing removes resource caches only, preserving cookies and Cache Storage. It retains a retiring private profile until completion; shutdown drains outstanding work. Reload targets the original active document only and preserves Chromium's form-resubmission confirmation.
+- Source now includes acknowledged network/CPU and sensor overrides through typed internal protocol commands. Network uses the pinned rule-based and navigator-state commands. CPU, navigator state, timezone and locale can affect shared renderers; UI must not claim strict per-tab isolation. Worker coverage and cached-response throttling are not assumed.
+- Locale/timezone require a trusted internal protocol client. That client exposes only typed application operations, retains owned HTTP(S) primary-frame attachment checks, and denies local file reads/writes and unsafe operations. No arbitrary protocol endpoint is introduced. Geolocation emulation does not grant site permission.
