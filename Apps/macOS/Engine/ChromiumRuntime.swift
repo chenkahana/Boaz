@@ -24,7 +24,7 @@ final class ChromiumRuntime {
     private var pages: [BoazHostPage: ChromiumEnginePageAdapter] = [:]
     private var preparedProfiles: [BoazHostProfile: ChromiumProfile] = [:]
     private var windowProfiles: [BoazHostWindow: ChromiumProfile] = [:]
-    private var preparingIdentities: Set<EngineProfileIdentity> = []
+    private var profileRequests: [EngineProfileIdentity: ProfileRequest] = [:]
     private var started = false
     private var stopped = false
     private var inCallback = false
@@ -113,6 +113,9 @@ final class ChromiumRuntime {
                 DispatchQueue.main.async {
                     guard !owner.stopped else { return }
                     owner.stopped = true
+                    let requests = Array(owner.profileRequests.values)
+                    owner.profileRequests.removeAll()
+                    requests.forEach { $0.cancelAll(EnginePageError.unavailable) }
                     owner.pages.values.forEach { $0.detachNativeView() }
                     owner.pages.removeAll()
                     owner.windowProfiles.removeAll()
@@ -144,29 +147,42 @@ final class ChromiumRuntime {
         try Task.checkCancellation()
         guard !identity.id.isEmpty, !identity.id.contains("\0") else { throw EnginePageError.invalidRequest }
         if let existing = preparedProfiles.values.first(where: { $0.identity == identity }) { return existing }
-        guard preparingIdentities.insert(identity).inserted else { throw EnginePageError.unavailable }
-        defer { preparingIdentities.remove(identity) }
-        let profile: ChromiumProfile = try await withCheckedThrowingContinuation { continuation in
-            let request = ProfileRequest(owner: self, identity: identity, continuation: continuation)
-            let context = Unmanaged.passRetained(request).toOpaque()
-            let result = identity.id.withCString {
-                api.prepare_profile!($0, identity.isPrivate ? 1 : 0, { context, result, handle in
-                    guard let context else { return }
-                    MainActor.assumeIsolated {
-                        let request = Unmanaged<ProfileRequest>.fromOpaque(context).takeRetainedValue()
-                        DispatchQueue.main.async { request.finish(result, handle: handle) }
-                    }
-                }, context)
+        let waiter = UUID()
+        let profile: ChromiumProfile = try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                guard !Task.isCancelled else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                if let request = profileRequests[identity] {
+                    request.waiters[waiter] = continuation
+                    return
+                }
+                let request = ProfileRequest(owner: self, identity: identity)
+                request.waiters[waiter] = continuation
+                profileRequests[identity] = request
+                let context = Unmanaged.passRetained(request).toOpaque()
+                let result = identity.id.withCString {
+                    api.prepare_profile!($0, identity.isPrivate ? 1 : 0, { context, result, handle in
+                        guard let context else { return }
+                        MainActor.assumeIsolated {
+                            let request = Unmanaged<ProfileRequest>.fromOpaque(context).takeRetainedValue()
+                            DispatchQueue.main.async { request.finish(result, handle: handle) }
+                        }
+                    }, context)
+                }
+                if result != BOAZ_HOST_OK {
+                    Unmanaged<ProfileRequest>.fromOpaque(context).release()
+                    request.finish(result, handle: 0)
+                }
             }
-            if result != BOAZ_HOST_OK {
-                Unmanaged<ProfileRequest>.fromOpaque(context).release()
-                request.finish(result, handle: 0)
+        } onCancel: {
+            Task { @MainActor [weak self] in
+                self?.profileRequests[identity]?.cancel(waiter)
             }
         }
-        if Task.isCancelled {
-            if !windowProfiles.values.contains(profile) { try? releaseProfile(profile) }
-            throw CancellationError()
-        }
+        try Task.checkCancellation()
+        try requireRunning()
         return profile
     }
 
@@ -193,18 +209,31 @@ final class ChromiumRuntime {
     }
 
     private final class ProfileRequest {
-        let owner: ChromiumRuntime
+        weak var owner: ChromiumRuntime?
         let identity: EngineProfileIdentity
-        var continuation: CheckedContinuation<ChromiumProfile, Error>?
-        init(owner: ChromiumRuntime, identity: EngineProfileIdentity,
-             continuation: CheckedContinuation<ChromiumProfile, Error>) {
+        var waiters: [UUID: CheckedContinuation<ChromiumProfile, Error>] = [:]
+        private var finished = false
+
+        init(owner: ChromiumRuntime, identity: EngineProfileIdentity) {
             self.owner = owner
             self.identity = identity
-            self.continuation = continuation
+        }
+        func cancel(_ id: UUID) {
+            waiters.removeValue(forKey: id)?.resume(throwing: CancellationError())
+        }
+        func cancelAll(_ error: Error) {
+            let pending = waiters
+            waiters.removeAll()
+            pending.values.forEach { $0.resume(throwing: error) }
         }
         func finish(_ result: BoazHostResult, handle: BoazHostProfile) {
-            guard let continuation else { return }
-            self.continuation = nil
+            guard !finished else { return }
+            finished = true
+            guard let owner else {
+                cancelAll(EnginePageError.unavailable)
+                return
+            }
+            if owner.profileRequests[identity] === self { owner.profileRequests[identity] = nil }
             do {
                 try owner.check(result)
                 try owner.requireRunning()
@@ -213,10 +242,13 @@ final class ChromiumRuntime {
                 if let existing = owner.preparedProfiles[handle], existing != profile {
                     throw EnginePageError.invalidRequest
                 }
+                // Runtime owns prepared profiles; cancellation never releases a shared handle.
                 owner.preparedProfiles[handle] = profile
-                continuation.resume(returning: profile)
+                let pending = waiters
+                waiters.removeAll()
+                pending.values.forEach { $0.resume(returning: profile) }
             } catch {
-                continuation.resume(throwing: error)
+                cancelAll(error)
             }
         }
     }
