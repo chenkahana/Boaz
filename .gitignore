@@ -4,10 +4,27 @@ DerivedData/
 .build/
 .swiftpm/
 xcuserdata/
-.omc/
 .DS_Store
 build-*/
 
-# Internal working notes (kept locally, not published)
-tasks/
+# AI coding agents: local state, memory and scratch notes. Agent guides (AGENTS.md, CLAUDE.md) stay tracked.
 .claude/
+.codex/
+.codex-recovery/
+.omc/
+.kiro/
+.agent/
+.agents/
+.cursor/
+.windsurf/
+.gemini/
+.serena/
+.specstory/
+.aider*
+.mcp.json
+CLAUDE.local.md
+tasks/
+/PLAN.md
+/STATUS.md
+/ADR.md
+/HANDOFF.md
