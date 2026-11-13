@@ -113,11 +113,15 @@ enum ChromiumPasswordFill {
             const target = document.activeElement;
             if (!(target instanceof HTMLInputElement)) return false;
             const found = fields(target);
+            const originalScope = scopeOf(target);
             if (target !== found.username && target !== found.password) return false;
             window.__boazManualPasswordFills ??= Object.create(null);
             window.__boazManualPasswordFills[key] = (origin, username, password) => {
-                if (location.origin !== origin || !target.isConnected) return false;
+                if (location.origin !== origin || !target.isConnected || scopeOf(target) !== originalScope) return false;
                 const f = fields(target);
+                if (f.username !== found.username || f.password !== found.password) return false;
+                const usable = e => !e || (e.isConnected && shown(e) && !e.disabled && !e.readOnly && scopeOf(e) === originalScope);
+                if (!usable(target) || !usable(found.username) || !usable(found.password)) return false;
                 if (f.username && username) set(f.username, username);
                 if (f.password) set(f.password, password);
                 return true;
