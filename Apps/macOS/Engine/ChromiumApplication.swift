@@ -430,6 +430,7 @@ public func boazApplicationStart(_ api: UnsafePointer<BoazHostAPI>?) -> BoazHost
     return MainActor.assumeIsolated {
         guard chromiumApplication == nil else { return BOAZ_HOST_UNAVAILABLE }
         do {
+            try ChromiumLegacyStore.importMissingPreferences()
             let app = try ChromiumApplication(runtime: ChromiumRuntime(api: api))
             chromiumApplication = app
             try app.start()
