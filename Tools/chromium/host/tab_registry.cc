@@ -1,4 +1,6 @@
 #include "tab_registry.h"
+#include "components/zoom/zoom_controller.h"
+#include "third_party/blink/public/common/page/page_zoom.h"
 #include "trusted_script_channel.h"
 
 #include <limits>
@@ -417,6 +419,26 @@ BoazHostResult TabRegistry::SetAudioMuted(BoazHostPage id, bool muted) {
   // Changed values queue through the synchronous muting observer.
   if (unchanged) impl_->Queue(*page, BOAZ_HOST_PAGE_CHANGED);
   return BOAZ_HOST_OK;
+}
+BoazHostResult TabRegistry::GetZoomFactor(BoazHostPage id, double* factor) {
+  if (factor) *factor = 0;
+  BOAZ_FIND_PAGE();
+  if (!factor) return BOAZ_HOST_INVALID_ARGUMENT;
+  auto* controller = zoom::ZoomController::FromWebContents(page->web_contents());
+  if (!controller) return BOAZ_HOST_UNAVAILABLE;
+  const double actual = blink::ZoomLevelToZoomFactor(controller->GetZoomLevel());
+  if (!std::isfinite(actual) || actual <= 0) return BOAZ_HOST_UNAVAILABLE;
+  *factor = actual;
+  return BOAZ_HOST_OK;
+}
+BoazHostResult TabRegistry::SetZoomFactor(BoazHostPage id, double factor) {
+  BOAZ_FIND_PAGE();
+  if (!std::isfinite(factor) || factor < 0.5 || factor > 3.0)
+    return BOAZ_HOST_INVALID_ARGUMENT;
+  auto* controller = zoom::ZoomController::FromWebContents(page->web_contents());
+  if (!controller) return BOAZ_HOST_UNAVAILABLE;
+  return controller->SetZoomLevel(blink::ZoomFactorToZoomLevel(factor))
+      ? BOAZ_HOST_OK : BOAZ_HOST_UNAVAILABLE;
 }
 BoazHostResult TabRegistry::ActivatePage(BoazHostPage id, bool focus) {
   BOAZ_FIND_PAGE();
