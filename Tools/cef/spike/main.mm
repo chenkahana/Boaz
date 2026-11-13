@@ -228,7 +228,9 @@ private:
     CefSettings settings;
     settings.external_message_pump = true;
     settings.log_severity = LOGSEVERITY_WARNING;
-    NSString *cache = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Caches/com.chenkahana.boaz.cef-spike"];
+    CefString(&settings.keychain_service_name) = "com.chenkahana.boaz.cef-spike Safe Storage";
+    CefString(&settings.keychain_account_name) = "BoazCEFSpike";
+    NSString *cache = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Caches/com.chenkahana.boaz.cef-spike/isolated-keychain-v1"];
     CefString(&settings.root_cache_path) = cache.UTF8String;
     CefString(&settings.cache_path) = [cache stringByAppendingPathComponent:@"Default"].UTF8String;
     CefString(&settings.log_file) = [cache stringByAppendingPathComponent:@"cef.log"].UTF8String;
