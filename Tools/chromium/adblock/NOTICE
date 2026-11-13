@@ -18,15 +18,16 @@ with distributed lists; this notice does not replace the license text.
 lists.lock.json records the exact unmodified assembled bytes, version headers,
 source commit declarations, and dependency inventory. Source commit headers
 identify upstream provenance; the byte SHA-256 is the artifact identity.
-No source list, rejected rule, directive, redirect or scriptlet was removed.
+Original source lists remain unmodified. The effective rules separately mark seven
+reviewed optional exclusions, recorded verbatim in compatibility.json: six
+stylesheet-property selectors and one response-HTML rule absent from existing
+WebKit behavior. Any additional rejection blocks asset preparation.
 
 These snapshots contain no include or conditional preprocessing directives.
 They do contain ABP rewrite resources, redirects, procedural cosmetics and
-scriptlet invocations. The named resources/scriptlets are NOT bundled or pinned
-by this packet. Parser acceptance alone cannot establish that their runtime
-resources resolve. Production integration must supply validated, independently
-pinned resources with their own notices, or explicitly block the snapshot.
-The empty resource array is not a complete implementation of these lists.
+scriptlet invocations. The named resources/scriptlets are pinned in resources.lock.json and packaged
+with original license notices. Native snapshot validation records whether all
+resources load; it does not establish actual renderer behavior.
 
 adblock-rust
 Copyright its respective upstream contributors.
@@ -63,8 +64,8 @@ Official assembly reference:
   redirect assembly and custom-resource composition. No packager was executed.
 
 The source inventory now resolves every named list dependency. Generated
-Resource JSON, resource permission validation and runtime behavior still need
-verification. Preserve requiresTrust/permission metadata; public lists receive
+Resource JSON and native input validation are recorded in assets.json; actual
+network and renderer behavior still needs verification. Preserve requiresTrust/permission metadata; public lists receive
 no elevated resource permission. The source packager's omission of world/trust
 fields is not authorization to discard those boundaries in Boaz.
 

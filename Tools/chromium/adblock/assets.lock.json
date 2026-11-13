@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "artifact_directory": "/Volumes/BoazBuild/cef/direct/adblock/assets-20261113-mandatory-v1",
+  "native_library_sha256": "3c07064dcf4fef3e941c9a8ca10eee057fad50d637845b7315c39fc3aef39115",
+  "validation": "native_engine_creation_passed",
+  "full_subscription_supported": false,
+  "optional_excluded_rule_count": 7,
+  "tracker_domain_count": 269,
+  "prepare_script_sha256": "e9253e75674bfd390f1c7e0b8f2e439ed6642cac22cecd5f120cc9b470235525",
+  "files": {
+    "easylist.txt": {
+      "sha256": "93e97f635895433296fbc83a07088a9400025877fc49b5a88c83460cad23f7d0",
+      "size_bytes": 2053681
+    },
+    "easyprivacy.txt": {
+      "sha256": "bf775427194e10c609e7c9a189ec0c70c199570ef90e9e183ff9afd850e06887",
+      "size_bytes": 1516555
+    },
+    "boaz-trackers.txt": {
+      "sha256": "de4b3ed1b0f79fd18e2e8eea4ae9a4260f4da4b68933386d676724f90dfa40f2",
+      "size_bytes": 7826
+    },
+    "LICENSE-brave-uBlock.txt": {
+      "sha256": "e73d33841f942fa73aa5a63d4a6399cc39a29564db1dbca0915485842fcb236d",
+      "size_bytes": 35126
+    },
+    "LICENSE-brave-brave-core-crx-packager.txt": {
+      "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5",
+      "size_bytes": 16725
+    },
+    "LICENSE-brave-adblock-resources.txt": {
+      "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5",
+      "size_bytes": 16725
+    },
+    "rules.txt": {
+      "sha256": "5aa6b88e1b68464069ec60d52359174f581ea5ce53ff510bd18fcdba931793d7",
+      "size_bytes": 3578300
+    },
+    "resources.json": {
+      "sha256": "ec29aa0f2260b8b30e59390efab0ddf59402c941c6c6be9f7fe6d88ea1b49468",
+      "size_bytes": 131448
+    },
+    "lists.lock.json": {
+      "sha256": "7047848a75d11d33fde726fdc33fd7ff3b72e87168cd7a7611c599d5818d7442",
+      "size_bytes": 18407
+    },
+    "resources.lock.json": {
+      "sha256": "b019a074d16132f4d061ffdb2b311bb45658fbd6831076137760cea24172e2e2",
+      "size_bytes": 43943
+    },
+    "resources.receipt.json": {
+      "sha256": "5f0acf263a7974dd0dde053c311741b13db1d218428e9a12567d67fa73b73543",
+      "size_bytes": 7050
+    },
+    "compatibility.json": {
+      "sha256": "650742ab8a8538eef617af65f755b657e6f2bcd839919cbe9d92e83bd2ae9f70",
+      "size_bytes": 2370
+    },
+    "NOTICE": {
+      "sha256": "0f1df1abd45da003f44627fc302212f6d8b51c5d5b45f0b7c9c4656ff6f15aef",
+      "size_bytes": 4617
+    },
+    "assets.json": {
+      "sha256": "9fcd82b84bf68abaa1105f0b1e9608d4d9dd16a9bb13ae6b8f3b49acb659726b",
+      "size_bytes": 6806
+    }
+  },
+  "limits": "Parser/resource loading only; renderer/network behavior remains separate acceptance."
+}

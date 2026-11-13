@@ -172,10 +172,19 @@ def main():
     if compatibility['lists_lock_sha256'] != digest(lock_bytes):
         raise ValueError('Subscription compatibility decisions require review for these list versions')
     exclusions = compatibility['optional_exclusions']
-    if len(exclusions) > 32:
+    if compatibility.get('schema_version') != 1 or len(exclusions) != 7:
         raise ValueError('Unexpected compatibility exclusion count')
+    if (status != 4 or detail.get('rejected_rules') != 7
+            or detail.get('rejected_resources') != 0
+            or detail.get('rejected_rule_details_truncated') is not False
+            or len(detail.get('rejected_rule_details', [])) != 7):
+        raise ValueError('Unexpected subscription rejection; no exclusions applied: '
+                         + json.dumps(detail))
+    subscription_diagnostics = detail
     rejection_reasons = {entry['line']: entry['reason']
-                         for entry in detail.get('rejected_rule_details', [])}
+                         for entry in detail['rejected_rule_details']}
+    if len(rejection_reasons) != 7:
+        raise ValueError('Duplicate native rejected-rule indices')
     lines = combined.decode('utf-8').splitlines(keepends=True)
     excluded_indices = set()
     for entry in exclusions:
@@ -205,6 +214,14 @@ def main():
                     break
         print(json.dumps({'status': 'rejected', 'native_status': status, 'diagnostics': detail, 'rules_sample': mapped}))
         return 1
+    if detail.get('rejected_rules') != 0 or detail.get('rejected_resources') != 0:
+        raise ValueError('Successful snapshot contains rejected inputs')
+    for entry in json.loads(resource_lock)['files']:
+        if Path(entry['path']).name not in ['LICENSE', 'LICENSE.txt']:
+            continue
+        filename = 'LICENSE-' + entry['repository'].replace('/', '-') + '.txt'
+        inputs[filename] = checked(confined(entry['artifact_path'], STORAGE / 'adblock'),
+                                   entry['sha256'], entry['size_bytes'])
     inputs.update({'rules.txt': combined, 'resources.json': resources,
                    'lists.lock.json': lock_bytes, 'resources.lock.json': resource_lock,
                    'resources.receipt.json': resource_receipt_bytes, 'compatibility.json': compatibility_bytes,
@@ -214,6 +231,9 @@ def main():
                   'optional_excluded_rule_count': len(exclusions),
                   'native_library_sha256': build['library_sha256'], 'build_receipt_sha256': digest(build_bytes),
                   'tracker_source': own_provenance, 'diagnostics': detail,
+                  'original_subscription_diagnostics': subscription_diagnostics,
+                  'exclusions': exclusions,
+                  'prepare_script_sha256': digest(read(Path(__file__))),
                   'files': {name: {'sha256': digest(data), 'size_bytes': len(data)} for name, data in inputs.items()},
                   'limits': 'Parser/resource loading only; renderer/network behavior remains separate acceptance.'}
     output.mkdir(mode=0o700)
