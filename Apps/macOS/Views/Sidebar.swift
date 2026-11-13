@@ -248,7 +248,7 @@ private struct FavoriteTile: View {
         let active = browser.activeTabID == tab.id
         // The icon's own color, once its icon is known; a black, white or gray icon keeps the neutral fill.
         let color = Favicons.shared.resolved(for: tab.url)?.color
-        Button { browser.activate(tab) } label: {
+        return Button { browser.activate(tab) } label: {
             // Flat at rest; only hovering lifts a tile.
             SiteMonogram(url: tab.url, tint: tint, size: 24)
                 .frame(maxWidth: .infinity).frame(height: 44)

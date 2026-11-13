@@ -78,6 +78,8 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         edit.addItem(.separator())
         add(edit, "Copy URL", command: .copyURL, enabled: { $0?.activeURL != nil }) { $0?.copyActiveURL() }
 
+        add(edit, "Find…", command: .find, enabled: { $0?.activeTab != nil }) { $0?.findVisible = true }
+
         let view = menu("View")
         add(view, "Hide Sidebar", command: .toggleSidebar,
             title: { $0?.sidebarVisible == false ? "Show Sidebar" : "Hide Sidebar" }) { $0?.toggleSidebar() }
