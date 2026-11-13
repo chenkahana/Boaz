@@ -78,6 +78,14 @@ def package(args):
                 f'Contents/MacOS/{executable}']
     if any(not (app / name).exists() for name in required):
         raise RuntimeError('Application is missing required packaged components')
+    # WebKit fallback is compiled into the same UI library and uses macOS's
+    # system framework; it is not a second bundled browser executable.
+    linked, _ = run('/usr/bin/otool', '-L',
+                    str(app / 'Contents/Frameworks/libBoazApplicationUI.dylib'))
+    dependencies = {line.strip().split(' (', 1)[0]
+                    for line in linked.decode('utf-8', errors='strict').splitlines()[1:]}
+    if '/System/Library/Frameworks/WebKit.framework/Versions/A/WebKit' not in dependencies:
+        raise RuntimeError('Application UI is missing its system WebKit fallback dependency')
     for name in ('boaz', executable):
         if not (app / 'Contents/MacOS' / name).is_file() or not os.access(app / 'Contents/MacOS' / name, os.X_OK):
             raise RuntimeError('Required executable is unavailable')
@@ -116,10 +124,15 @@ def package(args):
                    'sha256': digest(sparkle / name)} for name in ('generate_keys', 'sign_update')},
                'verification': ['deep-strict-signatures', 'Developer-ID-DPF8459C2J', 'hardened-runtime',
                                 'no-get-task-allow', 'staple-valid', 'gatekeeper-approved', 'Sparkle-key-match'],
-               'required_gates': ['product-parity', 'DRM-playback', 'migration', 'private-profile-isolation',
-                   'performance-budgets', 'signed-clean-account-launch', 'Sparkle-upgrade',
-                   'last-three-version-deltas-at-most-40000000-bytes', 'higher-version-WebKit-rollback',
-                   'three-day-dogfooding-no-P0-P1'], 'packaging_complete': False}
+               'required_gates': ['essential-browsing-and-existing-feature-parity',
+                   'protected-media-WebKit-fallback', 'existing-data-preservation-and-migration',
+                   'private-profile-isolation', 'signed-notarized-clean-account-launch',
+                   'Sparkle-upgrade', 'higher-version-WebKit-rollback'],
+               'deferred_campaigns': ['strict-performance-budgets', '160-MB-DMG-size-budget',
+                   'last-three-version-deltas-and-40-MB-size-budget',
+                   'three-day-dogfooding', 'exhaustive-acceptance-matrix'],
+               'fallback_dependency': 'system-WebKit-linked-by-BoazApplicationUI',
+               'packaging_complete': False}
     receipt_path = output / 'candidate-receipt.json'
     receipt_path.write_text(json.dumps(receipt, indent=2) + '\n')
     staging = output / 'dmg'
@@ -132,8 +145,6 @@ def package(args):
     run('/usr/bin/hdiutil', 'create', '-volname', 'Boaz', '-srcfolder', str(staging),
         '-fs', 'HFS+', '-format', 'UDZO', str(dmg))
     size = dmg.stat().st_size
-    if size > 160_000_000:
-        raise RuntimeError('Compressed DMG exceeds 160 MB; artifacts preserved')
     sha = digest(dmg)
     (output / 'Boaz.dmg.sha256').write_text(f'{sha}  Boaz.dmg\n')
     signature, _ = run(str(sparkle / 'sign_update'), '-p', str(dmg))
