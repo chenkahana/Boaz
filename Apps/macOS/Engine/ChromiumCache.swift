@@ -1,6 +1,14 @@
 #if BOAZ_CHROMIUM
 import Foundation
 
+extension ChromiumEnginePageAdapter {
+    func reloadFromOrigin() throws {
+        guard state.lifecycle == .active else { throw EnginePageError.closed }
+        guard let reload = api.reload_from_origin else { throw EnginePageError.incompatibleBridge }
+        try check(reload(handle))
+    }
+}
+
 @MainActor
 enum ChromiumCache {
     private static var pending: Set<EngineProfileIdentity> = []
@@ -27,7 +35,7 @@ enum ChromiumCache {
                     return
                 }
                 do {
-                    try page.reload()
+                    try page.reloadFromOrigin()
                     browser.model.showToast("Caches emptied. Cookies and website storage were kept.")
                 } catch {
                     browser.model.showToast("Caches emptied, but the page could not be reloaded.")
