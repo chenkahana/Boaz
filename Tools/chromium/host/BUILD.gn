@@ -36,6 +36,8 @@ source_set("host") {
     "adblock_engine.h",
     "adblock_engine.cc",
     "boaz_adblock.h",
+    "adblock_request_type.h",
+    "adblock_request_type.cc",
     "adblock_request_context.h",
     "adblock_request_context.cc",
     "adblock_url_loader_factory.h",
