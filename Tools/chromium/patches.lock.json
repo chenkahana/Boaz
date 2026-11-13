@@ -62,6 +62,27 @@
           "after": "f42542e4565b2122176b0753bb79a059c9bd495135178dc800bd2c1a38573588"
         }
       ]
+    },
+    {
+      "file": "patches/native-popup-dialogs.patch",
+      "sha256": "4f908e0dda45b5d6719a0b6a1d0c04b27725d57805ca0cdf9e164b0f8dbdd191",
+      "files": [
+        {
+          "path": "chrome/browser/extensions/extension_view.h",
+          "before": "fe24a6b519e2dacb75126daf78520fb3c91014fa915a25ab8ab625bbb4b0147e",
+          "after": "2dd20a31a3cac880c868cf7bc46b946f98fd2b616f6750777e0a25da8f4ac2a3"
+        },
+        {
+          "path": "chrome/browser/extensions/extension_view_host.h",
+          "before": "fc40f559b2737cad5fdb7454effb124cfd31d75981e36e0e63a559e8f668d241",
+          "after": "0f9b6529ed4467a0d3f5a5cab461d3737f6a1f72ad26bd9a664a2634c7714532"
+        },
+        {
+          "path": "chrome/browser/extensions/extension_view_host.cc",
+          "before": "c8a964e5d9eb06efda586e2dc096e2b9c9fea8736d96f0b87ff8a611290bd27f",
+          "after": "04df33bde854acbe709af40271d2ac9b6e9e977b9b30d77e75e3e18688725603"
+        }
+      ]
     }
   ]
 }
