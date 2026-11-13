@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 30u
+#define BOAZ_HOST_ABI_VERSION 31u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT
@@ -300,6 +300,7 @@ typedef struct BoazHostAPI {
       uint64_t request, BoazHostEmulationCompletion completion, void* context);
   BoazHostResult (*apply_sensors)(BoazHostPage page, const BoazHostSensors* sensors,
       uint64_t request, BoazHostEmulationCompletion completion, void* context);
+  BoazHostResult (*set_javascript_disabled)(BoazHostPage page, uint8_t disabled);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

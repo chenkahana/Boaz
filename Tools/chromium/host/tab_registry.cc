@@ -497,8 +497,6 @@ BoazHostResult TabRegistry::ReloadFromOrigin(BoazHostPage id) {
 }
 BoazHostResult TabRegistry::SetJavaScriptDisabled(BoazHostPage id, bool disabled) {
   BOAZ_FIND_PAGE();
-  auto* frame = page->web_contents()->GetPrimaryMainFrame();
-  if (!frame || !frame->IsActive() || !frame->IsRenderFrameLive()) return BOAZ_HOST_UNAVAILABLE;
   page->javascript_disabled = disabled;
   page->web_contents()->OnWebPreferencesChanged();
   return BOAZ_HOST_OK;

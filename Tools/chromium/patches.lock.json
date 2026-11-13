@@ -274,6 +274,17 @@
           "after": "c835a2b58ba323b3ce23d3c5e9f6f6568eacce0d2140c5ef7221c43de84f1643"
         }
       ]
+    },
+    {
+      "file": "patches/native-javascript-preference.patch",
+      "sha256": "e5f99b52844da2a6673394c5029167d4ba4742ff0827a2e133c40f320ea5f603",
+      "files": [
+        {
+          "path": "chrome/browser/chrome_content_browser_client.cc",
+          "before": "73e49eaa6a0f3dfa0c2d84a08ed173f6e7952f7d0676e37601c8d4eb0895f0fe",
+          "after": "465358c1aa545340cdfa172740870c2076df189491e78d6f4e75d5f800e621b4"
+        }
+      ]
     }
   ]
 }

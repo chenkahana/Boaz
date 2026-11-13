@@ -319,6 +319,11 @@ FORWARD(Back, (BoazHostPage p), GoBack(p))
 FORWARD(Forward, (BoazHostPage p), GoForward(p))
 FORWARD(Reload, (BoazHostPage p), Reload(p))
 FORWARD(ReloadFromOrigin, (BoazHostPage p), ReloadFromOrigin(p))
+BoazHostResult SetJavaScriptDisabled(BoazHostPage page, uint8_t disabled) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (disabled > 1) return BOAZ_HOST_INVALID_ARGUMENT;
+  return state->tabs->SetJavaScriptDisabled(page, disabled != 0);
+}
 FORWARD(Activate, (BoazHostPage p, uint8_t f), ActivatePage(p,f != 0))
 BoazHostResult NativeView(BoazHostPage p, void** v) {
   if (v) *v = nullptr;
@@ -718,7 +723,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
@@ -832,6 +837,9 @@ bool NativeHostEnabled() {
 std::unique_ptr<ChromeBrowserMainExtraParts> CreateNativeHostMainParts() {
   CHECK(NativeHostEnabled());
   return std::make_unique<MainParts>();
+}
+bool ShouldDisableJavaScript(content::WebContents* contents) {
+  return state && state->tabs && state->tabs->IsJavaScriptDisabled(contents);
 }
 bool IsNativeHostBrowser(BrowserWindowInterface* browser) {
   if (!state) return false;
