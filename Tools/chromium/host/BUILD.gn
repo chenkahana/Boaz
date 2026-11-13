@@ -20,6 +20,10 @@ source_set("headers") {
 source_set("host") {
   sources = [
     "boaz_host.h",
+    "extension_actions.h",
+    "extension_actions.mm",
+    "extension_popup.h",
+    "extension_popup.mm",
     "bootstrap.h",
     "bootstrap.mm",
     "native_view.mm",
@@ -39,6 +43,10 @@ source_set("host") {
   deps = [
     "//base",
     "//chrome/browser",
+    "//chrome/browser/extensions",
+    "//chrome/browser/ui/extensions",
+    "//chrome/browser/ui/extensions:impl",
+    "//chrome/browser/ui/views/extensions:security_dialog_tracker",
     "//chrome/browser/ui:browser_commands",
     "//chrome/browser/ui:browser_window_header",
     "//components/web_modal",

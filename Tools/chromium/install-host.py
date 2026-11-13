@@ -36,6 +36,8 @@ def main():
     required = {"BUILD.gn", "boaz_host.h", "bootstrap.h", "bootstrap.mm", "native_view.mm", "native_window.h",
                 "native_window.mm", "native_location_bar.h", "native_location_bar.mm",
                 "native_permission_prompt.h", "native_permission_prompt.mm",
+                "extension_actions.h", "extension_actions.mm",
+                "extension_popup.h", "extension_popup.mm",
                 "password_submission.h", "password_submission.cc",
                 "tab_registry.h", "tab_registry.cc", "trusted_execution.h", "trusted_execution.cc"}
     if not required.issubset(contents):
