@@ -36,7 +36,12 @@ struct ChromiumThrottlingControls: View {
                         if ![1.0, 4.0, 6.0].contains(cpu) { Text("Custom").tag(cpu) }
                     }
                     number("Custom CPU (1–20×)", value: $cpu)
-                    Button("Apply CPU") { Task { try? await adapter.applyCPU(cpu) } }
+                    Button("Apply CPU") {
+                        Task {
+                            do { try await adapter.applyCPU(cpu); cpu = adapter.appliedCPURate }
+                            catch { }
+                        }
+                    }
                 }
                 Button("Reset Network and CPU") {
                     Task {
@@ -56,8 +61,8 @@ struct ChromiumThrottlingControls: View {
                 .font(.caption).foregroundStyle(.secondary)
         }
         .onAppear { refreshNetwork(); cpu = adapter.appliedCPURate }
-        .onChange(of: adapter.appliedNetwork) { refreshNetwork() }
-        .onChange(of: adapter.appliedCPURate) { cpu = adapter.appliedCPURate }
+        .onChange(of: adapter.appliedNetwork) { if !adapter.emulationPending { refreshNetwork() } }
+        .onChange(of: adapter.appliedCPURate) { if !adapter.emulationPending { cpu = adapter.appliedCPURate } }
         .onChange(of: preset) {
             if preset == "offline" { offline = true }
             else if preset == "slow" { offline = false; latency = 400; downloadKB = 100; uploadKB = 50 }
