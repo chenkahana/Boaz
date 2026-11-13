@@ -1,6 +1,9 @@
 #ifndef BOAZ_CHROMIUM_PAGE_EMULATION_H_
 #define BOAZ_CHROMIUM_PAGE_EMULATION_H_
 
+#include <optional>
+#include <string>
+#include <vector>
 #include "base/functional/callback.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
@@ -22,9 +25,22 @@ class PageEmulation final : public content::WebContentsObserver,
     int max_touch_points;
     bool landscape;
   };
+  struct BrandVersion { std::string brand; std::string version; };
+  struct UserAgentDefaults {
+    std::string user_agent;
+    std::string navigator_platform;
+    std::vector<BrandVersion> brands;
+    std::vector<BrandVersion> full_version_list;
+    std::string full_version, platform, platform_version, architecture, model, bitness;
+    bool mobile = false;
+    bool wow64 = false;
+    std::vector<std::string> form_factors;
+  };
+  static std::optional<UserAgentDefaults> GetDefaultUserAgent();
   enum class Result { kSuccess, kInvalid, kUnavailable, kProtocolError,
                       kTimeout, kNavigation, kClosed };
   using Completion = base::OnceCallback<void(Result)>;
+  void ApplyUserAgent(std::optional<std::string> user_agent, Completion completion);
   explicit PageEmulation(content::WebContents* contents);
   ~PageEmulation() override;
   void Apply(Viewport viewport, Completion completion);
@@ -32,7 +48,8 @@ class PageEmulation final : public content::WebContentsObserver,
   void Close();
 
  private:
-  void Start(bool clear, Completion completion);
+  enum class Operation { kViewport, kUserAgent };
+  void Start(bool clear, Operation operation, Completion completion);
   void SendNext();
   void Fail(Result result);
   void Finish(Result result);
@@ -53,6 +70,8 @@ class PageEmulation final : public content::WebContentsObserver,
 
   scoped_refptr<content::DevToolsAgentHost> host_;
   Viewport viewport_{};
+  std::string user_agent_;
+  Operation operation_ = Operation::kViewport;
   Completion completion_;
   base::OneShotTimer timer_;
   int next_id_ = 0;

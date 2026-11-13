@@ -12,6 +12,9 @@
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "content/public/browser/browser_thread.h"
+#include "content/public/browser/content_browser_client.h"
+#include "content/public/common/content_client.h"
+#include "third_party/blink/public/common/user_agent/user_agent_metadata.h"
 #include "content/public/browser/devtools_agent_host.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_frame_host.h"
@@ -38,13 +41,62 @@ void PageEmulation::Apply(Viewport viewport, Completion completion) {
     Reply(std::move(completion), Result::kInvalid); return;
   }
   viewport_ = viewport;
-  Start(false, std::move(completion));
+  Start(false, Operation::kViewport, std::move(completion));
 }
 void PageEmulation::Clear(Completion completion) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  Start(true, std::move(completion));
+  Start(true, Operation::kViewport, std::move(completion));
 }
-void PageEmulation::Start(bool clear, Completion completion) {
+std::optional<PageEmulation::UserAgentDefaults> PageEmulation::GetDefaultUserAgent() {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  auto* browser = content::GetContentClient()->browser();
+  if (!browser) return std::nullopt;
+  const auto metadata = browser->GetUserAgentMetadata();
+  UserAgentDefaults result;
+  result.user_agent = browser->GetUserAgent();
+  // Blink's macOS default in core/frame/navigator_id.cc; not the CPU architecture.
+  result.navigator_platform = "MacIntel";
+  result.full_version = metadata.full_version;
+  result.platform = metadata.platform;
+  result.platform_version = metadata.platform_version;
+  result.architecture = metadata.architecture;
+  result.model = metadata.model;
+  result.bitness = metadata.bitness;
+  result.mobile = metadata.mobile;
+  result.wow64 = metadata.wow64;
+  result.form_factors = metadata.form_factors;
+  if (metadata.brand_version_list.size() > 16 || metadata.brand_full_version_list.size() > 16 ||
+      result.form_factors.size() > 16) return std::nullopt;
+  auto bounded = [](const std::string& value) {
+    return value.size() <= 8192 && value.find_first_of(std::string("\r\n\0", 3)) == std::string::npos;
+  };
+  for (const auto* value : {&result.user_agent, &result.navigator_platform, &result.full_version,
+       &result.platform, &result.platform_version, &result.architecture, &result.model, &result.bitness}) {
+    if (!bounded(*value)) return std::nullopt;
+  }
+  for (const auto& value : result.form_factors) if (!bounded(value)) return std::nullopt;
+  for (const auto& value : metadata.brand_version_list) {
+    if (!bounded(value.brand) || !bounded(value.version)) return std::nullopt;
+    result.brands.push_back({value.brand, value.version});
+  }
+  for (const auto& value : metadata.brand_full_version_list) {
+    if (!bounded(value.brand) || !bounded(value.version)) return std::nullopt;
+    result.full_version_list.push_back({value.brand, value.version});
+  }
+  return result;
+}
+void PageEmulation::ApplyUserAgent(std::optional<std::string> user_agent, Completion completion) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  if (closed_) { Reply(std::move(completion), Result::kClosed); return; }
+  if (completion_) { Reply(std::move(completion), Result::kUnavailable); return; }
+  if (user_agent && (user_agent->empty() || user_agent->size() > 8192 ||
+      user_agent->find_first_of(std::string("\r\n\0", 3)) != std::string::npos)) {
+    Reply(std::move(completion), Result::kInvalid); return;
+  }
+  user_agent_ = user_agent.value_or(std::string());
+  Start(!user_agent.has_value(), Operation::kUserAgent, std::move(completion));
+}
+void PageEmulation::Start(bool clear, Operation operation, Completion completion) {
   if (closed_) { Reply(std::move(completion), Result::kClosed); return; }
   if (!completion || completion_ || !web_contents() ||
       DevToolsWindow::GetInstanceForInspectedWebContents(web_contents()) ||
@@ -63,6 +115,7 @@ void PageEmulation::Start(bool clear, Completion completion) {
     }
   }
   completion_ = std::move(completion);
+  operation_ = operation;
   clearing_ = clear;
   resetting_ = false;
   step_ = 0;
@@ -72,11 +125,14 @@ void PageEmulation::Start(bool clear, Completion completion) {
 }
 void PageEmulation::SendNext() {
   if (!completion_ || !host_) return;
-  if (step_ == 2) { Finish(resetting_ ? failure_ : Result::kSuccess); return; }
+  if (step_ == (operation_ == Operation::kUserAgent ? 1 : 2)) { Finish(resetting_ ? failure_ : Result::kSuccess); return; }
   if (next_id_ == std::numeric_limits<int>::max()) { Cancel(Result::kUnavailable); return; }
   base::DictValue params;
   std::string method;
-  if (step_ == 0) {
+  if (operation_ == Operation::kUserAgent) {
+    method = "Emulation.setUserAgentOverride";
+    params.Set("userAgent", clearing_ ? std::string() : user_agent_);
+  } else if (step_ == 0) {
     method = clearing_ ? "Emulation.clearDeviceMetricsOverride" : "Emulation.setDeviceMetricsOverride";
     if (!clearing_) {
       params.Set("width", viewport_.width);
