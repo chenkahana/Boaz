@@ -11,6 +11,7 @@ private final class ChromiumApplication: NSObject {
     let legacyDelegate = AppDelegate()
     var windows: [ChromiumAppWindow] = []
     var quickWindows: [ChromiumQuickWindow] = []
+    private var pendingNativeWindows: [UInt: ChromiumAppWindow] = [:]
     var auxiliaryWindows: [NSWindow] = []
     var finished = false
     private var applicationMenu: ChromiumApplicationMenu?
@@ -21,6 +22,32 @@ private final class ChromiumApplication: NSObject {
     }
 
     func start() throws {
+        runtime.prepareWindow = { [weak self] profile in
+            guard let self, !finished else { return nil }
+            do {
+                let window = try ChromiumAppWindow(runtime: runtime, profile: profile, model: model,
+                    preparedForNativeCreation: true)
+                let options = window.makeOptions()
+                guard let context = options.context else { return nil }
+                pendingNativeWindows[UInt(bitPattern: context)] = window
+                return options
+            } catch { return nil }
+        }
+        runtime.windowCreated = { [weak self] handle, context in
+            guard let self, let context,
+                  let window = pendingNativeWindows.removeValue(forKey: UInt(bitPattern: context)) else { return }
+            windows.append(window)
+            do { try window.adoptNativeWindow(handle) }
+            catch {
+                model.showToast(error.localizedDescription)
+                _ = runtime.api.close_window?(handle)
+            }
+        }
+        runtime.pageCreated = { [weak self] window, page, active in
+            guard let self, let owner = windows.first(where: { $0.handle == window }) else { return }
+            do { try owner.browser.adoptChromiumPage(page, active: active) }
+            catch { model.showToast(error.localizedDescription) }
+        }
         runtime.windowClosed = { [weak self] handle in
             guard let self else { return }
             let profile: ChromiumProfile
@@ -50,6 +77,8 @@ private final class ChromiumApplication: NSObject {
             windows.removeAll()
             quickWindows.forEach { $0.finishClose() }
             quickWindows.removeAll()
+            pendingNativeWindows.values.forEach { $0.finishClose() }
+            pendingNativeWindows.removeAll()
             auxiliaryWindows.forEach { $0.close() }
             auxiliaryWindows.removeAll()
         }
