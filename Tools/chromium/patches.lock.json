@@ -242,6 +242,22 @@
           "after": "e5ff015e3b048ee039dbe71f13e808c2c1ace8e9640b2b6cac4196601d3ccd34"
         }
       ]
+    },
+    {
+      "file": "patches/webauthn-native-window.patch",
+      "sha256": "a65c422700e9648715e7a7e226cb089bdfbd4bc8e04c4b351fc2f1aff198ac16",
+      "files": [
+        {
+          "path": "chrome/browser/webauthn/chrome_authenticator_request_delegate.cc",
+          "before": "5e3d40d3abeb6ec142dfb19bec5c89e9d1e7581cca49da78336b03e12eaaad8b",
+          "after": "4c2b4e6fdcd50e44479304205be73cdfadc0205a56da06527340121a3c122969"
+        },
+        {
+          "path": "chrome/browser/webauthn/BUILD.gn",
+          "before": "9062dbcc7b8f795f3f8948a626f581f2fe804e3cc58a5a4e97ec49124702d4af",
+          "after": "1651b31cd1de4c5276eb2ca483b5980749d1b65e105defb19394b051a94735db"
+        }
+      ]
     }
   ]
 }
