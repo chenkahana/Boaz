@@ -48,6 +48,7 @@ source_set("host") {
     "//base",
     "//chrome/browser",
     "//chrome/browser/extensions",
+    "//chrome/browser/media/webrtc",
     "//chrome/browser/ui/extensions",
     "//chrome/browser/ui/extensions:impl",
     "//chrome/browser/ui/views/extensions:security_dialog_tracker",

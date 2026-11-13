@@ -1,4 +1,7 @@
 #include "tab_registry.h"
+#include "content/public/browser/media_session.h"
+#include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
+#include "chrome/browser/media/webrtc/media_stream_capture_indicator.h"
 #include "net/base/net_errors.h"
 #include <cstring>
 #include "base/strings/string_util.h"
@@ -531,6 +534,24 @@ BoazHostResult TabRegistry::SetAudioMuted(BoazHostPage id, bool muted) {
   contents->SetAudioMuted(muted);
   // Changed values queue through the synchronous muting observer.
   if (unchanged) impl_->Queue(*page, BOAZ_HOST_PAGE_CHANGED);
+  return BOAZ_HOST_OK;
+}
+BoazHostResult TabRegistry::IsBusyForResidency(BoazHostPage id, uint8_t* busy) {
+  if (busy) *busy = 1;
+  BOAZ_FIND_PAGE();
+  if (!busy) return BOAZ_HOST_INVALID_ARGUMENT;
+  auto* contents = page->web_contents();
+  auto capture = MediaCaptureDevicesDispatcher::GetInstance()->GetMediaStreamCaptureIndicator();
+  auto* session = content::MediaSession::Get(contents);
+  auto info = session ? session->GetMediaSessionInfoSync() : nullptr;
+  if (!capture || !info) return BOAZ_HOST_UNAVAILABLE;
+  *busy = contents->IsCurrentlyAudible() || contents->GetCurrentlyPlayingVideoCount() > 0 ||
+      info->playback_state == media_session::mojom::MediaPlaybackState::kPlaying ||
+      contents->IsFullscreen() || contents->HasPictureInPictureVideo() ||
+      contents->HasPictureInPictureDocument() || contents->IsBeingCaptured() ||
+      capture->IsCapturingUserMedia(contents) || capture->IsCapturingTab(contents) ||
+      capture->IsCapturingWindow(contents) || capture->IsCapturingDisplay(contents) ||
+      capture->IsBeingMirrored(contents);
   return BOAZ_HOST_OK;
 }
 BoazHostResult TabRegistry::GetZoomFactor(BoazHostPage id, double* factor) {

@@ -364,6 +364,10 @@ BoazHostResult SetAudioMuted(BoazHostPage page, uint8_t muted) {
   if (muted > 1) return BOAZ_HOST_INVALID_ARGUMENT;
   return state->tabs->SetAudioMuted(page, muted != 0);
 }
+BoazHostResult IsBusyForResidency(BoazHostPage page, uint8_t* busy) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  return state->tabs->IsBusyForResidency(page, busy);
+}
 BoazHostResult GetZoomFactor(BoazHostPage page, double* factor) {
   if (auto result = Check(); result != BOAZ_HOST_OK) return result;
   return state->tabs->GetZoomFactor(page, factor);
@@ -403,7 +407,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:

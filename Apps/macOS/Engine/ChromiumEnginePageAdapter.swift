@@ -64,6 +64,13 @@ final class ChromiumEnginePageAdapter: EnginePageAdapter {
     }
 
     /// Borrowed view. The host retains it; callers must obey detach barriers.
+    var isBusyForResidency: Bool {
+        guard state.lifecycle == .active, let query = api.is_busy_for_residency else { return true }
+        var busy: UInt8 = 1
+        guard query(handle, &busy) == BOAZ_HOST_OK else { return true }
+        return busy != 0
+    }
+
     func nativeView() throws -> NSView {
         try requireOpen()
         var pointer: UnsafeMutableRawPointer?

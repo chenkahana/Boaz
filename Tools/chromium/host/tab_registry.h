@@ -36,6 +36,7 @@ class TabRegistry {
   BoazHostResult FindText(BoazHostPage page, const char* text, bool forward);
   BoazHostResult StopFind(BoazHostPage page);
   BoazHostResult SetAudioMuted(BoazHostPage page, bool muted);
+  BoazHostResult IsBusyForResidency(BoazHostPage page, uint8_t* busy);
   BoazHostResult GetZoomFactor(BoazHostPage page, double* factor);
   BoazHostResult SetZoomFactor(BoazHostPage page, double factor);
   BoazHostResult ActivatePage(BoazHostPage page, bool focus);
