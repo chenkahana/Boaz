@@ -96,6 +96,10 @@ def main():
             executable = helper / "Contents/MacOS" / info["CFBundleExecutable"]
             if not executable.is_file() or macho_type(executable) != 2:
                 raise ValueError(f"Missing Mach-O helper executable: {helper}")
+        plists = [output / "Contents/Info.plist", framework / "Resources/Info.plist"]
+        plists += [helper / "Contents/Info.plist" for helper in helpers]
+        for info_plist in plists:
+            run(["/usr/bin/plutil", "-convert", "xml1", str(info_plist)])
         leaves = [(path, macho_type(path)) for path in sorted(framework.rglob("*"))
                   if path.is_file() and not path.is_symlink()]
         leaves = [(path, kind) for path, kind in leaves if kind is not None]

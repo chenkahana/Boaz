@@ -6,8 +6,8 @@ Recorded 2026-11-13 against Boaz `045132d7bd3b7a191730031a018554ad1f0bcfbe`, fet
 
 | Gate | Status | Evidence or missing prerequisite |
 |---|---|---|
-| F1 native host and lifecycle | Partial; repeated shutdown fails | Local/HTTPS rendering, pasted Unicode, resizing and individual clean exits demonstrated. Later Views runs hit shutdown watchdog. Signing, IME, accessibility and performance remain pending |
-| F2 native embedding and extensions | Partial; action and window gates unresolved | Native SwiftUI controls work; real MV3 unpacked install persists. Action popup absent, fullscreen-exit shortcuts fail; see [S2](spikes/S2.md) |
+| F1 native host and lifecycle | Partial; signed fresh-profile relaunch passes | Development signatures verify; two signed-profile runs load HTTPS and exit 0. Earlier ad-hoc profile still stalls. Notarization, IME, accessibility and performance remain pending |
+| F2 native embedding and extensions | Partial; native action and window gates unresolved | Real MV3 install persists. Diagnostic Chrome toolbar opens popup targeting visible page and content script works. Toolbar-free actions and fullscreen-exit shortcuts fail; see [S2](spikes/S2.md) |
 | F3 trusted scripts | Blocked by unselected runtime route | No isolated-world or extension messaging implementation demonstrated |
 | F4 custom distribution | Storage ready; build not executed | Verified 500 GiB APFS image on existing SSD; use at most 12 jobs on this 36 GiB Mac |
 | F5 platform behavior | Not executed | Requires a working selected host |
