@@ -58,7 +58,7 @@ def package(args):
     with (app / 'Contents/Info.plist').open('rb') as stream:
         info = plistlib.load(stream)
     expected = {'CFBundleIdentifier': 'com.chenkahana.boaz', 'BoazNativeApplication': True,
-                'BoazDistributionChannel': 'production', 'CrProductDirName': 'Boaz',
+                'BoazDistributionChannel': 'production', 'CrProductDirName': 'Boaz/Chromium',
                 'CFBundleShortVersionString': args.version}
     if any(info.get(key) != value for key, value in expected.items()):
         raise RuntimeError('Application is not the requested production Boaz version')
