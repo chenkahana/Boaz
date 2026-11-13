@@ -62,7 +62,7 @@ def sign(args):
     signed_output = output / 'signed'
     signed_output.mkdir()
     receipt = {'source': str(app), 'assembly_sha256': sha(assembly), 'version': version,
-               'build': build, 'published': False, 'notarized': False, 'complete': False}
+               'build': build, 'published': False, 'notarized': False, 'signing_complete': False}
     receipt_path = output / 'production-signing.json'
     with (output / 'sign.log').open('xb') as log:
         execute(['/usr/bin/ditto', '--clone', str(app), str(work / 'Boaz.app')], log)
@@ -108,11 +108,37 @@ def sign(args):
                           key=lambda p: len(p.parts), reverse=True)
         targets += [sparkle, copied_app / 'Contents/Frameworks/libBoazApplicationUI.dylib',
                     copied_app / 'Contents/MacOS/boaz']
+        # Capture before any inner executable is re-signed: a bundle and its
+        # executable share their signature, including service entitlements.
+        preserved_entitlements = {}
+        entitlement_dir = output / 'sparkle-entitlements'
+        entitlement_dir.mkdir()
+        for index, target in enumerate(targets):
+            if not target.is_relative_to(sparkle):
+                continue
+            raw, _ = execute(['/usr/bin/codesign', '-d', '--entitlements', ':-', str(target)], log, capture=True)
+            values = plistlib.loads(raw) if raw else {}
+            if values.get('com.apple.security.get-task-allow', False):
+                raise RuntimeError('Sparkle contains a debugging entitlement')
+            path = entitlement_dir / f'{index}.plist'
+            path.write_bytes(plistlib.dumps(values))
+            preserved_entitlements[target] = (path, values)
+        receipt['sparkle_entitlements'] = {
+            str(target.relative_to(copied_app)): values
+            for target, (_, values) in preserved_entitlements.items()}
+        receipt_path.write_text(json.dumps(receipt, indent=2) + '\n')
         for target in targets:
             if not target.exists():
                 raise RuntimeError('Required Boaz signing component is missing')
-            execute(['/usr/bin/codesign', '--force', '--sign', args.identity, '--timestamp',
-                     '--options', 'runtime', '--preserve-metadata=identifier', str(target)], log)
+            command = ['/usr/bin/codesign', '--force', '--sign', args.identity, '--timestamp',
+                       '--options', 'runtime', '--preserve-metadata=identifier']
+            if target in preserved_entitlements:
+                command += ['--entitlements', str(preserved_entitlements[target][0])]
+            execute([*command, str(target)], log)
+        for target, (_, expected_entitlements) in preserved_entitlements.items():
+            raw, _ = execute(['/usr/bin/codesign', '-d', '--entitlements', ':-', str(target)], log, capture=True)
+            if (plistlib.loads(raw) if raw else {}) != expected_entitlements:
+                raise RuntimeError('Sparkle entitlements changed during signing')
         execute(['/opt/homebrew/bin/python3.12', str(packaging / 'sign_chrome.py'),
                  '--identity', args.identity, '--input', str(work), '--output', str(signed_output),
                  '--channel', 'stable', '--disable-packaging', '--notarize', 'none'], log)
@@ -139,7 +165,7 @@ def sign(args):
         execute(['/usr/bin/xcrun', 'stapler', 'staple', str(signed_app)], log)
         execute(['/usr/bin/xcrun', 'stapler', 'validate', str(signed_app)], log)
         execute(['/usr/sbin/spctl', '--assess', '--type', 'execute', str(signed_app)], log)
-        receipt.update({'application': str(signed_app), 'notarized': True, 'complete': True,
+        receipt.update({'application': str(signed_app), 'notarized': True, 'signing_complete': True,
                         'notarization_id': notarization.get('id'), 'production_ready': False})
         receipt_path.write_text(json.dumps(receipt, indent=2) + '\n')
 
