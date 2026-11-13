@@ -67,6 +67,12 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         add(file, "Reopen Closed Tab", command: .reopenClosedTab,
             enabled: { $0 != nil && $0?.isIncognito == false }) { $0?.reopenClosedTab() }
 
+        file.addItem(.separator())
+        add(file, "Print…", enabled: { $0?.activeEnginePage?.adapter is ChromiumEnginePageAdapter }, perform: {
+            guard let page = $0?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter else { return }
+            do { try page.printPage() } catch { MacModel.shared.showToast(error.localizedDescription) }
+        }, key: "p")
+
         let edit = menu("Edit")
         responder(edit, "Undo", Selector(("undo:")), key: "z")
         responder(edit, "Redo", Selector(("redo:")), key: "z", modifiers: [.command, .shift])

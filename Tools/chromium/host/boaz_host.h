@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 21u
+#define BOAZ_HOST_ABI_VERSION 22u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT
@@ -247,6 +247,8 @@ typedef struct BoazHostAPI {
   BoazHostResult (*enumerate_downloads)(BoazHostProfile profile, BoazHostDownloadVisitor visitor, void* context);
   /* Actions require explicit user activation; no dangerous-download override. */
   BoazHostResult (*download_action)(BoazHostProfile profile, uint64_t download, BoazHostDownloadAction action);
+  /* Opens the native print dialog; OK means accepted, not printed. */
+  BoazHostResult (*print_page)(BoazHostPage page);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

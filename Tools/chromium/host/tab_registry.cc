@@ -1,3 +1,4 @@
+#include "page_print.h"
 #include "tab_registry.h"
 #include "base/compiler_specific.h"
 #include "chrome/browser/devtools/devtools_window.h"
@@ -488,6 +489,10 @@ BoazHostResult TabRegistry::Reload(BoazHostPage id) {
   BOAZ_FIND_PAGE();
   page->web_contents()->GetController().Reload(content::ReloadType::NORMAL, true);
   return BOAZ_HOST_OK;
+}
+BoazHostResult TabRegistry::Print(BoazHostPage id) {
+  BOAZ_FIND_PAGE();
+  return PrintPage(page->web_contents());
 }
 BoazHostResult TabRegistry::ShowDevTools(BoazHostPage id, BoazHostDevToolsAction action) {
   BOAZ_FIND_PAGE();
