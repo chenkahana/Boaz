@@ -2,7 +2,7 @@
 
 Use Chromium 157's generated packaging driver, not the CEF spike signer. The helper layout is different. The pinned sources are `chrome/installer/mac/signing/README.md`, `parts.py`, `driver.py` and `modification.py`. This procedure is preparation; no direct-host signing or launch has passed yet.
 
-`Tools/chromium/build.py --build` now builds `chrome` and `chrome/installer/mac` in the non-component arm64 configuration. The already-running first build predates this addition; the next guarded build will produce both targets. The latter generates `Chromium Packaging/sign_chrome.py` and `signing/build_props_config.py`. Calling the source-tree driver without generated configuration is insufficient. The current build output is `/Volumes/BoazBuild/cef/direct/chromium/src/out/BoazDevelopment`.
+`Tools/chromium/build.py --build` now builds `chrome` and `chrome/installer/mac` in the non-component arm64 configuration. The resumed ABI 4 build includes both targets. The latter generates `Chromium Packaging/sign_chrome.py` and `signing/build_props_config.py`. Calling the source-tree driver without generated configuration is insufficient. The current build output is `/Volumes/BoazBuild/cef/direct/chromium/src/out/BoazDevelopment`.
 
 Run signing through `Tools/cef/run-build.py` after compilation ends. Use a new output directory under `/Volumes/BoazBuild/cef/direct/artifacts` and the same verified Apple Development identity across rebuilds. Do not overwrite a previous signed candidate or mutate the build output. Supply the certificate SHA-1 as `--identity`; confirm it is still a valid local signing identity before use.
 

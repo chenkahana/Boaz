@@ -83,6 +83,22 @@
           "after": "04df33bde854acbe709af40271d2ac9b6e9e977b9b30d77e75e3e18688725603"
         }
       ]
+    },
+    {
+      "file": "patches/native-popup-dialog-policy-definition.patch",
+      "sha256": "c03083868f901ddcfa165d1307eea5325b637376b3dc3db91d4e9b355666c758",
+      "files": [
+        {
+          "path": "chrome/browser/extensions/extension_view.h",
+          "before": "2dd20a31a3cac880c868cf7bc46b946f98fd2b616f6750777e0a25da8f4ac2a3",
+          "after": "cfe3da71ee8cd8e4bd758486524174de4958377a9a1657c67f586db18bbe8394"
+        },
+        {
+          "path": "chrome/browser/extensions/extension_view_host.cc",
+          "before": "04df33bde854acbe709af40271d2ac9b6e9e977b9b30d77e75e3e18688725603",
+          "after": "c9ebb8d78f61fd4d1658e4975d73058ceee97959814ce044c8a376c95fac55b8"
+        }
+      ]
     }
   ]
 }

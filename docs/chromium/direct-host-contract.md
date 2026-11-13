@@ -30,8 +30,8 @@ Chromium may create a Browser for popups, extension requests or commands without
 
 A failed preparation fails the prototype's window-creation gate explicitly; it must not silently reveal Chrome UI. The native factory and bootstrap must be complete before this ABI is exercised. Profile selection and popup feature/size/opener behavior remain later explicit contracts, not claimed by this initial generic-window callback.
 
-## ABI 4 native extension actions (prepared)
+## ABI 4 native extension actions
 
 `enumerate_extensions` visits enabled actions for the requested browser profile synchronously. The visitor copies borrowed UTF-8 ID/name values and cannot reenter the API. `invoke_extension` is reserved for genuine native user activation. It validates the expected live page against the browser's actual active WebContents and the anchor against that browser's NSWindow. Anchor bounds use local view coordinates. An OK result means dispatch, not confirmed popup visibility. Unsupported actions return unavailable.
 
-The browser close-scheduled notification destroys the action controller before Browser destruction; delayed window UI cleanup does not own extension lifetime. This ABI and its implementation are queued behind the active ABI 3 build and have not yet compiled or passed runtime acceptance.
+The browser close-scheduled notification destroys the action controller before Browser destruction; delayed window UI cleanup does not own extension lifetime. The ABI 4 C++ and Swift implementations compile. The source was installed after checkpointing the ABI 3 build; the resumed full build includes ABI 4. Runtime acceptance remains pending.

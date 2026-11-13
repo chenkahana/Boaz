@@ -155,6 +155,7 @@ def main():
                 "obj/chrome/browser/ui/views/frame/browser_window_factory/browser_window_factory.o",
                 "obj/chrome/browser/ui/views/permissions/impl/permission_prompt_factory.o",
                 "obj/chrome/browser/component_updater/impl/registration.o",
+                "obj/chrome/browser/extensions/extensions/extension_view_host.o",
             ]
         subprocess.run([str(ninja), "-C", str(output), f"-j{args.jobs}", *targets],
                        cwd=source, env=env, check=True)
