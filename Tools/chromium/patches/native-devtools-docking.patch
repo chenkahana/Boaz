@@ -1,0 +1,90 @@
+--- a/chrome/browser/devtools/devtools_window.cc
++++ b/chrome/browser/devtools/devtools_window.cc
+@@ -517,6 +517,11 @@
+   }
+ 
+   life_stage_ = kClosing;
++#if BUILDFLAG(IS_MAC)
++  if (auto* inspected = GetInspectedWebContents()) {
++    boaz::DetachNativeDevTools(inspected);
++  }
++#endif
+ 
+   base::RecordAction(base::UserMetricsAction("DevTools_Close"));
+ 
+@@ -1084,6 +1089,11 @@
+         FROM_HERE, base::BindOnce(&DevToolsWindow::ActivateInspectedTab,
+                                   weak_factory_.GetWeakPtr()));
+ 
++#if BUILDFLAG(IS_MAC)
++    if (boaz::CanDockNativeDevTools(inspected_web_contents)) {
++      boaz::UpdateNativeDevTools(inspected_web_contents);
++    } else
++#endif
+     if (auto* devtools_ui_controller =
+             DevtoolsUIController::From(inspected_browser)) {
+       devtools_ui_controller->UpdateDevtools(inspected_web_contents);
+@@ -1424,6 +1434,11 @@
+ #endif  // BUILDFLAG(IS_MAC)
+     DevtoolsUIController* devtools_ui_controller =
+         browser ? DevtoolsUIController::From(browser) : nullptr;
++#if BUILDFLAG(IS_MAC)
++    if (boaz::CanDockNativeDevTools(inspected_web_contents)) {
++      // Native hosting supplies the docking surface without Views.
++    } else
++#endif
+     if (!devtools_ui_controller || !devtools_ui_controller->CanDockDevtools()) {
+       can_dock = false;
+     }
+@@ -1806,6 +1821,13 @@
+     dock_requested = false;
+   }
+ 
++#if BUILDFLAG(IS_MAC)
++  if (is_docked_ && !dock_requested) {
++    if (auto* inspected = GetInspectedWebContents()) {
++      boaz::DetachNativeDevTools(inspected);
++    }
++  }
++#endif
+   bool was_docked = is_docked_;
+   is_docked_ = dock_requested;
+ 
+--- a/chrome/browser/devtools/devtools_window_views.cc
++++ b/chrome/browser/devtools/devtools_window_views.cc
+@@ -2,6 +2,10 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
++#include "build/build_config.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/native_devtools.h"
++#endif
+ #include "chrome/browser/devtools/devtools_ui_controller.h"
+ #include "chrome/browser/devtools/devtools_window.h"
+ #include "chrome/browser/ui/browser_window.h"
+@@ -131,6 +135,12 @@
+   if (!inspected_web_contents) {
+     return;
+   }
++#if BUILDFLAG(IS_MAC)
++  if (boaz::CanDockNativeDevTools(inspected_web_contents)) {
++    boaz::UpdateNativeDevTools(inspected_web_contents);
++    return;
++  }
++#endif
+   BrowserWindowInterface* inspected_browser =
+       GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(
+           inspected_web_contents);
+--- a/chrome/browser/devtools/BUILD.gn
++++ b/chrome/browser/devtools/BUILD.gn
+@@ -531,6 +531,9 @@
+     ]
+   }
+ 
++  if (is_mac) {
++    deps += [ "//boaz:headers" ]
++  }
+   if (!is_android) {
+     deps += [ "//chrome/browser/ui:browser_tab_strip_tracker" ]
+   }
