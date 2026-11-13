@@ -1,4 +1,5 @@
 #include "tab_registry.h"
+#include "net/base/net_errors.h"
 #include <cstring>
 #include "base/strings/string_util.h"
 #include "components/find_in_page/find_tab_helper.h"
@@ -66,6 +67,7 @@ struct TabRegistry::Impl {
     BoazHostPageState state{};
     std::string url;
     std::string title;
+    std::string failed_url;
     uint64_t view_revision = 0;
   };
 
@@ -131,16 +133,24 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver, find_in_page::Fin
     owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED);
   }
   void DidStartNavigation(content::NavigationHandle* navigation) override {
-    if (navigation->IsInPrimaryMainFrame() && !navigation->IsSameDocument()) {
-      ResetFind();
-      owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED);
-    }
+    if (!navigation->IsInPrimaryMainFrame()) return;
+    latest_navigation = navigation->GetNavigationId();
+    load_error = net::OK;
+    failed_url.clear();
+    if (!navigation->IsSameDocument()) ResetFind();
+    owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED);
   }
   void DidFinishNavigation(content::NavigationHandle* navigation) override {
-    if (navigation->HasCommitted() && navigation->IsInPrimaryMainFrame()) {
-      if (!navigation->IsSameDocument()) ++generation;
-      owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED);
+    if (!navigation->IsInPrimaryMainFrame()) return;
+    if (navigation->HasCommitted() && !navigation->IsSameDocument()) ++generation;
+    if (navigation->GetNavigationId() == latest_navigation) {
+      const auto error = navigation->GetNetErrorCode();
+      if (error != net::OK && error != net::ERR_ABORTED) {
+        load_error = error;
+        failed_url = navigation->GetURL().spec();
+      }
     }
+    owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED);
   }
   void TitleWasSet(content::NavigationEntry*) override {
     owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED);
@@ -166,7 +176,7 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver, find_in_page::Fin
     owner->Queue(*this, BOAZ_HOST_PAGE_CLOSE_CANCELLED);
   }
   void WebContentsDestroyed() override { DetachFind(); owner->Destroyed(*this); }
-  void ObserveReplacement(content::WebContents* contents) { DetachFind(); scripts.reset(); Observe(contents); AttachFind(); }
+  void ObserveReplacement(content::WebContents* contents) { DetachFind(); scripts.reset(); latest_navigation = -1; load_error = net::OK; failed_url.clear(); Observe(contents); AttachFind(); }
 
   raw_ref<Impl> owner;
   BoazHostPage id = NextHandle();
@@ -174,6 +184,9 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver, find_in_page::Fin
   uint64_t generation = 0;
   uint64_t view_revision = 0;
   int extension_window_id = -1;
+  int64_t latest_navigation = -1;
+  int load_error = net::OK;
+  std::string failed_url;
   bool close_requested = false;
   bool cancel_notified = false;
   bool closing = false;
@@ -278,6 +291,8 @@ TabRegistry::Impl::Snapshot TabRegistry::Impl::Capture(Page& page) {
   result.state.page = page.id;
   result.state.window = page.window;
   result.state.document_generation = page.generation;
+  result.state.load_error = page.load_error;
+  result.failed_url = page.failed_url;
   result.state.find_match_count = page.find_result.number_of_matches();
   result.state.find_active_match = page.find_result.active_match_ordinal();
   result.state.find_final = page.find_result.final_update();
@@ -323,6 +338,7 @@ void TabRegistry::Impl::Deliver(BoazHostPageEvent event, Snapshot snapshot) {
   if (event == BOAZ_HOST_PAGE_CLOSE_CANCELLED) page->cancel_notified = false;
   snapshot.state.url = snapshot.url.c_str();
   snapshot.state.title = snapshot.title.c_str();
+  snapshot.state.failed_url = snapshot.failed_url.c_str();
   in_callback = true;
   if (callbacks.page_event) callbacks.page_event(callbacks.context, event, &snapshot.state);
   in_callback = false;
@@ -336,6 +352,7 @@ void TabRegistry::Impl::Replace(Page& page, content::WebContents* replacement) {
   auto snapshot = Capture(page);
   snapshot.state.url = snapshot.url.c_str();
   snapshot.state.title = snapshot.title.c_str();
+  snapshot.state.failed_url = snapshot.failed_url.c_str();
   page.view_available = false;
   in_callback = true;
   if (callbacks.page_event)
@@ -354,6 +371,7 @@ void TabRegistry::Impl::Closing(Page& page) {
   page.final_snapshot = snapshot;
   snapshot.state.url = snapshot.url.c_str();
   snapshot.state.title = snapshot.title.c_str();
+  snapshot.state.failed_url = snapshot.failed_url.c_str();
   in_callback = true;
   if (callbacks.page_event)
     callbacks.page_event(callbacks.context, BOAZ_HOST_PAGE_CLOSING, &snapshot.state);
