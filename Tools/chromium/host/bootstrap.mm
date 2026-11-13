@@ -451,7 +451,7 @@ BoazHostResult EnumerateManagedExtensions(BoazHostProfile handle,
   if (profile->IsOffTheRecord()) return BOAZ_HOST_UNAVAILABLE;
   for (const auto& extension : ListManagedExtensions(profile)) {
     Notify([&] { visitor(context, extension.id.c_str(), extension.name.c_str(),
-        extension.version.c_str(), extension.enabled, extension.can_disable, extension.can_enable); });
+        extension.version.c_str(), extension.enabled, extension.can_disable, extension.can_enable, extension.can_uninstall); });
   }
   return BOAZ_HOST_OK;
 }
@@ -461,6 +461,13 @@ BoazHostResult EnableExtension(BoazHostProfile handle, const char* id) {
   auto* profile = state->profiles ? state->profiles->Resolve(handle) : nullptr;
   if (!profile) return BOAZ_HOST_INVALID_HANDLE;
   return EnableManagedExtension(profile, id);
+}
+BoazHostResult UninstallExtension(BoazHostProfile handle, const char* id) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  if (!id || strlen(id) != 32) return BOAZ_HOST_INVALID_ARGUMENT;
+  auto* profile = state->profiles ? state->profiles->Resolve(handle) : nullptr;
+  if (!profile) return BOAZ_HOST_INVALID_HANDLE;
+  return UninstallManagedExtension(profile, id);
 }
 BoazHostResult DisableExtension(BoazHostProfile handle, const char* id) {
   if (auto r = Check(); r != BOAZ_HOST_OK) return r;
@@ -919,7 +926,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension, InstallExtension, InstallUnpackedExtension};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension, InstallExtension, InstallUnpackedExtension, UninstallExtension};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
