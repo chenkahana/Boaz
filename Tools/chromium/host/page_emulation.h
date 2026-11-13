@@ -37,6 +37,12 @@ class PageEmulation final : public content::WebContentsObserver,
     bool forced_colors = false;
     Vision vision = Vision::kNone;
   };
+  struct Geolocation { double latitude, longitude, accuracy; };
+  struct Sensors {
+    std::optional<Geolocation> location;
+    std::string timezone;
+    std::string locale;
+  };
   struct Network {
     bool offline;
     double latency_ms;
@@ -58,6 +64,7 @@ class PageEmulation final : public content::WebContentsObserver,
   enum class Result { kSuccess, kInvalid, kUnavailable, kProtocolError,
                       kTimeout, kNavigation, kClosed };
   using Completion = base::OnceCallback<void(Result)>;
+  void ApplySensors(std::optional<Sensors> sensors, Completion completion);
   void ApplyNetwork(std::optional<Network> network, Completion completion);
   void ApplyCPU(double rate, Completion completion);
   void ApplyMedia(std::optional<Media> media, Completion completion);
@@ -69,7 +76,7 @@ class PageEmulation final : public content::WebContentsObserver,
   void Close();
 
  private:
-  enum class Operation { kViewport, kUserAgent, kMedia, kNetwork, kCPU };
+  enum class Operation { kViewport, kUserAgent, kMedia, kNetwork, kCPU, kSensors };
   void Start(bool clear, Operation operation, Completion completion);
   void SendNext();
   void Fail(Result result);
@@ -93,6 +100,7 @@ class PageEmulation final : public content::WebContentsObserver,
   Viewport viewport_{};
   Media media_{};
   Network network_{};
+  Sensors sensors_{};
   double cpu_rate_ = 1.0;
   std::string user_agent_;
   Operation operation_ = Operation::kViewport;

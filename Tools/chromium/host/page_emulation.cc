@@ -26,7 +26,8 @@ PageEmulation::PageEmulation(content::WebContents* contents)
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 }
 PageEmulation::~PageEmulation() { Close(); }
-bool PageEmulation::IsTrusted() { return false; }
+// Typed locale/timezone commands require a trusted internal client.
+bool PageEmulation::IsTrusted() { return true; }
 bool PageEmulation::MayReadLocalFiles() { return false; }
 bool PageEmulation::MayWriteLocalFiles() { return false; }
 bool PageEmulation::AllowUnsafeOperations() { return false; }
@@ -142,6 +143,29 @@ void PageEmulation::ApplyCPU(double rate, Completion completion) {
   cpu_rate_ = rate;
   Start(rate == 1, Operation::kCPU, std::move(completion));
 }
+void PageEmulation::ApplySensors(std::optional<Sensors> sensors, Completion completion) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  if (closed_) { Reply(std::move(completion), Result::kClosed); return; }
+  if (completion_) { Reply(std::move(completion), Result::kUnavailable); return; }
+  auto valid_string = [](const std::string& value) {
+    if (value.size() > 128) return false;
+    for (unsigned char ch : value) if (ch < 32 || ch > 126) return false;
+    return true;
+  };
+  if (sensors) {
+    bool valid = valid_string(sensors->timezone) && valid_string(sensors->locale);
+    if (sensors->location) {
+      const auto& location = *sensors->location;
+      valid = valid && std::isfinite(location.latitude) && std::isfinite(location.longitude) &&
+          std::isfinite(location.accuracy) && location.latitude >= -90 && location.latitude <= 90 &&
+          location.longitude >= -180 && location.longitude <= 180 &&
+          location.accuracy >= 0 && location.accuracy <= 1e6;
+    }
+    if (!valid) { Reply(std::move(completion), Result::kInvalid); return; }
+  }
+  sensors_ = sensors.value_or(Sensors{});
+  Start(!sensors.has_value(), Operation::kSensors, std::move(completion));
+}
 void PageEmulation::Start(bool clear, Operation operation, Completion completion) {
   if (closed_) { Reply(std::move(completion), Result::kClosed); return; }
   if (!completion || completion_ || !web_contents() ||
@@ -171,13 +195,34 @@ void PageEmulation::Start(bool clear, Operation operation, Completion completion
 }
 void PageEmulation::SendNext() {
   if (!completion_ || !host_) return;
-  if (step_ == ((operation_ == Operation::kUserAgent || operation_ == Operation::kCPU) ? 1 : 2)) { Finish(resetting_ ? failure_ : Result::kSuccess); return; }
+  const int steps = operation_ == Operation::kSensors ? 3 :
+      ((operation_ == Operation::kUserAgent || operation_ == Operation::kCPU) ? 1 : 2);
+  if (step_ == steps) {
+    if (resetting_) Cancel(failure_);
+    else Finish(Result::kSuccess);
+    return;
+  }
   if (next_id_ == std::numeric_limits<int>::max()) { Cancel(Result::kUnavailable); return; }
   base::DictValue params;
   std::string method;
   if (operation_ == Operation::kUserAgent) {
     method = "Emulation.setUserAgentOverride";
     params.Set("userAgent", clearing_ ? std::string() : user_agent_);
+  } else if (operation_ == Operation::kSensors) {
+    if (step_ == 0) {
+      if (!clearing_ && sensors_.location) {
+        method = "Emulation.setGeolocationOverride";
+        params.Set("latitude", sensors_.location->latitude);
+        params.Set("longitude", sensors_.location->longitude);
+        params.Set("accuracy", sensors_.location->accuracy);
+      } else method = "Emulation.clearGeolocationOverride";
+    } else if (step_ == 1) {
+      method = "Emulation.setTimezoneOverride";
+      params.Set("timezoneId", clearing_ ? std::string() : sensors_.timezone);
+    } else {
+      method = "Emulation.setLocaleOverride";
+      params.Set("locale", clearing_ ? std::string() : sensors_.locale);
+    }
   } else if (operation_ == Operation::kCPU) {
     method = "Emulation.setCPUThrottlingRate";
     params.Set("rate", clearing_ ? 1.0 : cpu_rate_);
@@ -322,7 +367,7 @@ void PageEmulation::Close() {
 void PageEmulation::AgentHostClosed(content::DevToolsAgentHost* host) {
   if (host != host_.get()) return;
   host_ = nullptr;
-  Cancel(Result::kUnavailable);
+  Cancel(Result::kProtocolError);
 }
 bool PageEmulation::MayAttachToURL(const GURL& url, bool is_webui) {
   return !closed_ && !is_webui && web_contents() && url.SchemeIsHTTPOrHTTPS();
