@@ -8,11 +8,14 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 25u
+#define BOAZ_HOST_ABI_VERSION 26u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT
 } BoazHostDevToolsAction;
+typedef enum BoazHostWindowRole {
+  BOAZ_WINDOW_BROWSING, BOAZ_WINDOW_DEVTOOLS
+} BoazHostWindowRole;
 typedef uint64_t BoazHostWindow;
 typedef uint64_t BoazHostPage;
 typedef uint64_t BoazHostDocument;
@@ -149,7 +152,7 @@ typedef struct BoazHostCallbacks {
   void* context;
   void (*page_event)(void* context, BoazHostPageEvent event,
                      const BoazHostPageState* state);
-  BoazHostResult (*prepare_window)(void* context, BoazHostProfile profile, BoazHostWindowOptions* options);
+  BoazHostResult (*prepare_window)(void* context, BoazHostProfile profile, BoazHostWindowRole role, BoazHostWindowOptions* options);
   void (*window_created)(void* context, BoazHostWindow window,
                          void* window_context);
   void (*window_closed)(void* context, BoazHostWindow window);

@@ -14,7 +14,7 @@ struct ChromiumProfile: Equatable {
 @MainActor
 final class ChromiumRuntime {
     let api: BoazHostAPI
-    var prepareWindow: ((ChromiumProfile) -> BoazHostWindowOptions?)?
+    var prepareWindow: ((ChromiumProfile, BoazHostWindowRole) -> BoazHostWindowOptions?)?
     var windowCreated: ((BoazHostWindow, UnsafeMutableRawPointer?) -> Void)?
     var windowClosed: ((BoazHostWindow) -> Void)?
     var shutdownReady: (() -> Void)?
@@ -125,7 +125,7 @@ final class ChromiumRuntime {
                 }
             }
         }
-        callbacks.prepare_window = { context, profileHandle, output in
+        callbacks.prepare_window = { context, profileHandle, role, output in
             guard let context, let output else { return BOAZ_HOST_INVALID_ARGUMENT }
             return MainActor.assumeIsolated {
                 let owner = Unmanaged<ChromiumRuntime>.fromOpaque(context).takeUnretainedValue()
@@ -133,7 +133,7 @@ final class ChromiumRuntime {
                 owner.inCallback = true
                 defer { owner.inCallback = false }
                 guard let profile = owner.preparedProfiles[profileHandle],
-                      let options = owner.prepareWindow?(profile) else { return BOAZ_HOST_UNAVAILABLE }
+                      let options = owner.prepareWindow?(profile, role) else { return BOAZ_HOST_UNAVAILABLE }
                 guard let nativeContext = options.context else { return BOAZ_HOST_INVALID_ARGUMENT }
                 let bits = UInt(bitPattern: nativeContext)
                 guard owner.preparedWindowContexts[bits] == nil else { return BOAZ_HOST_INVALID_ARGUMENT }

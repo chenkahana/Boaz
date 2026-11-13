@@ -22,7 +22,7 @@ private final class ChromiumApplication: NSObject {
     }
 
     func start() throws {
-        runtime.prepareWindow = { [weak self] profile in
+        runtime.prepareWindow = { [weak self] profile, role in
             guard let self, !finished else { return nil }
             do {
                 let window = try ChromiumAppWindow(runtime: runtime, profile: profile, model: model,

@@ -762,7 +762,9 @@ CreateNativeHostBrowserWindow(BrowserWindowInterface* browser) {
   else {
     CHECK(state->callbacks.prepare_window);
     CHECK_EQ(Notify([&] { return state->callbacks.prepare_window(
-        state->callbacks.context, state->profiles->HandleFor(browser->GetProfile()), &options); }), BOAZ_HOST_OK);
+        state->callbacks.context, state->profiles->HandleFor(browser->GetProfile()),
+        browser->GetType() == BrowserWindowInterface::TYPE_DEVTOOLS
+            ? BOAZ_WINDOW_DEVTOOLS : BOAZ_WINDOW_BROWSING, &options); }), BOAZ_HOST_OK);
   }
   CHECK(ValidOptions(&options));
   auto weak = browser->GetWeakPtr();
