@@ -2,6 +2,7 @@
 #include "trusted_script_channel.h"
 
 #include <limits>
+#include <cmath>
 #include <map>
 #include <optional>
 #include <string>
@@ -9,6 +10,11 @@
 #include <vector>
 
 #include "base/check.h"
+#include "base/feature_list.h"
+#include "chrome/browser/ui/tabs/features.h"
+#include "chrome/browser/ui/tabs/split_tab_metrics.h"
+#include "components/tabs/public/split_tab_data.h"
+#include "components/split_tabs/split_tab_visual_data.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/memory/weak_ptr.h"
@@ -157,6 +163,11 @@ struct TabRegistry::Impl::Window : TabStripModelObserver {
         owner->Queue(*page, BOAZ_HOST_PAGE_CHANGED);
     if (selection.new_contents)
       if (auto* page = owner->FindContents(selection.new_contents))
+        owner->Queue(*page, BOAZ_HOST_PAGE_CHANGED);
+  }
+  void OnSplitTabChanged(const SplitTabChange&) override {
+    for (int i = 0; strip && i < strip->count(); ++i)
+      if (auto* page = owner->FindContents(strip->GetWebContentsAt(i)))
         owner->Queue(*page, BOAZ_HOST_PAGE_CHANGED);
   }
   void OnTabCloseCancelled(const tabs::TabInterface* tab) override {
@@ -452,6 +463,99 @@ BoazHostResult TabRegistry::CloseWindow(BoazHostWindow id) {
     }
   }
   window->strip->CloseAllTabs();
+  return BOAZ_HOST_OK;
+}
+
+BoazHostResult TabRegistry::GetWindowLayout(BoazHostWindow id, BoazHostWindowLayout* output) {
+  if (!output || output->size < sizeof(*output)) return BOAZ_HOST_INVALID_ARGUMENT;
+  const size_t size = output->size;
+  *output = {};
+  output->size = size;
+  if (auto result = impl_->Check(); result != BOAZ_HOST_OK) return result;
+  auto* window = impl_->FindWindow(id);
+  if (!window || !window->strip) return BOAZ_HOST_INVALID_HANDLE;
+  BoazHostWindowLayout layout{};
+  layout.size = size;
+  layout.window = id;
+  layout.first_ratio = 0.5;
+  auto foreground = window->strip->GetForegroundTabs();
+  if (foreground.size() > 2) return BOAZ_HOST_UNAVAILABLE;
+  for (size_t i = 0; i < foreground.size(); ++i) {
+    auto* page = impl_->FindContents(foreground[i]->GetContents());
+    if (!page || page->destroyed || page->closing || page->window != id)
+      return BOAZ_HOST_UNAVAILABLE;
+    (i == 0 ? layout.first : layout.second) = page->id;
+    if (foreground[i] == window->strip->GetActiveTab()) layout.active = page->id;
+  }
+  if (foreground.size() == 2) {
+    auto split = foreground[0]->GetSplit();
+    if (!split || foreground[1]->GetSplit() != split) return BOAZ_HOST_UNAVAILABLE;
+    auto* data = window->strip->GetSplitData(*split);
+    if (!data) return BOAZ_HOST_UNAVAILABLE;
+    layout.vertical = data->visual_data()->split_layout() == split_tabs::SplitTabLayout::kStacked;
+    layout.first_ratio = data->visual_data()->split_ratio();
+  }
+  *output = layout;
+  return BOAZ_HOST_OK;
+}
+BoazHostResult TabRegistry::SetSplit(BoazHostWindow id, BoazHostPage first,
+    BoazHostPage second, bool vertical, double ratio) {
+  if (auto result = impl_->Check(); result != BOAZ_HOST_OK) return result;
+  if (first == second || !std::isfinite(ratio) || ratio < 0.1 || ratio > 0.9)
+    return BOAZ_HOST_INVALID_ARGUMENT;
+  auto* window = impl_->FindWindow(id);
+  if (!window || !window->browser || !window->strip) return BOAZ_HOST_INVALID_HANDLE;
+  auto* a = impl_->Find(first);
+  auto* b = impl_->Find(second);
+  if (!a || !b || a->destroyed || b->destroyed || !a->web_contents() || !b->web_contents() ||
+      a->window != id || b->window != id) return BOAZ_HOST_INVALID_HANDLE;
+  if (a->closing || b->closing || a->close_requested || b->close_requested)
+    return BOAZ_HOST_CLOSING;
+  auto* strip = window->strip.get();
+  if (strip->closing_all() ||
+      a->web_contents()->GetBrowserContext() != window->browser->profile() ||
+      b->web_contents()->GetBrowserContext() != window->browser->profile())
+    return BOAZ_HOST_UNAVAILABLE;
+  int ai = strip->GetIndexOfWebContents(a->web_contents());
+  int bi = strip->GetIndexOfWebContents(b->web_contents());
+  if (ai == TabStripModel::kNoTab || bi == TabStripModel::kNoTab)
+    return BOAZ_HOST_UNAVAILABLE;
+  if (strip->GetTabGroupForTab(ai) != strip->GetTabGroupForTab(bi) ||
+      strip->IsTabPinned(ai) != strip->IsTabPinned(bi) ||
+      strip->IsTabCollapsed(ai) || strip->IsTabCollapsed(bi) ||
+      (strip->GetFocusedGroup() && strip->GetFocusedGroup() != strip->GetTabGroupForTab(ai)) ||
+      (vertical && !base::FeatureList::IsEnabled(tabs::kSplitViewHorizontal)))
+    return BOAZ_HOST_UNAVAILABLE;
+  auto split = strip->GetSplitForTab(ai);
+  auto other = strip->GetSplitForTab(bi);
+  if (split != other) return BOAZ_HOST_UNAVAILABLE;
+  const auto layout = vertical ? split_tabs::SplitTabLayout::kStacked
+                               : split_tabs::SplitTabLayout::kSideBySide;
+  if (!split) {
+    split = strip->AddToNewSplit({ai, bi}, split_tabs::SplitTabVisualData(layout, ratio),
+                                 split_tabs::SplitTabCreatedSource::kToolbarButton);
+  }
+  auto* data = strip->GetSplitData(*split);
+  if (!data || data->ListTabs().size() != 2) return BOAZ_HOST_UNAVAILABLE;
+  if (data->ListTabs()[0]->GetContents() != a->web_contents()) strip->ReverseTabsInSplit(*split);
+  strip->UpdateSplitLayout(*split, layout);
+  strip->UpdateSplitRatio(*split, ratio);
+  strip->ActivateTabAt(strip->GetIndexOfWebContents(a->web_contents()));
+  a->web_contents()->Focus();
+  return BOAZ_HOST_OK;
+}
+BoazHostResult TabRegistry::ClearSplit(BoazHostWindow id) {
+  if (auto result = impl_->Check(); result != BOAZ_HOST_OK) return result;
+  auto* window = impl_->FindWindow(id);
+  if (!window || !window->strip) return BOAZ_HOST_INVALID_HANDLE;
+  if (window->strip->closing_all()) return BOAZ_HOST_CLOSING;
+  for (auto* tab : window->strip->GetForegroundTabs()) {
+    auto* page = impl_->FindContents(tab->GetContents());
+    if (!page || page->destroyed) return BOAZ_HOST_UNAVAILABLE;
+    if (page->closing || page->close_requested) return BOAZ_HOST_CLOSING;
+  }
+  auto* active = window->strip->GetActiveTab();
+  if (active && active->GetSplit()) window->strip->RemoveSplit(*active->GetSplit());
   return BOAZ_HOST_OK;
 }
 
