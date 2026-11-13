@@ -32,6 +32,8 @@ class TabRegistry {
   BoazHostResult Navigate(BoazHostPage page, const char* url);
   BoazHostResult GoBack(BoazHostPage page);
   BoazHostResult GoForward(BoazHostPage page);
+  BoazHostResult SetJavaScriptDisabled(BoazHostPage page, bool disabled);
+  bool IsJavaScriptDisabled(content::WebContents* contents) const;
   BoazHostResult Reload(BoazHostPage page);
   BoazHostResult ReloadFromOrigin(BoazHostPage page);
   BoazHostResult CapturePDF(BoazHostPage page, uint64_t request, PagePDF::Completion completion);

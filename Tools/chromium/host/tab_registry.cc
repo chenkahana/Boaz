@@ -197,6 +197,7 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver, find_in_page::Fin
   std::string failed_url;
   bool close_requested = false;
   bool cancel_notified = false;
+  bool javascript_disabled = false;
   bool closing = false;
   bool destroyed = false;
   bool created_delivered = false;
@@ -370,6 +371,7 @@ void TabRegistry::Impl::Replace(Page& page, content::WebContents* replacement) {
     callbacks.page_event(callbacks.context, BOAZ_HOST_PAGE_VIEW_WILL_CHANGE, &snapshot.state);
   in_callback = false;
   page.ObserveReplacement(replacement);
+  if (page.javascript_disabled) replacement->OnWebPreferencesChanged();
   ++page.view_revision;
   ++page.generation;
   Queue(page, BOAZ_HOST_PAGE_VIEW_CHANGED);
@@ -492,6 +494,19 @@ BoazHostResult TabRegistry::ReloadFromOrigin(BoazHostPage id) {
   BOAZ_FIND_PAGE();
   page->web_contents()->GetController().Reload(content::ReloadType::BYPASSING_CACHE, true);
   return BOAZ_HOST_OK;
+}
+BoazHostResult TabRegistry::SetJavaScriptDisabled(BoazHostPage id, bool disabled) {
+  BOAZ_FIND_PAGE();
+  auto* frame = page->web_contents()->GetPrimaryMainFrame();
+  if (!frame || !frame->IsActive() || !frame->IsRenderFrameLive()) return BOAZ_HOST_UNAVAILABLE;
+  page->javascript_disabled = disabled;
+  page->web_contents()->OnWebPreferencesChanged();
+  return BOAZ_HOST_OK;
+}
+bool TabRegistry::IsJavaScriptDisabled(content::WebContents* contents) const {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  auto* page = contents ? impl_->FindContents(contents) : nullptr;
+  return page && !page->closing && page->javascript_disabled;
 }
 BoazHostResult TabRegistry::Reload(BoazHostPage id) {
   BOAZ_FIND_PAGE();
