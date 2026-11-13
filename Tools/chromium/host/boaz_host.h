@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 8u
+#define BOAZ_HOST_ABI_VERSION 9u
 
 typedef uint64_t BoazHostWindow;
 typedef uint64_t BoazHostPage;
@@ -61,6 +61,8 @@ typedef struct BoazHostPageState {
   uint8_t can_go_back;
   uint8_t can_go_forward;
   uint8_t active;
+  uint8_t audible;
+  uint8_t muted;
 } BoazHostPageState;
 
 typedef struct BoazHostWindowLayout {
@@ -160,6 +162,7 @@ typedef struct BoazHostAPI {
   BoazHostResult (*create_profile_window)(BoazHostProfile profile,
       const BoazHostWindowOptions* options, BoazHostWindow* window);
   BoazHostResult (*release_profile)(BoazHostProfile profile);
+  BoazHostResult (*set_audio_muted)(BoazHostPage page, uint8_t muted);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

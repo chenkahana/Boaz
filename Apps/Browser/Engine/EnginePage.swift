@@ -26,6 +26,8 @@ struct EnginePageState: Equatable, Sendable {
     var canGoForward = false
     var lifecycle: EnginePageLifecycle = .active
     var navigationID: UInt64 = 0
+    var isAudible = false
+    var isMuted = false
 }
 
 enum EnginePageError: Error, LocalizedError {

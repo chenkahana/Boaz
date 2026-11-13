@@ -359,11 +359,16 @@ BoazHostResult ClearSplit(BoazHostWindow window) {
   if (auto r = Check(); r != BOAZ_HOST_OK) return r;
   return state->tabs->ClearSplit(window);
 }
+BoazHostResult SetAudioMuted(BoazHostPage page, uint8_t muted) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (muted > 1) return BOAZ_HOST_INVALID_ARGUMENT;
+  return state->tabs->SetAudioMuted(page, muted != 0);
+}
 const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
