@@ -1,5 +1,7 @@
 # S2b native-parent feasibility
 
+
+**Superseded scope constraint:** the user subsequently authorized a broader maintainable CEF/Chromium adapter, including public interfaces. References below to a 300-line limit or pending scope approval describe the earlier assessment only. See the current [architecture decision](../feasibility.md#architecture-decision-after-native-accessibility-comparison). Runtime failures and product acceptance requirements still apply.
 Decision: no supported implementation within the current contract has been established. Do not treat a successful custom CEF build as passing this gate. This is a source-based NO-GO for proceeding with the proposed small patch, not proof that a larger browser integration is impossible.
 
 ## Deterministic evidence

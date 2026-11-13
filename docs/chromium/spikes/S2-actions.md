@@ -1,5 +1,7 @@
 # S2a extension actions and native controls
 
+
+**Superseded scope constraint:** the user subsequently authorized a broader maintainable CEF/Chromium adapter, including public interfaces. References below to a 300-line limit or pending scope approval describe the earlier assessment only. See the current [architecture decision](../feasibility.md#architecture-decision-after-native-accessibility-comparison). Runtime failures and product acceptance requirements still apply.
 Pinned source: CEF `57389f04a61ab0e9603d9f96602843d0e08bb11c`, Chromium `156.0.8078.88`.
 
 ## Evidence

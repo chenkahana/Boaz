@@ -1,6 +1,6 @@
 # Shared Chromium window/tab host: design proposal
 
-Status: **architecture review required; no implementation or runtime proof**. Read-only inspection of local CEF `57389f04a61ab0e9603d9f96602843d0e08bb11c` and Chromium `8954d18543712dc11b97c3aca0a6e714aa2d7dcd` under `/Volumes/BoazBuild/cef/chromium_git`. No build, tests, or app launch performed.
+Status: **selected implementation direction; no implementation or runtime proof**. Read-only inspection of local CEF `57389f04a61ab0e9603d9f96602843d0e08bb11c` and Chromium `8954d18543712dc11b97c3aca0a6e714aa2d7dcd` under `/Volumes/BoazBuild/cef/chromium_git`. No build, tests, or app launch performed.
 
 ## Recommendation
 
@@ -67,4 +67,4 @@ For every CEF update, inspect changes to BrowserWindowInterface creation, TabStr
 
 Freeze the controller contract only after review. First implementation proof: one real normal Chromium window, two tabs with different visible documents, native SwiftUI selection, inactive-state retention, close with before-unload, and extension `tabs.query` showing both IDs under the same real window ID. Then show both as a split while extension activation/focus tracks the focused pane. Verify a third tab opened by an extension is reflected in native UI.
 
-Require page accessibility and native control accessibility together, fullscreen transitions, keyboard commands, rapid tab close, active/inactive renderer failure, profile isolation, and orderly window shutdown. Until these pass, both the controller and native-view-host route remain unaccepted architecture. No implementation was authorized by this design document alone.
+Require page accessibility and native control accessibility together, fullscreen transitions, keyboard commands, rapid tab close, active/inactive renderer failure, profile isolation, and orderly window shutdown. Until these pass, both the controller and native-view-host route remain unaccepted architecture. The subsequent user instruction authorizes implementation of this direction. Runtime acceptance is still required.
