@@ -4,6 +4,7 @@
 #include <string>
 #include <string_view>
 #include "adblock_url_loader_factory.h"
+#include "base/files/file_path.h"
 #include "base/types/expected.h"
 #include "boaz_adblock.h"
 namespace boaz {
@@ -11,6 +12,9 @@ class AdblockEngine {
  public:
   static base::expected<std::shared_ptr<const AdblockEngine>, std::string> Create(
       std::string_view rules, std::string_view resources);
+  // Blocking worker sequence only; validates immutable packaged inputs before creation.
+  static base::expected<std::shared_ptr<const AdblockEngine>, std::string> LoadPackaged(
+      const base::FilePath& directory);
   ~AdblockEngine();
   AdblockEngine(const AdblockEngine&) = delete;
   AdblockEngine& operator=(const AdblockEngine&) = delete;
