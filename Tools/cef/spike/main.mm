@@ -359,9 +359,23 @@ private:
     CefSettings settings;
     settings.external_message_pump = true;
     settings.log_severity = LOGSEVERITY_WARNING;
-    CefString(&settings.keychain_service_name) = "com.chenkahana.boaz.cef-spike Safe Storage";
-    CefString(&settings.keychain_account_name) = "BoazCEFSpike";
-    NSString *cache = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Caches/com.chenkahana.boaz.cef-spike/isolated-keychain-v1"];
+    NSString *profile = NSProcessInfo.processInfo.environment[@"BOAZ_CEF_SPIKE_PROFILE"] ?: @"isolated-keychain-v1";
+    NSCharacterSet *allowed = [NSCharacterSet characterSetWithCharactersInString:@"abcdefghijklmnopqrstuvwxyz0123456789-"];
+    if (profile.length < 1 || profile.length > 48 ||
+        [profile rangeOfCharacterFromSet:allowed.invertedSet].location != NSNotFound) {
+        Report(@"Invalid spike profile: expected 1–48 lowercase ASCII letters, digits or hyphens");
+        dispatch_async(dispatch_get_main_queue(), ^{ StopNativeLoop(); });
+        return;
+    }
+    BOOL defaultProfile = [profile isEqualToString:@"isolated-keychain-v1"];
+    NSString *service = defaultProfile ? @"com.chenkahana.boaz.cef-spike Safe Storage"
+        : [NSString stringWithFormat:@"com.chenkahana.boaz.cef-spike.%@ Safe Storage", profile];
+    NSString *account = defaultProfile ? @"BoazCEFSpike"
+        : [@"BoazCEFSpike-" stringByAppendingString:profile];
+    CefString(&settings.keychain_service_name) = service.UTF8String;
+    CefString(&settings.keychain_account_name) = account.UTF8String;
+    NSString *cache = [[NSHomeDirectory() stringByAppendingPathComponent:@"Library/Caches/com.chenkahana.boaz.cef-spike"]
+        stringByAppendingPathComponent:profile];
     CefString(&settings.root_cache_path) = cache.UTF8String;
     CefString(&settings.cache_path) = [cache stringByAppendingPathComponent:@"Default"].UTF8String;
     CefString(&settings.log_file) = [cache stringByAppendingPathComponent:@"cef.log"].UTF8String;
