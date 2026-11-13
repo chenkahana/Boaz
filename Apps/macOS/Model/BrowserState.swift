@@ -134,6 +134,7 @@ final class BrowserState {
     private(set) var chromiumPeekClosing = false
     var hasWebKitPages: Bool { !pages.isEmpty }
     @ObservationIgnored var updateChromiumExternalTabCount: ((UInt32) -> Bool)?
+    private var engineRoutingFailures: Set<String> = []
     private var engineChoices: [String: BrowserEngineKind] = [:]
     @ObservationIgnored private var cachedEngineRules: [String: [SiteEngineRule]] = [:]
     @ObservationIgnored private var pendingEngineSwitches: [String: URL?] = [:]
@@ -142,9 +143,14 @@ final class BrowserState {
 
     func engineKind(for tab: SidebarItem) -> BrowserEngineKind {
         guard createChromiumPage != nil else { return .webKit }
+        if engineRoutingFailures.contains(tab.id) { return .chromium }
         if let choice = engineChoices[tab.id] { return choice }
         if let live = enginePages[tab.id] { return live.kind }
-        guard !isIncognito, let store = model.store else { return .chromium }
+        if isIncognito { return .chromium }
+        guard let store = model.store else {
+            engineRoutingFailures.insert(tab.id)
+            return .chromium
+        }
         do {
             if cachedEngineRules[tab.profileID] == nil {
                 cachedEngineRules[tab.profileID] = try store.siteEngineRules(profileID: tab.profileID)
@@ -155,12 +161,25 @@ final class BrowserState {
             let choice: BrowserEngineKind = (stored ?? rule?.engine) == .webkit ? .webKit : .chromium
             engineChoices[tab.id] = choice
             return choice
-        } catch { return .chromium }
+        } catch {
+            engineRoutingFailures.insert(tab.id)
+            return .chromium
+        }
+    }
+
+    func retryEngineRouting(for tab: SidebarItem) throws -> EnginePage {
+        engineRoutingFailures.remove(tab.id)
+        if enginePages[tab.id] == nil { engineChoices[tab.id] = nil }
+        cachedEngineRules[tab.profileID] = nil
+        return try enginePage(for: tab)
     }
 
     private func reportExternalTabs() -> Bool {
         guard createChromiumPage != nil else { return true }
-        let ids = Set(pages.keys).union(reservedWebKitTabs).union(pendingEngineSwitches.keys)
+        let known = engineChoices.compactMap { id, kind in
+            kind == .webKit && tab(id)?.deletedAt == nil && tab(id) != nil ? id : nil
+        }
+        let ids = Set(pages.keys).union(known).union(reservedWebKitTabs).union(pendingEngineSwitches.keys)
         guard ids.count <= Int(UInt32.max) else { return false }
         return updateChromiumExternalTabCount?(UInt32(ids.count)) == true
     }
@@ -220,6 +239,7 @@ final class BrowserState {
         if let url { item.url = url }
         do { _ = try enginePage(for: item) }
         catch { model.showToast("The selected browser engine could not open this page.") }
+        _ = reportExternalTabs()
     }
 
     var chromiumProfileIdentity: EngineProfileIdentity?
@@ -456,15 +476,28 @@ final class BrowserState {
     private func closeIdlePages() {
         #if BOAZ_CHROMIUM
         if createChromiumPage != nil {
-            let live = enginePages.values.filter { $0.kind == .chromium && $0.state.lifecycle != .closed }.count
-            var excess = live - pendingChromiumUnloads.count - maxLivePages
-            for id in recency where excess > 0 {
-                guard !pagesInView.contains(id), !pendingChromiumUnloads.contains(id),
-                      let engine = enginePages[id],
-                      let page = engine.adapter as? ChromiumEnginePageAdapter,
-                      !page.isBusyForResidency else { continue }
-                requestChromiumClose(id, engine: engine, automatic: true)
-                excess -= 1
+            guard !isClosingIdlePages else { return }
+            isClosingIdlePages = true
+            Task {
+                defer { isClosingIdlePages = false }
+                for id in recency {
+                    let live = enginePages.values.filter { $0.state.lifecycle != .closed }.count
+                    guard live - pendingChromiumUnloads.count > maxLivePages else { break }
+                    guard !pagesInView.contains(id), !pendingChromiumUnloads.contains(id),
+                          pendingEngineSwitches[id] == nil, let engine = enginePages[id] else { continue }
+                    if let page = engine.adapter as? ChromiumEnginePageAdapter {
+                        guard !page.isBusyForResidency else { continue }
+                        requestChromiumClose(id, engine: engine, automatic: true)
+                    } else if let page = pages[id] {
+                        guard !(await PageResidency.isBusy(page)), !pagesInView.contains(id),
+                              enginePages[id] === engine, pages[id] === page else { continue }
+                        await rememberPageState(id)
+                        guard !pagesInView.contains(id), enginePages[id] === engine,
+                              !(await PageResidency.isBusy(page)), !pagesInView.contains(id),
+                              enginePages[id] === engine else { continue }
+                        finishUnload(id)
+                    }
+                }
             }
             return
         }
@@ -552,6 +585,10 @@ final class BrowserState {
     func existingPage(for tabID: String) -> WebPage? { pages[tabID] }
 
     func enginePage(for tab: SidebarItem) throws -> EnginePage {
+        #if BOAZ_CHROMIUM
+        _ = engineKind(for: tab)
+        guard !engineRoutingFailures.contains(tab.id) else { throw EnginePageError.unavailable }
+        #endif
         if let engine = enginePages[tab.id] {
             recency.removeAll { $0 == tab.id }
             recency.append(tab.id)
@@ -927,6 +964,14 @@ final class BrowserState {
     private func finishClose(_ tab: SidebarItem) {
         #if BOAZ_CHROMIUM
         chromiumPreviews[tab.id] = nil
+        if isPrivate(tab) || !model.isPinned(tab) {
+            engineChoices[tab.id] = nil
+            engineRoutingFailures.remove(tab.id)
+            if !isPrivate(tab) {
+                do { try model.store?.setTabEngine(nil, tabID: tab.id, profileID: tab.profileID) }
+                catch { model.showToast("The closed tab's engine choice could not be removed.") }
+            }
+        }
         #endif
         let next = neighbor(of: tab)
         if let split, split.contains(tab.id) {
