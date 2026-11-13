@@ -80,6 +80,15 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
 
         add(edit, "Find…", command: .find, enabled: { $0?.activeTab != nil }) { $0?.findVisible = true }
 
+        let passwords = menu("Passwords")
+        add(passwords, "Fill Saved Password…", enabled: {
+            ($0?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter)?.state.lifecycle == .active
+        }) { browser in
+            guard let browser, let page = browser.activeEnginePage?.adapter as? ChromiumEnginePageAdapter,
+                  let window = browser.window, window.attachedSheet == nil else { return }
+            Task { await ChromiumPasswordFill.run(on: page, window: window) { browser.model.showToast($0) } }
+        }
+
         let view = menu("View")
         add(view, "Hide Sidebar", command: .toggleSidebar,
             title: { $0?.sidebarVisible == false ? "Show Sidebar" : "Hide Sidebar" }) { $0?.toggleSidebar() }
