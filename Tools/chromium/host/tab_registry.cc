@@ -1,4 +1,5 @@
 #include "tab_registry.h"
+#include "base/compiler_specific.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/devtools/devtools_toggle_action.h"
 #include "content/public/browser/media_session.h"
@@ -603,7 +604,8 @@ BoazHostResult TabRegistry::SetZoomFactor(BoazHostPage id, double factor) {
 BoazHostResult TabRegistry::FindText(BoazHostPage id, const char* text, bool forward) {
   BOAZ_FIND_PAGE();
   if (!text) return BOAZ_HOST_INVALID_ARGUMENT;
-  const size_t length = strnlen(text, 8193);
+  // The native ABI requires a NUL-terminated string; bound the accepted query size.
+  const size_t length = UNSAFE_BUFFERS(strnlen(text, 8193));
   if (length > 8192 || !base::IsStringUTF8(std::string_view(text, length)))
     return BOAZ_HOST_INVALID_ARGUMENT;
   if (!length) return StopFind(id);
@@ -665,7 +667,8 @@ BoazHostResult TabRegistry::CaptureDocumentOrigin(BoazHostPage id,
     page->scripts->Release(*token);
     return BOAZ_HOST_INVALID_ARGUMENT;
   }
-  std::memcpy(origin, serialized.c_str(), serialized.size() + 1);
+  // The caller supplies capacity writable bytes; the check above includes the terminator.
+  UNSAFE_BUFFERS(std::memcpy(origin, serialized.c_str(), serialized.size() + 1));
   *output = *token;
   return BOAZ_HOST_OK;
 }
