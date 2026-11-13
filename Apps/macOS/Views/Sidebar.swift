@@ -254,6 +254,7 @@ private struct FavoriteTile: View {
                 ChromiumAudioButton(page: page).padding(2)
             }
         }
+        .modifier(ChromiumTabPreview(tabID: tab.id, title: tab.title, url: tab.url, enabled: true))
         #else
         activationTile
         #endif
@@ -540,6 +541,9 @@ struct ItemRow: View {
             }
         }
         .contentShape(Rectangle())
+        #if BOAZ_CHROMIUM
+        .modifier(ChromiumTabPreview(tabID: item.id, title: item.title, url: item.url, enabled: item.kind == .tab))
+        #endif
         .onHover { inside in withAnimation(SidebarStyle.motion) { hovering = inside } }
         .animation(SidebarStyle.motion, value: active)
         .draggable(SidebarDrag.payload(item)) {
