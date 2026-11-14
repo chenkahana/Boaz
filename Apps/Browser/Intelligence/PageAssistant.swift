@@ -44,16 +44,23 @@ final class PageAssistant {
     /// Set when the conversation had to start over to make room.
     private(set) var notice: String?
 
-    @ObservationIgnored private let page: WebPage
+    @ObservationIgnored private let extractText: @MainActor () async throws -> PageText?
     @ObservationIgnored private var text: PageText?
+    @ObservationIgnored private var extractionError: String?
     @ObservationIgnored private var askSession: LanguageModelSession?
     /// Whether `askSession` has already read the page (its first question carried it).
     @ObservationIgnored private var askSessionHasPage = false
 
-    init(page: WebPage) {
-        self.page = page
-        title = page.title
-        host = page.url?.host() ?? ""
+    convenience init(page: WebPage) {
+        self.init(title: page.title, host: page.url?.host() ?? "") {
+            await PageText.extract(from: page)
+        }
+    }
+
+    init(title: String, host: String, extractText: @escaping @MainActor () async throws -> PageText?) {
+        self.title = title
+        self.host = host
+        self.extractText = extractText
     }
 
     private static let summaryInstructions = """
@@ -79,7 +86,7 @@ final class PageAssistant {
         defer { isSummarizing = false }
         // Instructions, schema and a few hundred tokens of output share the window with the page.
         guard let content = await pageContent(tokens: AIFeatures.contextSize - 1200) else {
-            summaryError = "This page has no text to summarize."
+            summaryError = extractionError ?? "This page has no text to summarize."
             return
         }
         let session = LanguageModelSession(model: AIFeatures.pageModel, instructions: Self.summaryInstructions)
@@ -148,7 +155,7 @@ final class PageAssistant {
         } else {
             // Half the window for the page leaves room for a few questions and answers.
             guard let content = await pageContent(tokens: AIFeatures.contextSize / 2) else {
-                turns[index].error = "This page has no text to answer from."
+                turns[index].error = extractionError ?? "This page has no text to answer from."
                 return
             }
             prompt = """
@@ -167,7 +174,15 @@ final class PageAssistant {
     // MARK: Page text
 
     private func pageContent(tokens budget: Int) async -> String? {
-        if text == nil { text = await PageText.extract(from: page) }
+        extractionError = nil
+        if text == nil {
+            do { text = try await extractText() }
+            catch is CancellationError { return nil }
+            catch {
+                extractionError = (error as? LocalizedError)?.errorDescription ?? "This page could not be read. Please try again."
+                return nil
+            }
+        }
         guard let text else { return nil }
         if !text.title.isEmpty { title = text.title }
         if !text.host.isEmpty { host = text.host }

@@ -1,0 +1,53 @@
+--- a/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
++++ b/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
+@@ -3,6 +3,10 @@
+ // found in the LICENSE file.
+ 
+ #include "chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.h"
++#include "build/build_config.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/adblock_popup_host.h"
++#endif
+ 
+ #include "base/check_deref.h"
+ #include "base/metrics/histogram_macros.h"
+@@ -1077,6 +1081,9 @@
+   // to track `new_contents` after it is added to its TabModel this override can
+   // be removed.
+   CreateSessionServiceTabHelper(new_contents);
++#if BUILDFLAG(IS_MAC)
++  boaz::AttachNativePopupBlocking(&*browser_, source_contents, opener_id, target_url, new_contents);
++#endif
+ }
+ 
+ void BrowserWebContentsDelegate::RendererUnresponsive(
+--- a/chrome/browser/ui/browser_web_contents_delegate/BUILD.gn
++++ b/chrome/browser/ui/browser_web_contents_delegate/BUILD.gn
+@@ -46,6 +46,9 @@
+       "//content/public/browser",
+       "//ui/base",
+     ]
++    if (is_mac) {
++      deps += [ "//boaz:headers" ]
++    }
+     if (use_aura) {
+       deps += [ "//chrome/browser/ui:overscroll_pref_manager" ]
+     }
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -7,6 +7,7 @@
+ #if BUILDFLAG(IS_MAC)
+ #include "boaz/adblock_browser_client.h"
+ #include "boaz/adblock_navigation.h"
++#include "boaz/adblock_popup.h"
+ #endif
+ 
+ #include <algorithm>
+@@ -5749,6 +5750,7 @@
+     content::NavigationThrottleRegistry& registry) {
+   CreateAndAddChromeThrottlesForNavigation(registry);
+ #if BUILDFLAG(IS_MAC)
++  boaz::AddAdblockPopupThrottle(registry);
+   boaz::AddAdblockNavigationThrottle(registry);
+ #endif
+ }

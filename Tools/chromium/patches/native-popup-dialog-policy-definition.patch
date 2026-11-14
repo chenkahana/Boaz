@@ -1,0 +1,24 @@
+--- a/chrome/browser/extensions/extension_view.h
++++ b/chrome/browser/extensions/extension_view.h
+@@ -57,7 +57,7 @@
+   // Method for the ExtensionHost to notify that the extension page has loaded.
+   virtual void OnLoaded() = 0;
+ 
+-  virtual bool ShouldSuppressDialogs() const { return false; }
++  virtual bool ShouldSuppressDialogs() const;
+ };
+ 
+ }  // namespace extensions
+--- a/chrome/browser/extensions/extension_view_host.cc
++++ b/chrome/browser/extensions/extension_view_host.cc
+@@ -22,6 +22,10 @@
+ static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
+ 
+ namespace extensions {
++
++bool ExtensionView::ShouldSuppressDialogs() const {
++  return false;
++}
+ 
+ ExtensionViewHost::Delegate::Delegate() = default;
+ ExtensionViewHost::Delegate::~Delegate() = default;

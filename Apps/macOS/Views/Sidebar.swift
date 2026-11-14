@@ -99,6 +99,20 @@ private struct SidebarTopBar: View {
                 browser.toggleSidebar()
             }
             Spacer()
+            if let engine = browser.activeEnginePage, engine.kind == .chromium {
+                #if BOAZ_CHROMIUM
+                if let adapter = engine.adapter as? ChromiumEnginePageAdapter {
+                    ChromiumHistoryButton(adapter: adapter, forward: false, hint: keys.hint("Back", .goBack),
+                        onError: { browser.model.showToast($0) }).frame(width: 26, height: 26)
+                    ChromiumHistoryButton(adapter: adapter, forward: true, hint: keys.hint("Forward", .goForward),
+                        onError: { browser.model.showToast($0) }).frame(width: 26, height: 26)
+                }
+                #endif
+                HoverIconButton(symbol: engine.state.isLoading ? "xmark" : "arrow.clockwise",
+                    help: engine.state.isLoading ? "Stop" : "Reload", hint: keys.hint("Reload", .reload)) {
+                    if engine.state.isLoading { browser.stopLoading() } else { browser.reload() }
+                }
+            } else {
             HistoryButton(symbol: "arrow.left", help: "Back", hint: keys.hint("Back", .goBack),
                           items: (page?.backForwardList.backList ?? []).reversed(), action: browser.goBack)
             HistoryButton(symbol: "arrow.right", help: "Forward", hint: keys.hint("Forward", .goForward),
@@ -106,6 +120,7 @@ private struct SidebarTopBar: View {
             HoverIconButton(symbol: page?.isLoading == true ? "xmark" : "arrow.clockwise",
                             help: page?.isLoading == true ? "Stop" : "Reload", hint: keys.hint("Reload", .reload)) {
                 if page?.isLoading == true { page?.stopLoading() } else { browser.reload() }
+            }
             }
         }
         .frame(height: 40)
@@ -166,6 +181,14 @@ private struct AddressPill: View {
                 if browser.activeIsSecure {
                     Image(systemName: "lock.fill").font(.system(size: 10)).foregroundStyle(.secondary)
                 }
+                #if BOAZ_CHROMIUM
+                if let tab = browser.activeTab, browser.engineKind(for: tab) == .webKit {
+                    Text("WebKit").font(.system(size: 9, weight: .medium))
+                        .padding(.horizontal, 4).padding(.vertical, 2)
+                        .background(.primary.opacity(0.08), in: .capsule)
+                        .help("This page uses WebKit. Website data is separate; extensions run in Chromium.")
+                }
+                #endif
                 Text(url?.host()?.replacingOccurrences(of: "www.", with: "") ?? "Search or enter address")
                     .font(SidebarStyle.rowFont(size: textSize))
                     .foregroundStyle(url == nil ? .secondary : .primary)
@@ -232,10 +255,24 @@ private struct FavoriteTile: View {
     @State private var targeted = false
 
     var body: some View {
+        #if BOAZ_CHROMIUM
+        ZStack(alignment: .topTrailing) {
+            activationTile
+            if let page = browser.cachedChromiumPage(for: tab.id) {
+                ChromiumAudioButton(page: page).padding(2)
+            }
+        }
+        .modifier(ChromiumTabPreview(tabID: tab.id, title: tab.title, url: tab.url, enabled: true))
+        #else
+        activationTile
+        #endif
+    }
+
+    private var activationTile: some View {
         let active = browser.activeTabID == tab.id
         // The icon's own color, once its icon is known; a black, white or gray icon keeps the neutral fill.
         let color = Favicons.shared.resolved(for: tab.url)?.color
-        Button { browser.activate(tab) } label: {
+        return Button { browser.activate(tab) } label: {
             // Flat at rest; only hovering lifts a tile.
             SiteMonogram(url: tab.url, tint: tint, size: 24)
                 .frame(maxWidth: .infinity).frame(height: 44)
@@ -479,6 +516,11 @@ struct ItemRow: View {
                 .foregroundStyle(hovering || active ? .primary : .secondary)
                 .transition(.opacity)
             }
+            #if BOAZ_CHROMIUM
+            if item.kind == .tab, let page = browser.cachedChromiumPage(for: item.id) {
+                ChromiumAudioButton(page: page)
+            }
+            #endif
             if hovering, item.kind == .tab {
                 let pinned = model.isPinned(item)
                 HoverIconButton(symbol: pinned ? "minus" : "xmark", help: pinned ? "Unload" : "Archive",
@@ -507,6 +549,9 @@ struct ItemRow: View {
             }
         }
         .contentShape(Rectangle())
+        #if BOAZ_CHROMIUM
+        .modifier(ChromiumTabPreview(tabID: item.id, title: item.title, url: item.url, enabled: item.kind == .tab))
+        #endif
         .onHover { inside in withAnimation(SidebarStyle.motion) { hovering = inside } }
         .animation(SidebarStyle.motion, value: active)
         .draggable(SidebarDrag.payload(item)) {
@@ -831,3 +876,21 @@ struct HorizontalSwipeReader: NSViewRepresentable {
         }
     }
 }
+
+#if BOAZ_CHROMIUM
+private struct ChromiumAudioButton: View {
+    @Environment(MacModel.self) private var model
+    let page: ChromiumEnginePageAdapter
+
+    var body: some View {
+        if page.state.isAudible || page.state.isMuted {
+            HoverIconButton(symbol: page.state.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                            help: page.state.isMuted ? "Unmute Tab" : "Mute Tab", size: 20) {
+                do { try page.setAudioMuted(!page.state.isMuted) }
+                catch { model.showToast("Couldn't change this tab's audio.") }
+            }
+            .disabled(page.state.lifecycle == .closed || page.state.lifecycle == .closing)
+        }
+    }
+}
+#endif

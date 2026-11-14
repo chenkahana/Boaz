@@ -1,0 +1,15 @@
+--- a/chrome/browser/devtools/remote_debugging_server.cc
++++ b/chrome/browser/devtools/remote_debugging_server.cc
+@@ -342,6 +342,12 @@
+   const base::CommandLine& command_line =
+       *base::CommandLine::ForCurrentProcess();
+ 
++#if BUILDFLAG(IS_MAC)
++  if (command_line.HasSwitch("boaz-native-host")) {
++    return base::unexpected(NotStartedReason::kNotRequested);
++  }
++#endif
++
+   // Track whether debugging was started. This determines whether or not to
+   // return an instance of the class.
+   bool debugging_server_started = false;

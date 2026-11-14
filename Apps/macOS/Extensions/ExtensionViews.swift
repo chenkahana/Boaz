@@ -196,6 +196,21 @@ struct ExtensionsManagerView: View {
 /// The enabled extensions' toolbar buttons, under the address field: icon and badge; a click opens the popup.
 struct ExtensionActionsBar: View {
     @Environment(BrowserState.self) private var browser
+    var body: some View {
+        #if BOAZ_CHROMIUM
+        if let model = browser.chromiumExtensions {
+            ChromiumExtensionActionsBar(model: model)
+        } else {
+            WebKitExtensionActionsBar()
+        }
+        #else
+        WebKitExtensionActionsBar()
+        #endif
+    }
+}
+
+private struct WebKitExtensionActionsBar: View {
+    @Environment(BrowserState.self) private var browser
     private let extensions = Extensions.shared
 
     var body: some View {

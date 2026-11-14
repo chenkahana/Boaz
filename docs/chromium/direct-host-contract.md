@@ -1,0 +1,66 @@
+# First direct-host implementation contract
+
+`Tools/chromium/host/boaz_host.h` is an independently authored prototype ABI. It is not implemented yet and is not the production engine interface. Its bounded objective is one native Boaz-style window with retained Chromium tabs, correct extension identities and explicit close/shutdown behavior. Profile selection, private contexts, extension controls, scripts and split commands follow in separately reviewed contracts before their packets begin.
+
+The executable retains Chromium's normal process/bootstrap and sandbox behavior. A gated native-host startup path uses an explicit isolated user-data directory, initializes one regular test profile, then invokes the native UI entry point with the function table. The prototype must refuse the normal Boaz profile. SwiftUI owns the visible native window and controls; Chromium owns Browser, TabStripModel, WebContents and their renderer lifecycle.
+
+All functions and callbacks run on Chromium's UI thread, which must be the AppKit main thread. Wrong-thread calls return an error before touching browser state. The implementation copies the callback table and checks table size/version. State callbacks are delivered after internal model mutation unwinds; clients queue new commands rather than reentering the model. `PAGE_CLOSING` and `PAGE_VIEW_WILL_CHANGE` are the synchronous lifecycle exceptions: their callbacks may only detach the native view, with no registry or Chromium reentry. The implementation must prove a supported committed-removal hook before WebContents deletion; a drag-controller-only observer is insufficient. Output handles are zeroed on failure. URLs must be valid before navigation is requested.
+
+Window/page handles are process-unique and never reused. Extension IDs come from Chromium, not from these handles. A native window belongs to one test profile in this first proof. The host retains the native window until `window_closed`; the UI must not release or destroy its content hierarchy before that callback. Later multi-profile/window transfer semantics require an explicit contract.
+
+`create_page` returns an accepted page handle; `PAGE_CREATED` means the corresponding WebContents and native view exist. Page callbacks carry a monotonic document generation for committed primary-document changes. This is navigation bookkeeping, not a substitute for authoritative frame/document identity in the later password API.
+
+Closing is asynchronous and honors before-unload. A cancelled close emits `PAGE_CLOSE_CANCELLED` and leaves the live native view intact. Emit `PAGE_CLOSING` only after close is committed and while the native view is still valid, so the UI can detach it synchronously. Emit `PAGE_CLOSED` once after browser ownership is released. Closing one tab must not destroy its window while other tabs remain. Window close and application quit wait for the corresponding page-close outcomes; no successful shutdown callback while pages or pending continuations remain.
+
+`get_native_view` returns a borrowed NSView, not WebContents ownership. Its renderer content remains owned by Chromium. The UI detaches it on `PAGE_CLOSING` and must not use it afterward. WebContents replacement preserves the page handle but emits synchronous `PAGE_VIEW_WILL_CHANGE` while the old view is valid, then deferred `PAGE_VIEW_CHANGED` after the new view is available. The same detach-only/no-reentry rule applies. Increment document generation and cancel document-bound operations on replacement. State includes actual Chromium activation so extension-driven selection can update native controls. Renderer failure emits an explicit event; it does not invent a successful close or navigation. Initially, capability gaps return `BOAZ_HOST_UNAVAILABLE` and block the relevant acceptance, rather than silently returning success.
+
+Acceptance: two pages retain DOM state across activation; their actual extension tab IDs share the intended window identity; closing either page leaves the other functional; cancelled before-unload leaves the page/view alive; native/page accessibility and focus work together; rapid close, renderer failure and application shutdown leave no helpers behind. No runtime result is claimed by this header.
+
+## Native window services, prototype ABI 2
+
+`create_window` accepts a copied `BoazHostWindowOptions` table. All providers are required. `content_view` returns the live native viewport container already attached to that NSWindow, including before the first page exists. Focus providers update native controls. `handle_key` receives a borrowed NSEvent and returns whether the native UI consumed it; it queues any engine command instead of calling back into Chromium. Synthetic events without an NSEvent are not passed to this provider. Exclusive-access notices must appear visibly and accessibly in native UI, with the supplied UTF-8 text copied during the callback. The UI retains service context and view/window objects until `window_closed`.
+
+The host's own close provider calls Chromium's `UnloadController::OnWindowClosing`, not `chrome::CloseWindow`, which would recurse through the adapter. Chromium 157's `OnWindowCloseComplete` already schedules `BrowserManagerService::SynchronouslyDestroyBrowser` through a weak pointer. Do not schedule a second deletion based on its stale Views ownership comment. Tab/window callbacks must drain before host teardown.
+
+The native UI also provides a stable, attached NSTextField through `address_field`. The native LocationBar adapter saves text and selection for the outgoing WebContents, restores the incoming page's edit state, and handles revert/search/focus. UI page-state updates must not overwrite a field with an active editor. The first proof does not claim Chromium omnibox suggestions or permission chips; their native implementations remain explicit parity work.
+
+## Browser-created windows, prototype ABI 3
+
+Chromium may create a Browser for popups, extension requests or commands without a preceding UI `create_window` call. The bootstrap factory must not fall back to a Chrome window. It calls `prepare_window` synchronously on main to obtain an attached native hierarchy and complete options. This callback creates and retains native UI only, never calls the engine API. After construction unwinds, `window_created` supplies the real handle and the options' context so the UI can bind them. Explicit `create_window` uses its supplied options and also emits this deferred event. No synthetic extension window IDs or hidden substitute Browser are permitted.
+
+A failed preparation fails the prototype's window-creation gate explicitly; it must not silently reveal Chrome UI. The native factory and bootstrap must be complete before this ABI is exercised. Profile selection and popup feature/size/opener behavior remain later explicit contracts, not claimed by this initial generic-window callback.
+
+## ABI 4 native extension actions
+
+`enumerate_extensions` visits enabled actions for the requested browser profile synchronously. The visitor copies borrowed UTF-8 ID/name values and cannot reenter the API. `invoke_extension` is reserved for genuine native user activation. It validates the expected live page against the browser's actual active WebContents and the anchor against that browser's NSWindow. Anchor bounds use local view coordinates. An OK result means dispatch, not confirmed popup visibility. Unsupported actions return unavailable.
+
+The browser close-scheduled notification destroys the action controller before Browser destruction; delayed window UI cleanup does not own extension lifetime. The ABI 4 C++ and Swift implementations compile. The source was installed after checkpointing the ABI 3 build; the resumed full build includes ABI 4. Runtime acceptance remains pending.
+
+## ABI 5 trusted execution (prepared, not installed)
+
+The native caller captures an opaque document token before authentication, then either releases it or consumes it with accepted trusted execution. Tokens never repeat within the process, are limited to 64 held targets per page, and cannot be substituted across pages or replacement WebContents. Cross-document navigation, frame deletion, crash and close invalidate held targets. Private pages may execute fill operations; this API does not save credentials.
+
+Function source is trusted application code. Arguments are a UTF-8 JSON dictionary, bounded to 64 KiB and 32 levels. The executor also bounds function storage and result size. Immediate API errors promise no callback and leave token release to the caller. Accepted execution promises one posted callback carrying the original page/token and explicit status; result JSON is borrowed only during that callback. Native callers copy the result and cannot reenter the host synchronously.
+
+The bootstrap counts accepted script operations and delays `shutdown_ready` until their posted completions have drained. Page close and WebContents replacement close the channel and cancel its executor. This extends the earlier object-level cancellation guarantee to the C boundary. The running full build remains ABI 4; this packet needs compilation and hostile-navigation/runtime verification before S3 acceptance.
+
+## ABI 6 native split layout (prepared)
+
+`get_window_layout` returns actual ordered foreground page IDs and a separate active page. `set_split` creates or updates Chromium's split collection, with a finite first-pane ratio between 0.1 and 0.9; vertical means stacked top/bottom. Both pages must be live and belong to the same window/profile. Existing incompatible splits, groups, pin states and unavailable layouts are rejected. New splits focus the first page; resizing/reorienting an existing pair preserves focus. `clear_split` dissolves the active pair while retaining its pages.
+
+The native UI attaches the outer WebContents native views to stable NSSplitView panes. Attachment/hiding owns visibility; unfocused visible panes are not explicitly backgrounded. Layout refreshes happen after model callbacks unwind. Synchronous close/replacement barriers only detach the affected view. This packet and ABI 5 are not installed over the active ABI 4 build; compilation and split lifecycle acceptance remain pending.
+
+
+## ABI 15–17 application operations
+
+ABI15 adds a synchronous residency busy query over native playback, capture, PiP and fullscreen state. Unavailable state must protect the page from automatic eviction. ABI16 adds typed detached DevTools, Console and inspect operations; policy rejection is explicit. Docking needs a separate native layout contract.
+
+ABI17 adds origin-bearing document capture. The copied ASCII origin and opaque single-use token come from the same authoritative target. Callers capture before authentication, retain page/profile/navigation identity, release on cancellation, and execute only against that target. Password callers restrict origins to HTTP/HTTPS. Page JavaScript never supplies the trusted origin. The older general capture operation remains available to non-password page services.
+
+Host objects through ABI17 compiled at ab93cfc. The full application runtime security scenarios remain required.
+
+## ABI 48 cookie import
+
+ABI48 appends `import_cookies` for the one-time WebKit-to-Chromium login migration. The caller passes a prepared profile and borrowed UTF-8 cookie records; the host copies them before returning. Each record builds its source URL from host, path and secure flag and goes through Chromium's sanitized cookie constructor. Malformed or expired records count as rejected. Accepted records are set through the profile's default storage partition with HTTP-only and inclusive same-site options. A set the network service refuses or drops also counts as rejected.
+
+Immediate errors promise no callback. An accepted import posts exactly one UI-thread completion after every set finishes, and the bootstrap holds `shutdown_ready` until it drains. Production Swift imports each regular profile once, before its first window loads tabs. It marks the profile only after `BOAZ_HOST_OK`; a failure is logged and retried on the next launch without blocking startup.

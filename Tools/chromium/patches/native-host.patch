@@ -1,0 +1,152 @@
+--- a/chrome/BUILD.gn
++++ b/chrome/BUILD.gn
+@@ -1362,6 +1362,7 @@
+     if (!is_component_build && !using_sanitizer) {
+       configs += [ ":chrome_dll_symbol_exports" ]
+     }
++    deps += [ "//boaz:host" ]
+   }
+ 
+   mac_framework_bundle("chrome_framework") {
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -2198,6 +2198,9 @@
+   if (enable_webui_tabstrip_ntb) {
+     deps += [ "//chrome/browser/ui/webui/tabstrip_ntb" ]
+   }
++  if (is_mac) {
++    deps += [ "//boaz:headers" ]
++  }
+ }
+ 
+ # This target no longer has any sources of its own; it only aggregates
+--- a/chrome/browser/chrome_browser_main.cc
++++ b/chrome/browser/chrome_browser_main.cc
+@@ -29,6 +29,9 @@
+ #include "base/values.h"
+ #include "build/branding_buildflags.h"
+ #include "build/build_config.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/bootstrap.h"
++#endif
+ #include "chrome/browser/active_use_util.h"
+ #include "chrome/browser/after_startup_task_utils.h"
+ #include "chrome/browser/browser_features.h"
+@@ -798,6 +801,11 @@
+       std::make_unique<ChromeBrowserMainExtraPartsThreadNotifier>(
+           std::move(threads_ready_closure)));
+ 
++#if BUILDFLAG(IS_MAC)
++  if (boaz::NativeHostEnabled())
++    main_parts->AddParts(boaz::CreateNativeHostMainParts());
++#endif
++
+   bool add_profiles_extra_parts = true;
+ #if BUILDFLAG(IS_ANDROID)
+   if (startup_data->HasBuiltProfilePrefService()) {
+--- a/chrome/browser/component_updater/BUILD.gn
++++ b/chrome/browser/component_updater/BUILD.gn
+@@ -323,6 +323,9 @@
+   if (enable_request_header_integrity) {
+     deps += [ "//chrome/browser/request_header_integrity" ]
+   }
++  if (is_mac) {
++    deps += [ "//boaz:buildflags" ]
++  }
+ }
+ 
+ source_set("test_support") {
+--- a/chrome/browser/component_updater/registration.cc
++++ b/chrome/browser/component_updater/registration.cc
+@@ -52,6 +52,9 @@
+ #include "device/vr/buildflags/buildflags.h"
+ #include "extensions/buildflags/buildflags.h"
+ #include "third_party/widevine/cdm/buildflags.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/buildflags.h"
++#endif
+ #include "ui/accessibility/accessibility_features.h"
+ 
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+@@ -149,7 +152,11 @@
+ #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+ 
+ #if BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
++#if !BUILDFLAG(IS_MAC)
+   RegisterWidevineCdmComponent(cus);
++#elif BUILDFLAG(BOAZ_WIDEVINE_ENABLED)
++  RegisterWidevineCdmComponent(cus);
++#endif
+ #endif  // BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
+ 
+   RegisterSubresourceFilterComponent(cus);
+--- a/chrome/browser/ui/views/frame/BUILD.gn
++++ b/chrome/browser/ui/views/frame/BUILD.gn
+@@ -1402,6 +1402,9 @@
+       "//chromeos/components/kiosk",
+     ]
+   }
++  if (is_mac) {
++    deps += [ "//boaz:headers" ]
++  }
+ }
+ 
+ source_set("browser_native_widget_factory") {
+--- a/chrome/browser/ui/views/frame/browser_window_factory.cc
++++ b/chrome/browser/ui/views/frame/browser_window_factory.cc
+@@ -5,6 +5,9 @@
+ #include <memory>
+ 
+ #include "build/build_config.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/bootstrap.h"
++#endif
+ #include "chrome/browser/ui/browser_window_deleter.h"
+ #include "chrome/browser/ui/fullscreen/browser_window_fullscreen_controller.h"
+ #include "chrome/browser/ui/views/frame/browser_native_widget_factory.h"
+@@ -32,6 +35,10 @@
+ BrowserWindow::CreateBrowserWindow(BrowserWindowInterface* browser,
+                                    bool user_gesture,
+                                    bool in_tab_dragging) {
++#if BUILDFLAG(IS_MAC)
++  if (boaz::NativeHostEnabled())
++    return boaz::CreateNativeHostBrowserWindow(browser);
++#endif
+   if (webui_browser::IsWebUIBrowserEnabled() &&
+       browser->GetType() == BrowserWindowInterface::Type::TYPE_NORMAL) {
+     return std::unique_ptr<BrowserWindow, BrowserWindowDeleter>(
+--- a/chrome/browser/ui/views/permissions/BUILD.gn
++++ b/chrome/browser/ui/views/permissions/BUILD.gn
+@@ -179,7 +179,10 @@
+       sources += [ "permission_prompt_notifications_mac.cc" ]
+       deps += [ "//chrome/browser/permissions/system" ]
+     }
++    if (is_mac) {
++      deps += [ "//boaz:headers" ]
++    }
+   }
+ 
+   source_set("unit_tests") {
+     testonly = true
+--- a/chrome/browser/ui/views/permissions/permission_prompt_factory.cc
++++ b/chrome/browser/ui/views/permissions/permission_prompt_factory.cc
+@@ -40,6 +40,8 @@
+ #include "url/origin.h"
+ 
+ #if BUILDFLAG(IS_MAC)
++#include "boaz/bootstrap.h"
++#include "boaz/native_permission_prompt.h"
+ #include "chrome/browser/ui/views/permissions/permission_prompt_notifications_mac.h"
+ #include "chrome/browser/web_applications/os_integration/mac/web_app_shortcut_mac.h"
+ #endif
+@@ -292,6 +294,10 @@
+ std::unique_ptr<permissions::PermissionPrompt> CreatePermissionPrompt(
+     content::WebContents* web_contents,
+     permissions::PermissionPrompt::Delegate* delegate) {
++#if BUILDFLAG(IS_MAC)
++  if (boaz::IsNativeHostBrowser(GetBrowser(web_contents)))
++    return boaz::CreateNativePermissionPrompt(web_contents, delegate);
++#endif
+   if (delegate->ShouldDropCurrentRequestIfCannotShowQuietly() &&
+       IsFullScreenMode(web_contents)) {
+     return nullptr;

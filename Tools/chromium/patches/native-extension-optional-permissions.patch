@@ -1,0 +1,104 @@
+--- a/extensions/browser/extensions_browser_client.h
++++ b/extensions/browser/extensions_browser_client.h
+@@ -723,6 +723,11 @@
+                                      content::BrowserContext& browser_context,
+                                      std::unique_ptr<InstallPromptData> prompt);
+ 
++  virtual std::unique_ptr<ExtensionInstallPromptClient>
++  CreateInstallPromptForPermissionRequest(gfx::NativeWindow native_window,
++      content::BrowserContext& browser_context,
++      std::unique_ptr<InstallPromptData> prompt, ExtensionFunction& requester);
++
+   // Returns a native window suitable for anchoring UI (e.g. a
+   // permission-request prompt) triggered by `function`. Returns null if none
+   // is found.
+--- a/extensions/browser/extensions_browser_client.cc
++++ b/extensions/browser/extensions_browser_client.cc
+@@ -411,6 +411,13 @@
+   return nullptr;
+ }
+ 
++std::unique_ptr<ExtensionInstallPromptClient>
++ExtensionsBrowserClient::CreateInstallPromptForPermissionRequest(
++    gfx::NativeWindow native_window, content::BrowserContext& browser_context,
++    std::unique_ptr<InstallPromptData> prompt, ExtensionFunction& requester) {
++  return CreateInstallPromptForNativeWindow(native_window, browser_context, std::move(prompt));
++}
++
+ gfx::NativeWindow ExtensionsBrowserClient::GetNativeWindowForFunction(
+     ExtensionFunction& function) {
+   return gfx::NativeWindow();
+--- a/chrome/browser/extensions/chrome_extensions_browser_client.h
++++ b/chrome/browser/extensions/chrome_extensions_browser_client.h
+@@ -342,6 +342,10 @@
+       gfx::NativeWindow native_window,
+       content::BrowserContext& browser_context,
+       std::unique_ptr<InstallPromptData> prompt) override;
++  std::unique_ptr<ExtensionInstallPromptClient>
++  CreateInstallPromptForPermissionRequest(gfx::NativeWindow native_window,
++      content::BrowserContext& browser_context,
++      std::unique_ptr<InstallPromptData> prompt, ExtensionFunction& requester) override;
+   gfx::NativeWindow GetNativeWindowForFunction(
+       ExtensionFunction& function) override;
+   bool IsLazyKeyedServiceInstantiationEnabled() const override;
+--- a/chrome/browser/extensions/chrome_extensions_browser_client.cc
++++ b/chrome/browser/extensions/chrome_extensions_browser_client.cc
+@@ -20,6 +20,10 @@
+ #include "base/version.h"
+ #include "build/android_buildflags.h"
+ #include "build/build_config.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/launch.h"
++#include "boaz/extension_optional_permissions.h"
++#endif
+ #include "build/chromeos_buildflags.h"
+ #include "chrome/browser/app_mode/app_mode_utils.h"
+ #include "chrome/browser/browser_process.h"
+@@ -1359,6 +1363,19 @@
+       std::move(prompt));
+ }
+ 
++std::unique_ptr<ExtensionInstallPromptClient>
++ChromeExtensionsBrowserClient::CreateInstallPromptForPermissionRequest(
++    gfx::NativeWindow native_window, content::BrowserContext& browser_context,
++    std::unique_ptr<InstallPromptData> prompt, ExtensionFunction& requester) {
++#if BUILDFLAG(IS_MAC)
++  if (boaz::NativeHostEnabled()) {
++    return boaz::CreateNativeOptionalPermissionsPrompt(
++        Profile::FromBrowserContext(&browser_context), native_window.GetNativeNSWindow(), requester);
++  }
++#endif
++  return CreateInstallPromptForNativeWindow(native_window, browser_context, std::move(prompt));
++}
++
+ gfx::NativeWindow ChromeExtensionsBrowserClient::GetNativeWindowForFunction(
+     ExtensionFunction& function) {
+   return ChromeExtensionFunctionDetails(&function).GetNativeWindowForUI();
+--- a/extensions/browser/api/permissions/permissions_api.cc
++++ b/extensions/browser/api/permissions/permissions_api.cc
+@@ -470,10 +470,10 @@
+   }
+ 
+   install_ui_ =
+-      ExtensionsBrowserClient::Get()->CreateInstallPromptForNativeWindow(
++      ExtensionsBrowserClient::Get()->CreateInstallPromptForPermissionRequest(
+           native_window, *browser_context(),
+           std::make_unique<InstallPromptData>(
+-              InstallPromptData::PERMISSIONS_PROMPT));
++              InstallPromptData::PERMISSIONS_PROMPT), *this);
+   install_ui_->ConfirmPermissions(
+       base::BindOnce(&PermissionsRequestFunction::OnInstallPromptDone, this),
+       extension(), std::move(total_new_permissions));
+--- a/chrome/browser/extensions/BUILD.gn
++++ b/chrome/browser/extensions/BUILD.gn
+@@ -1881,6 +1881,10 @@
+     ]
+   }
+ 
++  if (is_mac) {
++    deps += [ "//boaz:headers", "//boaz:launch" ]
++  }
++
+   if (is_chromeos) {
+     deps += [
+       "//chrome/browser/ash/login/demo_mode",

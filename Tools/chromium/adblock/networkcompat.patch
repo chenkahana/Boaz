@@ -1,0 +1,162 @@
+--- a/src/filters/abstract_network.rs
++++ b/src/filters/abstract_network.rs
+@@ -79,7 +79,7 @@
+     Csp(Option<&'a str>),
+     Removeparam(&'a str),
+     Generichide,
+-    Document,
++    Document(bool),
+     Image(bool),
+     Media(bool),
+     Object(bool),
+@@ -100,7 +100,7 @@
+     pub fn is_content_type(&self) -> bool {
+         matches!(
+             self,
+-            Self::Document
++            Self::Document(..)
+                 | Self::Image(..)
+                 | Self::Media(..)
+                 | Self::Object(..)
+@@ -153,7 +153,7 @@
+             // slicing here is safe; the first byte after '$' will be a character boundary
+             let raw_options = &line[filter_index_end + 1..];
+ 
+-            options = Some(parse_filter_options(raw_options)?);
++            options = Some(parse_filter_options(raw_options, exception)?);
+         }
+ 
+         let left_anchor = if line[filter_index_start..].starts_with("||") {
+@@ -191,6 +191,7 @@
+ 
+ fn parse_filter_options<'a>(
+     raw_options: &'a str,
++    exception: bool,
+ ) -> Result<Vec<NetworkFilterOption<'a>>, NetworkFilterError> {
+     let mut result = vec![];
+ 
+@@ -237,7 +238,7 @@
+             }
+             ("redirect-rule", true) => return Err(NetworkFilterError::NegatedRedirection),
+             ("redirect-rule", false) => {
+-                if value.is_empty() {
++                if value.is_empty() && !exception {
+                     return Err(NetworkFilterError::EmptyRedirection);
+                 }
+ 
+@@ -260,8 +261,7 @@
+                 return Err(NetworkFilterError::NegatedGenericHide);
+             }
+             ("generichide", false) | ("ghide", false) => NetworkFilterOption::Generichide,
+-            ("document", true) | ("doc", true) => return Err(NetworkFilterError::NegatedDocument),
+-            ("document", false) | ("doc", false) => NetworkFilterOption::Document,
++            ("document", negated) | ("doc", negated) => NetworkFilterOption::Document(!negated),
+             ("image", negated) => NetworkFilterOption::Image(!negated),
+             ("media", negated) => NetworkFilterOption::Media(!negated),
+             ("object", negated) | ("object-subrequest", negated) => {
+--- a/src/filters/network.rs
++++ b/src/filters/network.rs
+@@ -132,6 +132,7 @@
+         const IS_RIGHT_ANCHOR = 1 << 20;
+         const IS_HOSTNAME_ANCHOR = 1 << 21;
+         const IS_EXCEPTION = 1 << 22;
++        const EXPLICIT_DOCUMENT_SCOPE = 1 << 23;
+         const IS_COMPLETE_REGEX = 1 << 24;
+         const IS_HOSTNAME_REGEX = 1 << 28;
+ 
+@@ -269,7 +270,9 @@
+             // explicit `$document` option to apply uBO-style.
+             // See also: https://github.com/uBlockOrigin/uBlock-issues/issues/1501
+             NetworkFilterMask::FROM_DOCUMENT => {
+-                self.has_flag(NetworkFilterMask::FROM_DOCUMENT) || self.is_exception()
++                self.has_flag(NetworkFilterMask::FROM_DOCUMENT)
++                    || (self.is_exception()
++                        && !self.has_flag(NetworkFilterMask::EXPLICIT_DOCUMENT_SCOPE))
+             }
+             mask => self.has_flag(mask),
+         }
+@@ -450,7 +453,9 @@
+         if matches!(option, NetworkFilterOption::Csp(..)) {
+             has_csp = true;
+             modifier_options += 1;
+-        } else if option.is_content_type() {
++        } else if option.is_content_type()
++            && !matches!(option, NetworkFilterOption::Document(..) | NetworkFilterOption::Subdocument(..))
++        {
+             has_content_type = true;
+         } else if option.is_redirection() || matches!(option, NetworkFilterOption::Removeparam(..))
+         {
+@@ -617,17 +622,16 @@
+                     }
+                     NetworkFilterOption::Csp(value) => {
+                         features_mask.set(NetworkFilterFeaturesMask::IS_CSP, true);
+-                        // CSP rules can never have content types, and should always match against
+-                        // subdocument and document rules. Rules do not match against document
+-                        // requests by default, so this must be explicitly added.
+-                        mask.set(NetworkFilterMask::FROM_DOCUMENT, true);
++                        // CSP document scope must not inherit the generic exception fallback.
++                        mask.set(NetworkFilterMask::EXPLICIT_DOCUMENT_SCOPE, true);
+                         modifier_option = value;
+                     }
+                     NetworkFilterOption::Generichide => {
+                         features_mask.set(NetworkFilterFeaturesMask::GENERIC_HIDE, true)
+                     }
+-                    NetworkFilterOption::Document => {
+-                        cpt_mask_positive.set(NetworkFilterMask::FROM_DOCUMENT, true)
++                    NetworkFilterOption::Document(enabled) => {
++                        mask.set(NetworkFilterMask::EXPLICIT_DOCUMENT_SCOPE, true);
++                        apply_content_type!(FROM_DOCUMENT, enabled);
+                     }
+                     NetworkFilterOption::Image(enabled) => apply_content_type!(FROM_IMAGE, enabled),
+                     NetworkFilterOption::Media(enabled) => apply_content_type!(FROM_MEDIA, enabled),
+@@ -668,6 +672,11 @@
+         }
+ 
+         mask |= cpt_mask_positive;
++        if features_mask.contains(NetworkFilterFeaturesMask::IS_CSP)
++            && (cpt_mask_positive & NetworkFilterMask::FROM_ALL_TYPES).is_empty()
++        {
++            mask |= NetworkFilterMask::FROM_DOCUMENT;
++        }
+ 
+         // If any negated "network" types were set, then implicitly enable all network types.
+         // The negated types will be applied later.
+--- a/src/data_format/mod.rs
++++ b/src/data_format/mod.rs
+@@ -20,8 +20,8 @@
+ 
+ /// The version of the data format.
+ /// If the data format version is incremented, the data is considered as incompatible.
+-// Boaz popup-mask format; reject upstream DAT caches with different matching semantics.
+-const ADBLOCK_RUST_DAT_VERSION: u8 = 128;
++// Boaz popup/document-scope format; reject caches with different matching semantics.
++const ADBLOCK_RUST_DAT_VERSION: u8 = 129;
+ 
+ /// Offset of the 8-byte seahash checksum within the serialized header.
+ const HASH_OFFSET: usize = ADBLOCK_RUST_DAT_MAGIC.len() + 1;
+--- a/src/blocker.rs
++++ b/src/blocker.rs
+@@ -231,16 +231,21 @@
+         // 2. Find highest priority non-exception redirect
+         let redirect_resource = {
+             let mut exceptions = vec![];
++            let mut disable_redirects = false;
+             for redirect_filter in redirect_filters.iter() {
+                 if redirect_filter.filter_mask.is_exception()
+                     && let Some(redirect) = redirect_filter.modifier_option.as_ref()
+                 {
+-                    exceptions.push(redirect);
++                    if redirect.is_empty() {
++                        disable_redirects = true;
++                    } else {
++                        exceptions.push(redirect);
++                    }
+                 }
+             }
+             let mut resource_and_priority = None;
+             for redirect_filter in redirect_filters.iter() {
+-                if !redirect_filter.filter_mask.is_exception()
++                if !disable_redirects && !redirect_filter.filter_mask.is_exception()
+                     && let Some(redirect) = redirect_filter.modifier_option.as_ref()
+                     && !exceptions.contains(&redirect)
+                 {

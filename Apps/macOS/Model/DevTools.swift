@@ -343,6 +343,12 @@ extension BrowserState {
 
     func toggleJavaScript() {
         guard let id = activeTabID else { return }
+#if BOAZ_CHROMIUM
+        if let adapter = activeEnginePage?.adapter as? ChromiumEnginePageAdapter {
+            do { try adapter.setJavaScriptDisabled(!devTools[id].javaScriptDisabled) }
+            catch { model.showToast(error.localizedDescription); return }
+        }
+#endif
         devTools[id].javaScriptDisabled.toggle()
         reload()
     }

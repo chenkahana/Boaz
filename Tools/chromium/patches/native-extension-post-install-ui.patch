@@ -1,0 +1,32 @@
+--- a/chrome/browser/extensions/extension_install_prompt.cc
++++ b/chrome/browser/extensions/extension_install_prompt.cc
+@@ -6,6 +6,11 @@
+ 
+ #include <optional>
+ #include <utility>
++
++#include "build/build_config.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/bootstrap.h"
++#endif
+ 
+ #include "base/functional/bind.h"
+ #include "base/location.h"
+@@ -147,11 +152,17 @@
+   extension_ = extension;
+   SetIcon(icon);
+ 
++#if BUILDFLAG(IS_MAC)
++  if (boaz::NativeHostEnabled()) return;
++#endif
+   install_ui_->OnInstallSuccess(extension, &icon_);
+ }
+ 
+ void ExtensionInstallPrompt::OnInstallFailure(
+     const extensions::CrxInstallError& error) {
++#if BUILDFLAG(IS_MAC)
++  if (boaz::NativeHostEnabled()) return;
++#endif
+   install_ui_->OnInstallFailure(error);
+ }
+ 

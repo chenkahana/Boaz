@@ -195,6 +195,9 @@ struct MacSettingsView: View {
         TabView {
             GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }
             PrivacySettings().tabItem { Label("Privacy", systemImage: "hand.raised") }
+            #if BOAZ_CHROMIUM
+            WebsiteEngineSettings().tabItem { Label("Websites", systemImage: "globe") }
+            #endif
             SyncSettings().tabItem { Label("Sync", systemImage: "icloud") }
             PasswordsSettings().frame(minHeight: 460).tabItem { Label("Passwords", systemImage: "key") }
             ShortcutsSettings().tabItem { Label("Shortcuts", systemImage: "keyboard") }
@@ -209,6 +212,94 @@ struct MacSettingsView: View {
         appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? NSColor(white: 1, alpha: 0.62) : NSColor(white: 0, alpha: 0.64)
     })
 }
+
+#if BOAZ_CHROMIUM
+private struct WebsiteEngineSettings: View {
+    @Environment(MacModel.self) private var model
+    @State private var profileID = ""
+    @State private var selectedEngine = StoredBrowserEngine.chromium
+    @State private var rules: [SiteEngineRule] = []
+    @State private var error: String?
+
+    var body: some View {
+        Form {
+            Section("Profile") {
+                Picker("Profile", selection: $profileID) {
+                    ForEach(model.sidebar.profiles) { profile in Text(profile.name).tag(profile.id) }
+                }
+                .disabled(model.sidebar.profiles.isEmpty)
+                if model.sidebar.profiles.isEmpty { Text("No profiles are available yet.") }
+            }
+            Section("Default Browser Engine") {
+                Picker("Engine", selection: Binding(get: { selectedEngine }, set: { engine in
+                    guard !profileID.isEmpty else { return }
+                    ChromiumEnginePreferences.setDefaultEngine(engine, profileID: profileID)
+                    let saved = ChromiumEnginePreferences.defaultEngine(profileID: profileID)
+                    selectedEngine = saved
+                    error = saved == engine ? nil : "The default engine could not be saved."
+                })) {
+                    Text("Chromium").tag(StoredBrowserEngine.chromium)
+                    Text("WebKit").tag(StoredBrowserEngine.webkit)
+                }.disabled(profileID.isEmpty)
+                Text("Applies when routing new pages. Existing tabs are not reloaded. Individual tab choices and website rules take precedence.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text("Cookies and website storage are separate between engines. Chromium extensions work only in Chromium tabs.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Website Rules") {
+                if rules.isEmpty, error == nil { Text("No website rules for this profile.").foregroundStyle(.secondary) }
+                ForEach(Array(rules.enumerated()), id: \.offset) { _, rule in
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text(rule.host + (rule.pathPrefix ?? ""))
+                            Text("\(rule.engine == .chromium ? "Chromium" : "WebKit") · \(rule.reason == .user ? "Your choice" : "Protected media")")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button("Remove") { remove(rule) }
+                            .accessibilityLabel("Remove rule for \(rule.host + (rule.pathPrefix ?? ""))")
+                    }
+                }
+                if let error { Text(error).foregroundStyle(.red) }
+                Button("Refresh Rules") { load() }.disabled(profileID.isEmpty)
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear { selectAvailableProfile() }
+        .onChange(of: model.sidebar.profiles.map(\.id)) { selectAvailableProfile() }
+        .onChange(of: profileID) { load() }
+    }
+
+    private func selectAvailableProfile() {
+        if !model.sidebar.profiles.contains(where: { $0.id == profileID }) {
+            profileID = model.sidebar.profiles.first?.id ?? ""
+        }
+        load()
+    }
+    private func load() {
+        rules = []
+        error = nil
+        guard !profileID.isEmpty else { return }
+        selectedEngine = ChromiumEnginePreferences.defaultEngine(profileID: profileID)
+        guard let store = model.store else { error = "Website rules are unavailable. Try refreshing after the library loads."; return }
+        do {
+            try store.seedProtectedMediaRules(profileID: profileID)
+            rules = try store.siteEngineRules(profileID: profileID)
+        }
+        catch { self.error = "Website rules could not be read. Try refreshing." }
+    }
+    private func remove(_ rule: SiteEngineRule) {
+        guard rule.profileID == profileID, let store = model.store else {
+            error = "Website rules are unavailable. Try refreshing."; return
+        }
+        do {
+            try store.removeSiteEngineRule(rule)
+            ChromiumEnginePreferences.rulesDidChange()
+            load()
+        } catch { self.error = "The website rule could not be removed. Try again." }
+    }
+}
+#endif
 
 private struct GeneralSettings: View {
     @Environment(MacModel.self) private var model
@@ -239,6 +330,10 @@ private struct GeneralSettings: View {
                     }
                 }
             }
+            #if BOAZ_CHROMIUM
+            ChromiumAutomationSettings()
+            BoazCLISettings()
+            #endif
             AISettingsSection()
             AboutSection()
         }
@@ -251,28 +346,43 @@ private struct GeneralSettings: View {
 
 private struct DefaultBrowserRow: View {
     @State private var current = DefaultBrowser.current()
-    @State private var failed = false
+    @State private var message: String?
+    @State private var requesting = false
 
     var body: some View {
         LabeledContent("Default browser") {
             if current.isBoaz {
-                Text("Boaz")
+                Text("Boaz is your default browser")
             } else {
-                HStack {
-                    Text(current.name)
-                    Button("Make Default") {
-                        Task {
-                            failed = (try? await DefaultBrowser.makeBoazDefault()) == nil
+                Button("Set as Default Browser") {
+                    guard !requesting else { return }
+                    requesting = true
+                    message = nil
+                    Task {
+                        defer {
                             current = DefaultBrowser.current()
+                            requesting = false
+                        }
+                        do {
+                            try await DefaultBrowser.makeBoazDefault()
+                        } catch {
+                            message = error.localizedDescription
                         }
                     }
                 }
+                .disabled(requesting)
             }
         }
+        .onAppear { refresh() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            current = DefaultBrowser.current()
+            refresh()
         }
-        if failed { Text("Your default browser didn't change.").font(.caption).foregroundStyle(.secondary) }
+        if let message { Text(message).font(.caption).foregroundStyle(.secondary) }
+    }
+
+    private func refresh() {
+        current = DefaultBrowser.current()
+        if current.isBoaz { message = nil }
     }
 }
 
@@ -370,3 +480,32 @@ private struct ShortcutsSettings: View {
         }
     }
 }
+
+#if BOAZ_CHROMIUM
+private struct BoazCLISettings: View {
+    @State private var message: String?
+    @State private var failed = false
+
+    var body: some View {
+        Section("Command Line") {
+            Button("Install boaz Command") {
+                do {
+                    try BoazCLIInstaller.install()
+                    failed = false
+                    message = "Installed at ~/.local/bin/boaz."
+                } catch {
+                    failed = true
+                    message = error.localizedDescription
+                }
+            }
+            Text("Creates a link to this copy of Boaz in ~/.local/bin. Add that directory to your shell’s PATH, or run ~/.local/bin/boaz directly. Moving this app may require updating the link.")
+                .font(.caption).foregroundStyle(.secondary)
+            if let message {
+                Text(message).font(.caption)
+                    .foregroundStyle(failed ? Color.red : Color.secondary)
+                    .accessibilityLabel(message)
+            }
+        }
+    }
+}
+#endif

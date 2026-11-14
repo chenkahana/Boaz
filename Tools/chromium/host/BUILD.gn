@@ -1,0 +1,178 @@
+import("//build/buildflag_header.gni")
+import("//mojo/public/tools/bindings/mojom.gni")
+
+mojom("protected_media_mojom") {
+  sources = [ "protected_media.mojom" ]
+}
+
+
+declare_args() {
+  boaz_widevine_enabled = false
+  boaz_adblock_library = ""
+}
+
+buildflag_header("buildflags") {
+  header = "buildflags.h"
+  flags = [ "BOAZ_WIDEVINE_ENABLED=$boaz_widevine_enabled" ]
+}
+
+source_set("headers") {
+  public = [ "adblock_popup.h", "adblock_popup_host.h", "adblock_navigation.h", "adblock_browser_client.h", "native_http_warning.h", "extension_optional_permissions.h", "native_extension_store_dialogs.h", "native_extension_prompt.h", "native_password_submission.h", "native_devtools.h", "bootstrap.h", "native_permission_prompt.h", "protected_media.h" ]
+  public_deps = [
+    "//base",
+    "//extensions/browser",
+    ":protected_media_mojom",
+    "//chrome/browser/ui:browser_window_deleter",
+    "//components/permissions",
+    "//content/public/browser",
+    "//services/network/public/mojom",
+    "//components/security_interstitials/core",
+  ]
+}
+
+source_set("host") {
+  public_deps = [ ":launch", ":protected_media_mojom" ]
+  sources = [
+    "boaz_host.h",
+    "adblock_navigation.h",
+    "adblock_navigation.cc",
+    "adblock_browser_client.h",
+    "adblock_browser_client.cc",
+    "native_http_warning.h",
+    "native_http_warning.mm",
+    "adblock_popup_host.h",
+    "adblock_popup_host.cc",
+    "adblock_popup.h",
+    "adblock_popup.cc",
+    "adblock_profile_state.h",
+    "adblock_profile_state.cc",
+    "adblock_engine.h",
+    "adblock_engine.cc",
+    "boaz_adblock.h",
+    "adblock_request_type.h",
+    "adblock_request_type.cc",
+    "adblock_request_context.h",
+    "adblock_request_context.cc",
+    "adblock_url_loader_factory.h",
+    "adblock_url_loader_factory.cc",
+    "protected_media.h",
+    "protected_media.cc",
+    "page_pdf.h",
+    "page_pdf.cc",
+    "page_print.h",
+    "page_print.cc",
+    "page_emulation.h",
+    "page_emulation.cc",
+    "native_password_submission.h",
+    "native_password_submission.cc",
+    "native_extension_store_dialogs.h",
+    "native_extension_store_dialogs.mm",
+    "native_extension_prompt.h",
+    "native_extension_prompt.mm",
+    "extension_unpacked_install.h",
+    "extension_unpacked_install.mm",
+    "extension_install.h",
+    "extension_install.mm",
+    "extension_permission_review.h",
+    "extension_permission_review.mm",
+    "extension_optional_permissions.h",
+    "extension_optional_permissions.mm",
+    "extension_management.h",
+    "extension_management.cc",
+    "extension_actions.h",
+    "extension_actions.mm",
+    "extension_popup.h",
+    "extension_popup.mm",
+    "bootstrap.h",
+    "bootstrap.mm",
+    "native_view.mm",
+    "native_devtools.h",
+    "native_devtools.mm",
+    "native_location_bar.h",
+    "native_location_bar.mm",
+    "native_permission_prompt.h",
+    "native_permission_prompt.mm",
+    "native_site_permissions.h",
+    "native_site_permissions.cc",
+    "native_downloads.h",
+    "native_downloads.cc",
+    "native_cache_clearer.h",
+    "native_cache_clearer.cc",
+    "native_cookie_import.h",
+    "native_cookie_import.cc",
+    "native_automation.h",
+    "native_automation.cc",
+    "native_profiles.h",
+    "native_profiles.cc",
+    "native_window.h",
+    "native_window.mm",
+    "tab_registry.h",
+    "tab_registry.cc",
+    "visible_page_capture.h",
+    "visible_page_capture.cc",
+    "password_submission.h",
+    "password_submission.cc",
+    "trusted_script_channel.h",
+    "trusted_script_channel.cc",
+    "trusted_execution.h",
+    "trusted_execution.cc",
+  ]
+  deps = [
+    "//base",
+    "//crypto",
+    "//net",
+    "//chrome/app:generated_resources",
+    "//components/strings:components_strings",
+    "//chrome/browser",
+    "//chrome/browser/extensions",
+    "//chrome/browser/supervised_user",
+    "//chrome/browser/media/webrtc",
+    "//chrome/browser/printing",
+    "//chrome/browser/printing:impl",
+    "//components/printing/browser/print_to_pdf",
+    "//chrome/browser/ui/extensions",
+    "//chrome/browser/ui/extensions:impl",
+    "//chrome/browser/ui/views/extensions:security_dialog_tracker",
+    "//chrome/browser/ui:browser_commands",
+    "//chrome/browser/ui:browser_window_header",
+    "//chrome/browser/ui/tabs",
+    "//chrome/browser/ui/tabs:features",
+    "//components/download/public/common:public",
+    "//components/embedder_support:user_agent",
+    "//components/split_tabs",
+    "//components/tabs:public",
+    "//components/zoom",
+    "//components/find_in_page",
+    "//components/prefs",
+    "//third_party/blink/public/common",
+    "//components/web_modal",
+    "//content/public/browser",
+    "//mojo/public/cpp/bindings",
+    "//services/network/public/mojom",
+    "//extensions/browser",
+    "//chrome/browser/devtools",
+    "//chrome/browser/devtools:devtools_toggle_action",
+    "//ui/base",
+    "//ui/gfx",
+    "//ui/gfx/codec",
+    "//components/viz/common",
+    "//skia",
+    "//ui/native_theme",
+  ]
+  assert(boaz_adblock_library != "", "Build the pinned content-blocking library first.")
+  libs = [ boaz_adblock_library ]
+  frameworks = [ "AppKit.framework", "Security.framework", "SystemConfiguration.framework" ]
+}
+
+source_set("launch") {
+  sources = [ "launch.h", "launch.mm" ]
+  public = [ "launch.h" ]
+  deps = [ "//base" ]
+  frameworks = [ "Foundation.framework" ]
+}
+
+source_set("renderer") {
+  sources = [ "protected_media_renderer.h", "protected_media_renderer.cc", "adblock_renderer.h", "adblock_renderer.cc" ]
+  public_deps = [ ":protected_media_mojom" ]
+  deps = [ "//base", "//content/public/renderer", "//third_party/blink/public:blink_headers" ]
+}

@@ -32,7 +32,9 @@ final class MacModel {
     /// iCloud sync with the user's other devices (a picked folder only when iCloud isn't available).
     @ObservationIgnored private(set) var sync: LibrarySync?
     @ObservationIgnored weak var lastActiveBrowser: BrowserState?
-    @ObservationIgnored private var openWindowAction: OpenWindowAction?
+    @ObservationIgnored private var nativeOpenTab: ((String) -> Void)?
+    @ObservationIgnored private var openWindowAction: ((String, URL?) -> Void)?
+    @ObservationIgnored private var usesNativeOpenWindow = false
     @ObservationIgnored private var pendingExternalURLs: [URL] = []
     /// A URL waiting for the next main window to appear ("Open in Boaz" from a Quick Window with no window open).
     @ObservationIgnored var pendingMainURL: URL?
@@ -80,7 +82,11 @@ final class MacModel {
         }
         let store: BoazStore
         do {
+            #if BOAZ_CHROMIUM
+            store = try BoazStore.onDisk(applicationSupportDirectory: ChromiumLegacyStore.applicationSupportDirectory())
+            #else
             store = try BoazStore.onDisk()
+            #endif
             self.store = store
             let sync = LibrarySync(store: store)
             self.sync = sync
@@ -117,6 +123,9 @@ final class MacModel {
         // Not tied to the window whose task started the app: closing that window would stop the sidebar following
         // the library, and a new space wouldn't show until relaunch.
         Task { await observeSidebar(store) }
+        #if BOAZ_CHROMIUM
+        Task { await observeEngineRules(store) }
+        #endif
     }
 
     /// Follows the library for the life of the app. Any database error ends an observation, so it starts again,
@@ -160,6 +169,24 @@ final class MacModel {
             }
         }
     }
+
+    #if BOAZ_CHROMIUM
+    private func observeEngineRules(_ store: BoazStore) async {
+        var failures = 0
+        while !Task.isCancelled {
+            do {
+                for try await _ in store.siteEngineRuleUpdates() {
+                    failures = 0
+                    ChromiumEnginePreferences.rulesDidChange()
+                }
+                return
+            } catch {
+                failures += 1
+                try? await Task.sleep(for: .seconds(min(1 << min(failures, 5), 30)))
+            }
+        }
+    }
+    #endif
 
     private func archiveLoop() async {
         while !Task.isCancelled {
@@ -221,7 +248,22 @@ final class MacModel {
     // MARK: Windows
 
     func registerOpenWindow(_ action: OpenWindowAction) {
+        guard !usesNativeOpenWindow else { return }
+        openWindowAction = { id, url in
+            if let url { action(id: id, value: url) } else { action(id: id) }
+        }
+        drainPendingExternalURLs()
+    }
+
+    func registerNativeOpenWindow(_ action: @escaping (String, URL?) -> Void,
+                                  openTab: ((String) -> Void)? = nil) {
+        usesNativeOpenWindow = true
+        nativeOpenTab = openTab
         openWindowAction = action
+        drainPendingExternalURLs()
+    }
+
+    private func drainPendingExternalURLs() {
         guard !pendingExternalURLs.isEmpty else { return }
         let pending = pendingExternalURLs
         pendingExternalURLs = []
@@ -233,7 +275,7 @@ final class MacModel {
     func openExternal(_ urls: [URL]) {
         let urls = urls.filter { ["http", "https"].contains($0.scheme?.lowercased() ?? "") && $0.host() != nil }
         guard let openWindowAction else { pendingExternalURLs += urls; return }
-        for url in urls { openWindowAction(id: "little", value: url) }
+        for url in urls { openWindowAction("little", url) }
     }
 
     /// Opens a URL as a Today tab in the most recent main window, creating one if needed.
@@ -242,13 +284,15 @@ final class MacModel {
             browser.openTab(url, title: title)
             window.makeKeyAndOrderFront(nil)
             NSApp.activate()
+        } else if usesNativeOpenWindow {
+            openWindowAction?("main", url)
         } else {
             pendingMainURL = url
-            openWindowAction?(id: "main")
+            openWindowAction?("main", nil)
         }
     }
 
-    func openWindow(id: String) { openWindowAction?(id: id) }
+    func openWindow(id: String) { openWindowAction?(id, nil) }
 
     // MARK: Window restoration
 
@@ -260,6 +304,8 @@ final class MacModel {
         var tabID: String?
         var frame: String?
         var minimized: Bool?
+        var devToolsDockSide: String?
+        var devToolsLastDockSide: String?
 
         static func load() -> [SavedWindow] {
             guard let data = UserDefaults.standard.data(forKey: key) else { return [] }
@@ -286,7 +332,7 @@ final class MacModel {
     /// Saves the open main windows, back to front, for the next launch.
     func saveOpenWindows() {
         // Until every saved window is back, the list on disk is still the one to restore.
-        guard windowsToRestore.isEmpty else { return }
+        guard windowsToRestore.isEmpty, pendingNativeRestorations.isEmpty else { return }
         let order = NSApp.orderedWindows
         let depth = { (browser: BrowserState) in order.firstIndex { $0 === browser.window } ?? order.count }
         let windows = browsers.compactMap(\.browser).filter {
@@ -296,8 +342,27 @@ final class MacModel {
         guard !(isQuitting && windows.isEmpty) else { return }
         let saved = windows.sorted { depth($0) > depth($1) }
             .map { SavedWindow(spaceID: $0.spaceID, tabID: $0.activeTabID, frame: $0.window?.frameDescriptor,
-                               minimized: $0.window?.isMiniaturized) }
+                               minimized: $0.window?.isMiniaturized,
+                               devToolsDockSide: $0.devToolsDockSide,
+                               devToolsLastDockSide: $0.devToolsLastDockSide) }
         UserDefaults.standard.set(try? JSONEncoder().encode(saved), forKey: SavedWindow.key)
+    }
+
+    struct NativeWindowRestoration {
+        let id = UUID()
+        let saved: SavedWindow?
+    }
+    @ObservationIgnored private var pendingNativeRestorations: [UUID: NativeWindowRestoration] = [:]
+
+    func claimNativeSavedWindow() -> NativeWindowRestoration {
+        let claim = NativeWindowRestoration(saved: claimSavedWindow())
+        pendingNativeRestorations[claim.id] = claim
+        return claim
+    }
+
+    func finishNativeRestoration(_ claim: NativeWindowRestoration, succeeded: Bool) {
+        guard pendingNativeRestorations.removeValue(forKey: claim.id) != nil else { return }
+        if !succeeded, let saved = claim.saved { windowsToRestore.insert(saved, at: 0) }
     }
 
     /// The window a new main window brings back from the last run, if any. The first to ask opens the rest.
@@ -306,14 +371,19 @@ final class MacModel {
         let saved = windowsToRestore.removeFirst()
         if !openedRestoredWindows {
             openedRestoredWindows = true
-            for _ in windowsToRestore { openWindowAction?(id: "main") }
+            for _ in windowsToRestore { openWindowAction?("main", nil) }
         }
         return saved
     }
 
     func openInNewWindow(_ tab: SidebarItem) {
+        if usesNativeOpenWindow {
+            guard let nativeOpenTab else { showToast("Opening this tab in a new window is unavailable."); return }
+            nativeOpenTab(tab.id)
+            return
+        }
         pendingMainTabID = tab.id
-        openWindowAction?(id: "main")
+        openWindowAction?("main", nil)
     }
 
     // MARK: Reads

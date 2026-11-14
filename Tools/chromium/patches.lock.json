@@ -1,0 +1,750 @@
+{
+  "chromium_version": "157.0.8103.51",
+  "patches": [
+    {
+      "file": "patches/native-host.patch",
+      "sha256": "670f4403876cdc46fb3f59e1b718a789ea33cb7536bd6f59a922daab71105c35",
+      "files": [
+        {
+          "path": "chrome/BUILD.gn",
+          "before": "9e64db4b69b1c295f49bd65d2182aa788b5143465f630694284987b5a8b1031d",
+          "after": "66c7722e64e00dd68dfc4b640b079e827ded2cd7dbe4613d16a265c97d89917b"
+        },
+        {
+          "path": "chrome/browser/BUILD.gn",
+          "before": "d933e893d446407e1d7cd9ad925615e0f2f3930ce230b69d61ecd4b148cf41ba",
+          "after": "ce2b200b82255ad21f907426c992ca4bce59c2bce919111d57934bdd79d992ba"
+        },
+        {
+          "path": "chrome/browser/chrome_browser_main.cc",
+          "before": "be5816f38ac76dca5016726c3c7cd099ad27e8e7ab151bde6c09b0701fb1f370",
+          "after": "13f3fa7c0897bfdf252a40a24f15e879fe5b6bdbbf17182bb1523c96044c7d04"
+        },
+        {
+          "path": "chrome/browser/component_updater/BUILD.gn",
+          "before": "155d6a5712ff5b90c18b58ef4d1f21fdce2b4c89762bbb064711cd26ebef3c46",
+          "after": "eb2661d8cf84cf144e1f9ea07bc5d33a48670217d0b0994b35b42f87a22dd0db"
+        },
+        {
+          "path": "chrome/browser/component_updater/registration.cc",
+          "before": "09ca87c810fe7d441f48cc1918ac036d01a57dc2ffb5fe61f8d33d32cc88fcdb",
+          "after": "97ad87cd1d229346c1b1364d09c473335819ba0aba5c8aba9f5039925ebe3d63"
+        },
+        {
+          "path": "chrome/browser/ui/views/frame/BUILD.gn",
+          "before": "3ff00320fc3ad02f5d8044946e23ed6b1d73ce7a326312a0994d7c30bfe0f5eb",
+          "after": "b1a6f983e08f5bde200af731e8892f444a5681f2d35a938fcdaf5dc3f8590f3a"
+        },
+        {
+          "path": "chrome/browser/ui/views/frame/browser_window_factory.cc",
+          "before": "48515fc4eb091e99e99aa1e945750badd41e2c654aeac551856cda861498cf76",
+          "after": "f05e1d6dbe8afab99f17d200c98869aabcfa8eafba6414a829f4f2d209a98c5b"
+        },
+        {
+          "path": "chrome/browser/ui/views/permissions/BUILD.gn",
+          "before": "9cdfc4757c9339795fa28d9aab5b10bff5279fb4c2173009026bbf9c4ea624dd",
+          "after": "cd1dbe3ddb9850fd796fda61e1f076d92a75b4b89baf94758d27b94a0ce6e26e"
+        },
+        {
+          "path": "chrome/browser/ui/views/permissions/permission_prompt_factory.cc",
+          "before": "ad517e6807976e1036531015b139071cdf88a2a17d6aa9bbe2c2d7a015d5fac9",
+          "after": "3f6fa08643ea62e4964810c8837af50f11bf19587ccecfeff09072427ca153b6"
+        }
+      ]
+    },
+    {
+      "file": "patches/trusted-world.patch",
+      "sha256": "baa09f6d46779961778e07a52727f79d65a78978c7e902a61f4329fe23728d3b",
+      "files": [
+        {
+          "path": "chrome/common/chrome_isolated_world_ids.h",
+          "before": "6b5384da3ab0cb04ff100b19b8981e8846d51d0d405acf595ccbaf048d1e219a",
+          "after": "f42542e4565b2122176b0753bb79a059c9bd495135178dc800bd2c1a38573588"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-popup-dialogs.patch",
+      "sha256": "4f908e0dda45b5d6719a0b6a1d0c04b27725d57805ca0cdf9e164b0f8dbdd191",
+      "files": [
+        {
+          "path": "chrome/browser/extensions/extension_view.h",
+          "before": "fe24a6b519e2dacb75126daf78520fb3c91014fa915a25ab8ab625bbb4b0147e",
+          "after": "2dd20a31a3cac880c868cf7bc46b946f98fd2b616f6750777e0a25da8f4ac2a3"
+        },
+        {
+          "path": "chrome/browser/extensions/extension_view_host.h",
+          "before": "fc40f559b2737cad5fdb7454effb124cfd31d75981e36e0e63a559e8f668d241",
+          "after": "0f9b6529ed4467a0d3f5a5cab461d3737f6a1f72ad26bd9a664a2634c7714532"
+        },
+        {
+          "path": "chrome/browser/extensions/extension_view_host.cc",
+          "before": "c8a964e5d9eb06efda586e2dc096e2b9c9fea8736d96f0b87ff8a611290bd27f",
+          "after": "04df33bde854acbe709af40271d2ac9b6e9e977b9b30d77e75e3e18688725603"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-popup-dialog-policy-definition.patch",
+      "sha256": "c03083868f901ddcfa165d1307eea5325b637376b3dc3db91d4e9b355666c758",
+      "files": [
+        {
+          "path": "chrome/browser/extensions/extension_view.h",
+          "before": "2dd20a31a3cac880c868cf7bc46b946f98fd2b616f6750777e0a25da8f4ac2a3",
+          "after": "cfe3da71ee8cd8e4bd758486524174de4958377a9a1657c67f586db18bbe8394"
+        },
+        {
+          "path": "chrome/browser/extensions/extension_view_host.cc",
+          "before": "04df33bde854acbe709af40271d2ac9b6e9e977b9b30d77e75e3e18688725603",
+          "after": "c9ebb8d78f61fd4d1658e4975d73058ceee97959814ce044c8a376c95fac55b8"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-external-urls.patch",
+      "sha256": "45d7d4b2f24178bcb34b7710c0f488a61a82e8e4db289a7e555242217dfe4440",
+      "files": [
+        {
+          "path": "chrome/browser/app_controller_mac.mm",
+          "before": "02599209e0cd946487a6ae54c924e2d6749794c97ce96144dc2cd001320790c7",
+          "after": "3fa6ba6c0dd9ee35ac5d825683b3967c454bede82efdfd518eed2698fbb600c0"
+        }
+      ]
+    },
+    {
+      "file": "patches/boaz-keychain.patch",
+      "sha256": "6aa3c05149c61b6c590a6326572a44318c6909de46df1a795d3c5927cdb0a471",
+      "files": [
+        {
+          "path": "components/os_crypt/common/keychain_password_mac.mm",
+          "before": "dcf606d11c33974f57370e491b408232646f8ea8a55e2b5c513abf0dbc7a2214",
+          "after": "9aa46430a11482b2ebce0f4cefb5dce0dec76e97196f9f65a73f6519a2631d43"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-application-launch.patch",
+      "sha256": "c5b85b5d39093b2cede0173dbe1e3142b420a233c82de1789629ef6e6b55e9e1",
+      "files": [
+        {
+          "path": "chrome/app/chrome_main_delegate.cc",
+          "before": "96728003d989ce72cfabf6fb13a16170a236aa3602198029dae44d7dd99c42ed",
+          "after": "2e9a6999251eb19c29253d65b827dbf260a0e11c0aaa25dd588d319b82e8a028"
+        },
+        {
+          "path": "chrome/app/BUILD.gn",
+          "before": "83acc2fc9df9edbe6b8913bfd611ef4b7f8e11bf27782597dc515d9587e739e3",
+          "after": "8458ad3b29eb3e765ebc7ff680ffebe6143d536b25e8ad8ea26aaa3dff9caedd"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-menu-ownership.patch",
+      "sha256": "761f36f95fead846a8ce8e39dd24928ae98485daaad7bfa8489a79851c797a7a",
+      "files": [
+        {
+          "path": "chrome/browser/app_controller_mac.mm",
+          "before": "3fa6ba6c0dd9ee35ac5d825683b3967c454bede82efdfd518eed2698fbb600c0",
+          "after": "d95189b0ba039b20a3e553d1f9d6d18b523c6c05bcc9dcca180c46167076796c"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-mixed-engine-lifetime.patch",
+      "sha256": "645a176f854497b2ca22cb8afc320360e81bfaf15b34077cb3becc7d8bb24fbd",
+      "files": [
+        {
+          "path": "chrome/browser/ui/browser.cc",
+          "before": "a7b752cb25c769cf417098322cea01531a282f6487a50b512df52e8a36148204",
+          "after": "d4470049c141a7d2c97fcd748352274a20471529726d75516316267af2800be1"
+        },
+        {
+          "path": "chrome/browser/ui/unload_controller.cc",
+          "before": "f2910e6cae70fbb670e891c588f29b65ea3bfa7c4ffb3657b266a35e7a152531",
+          "after": "fc2e53d82f61b222373f788d74530ec263abb16a4f152d0f35b89d3eafff7069"
+        },
+        {
+          "path": "chrome/browser/ui/BUILD.gn",
+          "before": "68dc27f85edc849e292303170dde9444aad8c4f9bd2670fb73e5f0ac5d13f7c1",
+          "after": "abb1fe8eda4d06ee6ad0943aeb672f393dbe82abe0467aec5214752649abaa85"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-eme-observation.patch",
+      "sha256": "5c1219a04eb096e292890dfd09dd9860c6869a194c852af64e337afb7dd9b863",
+      "files": [
+        {
+          "path": "third_party/blink/public/platform/media/web_encrypted_media_client_impl.h",
+          "before": "dedf4411de6d3ef5747ce2d47b22eb992b43fd312cf53363cd580671ffd2e805",
+          "after": "5ca0dba0f387cc7635fae946dfc765befe2a0409252ebc9368ccb29a15a1e059"
+        },
+        {
+          "path": "third_party/blink/renderer/platform/media/web_encrypted_media_client_impl.cc",
+          "before": "df6165533cf5a4945f30684de96aae56bc916c7d8ad29310b2ac4ca67c78ec3d",
+          "after": "0e29ecbd923b782da1fef36d87907f54d921f50860239e990e08cd6612ab8fd2"
+        },
+        {
+          "path": "content/renderer/media/media_factory.cc",
+          "before": "8899cededdf073669c05e24f9254b5cd1d3f5e274a2d7c2e8c1fa0a9a313c18f",
+          "after": "bea0d753b00111578ff79d1dd9cf5182e1374bc573e0943baddedd3a740bb77c"
+        },
+        {
+          "path": "content/public/renderer/content_renderer_client.h",
+          "before": "eef66395134e636a4f340a2f080a33598ff71faef7350dc82d15c69db1610cec",
+          "after": "85a942ab0e33a03fdbe54a341c8930120a9a76d7d326a41c838c94993467cffd"
+        },
+        {
+          "path": "content/public/renderer/content_renderer_client.cc",
+          "before": "4f3f65130e9151255bc29f550b91dac954a3e269ff9b42404e8a9d2bdfbd6906",
+          "after": "eecdc30059cfdf57086c053fb8c0074d7a566da29e54c36e9780a1412b958af8"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-eme-browser-routing.patch",
+      "sha256": "07d47908c7f4fb34e4aadcc1ddc3c132e3222bfd708ab1622bddc4610f7485a6",
+      "files": [
+        {
+          "path": "chrome/browser/chrome_browser_interface_binders.cc",
+          "before": "a33bfefc6aa45afc87689bba7f1c97a8a67af2f262ae3d9a68d5e8994b3a62e7",
+          "after": "9ce9cd3cad391d35f5b487eccb1b6328cfffe29c15a713d64393f6fc9503a4bd"
+        },
+        {
+          "path": "chrome/renderer/chrome_content_renderer_client.h",
+          "before": "e11c4717ca3167495c180b51dfe708e008ebb1a9ca0b22c21f7288d5ba54d280",
+          "after": "67b751fb941bdcd5be1414cb51ff2a59476d148924c0e047d6da276ef350dac6"
+        },
+        {
+          "path": "chrome/renderer/chrome_content_renderer_client.cc",
+          "before": "5344bebff76601d605ad3b3cc96a8a507742ada486580b945a20a9515c338be6",
+          "after": "b0eb1edfee430208a4ac6d3008ae1c74147becebefc65eea3cca69bb16f7dd6b"
+        },
+        {
+          "path": "chrome/renderer/BUILD.gn",
+          "before": "f8da68988358e8cdef3e40f7e115070fa7b519774bb5a10848641c7627d06e70",
+          "after": "5146f0c6b6b82b1f938b1fc950e6c25bbf65794e7cb16f54ad2637d1b85978a9"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-eme-observer-lifetime.patch",
+      "sha256": "b2b13438159e2b90c13b99855cdd815d49c2eb6c2a3e825b546e84fdcd007343",
+      "files": [
+        {
+          "path": "content/renderer/media/media_factory.cc",
+          "before": "bea0d753b00111578ff79d1dd9cf5182e1374bc573e0943baddedd3a740bb77c",
+          "after": "a99c7474c61c741bb778085887aac25e9f71ffbb736791099caaa1b77cce83e8"
+        },
+        {
+          "path": "content/renderer/media/media_factory.h",
+          "before": "27adb8c62dd3c55a8a1261eab08aa8798edbe85ab6c6ba0a1929d9b82ff5bf48",
+          "after": "e5ff015e3b048ee039dbe71f13e808c2c1ace8e9640b2b6cac4196601d3ccd34"
+        }
+      ]
+    },
+    {
+      "file": "patches/webauthn-native-window.patch",
+      "sha256": "a65c422700e9648715e7a7e226cb089bdfbd4bc8e04c4b351fc2f1aff198ac16",
+      "files": [
+        {
+          "path": "chrome/browser/webauthn/chrome_authenticator_request_delegate.cc",
+          "before": "5e3d40d3abeb6ec142dfb19bec5c89e9d1e7581cca49da78336b03e12eaaad8b",
+          "after": "4c2b4e6fdcd50e44479304205be73cdfadc0205a56da06527340121a3c122969"
+        },
+        {
+          "path": "chrome/browser/webauthn/BUILD.gn",
+          "before": "9062dbcc7b8f795f3f8948a626f581f2fe804e3cc58a5a4e97ec49124702d4af",
+          "after": "1651b31cd1de4c5276eb2ca483b5980749d1b65e105defb19394b051a94735db"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-reader-detach.patch",
+      "sha256": "c861f34bf910f9ac965d55cd7552875dd408b3df6f95e9ff79d2a47c30f2a199",
+      "files": [
+        {
+          "path": "chrome/browser/ui/read_anything/read_anything_side_panel_controller.cc",
+          "before": "e2f2802eaf7913049e848a92d3a9e7b3035a4a73301482df47251e0a282ff965",
+          "after": "b265286f3eef8f384dbf78e6307a644f35c27d205fb3a1fb93340c59a7a63903"
+        },
+        {
+          "path": "chrome/browser/ui/read_anything/BUILD.gn",
+          "before": "df38dbf19fd9fb6a0fce16aa224e3f499723cc69814528fe8967de4d6ff56c96",
+          "after": "c835a2b58ba323b3ce23d3c5e9f6f6568eacce0d2140c5ef7221c43de84f1643"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-javascript-preference.patch",
+      "sha256": "e5f99b52844da2a6673394c5029167d4ba4742ff0827a2e133c40f320ea5f603",
+      "files": [
+        {
+          "path": "chrome/browser/chrome_content_browser_client.cc",
+          "before": "73e49eaa6a0f3dfa0c2d84a08ed173f6e7952f7d0676e37601c8d4eb0895f0fe",
+          "after": "465358c1aa545340cdfa172740870c2076df189491e78d6f4e75d5f800e621b4"
+        }
+      ]
+    },
+    {
+      "file": "patches/authenticated-automation.patch",
+      "sha256": "8e7e5e2b11eaeb164f86da85cd3aa74bdcc7325c86ff448a0766901dc0864d53",
+      "files": [
+        {
+          "path": "content/public/browser/devtools_agent_host.h",
+          "before": "83db13503dabd20ac879cd9ef1a990fa0855a5de094f4f9ab95bc6eb93013409",
+          "after": "01aad6a7e09eb32d554926777750e42a9289c48a550657ef037438b7b5f15d84"
+        },
+        {
+          "path": "content/browser/devtools/devtools_agent_host_impl.cc",
+          "before": "108ffb6c3660072d42ef10d1fa6a7d16edc623cbf083bde8d8f4a45c2e4602bc",
+          "after": "ddf523acc275b4bae35fc0c974411271b28d3990493561b643ed97043dd1a43c"
+        },
+        {
+          "path": "content/browser/devtools/devtools_http_handler.h",
+          "before": "dc107a3653e66005cd72a0f40207cc0e90a8a8f1e3757ecdd0c6f9724e4ad554",
+          "after": "918dfb2e51dc5f14e49180fcd2dc1e14715cb66e13b4bc19fd7beeee9176e44e"
+        },
+        {
+          "path": "content/browser/devtools/devtools_http_handler.cc",
+          "before": "c9b306d5c2aeac078d50c6ebbfb44727c301ae11e5309a87da6a596f7d105680",
+          "after": "c51c747dc5321658f5cf1535e58f12ab4114d122f1e6400b6f064702b67c8201"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-owned-automation-startup.patch",
+      "sha256": "21540da22c041e071f7ab89e3fb3c1b2a97685e904d763d1b698e61c37bd904d",
+      "files": [
+        {
+          "path": "chrome/browser/devtools/remote_debugging_server.cc",
+          "before": "ea72757acd7c3bff419db92bf5be101256c1bc813fcb87174a401fc8856901cc",
+          "after": "85ca51b6470804b6d554c8999e5fa500c3903784f968a7bfd7327b6a98da2c9b"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-devtools-panels.patch",
+      "sha256": "c1218af8ddfa70680fdc39b7022c02cdf3cbb0276a67b078e5b13a31d38b0c17",
+      "files": [
+        {
+          "path": "chrome/browser/devtools/devtools_toggle_action.h",
+          "before": "cb0a4e2a97258229b0422fc5112cd4601c4ae7de6546a530dedde40c92922e04",
+          "after": "e93a106d8711925c899ed89d56dafb2c42a37700b8247ef60c92171e51e5e6ae"
+        },
+        {
+          "path": "chrome/browser/devtools/devtools_toggle_action.cc",
+          "before": "0e72a64c970430ce8de29e674bb32b0576433d7b04d1ac329a2efc186e0499ac",
+          "after": "96743092dc5d96f5ef6c55402e598368323f072e53b8d9d07b04b9c2034665fa"
+        },
+        {
+          "path": "chrome/browser/devtools/devtools_window.cc",
+          "before": "0ec97f462fab727d46f778d7ce87e0b100488a68f8456f6f1a2c6139a321aa8f",
+          "after": "0d074e6f0a7a3ce59dbb182d08e06e71e30e1f64580848326f320a2213127adf"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-devtools-docking.patch",
+      "sha256": "df3222460ca94dfe93daa44ceaeb2fb51e83641faf6add8711544a5562fd832c",
+      "files": [
+        {
+          "path": "chrome/browser/devtools/devtools_window.cc",
+          "before": "0d074e6f0a7a3ce59dbb182d08e06e71e30e1f64580848326f320a2213127adf",
+          "after": "8ae652ecb4f4f65e7216650e011e95111ce160774ac4c19e7f9f2366e46615cb"
+        },
+        {
+          "path": "chrome/browser/devtools/devtools_window_views.cc",
+          "before": "1a573f59f8a485d46eed80a138c947b5e786aa9bcda4c4f858b40bb08c80dc86",
+          "after": "111b7b56bd54e28b75dc29b5fe8bdfdebef7ddb54a9239967f0d82aa0a5fd941"
+        },
+        {
+          "path": "chrome/browser/devtools/BUILD.gn",
+          "before": "9042051655d68c9dbb526c5d6de71c6203d0c65dddde5d8ebf849f7cbf727833",
+          "after": "373d2d44b3039447610f77b37281834bc55c438dd227d1c459355b61a62bb2da"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-devtools-window-preferences.patch",
+      "sha256": "bb38fe5fdc3ea74851b65dbf6e36797dc68bb7a63dc5f40d8bb4b662f97a5044",
+      "files": [
+        {
+          "path": "chrome/browser/devtools/devtools_ui_bindings.cc",
+          "before": "f77bec987f989e0009f332a8afbf373196a9b4de14db1cb50e979755a02d68b5",
+          "after": "9c6beba6b87316e118ed97c222d5da3257d801642264a4ff7a7253f4bbe8a3cc"
+        },
+        {
+          "path": "chrome/browser/devtools/devtools_window.cc",
+          "before": "8ae652ecb4f4f65e7216650e011e95111ce160774ac4c19e7f9f2366e46615cb",
+          "after": "a805118becb4ce1447bffc66722f9738b2cb771bf2010dde3b242098868368d2"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-password-ownership.patch",
+      "sha256": "69bb40efcf95e73c0ebda569727b8d5710975599479d924da4203009812fa935",
+      "files": [
+        {
+          "path": "components/password_manager/core/browser/password_manager_client.h",
+          "before": "0263010b6886cc626deb6b0bedd6010b0fea6e224e94c9743495608e5ac86162",
+          "after": "f62fa397e3cab18aec63c9bf84b67add092db7f15176bf128f7134a64a4ce21f"
+        },
+        {
+          "path": "chrome/browser/password_manager/chrome_password_manager_client.h",
+          "before": "6e7f769b825bfbfebd1f2e91048c61b10dd24a82bcb95bd07b1fe87e446bb845",
+          "after": "460082a2382a880baa42c7dfa40bc6a12eeae8d6752352b26d3f9b55cbe9f2d4"
+        },
+        {
+          "path": "chrome/browser/password_manager/chrome_password_manager_client.cc",
+          "before": "9aed194ffcf2a1210c331e511e87401c7c2c4a999c7def029de7406ea8ecb6b5",
+          "after": "202bcb5242526f8d4395b6f8b4b1215da306098514d1dc9ec507f5dd624e4adf"
+        },
+        {
+          "path": "chrome/browser/password_manager/BUILD.gn",
+          "before": "525aef5a16011a7e00e39f69a0983471658d68a0f9e885898b9a9bddec1e6103",
+          "after": "7ae7c77312f7f0c90f0ed765904b0315358a2639d7b64b0db105017ca33b8677"
+        },
+        {
+          "path": "components/password_manager/core/browser/password_save_manager_impl.cc",
+          "before": "23115e1064406ec2db993ac209311f6cd88e9ecf32ca4ce9c53db6dacd3dcd13",
+          "after": "56ba41cd73a6653ca25448f2468ae0b1201f894664e0e20b7079279ab6520e83"
+        },
+        {
+          "path": "components/password_manager/core/browser/password_manager.cc",
+          "before": "549a8d1f6a25ebfb173dac98b68e119966011a8eeabb1d9a734d9ee471180172",
+          "after": "a2e69ad4b0b4b9a60800a519315763425fd41caf99081d4cb248135a12191321"
+        },
+        {
+          "path": "components/password_manager/content/browser/content_password_manager_driver.cc",
+          "before": "eecaa0f5d59d1a63ed73476d3cc285df1c4abbdd403350f69d388ed12adb8255",
+          "after": "44c1fe0119e6ef4823f9008b6c01452f7764cabd9d397603c0009f562478a536"
+        },
+        {
+          "path": "components/password_manager/core/browser/form_fetcher_impl.cc",
+          "before": "b5e01c288da5837c34eb49633f7a1a5449b49805e6f44bbce1200075d45a1fa1",
+          "after": "177fe85ee2e36f14c06f1daf15d6b89f184f4a8f2252b85edb80f01cdf5f69b0"
+        },
+        {
+          "path": "components/password_manager/core/browser/credential_manager_impl.cc",
+          "before": "da9cfa6839dc48275147b4eee8e2a9619ef73cfd7379f1835dafc72057ec09bf",
+          "after": "0322f60fad6db19bf1d193216f6dda9597e5b6ff53dd13f7da04246b31598d0c"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-password-submission.patch",
+      "sha256": "2e36f66d09b9c46eb7621f0601786d99615be2af4cef543151e17c0a3e0cad5e",
+      "files": [
+        {
+          "path": "components/password_manager/core/browser/password_manager_client.h",
+          "before": "f62fa397e3cab18aec63c9bf84b67add092db7f15176bf128f7134a64a4ce21f",
+          "after": "141c8a3b970130e89498b450329d826bbae41a40547c559474e048230a746385"
+        },
+        {
+          "path": "components/password_manager/core/browser/password_form_manager.h",
+          "before": "8a3bd82c31fa9acc7c3c212ffde7a02f66a4e660c32d13f2153061c4a2b3303d",
+          "after": "67ce2e0a064cf5b90a29440a2e84fbe4fdc638a11a7279189af731e5f38553bc"
+        },
+        {
+          "path": "components/password_manager/core/browser/password_form_manager.cc",
+          "before": "1e9b39900874ef2731dd50ec5b44015a6759cdb6d02cfba4dec87d4643c77d52",
+          "after": "6c1045479eebd4f2ef3e4112bea3eacaffbae450ac8390dfbc8df5c337c92d00"
+        },
+        {
+          "path": "components/password_manager/core/browser/password_manager.cc",
+          "before": "a2e69ad4b0b4b9a60800a519315763425fd41caf99081d4cb248135a12191321",
+          "after": "0e6b35c206e1e79eb26bc50ae86e8c6b912813a44880b7a72fd2e57a7db8b6b5"
+        },
+        {
+          "path": "chrome/browser/password_manager/chrome_password_manager_client.h",
+          "before": "460082a2382a880baa42c7dfa40bc6a12eeae8d6752352b26d3f9b55cbe9f2d4",
+          "after": "0abf58abb0fca689b775a962d2ab2a31dadc4a572e3d1c94d7b2ee3ef9677489"
+        },
+        {
+          "path": "chrome/browser/password_manager/chrome_password_manager_client.cc",
+          "before": "202bcb5242526f8d4395b6f8b4b1215da306098514d1dc9ec507f5dd624e4adf",
+          "after": "7bc2ba9a49d37f8db6ade1f99763d1dc3434a8a21441bcb92598725d8a4f8b86"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-password-reset-submission.patch",
+      "sha256": "3ca3056ef65f83350934fe0f135898411be9c6ae31ccd69245eced1c93794521",
+      "files": [
+        {
+          "path": "components/password_manager/core/browser/password_manager.cc",
+          "before": "0e6b35c206e1e79eb26bc50ae86e8c6b912813a44880b7a72fd2e57a7db8b6b5",
+          "after": "1b30fb71b5fda13297f88fd8001df62a4815715ef30ee6afd24c4d9d2959461a"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-password-client-defaults.patch",
+      "sha256": "292e617e478e19449674079dd4ca5518db020e30e9820acf0c64ada0a6a178ae",
+      "files": [
+        {
+          "path": "components/password_manager/core/browser/password_manager_client.h",
+          "before": "141c8a3b970130e89498b450329d826bbae41a40547c559474e048230a746385",
+          "after": "81628c50f8f1903fd4b4d9d4f178aee56f459c0a7799563b7013007fdadf6e52"
+        },
+        {
+          "path": "components/password_manager/core/browser/password_manager_client.cc",
+          "before": "7ff738760ed47cd36792b58af090f38753da5bc56efe5f717fb0f584612a0d55",
+          "after": "485e676671c9eb1661989a72c57150708ba293c248d4ff86778977d2af835243"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-password-generation-callback.patch",
+      "sha256": "2323445c95b288884432a18c5921aec8f7b070ee133151d0b63283b0b42502bb",
+      "files": [
+        {
+          "path": "components/password_manager/content/browser/content_password_manager_driver.cc",
+          "before": "44c1fe0119e6ef4823f9008b6c01452f7764cabd9d397603c0009f562478a536",
+          "after": "441b53e4a936e4652ad72f8374d1c048296e00d797576d53182a4f7b01cee1e6"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-extension-permission-dialog.patch",
+      "sha256": "9a4c6d54a49b9842ef50f3547aa37c58f75193e5db37839d1b1086f1ce7262a5",
+      "files": [
+        {
+          "path": "chrome/browser/ui/views/extensions/extension_install_dialog_view.cc",
+          "before": "78eeccae5dfa74cace459110d044200fc3de4951d8d8152f16ee8302cf3f4ae0",
+          "after": "7524425a013906a7c9a5df9676c58851ce039b6d3f0ef99c8061c1c9c7d4811b"
+        },
+        {
+          "path": "chrome/browser/ui/views/extensions/BUILD.gn",
+          "before": "133f3bd62216146451c912e435a8b94d77d8fcf41ac092ec1d9ae3c04e607b2b",
+          "after": "e1514ba17c0ed184e74aaf5aae8834cd975d2eb4fa17fbfadd070aa4cd1ee2a0"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-extension-store-dialogs.patch",
+      "sha256": "a06a4e5430984b09c18654606b48586e7a508d7e3ba6f4b14164fac5c2b8d5e5",
+      "files": [
+        {
+          "path": "chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.cc",
+          "before": "dbcc4b37946704755ef72948c6d9a739b901e371de7b14327981127d9c113882",
+          "after": "5c6023f44dd7e33f9d6b88d62893c717a2b5e90aee72bc5dc90e19c86edc152e"
+        },
+        {
+          "path": "chrome/browser/extensions/BUILD.gn",
+          "before": "4960c9dc18e351204cdeb1b0b0995520abfb306f08641d0b0b870867dc7c2061",
+          "after": "852f810fdc4bf336acb7aced3370c50c9de9e18f7874e9fc4a91f84a75154c1e"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-extension-post-install-ui.patch",
+      "sha256": "5a81d2a086082e21f35e896c8d4653d45c3d96fd74e625d126e72dce3fe292e7",
+      "files": [
+        {
+          "path": "chrome/browser/extensions/extension_install_prompt.cc",
+          "before": "0fb04d8bc95c535ef3670214cbf55b16598378f665cf6d0b9bd0a496979a9fe6",
+          "after": "67126ade1a5f7c6d1b918a942978494abd54f147964812f7425380c69e7c8fa3"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-extension-parent-approval.patch",
+      "sha256": "f259e1511ab0362553b0969d6713af2f4ed53cec18c68ae0aca36038253ebd9c",
+      "files": [
+        {
+          "path": "extensions/browser/api/webstore_private/webstore_private_api_delegate.h",
+          "before": "6ca60b3e7708931449b668cd50fccf97a3bf1757e80651557a8751a85a4215b3",
+          "after": "99730e5c8fb5cf1764a7cb217cc48508c83b60df7277d5823ba1c1de5d594001"
+        },
+        {
+          "path": "chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.h",
+          "before": "f220e3e8b81ff517b296230f57bbde9dee58a0e290205546c662f3c561ecb935",
+          "after": "1a37f2079771ab9522c79d798a18a20ea60331537e326a0a3c229355dd5a35c0"
+        },
+        {
+          "path": "chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.cc",
+          "before": "5c6023f44dd7e33f9d6b88d62893c717a2b5e90aee72bc5dc90e19c86edc152e",
+          "after": "9c32b19c8844e7fd76401c98172e49cd8efcd7e6707b6210ad3b69b858124783"
+        },
+        {
+          "path": "extensions/browser/api/webstore_private/webstore_private_api.cc",
+          "before": "80d9e2667db465594a3a26ca3c099ee09402f0138a34f4abe7dd0ff0690c1bc6",
+          "after": "d7895e42f95caf6221fee4e928e8cafeb1156f93f528bb33fcce8be9668c969b"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-extension-disabled-ui.patch",
+      "sha256": "2c881324a08aa10c23c45a5efec585f6a2da2920e4956d9ae9e0f3cee7e62158",
+      "files": [
+        {
+          "path": "chrome/browser/extensions/chrome_extension_registrar_delegate.cc",
+          "before": "876a47835cc2de001acf30a23324b71039c631d95de8384b9b55a9111a28b44d",
+          "after": "a8a1b5d53f4c7f5a60d9923d6131c3b1b0dfe465e98bc6372d78028e9ba1fad0"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-extension-optional-permissions.patch",
+      "sha256": "43265ce85a5a55730befa8d58a015eabf337aa28b9646b034bf3eb44cc1c2779",
+      "files": [
+        {
+          "path": "extensions/browser/extensions_browser_client.h",
+          "before": "4ba1cf1452b0b539315e9cca8eb9de0e177de5c43b31692a04e9bfc940ce9a0b",
+          "after": "530193d39f10e2ade123cb79a033401898d8faad09164d6a514883ccca735f32"
+        },
+        {
+          "path": "extensions/browser/extensions_browser_client.cc",
+          "before": "789395347c73bf43068df2ae1c2b14d6212d0c4450c05f576ea5e16e8d172b0a",
+          "after": "98be90373bfda91abb0be9e70db4dd07302a52d4529459fb7020d7e8d6973528"
+        },
+        {
+          "path": "chrome/browser/extensions/chrome_extensions_browser_client.h",
+          "before": "b27744584d8e5714ed5c5f9449135527ac6ed546986cd9e5556d68ff85fefc27",
+          "after": "3d86cceb5a627b398d5cd92a88187fbb364f97fbd5ccef57243a0ccd500e0a9e"
+        },
+        {
+          "path": "chrome/browser/extensions/chrome_extensions_browser_client.cc",
+          "before": "2315c8829fd1a875dc595530ea40d2ce5d479e945003682e497af41ef7d9707b",
+          "after": "36fba23b114ff6a6d7e96e4f97ca307c1c5d25f727109cb7a7ba233d16b3f2fa"
+        },
+        {
+          "path": "extensions/browser/api/permissions/permissions_api.cc",
+          "before": "d09661224cf282fe35dbad1242356bebbf72d6cb84031d03006b060079c49299",
+          "after": "e8431b9a4ee9d78f29f0a5c77a98ba2984fb39b4d4d0fafb6eee4cc7630e515a"
+        },
+        {
+          "path": "chrome/browser/extensions/BUILD.gn",
+          "before": "852f810fdc4bf336acb7aced3370c50c9de9e18f7874e9fc4a91f84a75154c1e",
+          "after": "e5e26957be7c814566bbf609718b286bb6f9416f1322ac09dd6f64af232a3461"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-extension-permission-factory-types.patch",
+      "sha256": "2602fd64143eb7193fa484bcd9a535b182e5287b9ae913b3aded4bef36c14824",
+      "files": [
+        {
+          "path": "chrome/browser/extensions/chrome_extensions_browser_client.cc",
+          "before": "36fba23b114ff6a6d7e96e4f97ca307c1c5d25f727109cb7a7ba233d16b3f2fa",
+          "after": "f848a231ce464797ffb109bbf9ab9c11fcbb19df33833034e709e627105675a2"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-auto-pip-preference.patch",
+      "sha256": "8089359ff39c7349d431e96527bbeb77f7c93953a1d410698c3f1b90fe5e7e86",
+      "files": [
+        {
+          "path": "chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.cc",
+          "before": "6366c3834470b113f7837d1b0d2c843f190be41f2c3ca6db13ccd321d7d01f2b",
+          "after": "f1762fbc23031fe031b7ad1538a5a860f29079473bd5eb7ed6d4cdede117be41"
+        },
+        {
+          "path": "chrome/browser/picture_in_picture/BUILD.gn",
+          "before": "478368a5601dc3f140db5119e6d3b7691b974dca5fcaf4c23ff3b351fa38d37e",
+          "after": "6a3fcc97effc3042e1e88e2edc4aff3531b6e838e9ca4c2e22d924ebc207d1a4"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-http-security-warning.patch",
+      "sha256": "3025b6d599950f76daeb4f9023723e4a9e6e92ff656586a8807b26b2b651288a",
+      "files": [
+        {
+          "path": "chrome/browser/ssl/ask_before_http_dialog_controller.h",
+          "before": "fc25396f8536bfb15d7db363e4243aa71109580819501386de501061a96ac7ca",
+          "after": "195ff49fa54209bcd8b1590bf85bee0308f98bb68b565c06738ce66a2e0eb408"
+        },
+        {
+          "path": "chrome/browser/ssl/ask_before_http_dialog_controller.cc",
+          "before": "f794f60e41fcad9b414f2eef4c6660ead72c1935c0a477ec0bc02ef4a2787671",
+          "after": "bd5825bfe5028f465259aad8d5806d7c32f4d914f348cbf185eb7f04aec00c4e"
+        },
+        {
+          "path": "chrome/browser/ssl/BUILD.gn",
+          "before": "4a536772beb908a79d7ed3c584572778d86fe9d8df089223015e69894cb7c607",
+          "after": "7514972cccb13fecd4cb40f78045e4214eb4c949b024cb53de7f9534272b0de3"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-http-back-to-safety.patch",
+      "sha256": "2c485e4c2e32cd7478c9d9f180f9c6cf693c5c24237607e511aacd98f91d8928",
+      "files": [
+        {
+          "path": "chrome/browser/ssl/ask_before_http_dialog_controller.cc",
+          "before": "bd5825bfe5028f465259aad8d5806d7c32f4d914f348cbf185eb7f04aec00c4e",
+          "after": "f4b5886528080a48b5992475bd4f0a0471ae977d86ebf3da38b90e430beb056d"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-blocking-renderer-lifetime.patch",
+      "sha256": "c3ac3663d98c19f3743ac97af45349b175ea32f4cdadd829af25d959e27502bb",
+      "files": [
+        {
+          "path": "chrome/renderer/chrome_content_renderer_client.cc",
+          "before": "b0eb1edfee430208a4ac6d3008ae1c74147becebefc65eea3cca69bb16f7dd6b",
+          "after": "c017c275d572af8e9de10b6fd57fcb59c2d7fab6f69cad55f7829a8ed1d6d8ad"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-blocking-request-factory.patch",
+      "sha256": "748537f69143ecf8707123a54d49f7c87d8ca4d529dd2e0e84b9e30f65802ab4",
+      "files": [
+        {
+          "path": "chrome/browser/chrome_content_browser_client.cc",
+          "before": "465358c1aa545340cdfa172740870c2076df189491e78d6f4e75d5f800e621b4",
+          "after": "3f8b37bd336a6f5d7182d192f46405e8bb0b2b4ad0b88f2dd4aa78125b6940a5"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-blocking-navigation.patch",
+      "sha256": "915b8472effa8bcaf562ca41a9c01a78d3f701638f5f5281ae9900b352f3e4ed",
+      "files": [
+        {
+          "path": "chrome/browser/chrome_content_browser_client.cc",
+          "before": "3f8b37bd336a6f5d7182d192f46405e8bb0b2b4ad0b88f2dd4aa78125b6940a5",
+          "after": "5e39aa1b925856297b65a6e6917760e8531eb7efb30cc15e7f21b16e0f3fb07c"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-blocking-popup.patch",
+      "sha256": "0a221d866bba29b232c2919a8f4b7cb76d845d4b9753f797fcfeeed34b84bb98",
+      "files": [
+        {
+          "path": "chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc",
+          "before": "9ebd62de115c3647df5b659fb5f6d78029cd529144380ce82fdc0660b68ee031",
+          "after": "ea693590b66642f18c49f052f75b1b1a0438423a2d48cebe7ca899a2357d3360"
+        },
+        {
+          "path": "chrome/browser/ui/browser_web_contents_delegate/BUILD.gn",
+          "before": "5e1ffa831fe1b7b8cea2e6aec6d5b7311309fa8894a8cb737827f3843c499c36",
+          "after": "1277805f22a23de23b893e11e3713bdc2ca882ff3b4083ca89f5db4dd804b350"
+        },
+        {
+          "path": "chrome/browser/chrome_content_browser_client.cc",
+          "before": "5e39aa1b925856297b65a6e6917760e8531eb7efb30cc15e7f21b16e0f3fb07c",
+          "after": "c32e82b6ffd8717b6021de00415f7bdb36c92573ba6429be48913fa8481cd8e5"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-application-reopen.patch",
+      "sha256": "4503b19109a9fbe9b07c61ca5ac35754636ad931615ce1be2128093827a956cf",
+      "files": [
+        {
+          "path": "chrome/browser/app_controller_mac.mm",
+          "before": "d95189b0ba039b20a3e553d1f9d6d18b523c6c05bcc9dcca180c46167076796c",
+          "after": "50391598030409a9fcc1bd38682acb048ffcbd4deaa804a8c28963ac78172586"
+        }
+      ]
+    }
+  ]
+}

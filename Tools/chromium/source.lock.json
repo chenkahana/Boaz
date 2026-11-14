@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "purpose": "Direct Chromium source feasibility; runtime and distribution acceptance pending",
+  "chromium_version": "157.0.8103.51",
+  "archive_url": "https://commondatastorage.googleapis.com/chromium-browser-official/chromium-157.0.8103.51-lite.tar.xz",
+  "archive_name": "chromium-157.0.8103.51-lite.tar.xz",
+  "archive_sha256": "c66efa0eb499713d018493e1973155a057576435a7e5d5ed0e5ca131b2ae3019",
+  "archive_root": "chromium-157.0.8103.51",
+  "storage_root": "/Volumes/BoazBuild/cef/direct",
+  "python": "/opt/homebrew/bin/python3.12"
+}

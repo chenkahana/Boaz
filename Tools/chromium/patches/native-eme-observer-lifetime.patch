@@ -1,0 +1,37 @@
+--- a/content/renderer/media/media_factory.cc
++++ b/content/renderer/media/media_factory.cc
+@@ -314,6 +314,7 @@
+       request_routing_token_cb_(std::move(request_routing_token_cb)) {}
+ 
+ MediaFactory::~MediaFactory() {
++  weak_factory_.InvalidateWeakPtrs();
+   // Release the DecoderFactory to the media thread since it may still be in use
+   // there due to pending pipeline Stop() calls. Once each Stop() completes, no
+   // new tasks using the DecoderFactory will execute, so we don't need to worry
+@@ -515,12 +516,12 @@
+             render_frame_->GetMediaPermission(),
+             std::make_unique<LocalFrameDelegate>(render_frame_->GetWebFrame()),
+             base::BindRepeating(
+-                [](base::WeakPtr<RenderFrameImpl> frame, const std::string& key_system) {
+-                  if (frame) {
++                [](base::WeakPtr<MediaFactory> factory, const std::string& key_system) {
++                  if (factory) {
+                     GetContentClient()->renderer()->OnRequestMediaKeySystemAccess(
+-                        frame.get(), key_system);
++                        factory->render_frame_, key_system);
+                   }
+-                }, render_frame_->GetWeakPtr()));
++                }, weak_factory_.GetWeakPtr()));
+   }
+   return web_encrypted_media_client_.get();
+ }
+--- a/content/renderer/media/media_factory.h
++++ b/content/renderer/media/media_factory.h
+@@ -208,6 +208,7 @@
+   std::unique_ptr<cast_streaming::ResourceProvider>
+       cast_streaming_resource_provider_;
+ #endif
++  base::WeakPtrFactory<MediaFactory> weak_factory_{this};
+ };
+ 
+ }  // namespace content

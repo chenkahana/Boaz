@@ -1,0 +1,34 @@
+--- a/chrome/browser/extensions/extension_view.h
++++ b/chrome/browser/extensions/extension_view.h
+@@ -56,6 +56,8 @@
+ 
+   // Method for the ExtensionHost to notify that the extension page has loaded.
+   virtual void OnLoaded() = 0;
++
++  virtual bool ShouldSuppressDialogs() const { return false; }
+ };
+ 
+ }  // namespace extensions
+--- a/chrome/browser/extensions/extension_view_host.h
++++ b/chrome/browser/extensions/extension_view_host.h
+@@ -89,6 +89,7 @@
+       content::NavigationHandle* navigation_handle) override;
+ 
+   // content::WebContentsDelegate
++  bool ShouldSuppressDialogs(content::WebContents* source) override;
+   content::WebContents* OpenURLFromTab(
+       content::WebContents* source,
+       const content::OpenURLParams& params,
+--- a/chrome/browser/extensions/extension_view_host.cc
++++ b/chrome/browser/extensions/extension_view_host.cc
+@@ -53,6 +53,10 @@
+ }
+ 
+ ExtensionViewHost::~ExtensionViewHost() = default;
++
++bool ExtensionViewHost::ShouldSuppressDialogs(content::WebContents* source) {
++  return view_ && view_->ShouldSuppressDialogs();
++}
+ 
+ bool ExtensionViewHost::UnhandledKeyboardEvent(
+     content::WebContents* source,

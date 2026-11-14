@@ -4,11 +4,237 @@ import Network
 import SwiftUI
 import WebKit
 
-/// One tab's live page. In split view it gets a slim header that focuses the pane when clicked.
 struct TabPane: View {
     @Environment(BrowserState.self) private var browser
     let tab: SidebarItem
     let inSplit: Bool
+
+    var body: some View {
+        #if BOAZ_CHROMIUM
+        VStack(spacing: 0) {
+            if browser.showsProtectedMediaBanner(for: tab.id) {
+                HStack {
+                    Text("Opened in WebKit for protected video")
+                    Spacer()
+                    Button("Move Back") { Task { await browser.moveProtectedMediaBack(tab.id) } }
+                }.font(.caption).padding(8).background(.bar)
+            }
+        if browser.engineKind(for: tab) == .chromium {
+            ChromiumTabPane(tab: tab, inSplit: inSplit).id(tab.id + ":chromium")
+        } else {
+            RoutedWebKitPane(tab: tab, inSplit: inSplit).id(tab.id + ":webkit")
+        }
+        }
+        #else
+        WebKitTabPane(tab: tab, inSplit: inSplit, page: browser.page(for: tab))
+        #endif
+    }
+}
+
+#if BOAZ_CHROMIUM
+private struct RoutedWebKitPane: View {
+    @Environment(BrowserState.self) private var browser
+    let tab: SidebarItem
+    let inSplit: Bool
+    @State private var page: WebPage?
+    @State private var failed = false
+    var body: some View {
+        Group {
+            if let page { WebKitTabPane(tab: tab, inSplit: inSplit, page: page) }
+            else if failed {
+                ContentUnavailableView("Couldn't Open WebKit", systemImage: "exclamationmark.triangle",
+                    description: Text("The selected engine could not open this page."))
+            } else { ProgressView("Opening page…") }
+        }.task(id: tab.id) {
+            do {
+                let engine = try browser.enginePage(for: tab)
+                guard let adapter = engine.adapter as? WebKitEnginePageAdapter else { failed = true; return }
+                page = adapter.page
+            } catch { failed = true }
+        }
+    }
+}
+
+private struct ChromiumTabPane: View {
+    @Environment(BrowserState.self) private var browser
+    let tab: SidebarItem
+    let inSplit: Bool
+    @State private var engine: EnginePage?
+    @State private var failure: String?
+    @State private var hovering = false
+    private struct OfflineFailure: Equatable {
+        let page: BoazHostPage
+        let navigation: UInt64
+        let url: URL?
+    }
+    @State private var recoveryDocument: OfflineFailure?
+    @State private var attemptedOfflineURLs: Set<URL?> = []
+    @State private var revealedSurface: String?
+
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if inSplit {
+                let focused = browser.activeTabID == tab.id
+                HStack(spacing: 8) {
+                    Text(engine?.state.title.isEmpty == false ? engine!.state.title :
+                         (tab.title ?? engine?.state.url?.host() ?? "New Tab"))
+                        .font(.caption.weight(focused ? .semibold : .regular)).lineLimit(1)
+                    Spacer()
+                    if hovering {
+                        HoverIconButton(symbol: "rectangle.split.2x1.slash", help: "Separate", size: 20) {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                                browser.split = nil
+                                browser.focusPane(tab.id)
+                            }
+                        }
+                        HoverIconButton(symbol: "xmark", help: "Close", size: 20) { browser.close(tab) }
+                    }
+                }
+                .padding(.horizontal, 10).frame(height: 26)
+                .background(.primary.opacity(focused ? 0.06 : 0.02))
+                .contentShape(Rectangle())
+                .onTapGesture { browser.focusPane(tab.id) }
+                .onHover { hovering = $0 }
+            }
+            if let adapter = engine?.adapter as? ChromiumEnginePageAdapter, adapter.responsiveVisible {
+                ChromiumResponsiveBar(adapter: adapter)
+            }
+            if browser.findVisible, browser.activeTabID == tab.id,
+               let adapter = engine?.adapter as? ChromiumEnginePageAdapter {
+                ChromiumFindBar(adapter: adapter) { browser.findVisible = false }
+            }
+            if let failure {
+                ContentUnavailableView {
+                    Label("Can't Open This Page", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(failure)
+                } actions: {
+                    Button("Try Again") { open(retry: true) }.buttonStyle(.glass)
+                }
+            } else if let engine, let adapter = engine.adapter as? ChromiumEnginePageAdapter {
+                ChromiumPageView(adapter: adapter)
+                    .modifier(ChromiumViewportLayout(viewport: adapter.appliedViewport))
+                    .overlay {
+                        if surfaceDocument == nil || revealedSurface != surfaceDocument,
+                           let preview = browser.chromiumPreview(for: tab.id, url: engine.state.url ?? tab.url) {
+                            GeometryReader { geometry in
+                                Image(nsImage: preview).resizable().scaledToFit()
+                                    .frame(width: geometry.size.width, height: geometry.size.height)
+                                    .background(.background)
+                                    .overlay(alignment: .bottomTrailing) {
+                                        Text("Saved preview").font(.caption).padding(6).background(.regularMaterial)
+                                    }
+                            }
+                            .contentShape(Rectangle()).onTapGesture {}.accessibilityHidden(true)
+                        }
+                    }
+                    .overlay {
+                        if adapter.state.loadFailure != nil || adapter.state.lifecycle == .crashed {
+                            ChromiumLoadFailureView(adapter: adapter)
+                        }
+                    }
+                    .overlay(alignment: .top) {
+                        if engine.state.isLoading { ProgressView().padding(8) }
+                    }
+            } else {
+                ProgressView("Opening page…").frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .task(id: tab.id) { open() }
+        .task(id: offlineFailure) {
+            guard let expected = offlineFailure,
+                  let adapter = engine?.adapter as? ChromiumEnginePageAdapter else { return }
+            if recoveryDocument?.page != expected.page || recoveryDocument?.navigation != expected.navigation {
+                attemptedOfflineURLs.removeAll()
+                recoveryDocument = expected
+            }
+            guard !attemptedOfflineURLs.contains(expected.url) else { return }
+            for await path in NWPathMonitor() {
+                guard !Task.isCancelled, offlineFailure == expected,
+                      adapter.state.lifecycle == .active else { return }
+                guard path.status == .satisfied else { continue }
+                guard !attemptedOfflineURLs.contains(expected.url) else { return }
+                attemptedOfflineURLs.insert(expected.url)
+                do {
+                    if let url = expected.url { try adapter.navigate(to: url) }
+                    else { try adapter.reload() }
+                } catch {
+                    // Keep the failure overlay and its manual retry available.
+                }
+                return
+            }
+        }
+        .task(id: surfaceDocument) {
+            guard let expected = surfaceDocument,
+                  let adapter = engine?.adapter as? ChromiumEnginePageAdapter,
+                  let url = adapter.state.url else { return }
+            let navigation = adapter.state.navigationID
+            do {
+                let data = try await adapter.captureVisible()
+                guard !Task.isCancelled, surfaceDocument == expected else { return }
+                _ = browser.cacheChromiumPreview(data, tabID: tab.id, adapter: adapter,
+                                                url: url, navigation: navigation)
+                revealedSurface = expected
+            } catch {
+                guard !Task.isCancelled, surfaceDocument == expected else { return }
+                revealedSurface = expected
+            }
+        }
+        .task(id: faviconDocument) {
+            guard faviconDocument != nil,
+                  let adapter = engine?.adapter as? ChromiumEnginePageAdapter else { return }
+            await ChromiumPageServices.learnFavicon(from: adapter)
+        }
+        .onChange(of: engine?.state, initial: true) {
+            guard let state = engine?.state, !state.isLoading, state.loadFailure == nil,
+                  state.lifecycle == .active else { return }
+            browser.didNavigate(tab.id, url: state.url, title: state.title)
+        }
+    }
+
+    private var offlineFailure: OfflineFailure? {
+        guard let adapter = engine?.adapter as? ChromiumEnginePageAdapter,
+              adapter.state.lifecycle == .active, !adapter.state.isLoading,
+              let failure = adapter.state.loadFailure, failure.code == -106 else { return nil }
+        return OfflineFailure(page: adapter.handle, navigation: adapter.state.navigationID, url: failure.url)
+    }
+
+    private var surfaceDocument: String? {
+        guard let adapter = engine?.adapter as? ChromiumEnginePageAdapter,
+              adapter.state.lifecycle == .active, !adapter.state.isLoading,
+              adapter.state.loadFailure == nil, let url = adapter.state.url else { return nil }
+        return "\(adapter.handle):\(adapter.state.navigationID):\(adapter.viewGeneration):\(url.absoluteString)"
+    }
+
+    private var faviconDocument: String? {
+        guard let adapter = engine?.adapter as? ChromiumEnginePageAdapter,
+              !adapter.profile.isPrivate, adapter.state.lifecycle == .active,
+              !adapter.state.isLoading, adapter.state.loadFailure == nil,
+              let url = adapter.state.url else { return nil }
+        return "\(adapter.handle):\(adapter.state.navigationID):\(url.absoluteString)"
+    }
+
+    private func open(retry: Bool = false) {
+        failure = nil
+        do {
+            let page = try (retry ? browser.retryEngineRouting(for: tab) : browser.enginePage(for: tab))
+            guard page.adapter is ChromiumEnginePageAdapter else { throw EnginePageError.incompatibleBridge }
+            engine = page
+        } catch {
+            engine = nil
+            failure = "This page could not open: \(error.localizedDescription)"
+        }
+    }
+}
+#endif
+
+/// One tab's live page. In split view it gets a slim header that focuses the pane when clicked.
+private struct WebKitTabPane: View {
+    @Environment(BrowserState.self) private var browser
+    let tab: SidebarItem
+    let inSplit: Bool
+    let page: WebPage
     @State private var retriedOnItsOwn = false
     /// While the quiet retry is pending, the failure isn't shown.
     @State private var retrying = false
@@ -21,7 +247,6 @@ struct TabPane: View {
     }
 
     var body: some View {
-        let page = browser.page(for: tab)
         let devTools = browser.devTools[tab.id]
         let scale = devTools.responsive?.size.map {
             max(0.1, min(1, (stage.width - 24) / $0.width, (stage.height - 24) / $0.height))

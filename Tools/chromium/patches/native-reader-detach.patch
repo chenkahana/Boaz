@@ -1,0 +1,38 @@
+--- a/chrome/browser/ui/read_anything/read_anything_side_panel_controller.cc
++++ b/chrome/browser/ui/read_anything/read_anything_side_panel_controller.cc
+@@ -9,6 +9,10 @@
+ 
+ #include "base/check_is_test.h"
+ #include "base/functional/bind.h"
++#include "build/build_config.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/bootstrap.h"
++#endif
+ #include "chrome/browser/dom_distiller/tab_utils.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+ #include "chrome/browser/ui/read_anything/read_anything_contents_wrapper.h"
+@@ -241,6 +245,11 @@
+   // not create a SidePanelCoordinator. This block will be unnecessary once that
+   // changes.
+   if (!side_panel_ui) {
++#if BUILDFLAG(IS_MAC)
++    if (boaz::IsNativeHostBrowser(browser_window_interface)) {
++      return;
++    }
++#endif
+     // TODO(webium): create a SidePanelCoordinator for WebUIBrowser.
+     // This is a temporary solution to avoid a crash.
+     if (!webui_browser::IsWebUIBrowserEnabled()) {
+--- a/chrome/browser/ui/read_anything/BUILD.gn
++++ b/chrome/browser/ui/read_anything/BUILD.gn
+@@ -134,6 +134,10 @@
+     "//services/metrics/public/cpp:metrics_cpp",
+     "//services/metrics/public/cpp:ukm_builders",
+   ]
++
++  if (is_mac) {
++    deps += [ "//boaz:headers" ]
++  }
+ 
+   if (enable_pdf) {
+     deps += [

@@ -1,0 +1,3 @@
+include:
+  - project-dmg.yml
+  - project-webkit-paths.yml

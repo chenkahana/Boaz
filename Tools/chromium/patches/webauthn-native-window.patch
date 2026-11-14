@@ -1,0 +1,39 @@
+--- a/chrome/browser/webauthn/chrome_authenticator_request_delegate.cc
++++ b/chrome/browser/webauthn/chrome_authenticator_request_delegate.cc
+@@ -108,6 +108,7 @@
+ #endif
+ 
+ #if BUILDFLAG(IS_MAC)
++#include "boaz/bootstrap.h"
+ #include "chrome/browser/webauthn/chrome_authenticator_request_delegate_mac.h"
+ #include "device/fido/mac/credential_metadata.h"
+ #include "ui/views/widget/widget.h"
+@@ -1418,11 +1419,13 @@
+   // into a new profile does not. Thus the NSWindow is fetched more directly.
+   const views::Widget* widget = views::Widget::GetTopLevelWidgetForNativeView(
+       web_contents->GetNativeView());
+-  if (widget) {
+-    const gfx::NativeWindow window = widget->GetNativeWindow();
+-    if (window) {
+-      discovery_factory->set_nswindow(window);
+-    }
++  gfx::NativeWindow window = widget ? widget->GetNativeWindow() : gfx::NativeWindow();
++  if (!window && browser && boaz::IsNativeHostBrowser(browser) &&
++      browser->GetWindow()) {
++    window = browser->GetWindow()->GetNativeWindow();
++  }
++  if (window) {
++    discovery_factory->set_nswindow(window);
+   }
+ }
+ void ChromeAuthenticatorRequestDelegate::ConfigureICloudKeychain(
+--- a/chrome/browser/webauthn/BUILD.gn
++++ b/chrome/browser/webauthn/BUILD.gn
+@@ -198,6 +198,7 @@
+   }
+ 
+   if (is_mac) {
++    deps += [ "//boaz:headers" ]
+     sources += [
+       "chrome_authenticator_request_delegate_mac.mm",
+       "icloud_recovery.cc",

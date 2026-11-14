@@ -1,0 +1,89 @@
+--- a/extensions/browser/api/webstore_private/webstore_private_api_delegate.h
++++ b/extensions/browser/api/webstore_private/webstore_private_api_delegate.h
+@@ -86,6 +86,12 @@
+       base::OnceClosure approve_callback) = 0;
+ #endif  // BUILDFLAG(IS_ANDROID)
+ 
++  virtual bool SupportsExtensionParentApproval(
++      content::WebContents* web_contents) = 0;
++  virtual void ShowUnsupportedExtensionParentApproval(
++      content::WebContents* web_contents,
++      base::OnceClosure cancelled) = 0;
++
+   // Called when the user accepts the extension install friction dialog.
+   virtual void ReportFrictionAcceptedEvent(
+       content::BrowserContext* context) = 0;
+--- a/chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.h
++++ b/chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.h
+@@ -37,6 +37,11 @@
+       base::OnceClosure cancel_callback,
+       base::OnceClosure approve_callback) override;
+ #endif  // BUILDFLAG(IS_ANDROID)
++  bool SupportsExtensionParentApproval(
++      content::WebContents* web_contents) override;
++  void ShowUnsupportedExtensionParentApproval(
++      content::WebContents* web_contents,
++      base::OnceClosure cancelled) override;
+   void ReportFrictionAcceptedEvent(content::BrowserContext* context) override;
+ #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
+   bool IsSafeBrowsingEnabledAndReady(content::BrowserContext* context) override;
+--- a/chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.cc
++++ b/chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.cc
+@@ -5,6 +5,7 @@
+ #include "chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.h"
+ 
+ #include <memory>
++#include "base/task/single_thread_task_runner.h"
+ #include "build/build_config.h"
+ #if BUILDFLAG(IS_MAC)
+ #include "boaz/bootstrap.h"
+@@ -108,6 +109,29 @@
+ }
+ #endif  // BUILDFLAG(IS_ANDROID)
+ 
++bool ChromeWebstorePrivateAPIDelegate::SupportsExtensionParentApproval(
++    content::WebContents* web_contents) {
++#if BUILDFLAG(IS_MAC)
++  return !boaz::NativeHostEnabled();
++#else
++  return true;
++#endif
++}
++
++void ChromeWebstorePrivateAPIDelegate::ShowUnsupportedExtensionParentApproval(
++    content::WebContents* web_contents,
++    base::OnceClosure cancelled) {
++#if BUILDFLAG(IS_MAC)
++  if (boaz::NativeHostEnabled()) {
++    boaz::ShowNativeExtensionParentApprovalUnavailable(web_contents,
++                                                      std::move(cancelled));
++    return;
++  }
++#endif
++  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
++      FROM_HERE, std::move(cancelled));
++}
++
+ void ChromeWebstorePrivateAPIDelegate::ReportFrictionAcceptedEvent(
+     content::BrowserContext* context) {
+ #if BUILDFLAG(SAFE_BROWSING_AVAILABLE)
+--- a/extensions/browser/api/webstore_private/webstore_private_api.cc
++++ b/extensions/browser/api/webstore_private/webstore_private_api.cc
+@@ -719,6 +719,17 @@
+     return;
+   }
+ 
++  auto* delegate =
++      ExtensionsAPIClient::Get()->GetWebstorePrivateAPIDelegate();
++  if (!delegate->SupportsExtensionParentApproval(web_contents)) {
++    delegate->ShowUnsupportedExtensionParentApproval(
++        web_contents,
++        base::BindOnce(&WebstorePrivateBeginInstallWithManifest3Function::
++                           OnRequestParentApprovalPromptCancelled,
++                       this));
++    return;
++  }
++
+   SupervisedUserExtensionsDelegate* supervised_user_extensions_delegate =
+       ManagementAPI::GetFactoryInstance()
+           ->Get(browser_context_)

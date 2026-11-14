@@ -1,0 +1,39 @@
+--- a/chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.cc
++++ b/chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.cc
+@@ -3,6 +3,11 @@
+ // found in the LICENSE file.
+ 
+ #include "chrome/browser/picture_in_picture/auto_picture_in_picture_tab_helper.h"
++
++#include "build/build_config.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/bootstrap.h"
++#endif
+ 
+ #include "base/feature_list.h"
+ #include "base/metrics/histogram_functions.h"
+@@ -715,6 +720,11 @@
+ 
+ bool AutoPictureInPictureTabHelper::IsEligibleForAutoPictureInPicture(
+     bool should_record_blocking_metrics) {
++#if BUILDFLAG(IS_MAC)
++  if (boaz::NativeHostEnabled() && !boaz::AutomaticPictureInPictureEnabled()) {
++    return false;
++  }
++#endif
+   // Don't try to autopip if picture-in-picture is currently disabled.
+   if (PictureInPictureWindowManager::GetInstance()
+           ->IsPictureInPictureDisabled()) {
+--- a/chrome/browser/picture_in_picture/BUILD.gn
++++ b/chrome/browser/picture_in_picture/BUILD.gn
+@@ -169,6 +169,10 @@
+       "//third_party/blink/public/common:headers",
+       "//ui/views",
+     ]
++  }
++
++  if (is_mac) {
++    deps += [ "//boaz:headers" ]
+   }
+ 
+   if (use_web_contents_occlusion_helper) {

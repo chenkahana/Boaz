@@ -1,0 +1,52 @@
+--- a/chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.cc
++++ b/chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.cc
+@@ -5,6 +5,11 @@
+ #include "chrome/browser/extensions/api/webstore_private/chrome_webstore_private_api_delegate.h"
+ 
+ #include <memory>
++#include "build/build_config.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/bootstrap.h"
++#include "boaz/native_extension_store_dialogs.h"
++#endif
+ 
+ #include "chrome/browser/enterprise/util/affiliation.h"
+ #include "chrome/browser/extensions/extension_allowlist_factory.h"
+@@ -68,6 +73,13 @@
+     const std::u16string& custom_error_message,
+     const gfx::ImageSkia& icon,
+     base::OnceClosure done_callback) {
++#if BUILDFLAG(IS_MAC)
++  if (boaz::NativeHostEnabled()) {
++    boaz::ShowNativeExtensionBlocked(web_contents, extension->name(), extension->id(),
++        custom_error_message, std::move(done_callback));
++    return;
++  }
++#endif
+   ::extensions::ShowExtensionInstallBlockedDialog(
+       extension->id(), extension->name(), custom_error_message, icon,
+       web_contents, std::move(done_callback));
+@@ -76,6 +88,12 @@
+ void ChromeWebstorePrivateAPIDelegate::ShowExtensionInstallFrictionDialog(
+     content::WebContents* web_contents,
+     base::OnceCallback<void(bool)> callback) {
++#if BUILDFLAG(IS_MAC)
++  if (boaz::NativeHostEnabled()) {
++    boaz::ShowNativeExtensionFriction(web_contents, std::move(callback));
++    return;
++  }
++#endif
+   ::extensions::ShowExtensionInstallFrictionDialog(web_contents,
+                                                    std::move(callback));
+ }
+--- a/chrome/browser/extensions/BUILD.gn
++++ b/chrome/browser/extensions/BUILD.gn
+@@ -673,7 +673,7 @@
+   }
+ 
+   if (is_mac) {
+-    deps += [ "//chrome/browser/mac" ]
++    deps += [ "//chrome/browser/mac", "//boaz:headers" ]
+   }
+   if (enable_spellcheck) {
+     deps += [ "//chrome/browser/spellchecker" ]

@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "lists_lock_sha256": "7047848a75d11d33fde726fdc33fd7ff3b72e87168cd7a7611c599d5818d7442",
+  "policy": "These additional subscription capabilities are unsupported. Original rules remain bundled and exclusions are explicit; they do not establish required parity acceptance.",
+  "baseline_evidence": {
+    "webkit_abp_properties_rules": 0,
+    "webkit_html_filter_rules": 0,
+    "webkit_helper_excludes_abp_pseudo_selectors": true
+  },
+  "optional_exclusions": [
+    {
+      "list": "easylist",
+      "line": 77179,
+      "rule": "redtube.com,tube8.com,tube8.es,tube8.fr,xvideos.com,youjizz.com,youporn.com##:-abp-properties(*data:image*)",
+      "parser_reason": "Cosmetic::InvalidCssSelector",
+      "capability": "stylesheet-property matching"
+    },
+    {
+      "list": "easylist",
+      "line": 77180,
+      "rule": "redtube.com,tube8.com,tube8.es,tube8.fr,xvideos.com,youjizz.com,youporn.com##:-abp-properties(base64)",
+      "parser_reason": "Cosmetic::InvalidCssSelector",
+      "capability": "stylesheet-property matching"
+    },
+    {
+      "list": "easylist",
+      "line": 77181,
+      "rule": "redtube.com,tube8.com,tube8.es,tube8.fr,xvideos.com,youjizz.com,youporn.com##:-abp-properties(data:)",
+      "parser_reason": "Cosmetic::InvalidCssSelector",
+      "capability": "stylesheet-property matching"
+    },
+    {
+      "list": "easylist",
+      "line": 77182,
+      "rule": "pornhub.com,youporn.com##:-abp-properties(float: right; margin-top: 30px; width: 50%;)",
+      "parser_reason": "Cosmetic::InvalidCssSelector",
+      "capability": "stylesheet-property matching"
+    },
+    {
+      "list": "easylist",
+      "line": 77183,
+      "rule": "pornhub.com##:-abp-properties(height: 300px; width: 315px;)",
+      "parser_reason": "Cosmetic::InvalidCssSelector",
+      "capability": "stylesheet-property matching"
+    },
+    {
+      "list": "easylist",
+      "line": 77184,
+      "rule": "redtube.com,tube8.com,tube8.es,tube8.fr,xvideos.com,youjizz.com,youporn.com##:-abp-properties(image/)",
+      "parser_reason": "Cosmetic::InvalidCssSelector",
+      "capability": "stylesheet-property matching"
+    },
+    {
+      "list": "easyprivacy",
+      "line": 18274,
+      "rule": "abema.tv##^script:has-text(NREUM)",
+      "parser_reason": "Cosmetic::HtmlFilteringUnsupported",
+      "capability": "response HTML filtering"
+    }
+  ]
+}

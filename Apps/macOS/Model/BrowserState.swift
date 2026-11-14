@@ -7,6 +7,14 @@ import WebKit
 /// One browser window: which space and tab it shows, its live web pages, split view, peek and command bar.
 @Observable
 final class BrowserState {
+    var devToolsDockSide: String = "right"
+    var devToolsLastDockSide: String = "right"
+    @ObservationIgnored var restoreChromiumDockPreferences: ((String, String) -> Void)?
+
+    var loadChromiumDeveloperExtension: (() -> Void)?
+    var installChromiumExtension: (() -> Void)?
+    var manageChromiumExtensions: (() -> Void)?
+    var reviewPreviousChromiumExtensions: (() -> Void)?
     enum CommandMode: Equatable { case newTab, currentTab, split }
 
     struct Split: Equatable {
@@ -18,8 +26,12 @@ final class BrowserState {
 
     struct Peek: Identifiable {
         let id = UUID()
-        let page: WebPage
+        let page: WebPage?
         let profileID: String?
+        #if BOAZ_CHROMIUM
+        var nativePage: EnginePage? = nil
+        var backdrop: NSImage? = nil
+        #endif
     }
 
     struct SpaceEditorRequest: Identifiable {
@@ -38,10 +50,27 @@ final class BrowserState {
     /// Direction the space column slides in from on the next switch.
     var spaceEdge: Edge = .trailing
     var activeTabID: String? {
-        didSet { if oldValue != activeTabID { pagesInViewChanged(from: Self.pagesInView(oldValue, split)) } }
+        didSet {
+            if oldValue != activeTabID {
+                pagesInViewChanged(from: Self.pagesInView(oldValue, split))
+                #if BOAZ_CHROMIUM
+                if !applyingChromiumActivation, let activeTabID, let engine = enginePages[activeTabID], engine.kind == .chromium {
+                    activateChromiumPage?(engine)
+                }
+                chromiumLayoutChanged?()
+                #endif
+            }
+        }
     }
     var split: Split? {
-        didSet { if oldValue != split { pagesInViewChanged(from: Self.pagesInView(activeTabID, oldValue)) } }
+        didSet {
+            if oldValue != split {
+                pagesInViewChanged(from: Self.pagesInView(activeTabID, oldValue))
+                #if BOAZ_CHROMIUM
+                chromiumLayoutChanged?()
+                #endif
+            }
+        }
     }
     var peek: Peek?
     /// A window a page opened as a pop-up, such as a sign-in (`PagePopups`).
@@ -78,6 +107,311 @@ final class BrowserState {
     @ObservationIgnored let model = MacModel.shared
     @ObservationIgnored weak var window: NSWindow?
     @ObservationIgnored private var pages: [String: WebPage] = [:]
+    private var enginePages: [String: EnginePage] = [:]
+    private var chromiumPinnedLandings: [String: (pageID: UUID, url: URL)] = [:]
+    var activeEnginePage: EnginePage? { activeTabID.flatMap { enginePages[$0] } }
+    private let privateEngineProfileID = UUID().uuidString
+    #if BOAZ_CHROMIUM
+    struct ChromiumPreview {
+        let url: URL
+        let navigation: UInt64
+        let image: NSImage
+        let capturedAt: Date
+    }
+    private var chromiumPreviews: [String: ChromiumPreview] = [:]
+    func chromiumPreview(for tabID: String, url: URL?) -> NSImage? {
+        guard let preview = chromiumPreviews[tabID], preview.url == url else { return nil }
+        return preview.image
+    }
+    func cacheChromiumPreview(_ data: Data, tabID: String, adapter: ChromiumEnginePageAdapter,
+                              url: URL, navigation: UInt64) -> Bool {
+        guard cachedChromiumPage(for: tabID) === adapter, adapter.state.lifecycle == .active,
+              adapter.state.navigationID == navigation, adapter.state.url == url,
+              !adapter.state.isLoading, adapter.state.loadFailure == nil,
+              window?.isVisible == true, let image = NSImage(data: data) else { return false }
+        chromiumPreviews[tabID] = ChromiumPreview(url: url, navigation: navigation,
+                                                image: image, capturedAt: Date())
+        if chromiumPreviews.count > 20,
+           let oldest = chromiumPreviews.min(by: { $0.value.capturedAt < $1.value.capturedAt })?.key {
+            chromiumPreviews[oldest] = nil
+        }
+        return true
+    }
+    @ObservationIgnored var createChromiumPeekPage: ((URL) throws -> EnginePage)?
+    @ObservationIgnored private var chromiumPeekTask: Task<Void, Never>?
+    @ObservationIgnored private var queuedChromiumPeek: (url: URL, profileID: String?)?
+    private(set) var chromiumPeekClosing = false
+    var hasWebKitPages: Bool { !pages.isEmpty }
+    @ObservationIgnored var updateChromiumExternalTabCount: ((UInt32) -> Bool)?
+    private var engineRoutingFailures: Set<String> = []
+    private var engineChoices: [String: BrowserEngineKind] = [:]
+    @ObservationIgnored private var engineRulesRevision: UInt64 = 0
+    @ObservationIgnored private var cachedEngineRules: [String: [SiteEngineRule]] = [:]
+    @ObservationIgnored private var pendingEngineSwitches: [String: URL?] = [:]
+    @ObservationIgnored private var reservedWebKitTabs: Set<String> = []
+    @ObservationIgnored private var engineSwitchPrompt = false
+
+    private struct ProtectedTransition {
+        let rule: SiteEngineRule
+        let url: URL
+        let movingBack: Bool
+    }
+    private struct ProtectedBanner {
+        let transition: ProtectedTransition
+        let pageID: UUID
+    }
+    @ObservationIgnored private var protectedTransitions: [String: ProtectedTransition] = [:]
+    private var protectedBanners: [String: ProtectedBanner] = [:]
+    @ObservationIgnored private var explicitPrivateEngineChoices: [String: BrowserEngineKind] = [:]
+
+    func protectedMediaRequested(page handle: BoazHostPage, navigation: UInt64,
+                                 profile: EngineProfileIdentity, keySystem: ProtectedMediaService.KeySystem) {
+        guard keySystem == .widevine || keySystem == .playReady,
+              keySystem != .widevine || !ProtectedMediaService.widevineAvailable,
+              let entry = enginePages.first(where: { ($0.value.adapter as? ChromiumEnginePageAdapter)?.handle == handle }),
+              let page = entry.value.adapter as? ChromiumEnginePageAdapter,
+              page.profile == profile, page.state.navigationID == navigation,
+              page.state.lifecycle == .active,
+              !pendingChromiumUnloads.contains(entry.key), pendingEngineSwitches[entry.key] == nil,
+              let item = tab(entry.key), let url = page.state.url,
+              ["http", "https"].contains(url.scheme?.lowercased() ?? ""), let host = url.host() else { return }
+        do {
+            if isIncognito {
+                guard explicitPrivateEngineChoices[item.id] != .chromium else { return }
+            } else {
+                guard let store = model.store else { throw EnginePageError.unavailable }
+                guard try store.tabEngine(tabID: item.id, profileID: item.profileID) != .chromium else { return }
+                let rules = try store.siteEngineRules(profileID: item.profileID)
+                guard !rules.contains(where: { $0.reason == .user && $0.matches(url) }) else { return }
+            }
+            let rule = try SiteEngineRule(profileID: item.profileID, host: host, engine: .webkit, reason: .protectedMedia)
+            Task {
+                guard cachedChromiumPage(for: item.id) === page, page.state.navigationID == navigation,
+                      page.state.url == url, page.state.lifecycle == .active else { return }
+                await switchEngine(of: item, to: .webKit, protectedTransition: ProtectedTransition(rule: rule, url: url, movingBack: false))
+            }
+        } catch { model.showToast("Protected-video routing could not read this profile's preferences.") }
+    }
+
+    func showsProtectedMediaBanner(for id: String) -> Bool {
+        guard let banner = protectedBanners[id], let page = enginePages[id] else { return false }
+        return page.id == banner.pageID && page.kind == .webKit && page.state.url == banner.transition.url
+    }
+
+    func moveProtectedMediaBack(_ id: String) async {
+        guard showsProtectedMediaBanner(for: id), let banner = protectedBanners[id], let item = tab(id) else { return }
+        await switchEngine(of: item, to: .chromium, protectedTransition:
+            ProtectedTransition(rule: banner.transition.rule, url: banner.transition.url, movingBack: true))
+    }
+
+    func engineKind(for tab: SidebarItem) -> BrowserEngineKind {
+        guard createChromiumPage != nil else { return .webKit }
+        if engineRulesRevision != ChromiumEnginePreferences.revision {
+            engineRulesRevision = ChromiumEnginePreferences.revision
+            cachedEngineRules.removeAll()
+        }
+        // A Chromium window is bound to one profile; other profiles' spaces in it use WebKit.
+        if let window = chromiumProfileIdentity, !window.isPrivate, tab.profileID != window.id { return .webKit }
+        if engineRoutingFailures.contains(tab.id) { return .chromium }
+        if let choice = engineChoices[tab.id] { return choice }
+        if let live = enginePages[tab.id] { return live.kind }
+        if isIncognito { return .chromium }
+        guard let store = model.store else {
+            engineRoutingFailures.insert(tab.id)
+            return .chromium
+        }
+        do {
+            if cachedEngineRules[tab.profileID] == nil {
+                try store.seedProtectedMediaRules(profileID: tab.profileID)
+                cachedEngineRules[tab.profileID] = try store.siteEngineRules(profileID: tab.profileID)
+            }
+            let stored = try store.tabEngine(tabID: tab.id, profileID: tab.profileID)
+            let rule = tab.url.flatMap { SiteEngineRule.matchingRule(for: $0, profileID: tab.profileID,
+                rules: cachedEngineRules[tab.profileID] ?? []) }
+            let choice: BrowserEngineKind = (stored ?? rule?.engine ?? ChromiumEnginePreferences.defaultEngine(profileID: tab.profileID)) == .webkit ? .webKit : .chromium
+            engineChoices[tab.id] = choice
+            return choice
+        } catch {
+            engineRoutingFailures.insert(tab.id)
+            return .chromium
+        }
+    }
+
+    func retryEngineRouting(for tab: SidebarItem) throws -> EnginePage {
+        engineRoutingFailures.remove(tab.id)
+        if enginePages[tab.id] == nil { engineChoices[tab.id] = nil }
+        cachedEngineRules[tab.profileID] = nil
+        return try enginePage(for: tab)
+    }
+
+    private func reportExternalTabs() -> Bool {
+        guard createChromiumPage != nil else { return true }
+        let known = engineChoices.compactMap { id, kind in
+            kind == .webKit && tab(id)?.deletedAt == nil && tab(id) != nil ? id : nil
+        }
+        let ids = Set(pages.keys).union(known).union(reservedWebKitTabs).union(pendingEngineSwitches.keys)
+        guard ids.count <= Int(UInt32.max) else { return false }
+        return updateChromiumExternalTabCount?(UInt32(ids.count)) == true
+    }
+
+    func switchActiveEngine(to kind: BrowserEngineKind) async {
+        guard let tab = activeTab else { return }
+        await switchEngine(of: tab, to: kind)
+    }
+
+    func switchEngine(of tab: SidebarItem, to kind: BrowserEngineKind) async {
+        await switchEngine(of: tab, to: kind, protectedTransition: nil)
+    }
+
+    private func switchEngine(of tab: SidebarItem, to kind: BrowserEngineKind,
+                              protectedTransition: ProtectedTransition?) async {
+        guard createChromiumPage != nil, !engineSwitchPrompt, pendingEngineSwitches[tab.id] == nil,
+              engineKind(for: tab) != kind, let window else { return }
+        let original = enginePages[tab.id]
+        guard original?.state.lifecycle != .closing, original?.state.lifecycle != .closed else { return }
+        let url = original?.state.url ?? tab.url
+        let navigation = original?.state.navigationID
+        engineSwitchPrompt = true
+        let alert = NSAlert()
+        alert.messageText = "Change Browser Engine?"
+        alert.informativeText = "Changing engines reloads this page and loses unsaved changes."
+        alert.addButton(withTitle: "Change Engine")
+        alert.addButton(withTitle: "Cancel")
+        let answer = await alert.beginSheetModal(for: window)
+        engineSwitchPrompt = false
+        guard answer == .alertFirstButtonReturn, self.tab(tab.id) != nil,
+              enginePages[tab.id] === original,
+              (original?.state.url ?? self.tab(tab.id)?.url) == url,
+              original?.state.navigationID == navigation else { return }
+        if let transition = protectedTransition, !transition.movingBack, !isIncognito {
+            do {
+                guard let store = model.store else { throw EnginePageError.unavailable }
+                guard try store.tabEngine(tabID: tab.id, profileID: tab.profileID) != .chromium,
+                      try !store.siteEngineRules(profileID: tab.profileID).contains(where: {
+                          $0.reason == .user && $0.matches(transition.url)
+                      }) else { return }
+            } catch { model.showToast("Protected-video preferences could not be checked."); return }
+        }
+        if kind == .webKit {
+            reservedWebKitTabs.insert(tab.id)
+            guard reportExternalTabs() else {
+                reservedWebKitTabs.remove(tab.id)
+                model.showToast("The window could not reserve this WebKit tab. The engine was not changed.")
+                return
+            }
+        }
+        if let protectedTransition { protectedTransitions[tab.id] = protectedTransition }
+        if let original, original.kind == .chromium {
+            pendingEngineSwitches.updateValue(url, forKey: tab.id)
+            requestChromiumClose(tab.id, engine: original)
+        } else {
+            do {
+                try original?.close()
+                finishUnload(tab.id)
+                commitEngineSwitch(tab.id, to: kind, url: url)
+            } catch {
+                protectedTransitions[tab.id] = nil
+                model.showToast("The page could not switch engines.")
+            }
+        }
+    }
+
+    private func commitEngineSwitch(_ id: String, to kind: BrowserEngineKind, url: URL?) {
+        guard var item = tab(id) else { return }
+        engineChoices[id] = kind
+        let transition = protectedTransitions.removeValue(forKey: id)
+        if transition == nil {
+            if isIncognito { explicitPrivateEngineChoices[id] = kind }
+            else {
+                do { try model.store?.setTabEngine(kind == .chromium ? .chromium : .webkit,
+                                                   tabID: id, profileID: item.profileID) }
+                catch { model.showToast("Engine changed, but the choice could not be saved.") }
+            }
+        }
+        if let url { item.url = url }
+        do {
+            let replacement = try enginePage(for: item)
+            if let transition {
+                if transition.movingBack {
+                    if !isIncognito {
+                        guard let store = model.store else { throw EnginePageError.unavailable }
+                        try store.setTabEngine(.chromium, tabID: id, profileID: item.profileID)
+                        if try store.siteEngineRules(profileID: item.profileID).contains(transition.rule) {
+                            try store.removeSiteEngineRule(transition.rule)
+                            ChromiumEnginePreferences.rulesDidChange()
+                        }
+                    }
+                    explicitPrivateEngineChoices[id] = .chromium
+                    protectedBanners[id] = nil
+                } else {
+                    var savedRule = transition.rule
+                    if !isIncognito {
+                        guard let store = model.store else { throw EnginePageError.unavailable }
+                        try store.upsertSiteEngineRule(savedRule)
+                        savedRule = try store.siteEngineRules(profileID: item.profileID).first {
+                            $0.host == savedRule.host && $0.pathPrefix == savedRule.pathPrefix && $0.reason == .protectedMedia
+                        } ?? savedRule
+                        ChromiumEnginePreferences.rulesDidChange()
+                    }
+                    protectedBanners[id] = ProtectedBanner(transition:
+                        ProtectedTransition(rule: savedRule, url: transition.url, movingBack: false), pageID: replacement.id)
+                }
+            } else { protectedBanners[id] = nil }
+        } catch { model.showToast("The selected engine or protected-video preference could not be updated.") }
+        _ = reportExternalTabs()
+    }
+
+    var chromiumProfileIdentity: EngineProfileIdentity?
+    var chromiumExtensions: ChromiumExtensionActionsModel?
+    @ObservationIgnored var createChromiumPage: ((SidebarItem) throws -> EnginePage)?
+    @ObservationIgnored var chromiumAddressField: NSTextField?
+    @ObservationIgnored private var applyingChromiumActivation = false
+    @ObservationIgnored var activateChromiumPage: ((EnginePage) -> Void)?
+    @ObservationIgnored var chromiumLayoutChanged: (() -> Void)?
+    func cachedChromiumPage(for tabID: String) -> ChromiumEnginePageAdapter? {
+        enginePages[tabID]?.adapter as? ChromiumEnginePageAdapter
+    }
+    func adoptChromiumPage(_ page: EnginePage, active: Bool) throws {
+        guard let adapter = page.adapter as? ChromiumEnginePageAdapter,
+              page.profile == chromiumProfileIdentity,
+              page.profile.isPrivate == isIncognito else { throw EnginePageError.invalidRequest }
+        if let existing = enginePages.first(where: {
+            ($0.value.adapter as? ChromiumEnginePageAdapter)?.handle == adapter.handle
+        }) {
+            if active, let item = tab(existing.key) { activate(item) }
+            return
+        }
+        let item: SidebarItem
+        let title = page.state.title.isEmpty ? page.state.url?.host() : page.state.title
+        if isIncognito {
+            item = SidebarItem(id: UUID().uuidString, spaceID: nil, profileID: "incognito", parentID: nil,
+                kind: .tab, title: title, url: page.state.url,
+                position: (incognitoTabs.first?.position ?? 1) - 1, lastActiveAt: .now)
+            incognitoTabs.insert(item, at: 0)
+        } else {
+            guard let space = model.sidebar.spaces.first(where: {
+                $0.id == spaceID && $0.profileID == page.profile.id
+            }) ?? model.sidebar.spaces.first(where: { $0.profileID == page.profile.id }),
+                  let box = model.sidebar.container(.unpinned, in: space.id) else {
+                throw EnginePageError.unavailable
+            }
+            item = SidebarItem(id: UUID().uuidString, spaceID: space.id, profileID: space.profileID,
+                parentID: box.id, kind: .tab, title: title, url: page.state.url,
+                position: (model.sidebar.children(of: box.id).map(\.position).min() ?? 1) - 1,
+                lastActiveAt: .now, deviceID: model.deviceID)
+            model.commit(item)
+        }
+        enginePages[item.id] = page
+        recency.removeAll { $0 == item.id }
+        recency.append(item.id)
+        if active { activate(item) }
+        closeIdlePages()
+    }
+    @ObservationIgnored private var chromiumScrollDocuments: [String: UInt64] = [:]
+    @ObservationIgnored private var chromiumScrollTasks: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored private var pendingChromiumCloses: [String: SidebarItem] = [:]
+    @ObservationIgnored private var pendingChromiumUnloads: Set<String> = []
+    #endif
     @ObservationIgnored private var recency: [String] = []
     @ObservationIgnored private var isClosingIdlePages = false
     /// Tabs whose title is cooling down after a save, and whether it changed again meanwhile (`didChangeTitle`).
@@ -145,6 +479,11 @@ final class BrowserState {
                                                                queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
+                #if BOAZ_CHROMIUM
+                self.chromiumPeekTask?.cancel()
+                self.queuedChromiumPeek = nil
+                self.chromiumPreviews.removeAll()
+                #endif
                 self.windowWillCloseForPictureInPicture()
                 self.model.windowWillClose(self)
                 Extensions.shared.didCloseWindow(self)
@@ -203,11 +542,22 @@ final class BrowserState {
     }
 
     var activeTab: SidebarItem? { tab(activeTabID) }
-    var activePage: WebPage? { activeTab.map(page(for:)) }
+    var activePage: WebPage? {
+        #if BOAZ_CHROMIUM
+        if createChromiumPage != nil {
+            guard activeEnginePage?.kind == .webKit, let activeTabID else { return nil }
+            return pages[activeTabID]
+        }
+        #endif
+        return activeTab.map(page(for:))
+    }
     /// The address that failed while the tab shows why; otherwise the page's address, or the tab's while the page has
     /// none of its own.
     var activeURL: URL? {
         if let failed = activeFailure?.url { return failed }
+        if let activeTabID, let url = enginePages[activeTabID]?.state.url, url.absoluteString != "about:blank" {
+            return url
+        }
         return activePage?.url.flatMap { $0.absoluteString == "about:blank" ? nil : $0 } ?? activeTab?.url
     }
 
@@ -236,6 +586,7 @@ final class BrowserState {
         if loadFailures[tab.id] != nil { loadFailures[tab.id] = nil }
         let page = makePage(profileID: tab.profileID, context: .tab(tab.id), loading: tab.url)
         pages[tab.id] = page
+        enginePages[tab.id] = wrapPage(page, profileID: tab.profileID)
         // Unloaded past `maxLivePages`, or after a relaunch: back to where it was.
         if let state = pageStates[tab.id], tab.url?.isSamePage(as: state.url) == true { pendingRestores[tab.id] = state }
         closeIdlePages()
@@ -245,6 +596,34 @@ final class BrowserState {
     /// Over the limit, the least recently used pages close, except those in view and those playing, recording or in
     /// full screen: music in a background tab keeps playing however many tabs open after it.
     private func closeIdlePages() {
+        #if BOAZ_CHROMIUM
+        if createChromiumPage != nil {
+            guard !isClosingIdlePages else { return }
+            isClosingIdlePages = true
+            Task {
+                defer { isClosingIdlePages = false }
+                for id in recency {
+                    let live = enginePages.values.filter { $0.state.lifecycle != .closed }.count
+                    guard live - pendingChromiumUnloads.count > maxLivePages else { break }
+                    guard !pagesInView.contains(id), !pendingChromiumUnloads.contains(id),
+                          pendingEngineSwitches[id] == nil, let engine = enginePages[id] else { continue }
+                    if let page = engine.adapter as? ChromiumEnginePageAdapter {
+                        guard !page.isBusyForResidency else { continue }
+                        requestChromiumClose(id, engine: engine, automatic: true)
+                    } else if let page = pages[id] {
+                        guard !(await PageResidency.isBusy(page)), !pagesInView.contains(id),
+                              enginePages[id] === engine, pages[id] === page else { continue }
+                        await rememberPageState(id)
+                        guard !pagesInView.contains(id), enginePages[id] === engine,
+                              !(await PageResidency.isBusy(page)), !pagesInView.contains(id),
+                              enginePages[id] === engine else { continue }
+                        finishUnload(id)
+                    }
+                }
+            }
+            return
+        }
+        #endif
         guard pages.count > maxLivePages, !isClosingIdlePages else { return }
         isClosingIdlePages = true
         Task {
@@ -253,6 +632,7 @@ final class BrowserState {
             for id in close where !pagesInView.contains(id) {
                 recency.removeAll { $0 == id }
                 pages[id] = nil
+                enginePages[id] = nil
                 devTools.drop(id)
             }
             isClosingIdlePages = false
@@ -271,6 +651,18 @@ final class BrowserState {
     private func pagesInViewChanged(from previous: Set<String>) {
         guard windowIsVisible else { return }
         let now = pagesInView
+        #if BOAZ_CHROMIUM
+        for id in previous.subtracting(now) {
+            Task { await rememberChromiumPageState(id) }
+        }
+        for id in now.subtracting(previous) {
+            if let page = cachedChromiumPage(for: id) {
+                recency.removeAll { $0 == id }
+                recency.append(id)
+                Task { try? await PageState.returnToPlace(page) }
+            }
+        }
+        #endif
         for id in previous.subtracting(now) { pictureInPicture(id)?.floatOnLeaving() }
         for id in now.subtracting(previous) { pictureInPicture(id)?.returnFromLeaving() }
     }
@@ -300,6 +692,13 @@ final class BrowserState {
 
     /// Floats the active tab's video, or brings it back.
     func togglePictureInPicture() {
+        #if BOAZ_CHROMIUM
+        if let page = activeEnginePage?.adapter as? ChromiumEnginePageAdapter {
+            do { try page.togglePictureInPicture() }
+            catch { model.showToast("Picture in Picture is unavailable for this page.") }
+            return
+        }
+        #endif
         activePage.flatMap(PictureInPicture.controller(of:))?.toggle()
     }
 
@@ -313,6 +712,54 @@ final class BrowserState {
     }
 
     func existingPage(for tabID: String) -> WebPage? { pages[tabID] }
+
+    func enginePage(for tab: SidebarItem) throws -> EnginePage {
+        #if BOAZ_CHROMIUM
+        _ = engineKind(for: tab)
+        guard !engineRoutingFailures.contains(tab.id) else { throw EnginePageError.unavailable }
+        #endif
+        if let engine = enginePages[tab.id] {
+            recency.removeAll { $0 == tab.id }
+            recency.append(tab.id)
+            return engine
+        }
+        #if BOAZ_CHROMIUM
+        if engineKind(for: tab) == .chromium, let createChromiumPage {
+            let engine = try createChromiumPage(tab)
+            enginePages[tab.id] = engine
+            recency.removeAll { $0 == tab.id }
+            recency.append(tab.id)
+            if let saved = pageStates[tab.id], saved.url == tab.url { pendingRestores[tab.id] = saved }
+            if !applyingChromiumActivation, activeTabID == tab.id { activateChromiumPage?(engine) }
+            chromiumLayoutChanged?()
+            closeIdlePages()
+            return engine
+        }
+        if createChromiumPage != nil {
+            reservedWebKitTabs.insert(tab.id)
+            guard reportExternalTabs() else {
+                reservedWebKitTabs.remove(tab.id)
+                throw EnginePageError.unavailable
+            }
+        }
+        #endif
+        let page = page(for: tab)
+        let engine = wrapPage(page, profileID: tab.profileID)
+        enginePages[tab.id] = engine
+        return engine
+    }
+
+    private func wrapPage(_ page: WebPage, profileID: String?) -> EnginePage {
+        let profile = EngineProfileIdentity(id: isIncognito ? privateEngineProfileID : (profileID ?? "default"),
+                                            isPrivate: isIncognito)
+        return EnginePage(adapter: WebKitEnginePageAdapter(page: page, profile: profile))
+    }
+
+    private func navigateEngine(_ operation: (EnginePage) throws -> Void) {
+        guard let tab = activeTab else { return }
+        do { try operation(try enginePage(for: tab)) }
+        catch { model.showToast(error.localizedDescription) }
+    }
 
     func makePage(profileID: String?, context: NavigationRouter.Context, loading url: URL? = nil) -> WebPage {
         var configuration = WebPage.Configuration()
@@ -357,8 +804,28 @@ final class BrowserState {
     }
 
     func unload(_ tabID: String) {
+        #if BOAZ_CHROMIUM
+        if let engine = enginePages[tabID], engine.kind == .chromium {
+            requestChromiumClose(tabID, engine: engine)
+            return
+        }
+        #endif
+        finishUnload(tabID)
+    }
+
+    private func finishUnload(_ tabID: String) {
+        chromiumPinnedLandings[tabID] = nil
         pictureInPicture(tabID)?.detach()
         pages[tabID] = nil
+        enginePages[tabID] = nil
+        #if BOAZ_CHROMIUM
+        reservedWebKitTabs.remove(tabID)
+        _ = reportExternalTabs()
+        chromiumScrollTasks.removeValue(forKey: tabID)?.cancel()
+        chromiumScrollDocuments[tabID] = nil
+        pendingRestores[tabID] = nil
+        chromiumLayoutChanged?()
+        #endif
         loadFailures[tabID] = nil
         devTools.drop(tabID)
         savedURLs[tabID] = nil
@@ -367,26 +834,39 @@ final class BrowserState {
 
     /// Unloads every page whose tab is gone from the library.
     func unloadPagesWithoutTabs() {
-        pages.keys.filter { tab($0) == nil }.forEach(unload)
+        Set(pages.keys).union(enginePages.keys).filter { tab($0) == nil }.forEach(unload)
     }
 
     /// Whether a pinned tab's page has browsed away from where it was pinned.
     func hasWandered(_ tab: SidebarItem) -> Bool {
-        guard model.isPinned(tab), let page = pages[tab.id] else { return false }
+        guard model.isPinned(tab) else { return false }
+        if let engine = enginePages[tab.id], engine.kind == .chromium {
+            let landing = chromiumPinnedLandings[tab.id]
+            return PinnedAnchor.hasWandered(current: engine.state.url, saved: tab.url,
+                landing: landing?.pageID == engine.id ? landing?.url : nil)
+        }
+        guard let page = pages[tab.id] else { return false }
         return PinnedAnchor.hasWandered(page, from: tab.url)
     }
 
     func returnToPinnedPage(_ tab: SidebarItem) {
         guard let url = tab.url else { return }
         activate(tab)
-        page(for: tab).load(URLRequest(url: url))
+        do { try enginePage(for: tab).navigate(to: url) }
+        catch { model.showToast(error.localizedDescription) }
     }
 
     /// Pins or unpins; unpinning keeps the tab where its page is now, not where it was pinned.
     func togglePin(_ tab: SidebarItem) {
         let unpinning = model.isPinned(tab) && !model.isFavorite(tab)
         model.togglePin(tab)
-        if unpinning, let page = pages[tab.id] { model.didNavigate(tab.id, url: page.url, title: page.title) }
+        if unpinning {
+            if let engine = enginePages[tab.id], engine.kind == .chromium {
+                model.didNavigate(tab.id, url: engine.state.url, title: engine.state.title)
+            } else if let page = pages[tab.id] {
+                model.didNavigate(tab.id, url: page.url, title: page.title)
+            }
+        }
     }
 
     /// Link routing: a middle-click or ⌘-click opens the link in a background tab right below this one, ⌘⇧-click in
@@ -453,6 +933,18 @@ final class BrowserState {
 
     // MARK: Tabs
 
+    #if BOAZ_CHROMIUM
+    func activateChromiumPageFromEngine(_ handle: BoazHostPage) {
+        if let activeTabID, pendingEngineSwitches.keys.contains(activeTabID) { return }
+        guard let entry = enginePages.first(where: {
+            ($0.value.adapter as? ChromiumEnginePageAdapter)?.handle == handle
+        }), activeTabID != entry.key, let tab = tab(entry.key) else { return }
+        applyingChromiumActivation = true
+        defer { applyingChromiumActivation = false }
+        activate(tab)
+    }
+    #endif
+
     func activate(_ tab: SidebarItem) {
         guard tab.kind == .tab else { return }
         commandMode = nil
@@ -467,7 +959,7 @@ final class BrowserState {
 
     /// A new Today tab, at the top or right below `source`. One opened in the background starts loading without
     /// taking the window.
-    func openTab(_ url: URL, title: String? = nil, below source: SidebarItem? = nil, inBackground: Bool = false) {
+    func openTab(_ url: URL, title: String? = nil, below source: SidebarItem? = nil, inBackground: Bool = false, engine: BrowserEngineKind? = nil) {
         let tab: SidebarItem
         if isIncognito {
             let index = source.flatMap { source in incognitoTabs.firstIndex { $0.id == source.id } }.map { $0 + 1 } ?? 0
@@ -487,15 +979,35 @@ final class BrowserState {
             }) else { return }
             tab = new
         }
-        if inBackground { _ = page(for: tab) } else { activate(tab) }
+        #if BOAZ_CHROMIUM
+        if let engine, createChromiumPage != nil {
+            engineChoices[tab.id] = engine
+            if !isIncognito {
+                do { try model.store?.setTabEngine(engine == .chromium ? .chromium : .webkit,
+                                                   tabID: tab.id, profileID: tab.profileID) }
+                catch { model.showToast("The browser engine choice could not be saved.") }
+            }
+        }
+        #endif
+        if inBackground {
+            do { _ = try enginePage(for: tab) }
+            catch { model.showToast(error.localizedDescription) }
+        } else { activate(tab) }
     }
 
     func load(_ url: URL) {
         guard let tab = activeTab else { openTab(url); return }
-        page(for: tab).load(URLRequest(url: url))
+        do { try enginePage(for: tab).navigate(to: url) }
+        catch { model.showToast(error.localizedDescription) }
     }
 
     func didNavigate(_ tabID: String, url: URL?, title: String) {
+        if let engine = enginePages[tabID], engine.kind == .chromium,
+           engine.state.lifecycle == .active, !engine.state.isLoading, engine.state.loadFailure == nil,
+           let url, url.absoluteString != "about:blank", engine.state.url == url,
+           chromiumPinnedLandings[tabID]?.pageID != engine.id {
+            chromiumPinnedLandings[tabID] = (engine.id, url)
+        }
         if let index = incognitoTabs.firstIndex(where: { $0.id == tabID }) {
             if let url, url.absoluteString != "about:blank" { incognitoTabs[index].url = url }
             if !title.isEmpty { incognitoTabs[index].title = title }
@@ -576,6 +1088,12 @@ final class BrowserState {
     /// Reads and keeps where a page in view is, as Boaz goes to the background. A page only scrolls in view, so its last
     /// report there already says where it is.
     private func rememberPageState(_ tabID: String) async {
+        #if BOAZ_CHROMIUM
+        if cachedChromiumPage(for: tabID) != nil {
+            await rememberChromiumPageState(tabID)
+            return
+        }
+        #endif
         guard pendingRestores[tabID] == nil, pagesInView.contains(tabID), let page = pages[tabID], !page.isLoading,
               let state = await PageState.read(page), pendingRestores[tabID] == nil, tab(tabID) != nil else { return }
         pageStates.set(state, for: tabID)
@@ -593,6 +1111,28 @@ final class BrowserState {
     }
 
     func close(_ tab: SidebarItem) {
+        #if BOAZ_CHROMIUM
+        if let engine = enginePages[tab.id], engine.kind == .chromium {
+            if pendingChromiumCloses[tab.id] == nil { pendingChromiumCloses[tab.id] = tab }
+            requestChromiumClose(tab.id, engine: engine)
+            return
+        }
+        #endif
+        finishClose(tab)
+    }
+
+    private func finishClose(_ tab: SidebarItem) {
+        #if BOAZ_CHROMIUM
+        chromiumPreviews[tab.id] = nil
+        if isPrivate(tab) || !model.isPinned(tab) {
+            engineChoices[tab.id] = nil
+            engineRoutingFailures.remove(tab.id)
+            if !isPrivate(tab) {
+                do { try model.store?.setTabEngine(nil, tabID: tab.id, profileID: tab.profileID) }
+                catch { model.showToast("The closed tab's engine choice could not be removed.") }
+            }
+        }
+        #endif
         let next = neighbor(of: tab)
         if let split, split.contains(tab.id) {
             self.split = nil
@@ -600,7 +1140,7 @@ final class BrowserState {
         } else if activeTabID == tab.id {
             activeTabID = next?.id
         }
-        unload(tab.id)
+        finishUnload(tab.id)
         // A closed tab opens fresh, a pinned one at its pinned page's top.
         pageStates.remove(tab.id)
         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
@@ -612,6 +1152,117 @@ final class BrowserState {
         }
     }
 
+    #if BOAZ_CHROMIUM
+    private func rememberChromiumPageState(_ id: String) async {
+        guard let page = cachedChromiumPage(for: id),
+              chromiumScrollTasks[id] == nil,
+              let state = await ChromiumPageServices.captureScroll(from: page),
+              cachedChromiumPage(for: id) === page, tab(id) != nil else { return }
+        pageStates.set(state, for: id)
+    }
+
+    private func prepareChromiumScroll(_ id: String, page: ChromiumEnginePageAdapter) {
+        guard page.state.lifecycle == .active, !page.state.isLoading,
+              page.state.loadFailure == nil,
+              chromiumScrollDocuments[id] != page.state.navigationID else { return }
+        chromiumScrollTasks[id]?.cancel()
+        let navigation = page.state.navigationID
+        chromiumScrollDocuments[id] = navigation
+        let saved = pendingRestores[id]
+        chromiumScrollTasks[id] = Task { [weak self, weak page] in
+            guard let self, let page else { return }
+            do {
+                try await ChromiumPageServices.prepareScroll(on: page, restoring: saved)
+                guard !Task.isCancelled, cachedChromiumPage(for: id) === page,
+                      page.state.navigationID == navigation else { return }
+                pendingRestores[id] = nil
+            } catch {
+                guard !Task.isCancelled, chromiumScrollDocuments[id] == navigation else { return }
+                chromiumScrollDocuments[id] = nil
+            }
+            chromiumScrollTasks[id] = nil
+        }
+    }
+
+    private func requestChromiumClose(_ tabID: String, engine: EnginePage, automatic: Bool = false) {
+        guard !pendingChromiumUnloads.contains(tabID) else { return }
+        pendingChromiumUnloads.insert(tabID)
+        Task {
+            await rememberChromiumPageState(tabID)
+            guard enginePages[tabID] === engine else { return }
+            if automatic {
+                guard !pagesInView.contains(tabID),
+                      let page = engine.adapter as? ChromiumEnginePageAdapter,
+                      !page.isBusyForResidency else {
+                    pendingChromiumUnloads.remove(tabID)
+                    return
+                }
+            }
+            do {
+                try engine.close()
+            } catch {
+                pendingChromiumUnloads.remove(tabID)
+                pendingChromiumCloses[tabID] = nil
+                protectedTransitions[tabID] = nil
+                pendingEngineSwitches.removeValue(forKey: tabID)
+                reservedWebKitTabs.remove(tabID)
+                _ = reportExternalTabs()
+                model.showToast("Could not close page: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    func chromiumPageEvent(_ handle: BoazHostPage, event: BoazHostPageEvent) {
+        if let native = peek?.nativePage,
+           (native.adapter as? ChromiumEnginePageAdapter)?.handle == handle {
+            if event == BOAZ_HOST_PAGE_CLOSED {
+                peek = nil
+                chromiumPeekClosing = false
+                chromiumLayoutChanged?()
+                if let next = queuedChromiumPeek {
+                    queuedChromiumPeek = nil
+                    openPeek(next.url, profileID: next.profileID)
+                }
+            } else if event == BOAZ_HOST_PAGE_CLOSE_CANCELLED {
+                chromiumPeekClosing = false
+                queuedChromiumPeek = nil
+            }
+            return
+        }
+        guard let entry = enginePages.first(where: {
+            ($0.value.adapter as? ChromiumEnginePageAdapter)?.handle == handle
+        }) else { return }
+        let id = entry.key
+        if let page = entry.value.adapter as? ChromiumEnginePageAdapter {
+            if page.state.lifecycle == .crashed {
+                pendingRestores[id] = pageStates[id]
+                chromiumScrollTasks.removeValue(forKey: id)?.cancel()
+                chromiumScrollDocuments[id] = nil
+            } else {
+                prepareChromiumScroll(id, page: page)
+            }
+        }
+        if event == BOAZ_HOST_PAGE_CLOSE_CANCELLED {
+            pendingChromiumUnloads.remove(id)
+            pendingChromiumCloses[id] = nil
+            protectedTransitions[id] = nil
+            pendingEngineSwitches.removeValue(forKey: id)
+            reservedWebKitTabs.remove(id)
+            _ = reportExternalTabs()
+        } else if event == BOAZ_HOST_PAGE_CLOSED {
+            let closingTab = pendingChromiumCloses.removeValue(forKey: id)
+            pendingChromiumUnloads.remove(id)
+            if let destination = pendingEngineSwitches[id] {
+                // Keep the reservation until the replacement page has been created.
+                finishUnload(id)
+                commitEngineSwitch(id, to: .webKit, url: destination)
+                pendingEngineSwitches.removeValue(forKey: id)
+                _ = reportExternalTabs()
+            } else if let closingTab { finishClose(closingTab) } else { finishUnload(id) }
+        }
+    }
+    #endif
+
     /// A middle-click on a sidebar tab closes it as its row's button does, except that a pinned tab with nothing
     /// loaded leaves Pinned for the Archive, after a warning the user can turn off.
     func middleClick(_ tab: SidebarItem) {
@@ -620,6 +1271,9 @@ final class BrowserState {
     }
 
     func removePinned(_ tab: SidebarItem) {
+        #if BOAZ_CHROMIUM
+        chromiumPreviews[tab.id] = nil
+        #endif
         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { model.archive(tab) }
     }
 
@@ -642,7 +1296,15 @@ final class BrowserState {
         model.showToast("Copied URL")
     }
 
+    func stopLoading() {
+        navigateEngine { try $0.stopLoading() }
+    }
+
     func reload() {
+        if let id = activeTabID, let engine = enginePages[id], engine.kind == .chromium {
+            navigateEngine { try $0.reload() }
+            return
+        }
         activePage?.reload(tabURL: activeTabID.flatMap { loadFailures[$0]?.url } ?? activeTab?.url)
     }
 
@@ -667,16 +1329,23 @@ final class BrowserState {
     }
 
     func goBack() {
-        guard let page = activePage, let item = page.backForwardList.backList.last else { return }
-        page.load(item)
+        navigateEngine { try $0.goBack() }
     }
 
     func goForward() {
-        guard let page = activePage, let item = page.backForwardList.forwardList.first else { return }
-        page.load(item)
+        navigateEngine { try $0.goForward() }
     }
 
     func zoom(_ change: PageZoom.Change) {
+        if let id = activeTabID, let engine = enginePages[id], engine.kind == .chromium {
+            let action: EngineZoomChange = switch change {
+            case .in: .increase
+            case .out: .decrease
+            case .reset: .reset
+            }
+            navigateEngine { try $0.changeZoom(action) }
+            return
+        }
         guard let page = activePage else { return }
         PageZoom.change(change, for: page, isPrivate: isIncognito)
     }
@@ -861,32 +1530,105 @@ final class BrowserState {
 
     func openPeek(_ url: URL, profileID: String?) {
         let profileID = profileID ?? currentSpace?.profileID
+        #if BOAZ_CHROMIUM
+        if createChromiumPage != nil {
+            chromiumPeekTask?.cancel()
+            guard let factory = createChromiumPeekPage, let identity = chromiumProfileIdentity,
+                  identity.isPrivate == isIncognito,
+                  isIncognito || (profileID ?? "default") == identity.id else {
+                model.showToast("Peek is unavailable for this browser profile.")
+                return
+            }
+            if peek?.nativePage != nil {
+                closePeek()
+                if chromiumPeekClosing { queuedChromiumPeek = (url, profileID) }
+                return
+            }
+            chromiumPeekTask = Task { @MainActor [weak self] in
+                guard let self else { return }
+                do {
+                    var backdrop: NSImage?
+                    if let source = activeEnginePage?.adapter as? ChromiumEnginePageAdapter {
+                        let navigation = source.state.navigationID
+                        let data = try await source.captureVisible()
+                        try Task.checkCancellation()
+                        guard activeEnginePage?.adapter === source,
+                              source.state.navigationID == navigation,
+                              let image = NSImage(data: data) else { throw EnginePageError.unavailable }
+                        backdrop = image
+                    }
+                    try Task.checkCancellation()
+                    let native = try factory(url)
+                    guard native.profile == identity else {
+                        try? native.close()
+                        throw EnginePageError.invalidRequest
+                    }
+                    peek = Peek(page: nil, profileID: profileID, nativePage: native, backdrop: backdrop)
+                    chromiumPeekClosing = false
+                } catch is CancellationError {
+                } catch {
+                    model.showToast("Could not open Peek: \(error.localizedDescription)")
+                }
+            }
+            return
+        }
+        #endif
         let page = makePage(profileID: profileID, context: .peek, loading: url)
         withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) { peek = Peek(page: page, profileID: profileID) }
     }
 
     func closePeek() {
+        #if BOAZ_CHROMIUM
+        chromiumPeekTask?.cancel()
+        chromiumPeekTask = nil
+        queuedChromiumPeek = nil
+        if let native = peek?.nativePage {
+            guard !chromiumPeekClosing else { return }
+            do { try native.close(); chromiumPeekClosing = true }
+            catch { model.showToast(error.localizedDescription) }
+            return
+        }
+        #endif
         withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) { peek = nil }
     }
 
     /// Keeps the peeked page alive and turns it into a Today tab. The peek's WebView has to be gone before a
     /// tab's WebView can host the same page, so the overlay closes without animation first.
     func promotePeek() {
-        guard let peek, let url = peek.page.url else { closePeek(); return }
+        #if BOAZ_CHROMIUM
+        if let native = peek?.nativePage {
+            guard !chromiumPeekClosing,
+                  native.state.lifecycle == .active,
+                  let adapter = native.adapter as? ChromiumEnginePageAdapter else { return }
+            let retainedPeek = peek
+            adapter.detachNativeView()
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                peek = nil
+                do { try adoptChromiumPage(native, active: true) }
+                catch { peek = retainedPeek; model.showToast(error.localizedDescription) }
+            }
+            chromiumLayoutChanged?()
+            return
+        }
+        #endif
+        guard let peek, let page = peek.page, let url = page.url else { closePeek(); return }
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) { self.peek = nil }
         Task {
             try? await Task.sleep(for: .milliseconds(60))
             if isIncognito {
-                openTab(url, title: peek.page.title)
+                openTab(url, title: page.title)
             } else if let tab = withAnimation(.spring(response: 0.4, dampingFraction: 0.85), {
-                model.newTab(url, title: peek.page.title, in: spaceID)
+                model.newTab(url, title: page.title, in: spaceID)
             }) {
-                pages[tab.id] = peek.page
+                pages[tab.id] = page
+                enginePages[tab.id] = wrapPage(page, profileID: peek.profileID)
                 recency.append(tab.id)
-                if let peekRouter, peekRouter.page == ObjectIdentifier(peek.page) { peekRouter.target.context = .tab(tab.id) }
-                PictureInPicture.controller(of: peek.page)?.onRestore = { [weak browser = self] in
+                if let peekRouter, peekRouter.page == ObjectIdentifier(page) { peekRouter.target.context = .tab(tab.id) }
+                PictureInPicture.controller(of: page)?.onRestore = { [weak browser = self] in
                     browser?.showTabReturningFromPictureInPicture(tab.id)
                 }
                 activate(tab)

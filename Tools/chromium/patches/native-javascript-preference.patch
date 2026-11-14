@@ -1,0 +1,37 @@
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -55,6 +55,9 @@
+ #include "build/android_buildflags.h"
+ #include "build/branding_buildflags.h"
+ #include "build/build_config.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/bootstrap.h"
++#endif
+ #include "build/config/chromebox_for_meetings/buildflags.h"  // PLATFORM_CFM
+ #include "chrome/browser/accessibility/caption_settings_dialog.h"
+ #include "chrome/browser/accessibility/page_colors_controller.h"
+@@ -5032,6 +5035,11 @@
+ 
+   web_prefs->is_xslt_deprecation_banner_suppressed =
+       prefs->GetBoolean(prefs::kXSLTDeprecationBannerSuppressed);
++#if BUILDFLAG(IS_MAC)
++  if (boaz::ShouldDisableJavaScript(web_contents)) {
++    web_prefs->javascript_enabled = false;
++  }
++#endif
+ }
+ 
+ bool ChromeContentBrowserClientParts::OverrideWebPreferencesAfterNavigation(
+@@ -5141,6 +5149,12 @@
+   }
+ #endif
+ 
++#if BUILDFLAG(IS_MAC)
++  if (boaz::ShouldDisableJavaScript(web_contents)) {
++    prefs_changed |= web_prefs->javascript_enabled;
++    web_prefs->javascript_enabled = false;
++  }
++#endif
+   return prefs_changed;
+ }
+ 

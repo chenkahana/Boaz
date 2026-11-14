@@ -1,0 +1,44 @@
+--- a/chrome/browser/ui/views/extensions/extension_install_dialog_view.cc
++++ b/chrome/browser/ui/views/extensions/extension_install_dialog_view.cc
+@@ -8,6 +8,11 @@
+ #include <string>
+ #include <utility>
+ 
++#include "build/build_config.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/bootstrap.h"
++#include "boaz/native_extension_prompt.h"
++#endif
+ #include "base/functional/bind.h"
+ #include "base/i18n/message_formatter.h"
+ #include "base/memory/raw_ptr.h"
+@@ -87,6 +92,12 @@
+     ExtensionInstallPrompt::DoneCallback done_callback,
+     std::unique_ptr<InstallPromptData> prompt) {
+   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
++#if BUILDFLAG(IS_MAC)
++  if (boaz::NativeHostEnabled()) {
++    boaz::ShowNativeExtensionPrompt(std::move(show_params), std::move(done_callback), std::move(prompt));
++    return;
++  }
++#endif
+ 
+   // If the dialog has to be parented to WebContents, force activate the
+   // contents. See crbug.com/40059470.
+--- a/chrome/browser/ui/views/extensions/BUILD.gn
++++ b/chrome/browser/ui/views/extensions/BUILD.gn
+@@ -733,8 +733,13 @@
+ 
+ source_set("extension_install_dialog_view_impl") {
+   sources = [ "extension_install_dialog_view.cc" ]
++  if (is_mac) {
++    deps = [ "//boaz:headers" ]
++  } else {
++    deps = []
++  }
+   public_deps = [ ":extension_install_dialog_view" ]
+-  deps = [
++  deps += [
+     ":extensions_views_utils",
+     "//base",
+     "//chrome/app:generated_resources",

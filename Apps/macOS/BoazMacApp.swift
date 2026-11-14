@@ -3,7 +3,9 @@ import CloudKit
 import BoazKit
 import SwiftUI
 
+#if !BOAZ_CHROMIUM
 @main
+#endif
 struct BoazMacApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var model = MacModel.shared

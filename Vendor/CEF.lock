@@ -1,0 +1,18 @@
+{
+  "purpose": "prebuilt feasibility experiments only; not the production codec-enabled distribution",
+  "platform": "macosarm64",
+  "distribution": "standard",
+  "channel": "stable",
+  "cef_version": "156.0.28+g57389f0+chromium-156.0.8078.88",
+  "cef_commit": "57389f04a61ab0e9603d9f96602843d0e08bb11c",
+  "chromium_version": "156.0.8078.88",
+  "archive_name": "cef_binary_156.0.28+g57389f0+chromium-156.0.8078.88_macosarm64.tar.bz2",
+  "directory": "cef_binary_156.0.28+g57389f0+chromium-156.0.8078.88_macosarm64",
+  "url": "https://cef-builds.spotifycdn.com/cef_binary_156.0.28%2Bg57389f0%2Bchromium-156.0.8078.88_macosarm64.tar.bz2",
+  "metadata_url": "https://cef-builds.spotifycdn.com/index.json",
+  "source_url": "https://github.com/chromiumembedded/cef/tree/57389f04a61ab0e9603d9f96602843d0e08bb11c",
+  "published_at": "2026-11-11T05:05:35.702000Z",
+  "size_bytes": 312278280,
+  "published_sha1": "30919cc28e5cae6b82f7817e6829d4ac863454ae",
+  "sha256": "bf6907ff9b5e019fc52a74bdcef00ab962afce99e1cc99e5a50f935b2f684583"
+}

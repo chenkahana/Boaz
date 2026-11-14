@@ -1,0 +1,32 @@
+--- a/chrome/app/chrome_main_delegate.cc
++++ b/chrome/app/chrome_main_delegate.cc
+@@ -40,6 +40,9 @@
+ #include "base/time/time.h"
+ #include "base/timer/timer.h"
+ #include "build/build_config.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/launch.h"
++#endif
+ #include "chrome/common/buildflags.h"
+ #include "chrome/common/channel_info.h"
+ #include "chrome/common/chrome_constants.h"
+@@ -1190,6 +1193,9 @@
+ }
+ 
+ std::optional<int> ChromeMainDelegate::BasicStartupComplete() {
++#if BUILDFLAG(IS_MAC)
++  boaz::ConfigurePackagedApplicationLaunch();
++#endif
+   crash_reporter::InitializeCrashKeys();
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
+--- a/chrome/app/BUILD.gn
++++ b/chrome/app/BUILD.gn
+@@ -202,6 +202,7 @@
+   }
+ 
+   if (is_mac) {
++    deps += [ "//boaz:launch" ]
+     sources += [
+       "chrome_main_mac.h",
+       "chrome_main_mac.mm",

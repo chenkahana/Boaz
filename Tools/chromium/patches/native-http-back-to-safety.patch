@@ -1,0 +1,15 @@
+--- a/chrome/browser/ssl/ask_before_http_dialog_controller.cc
++++ b/chrome/browser/ssl/ask_before_http_dialog_controller.cc
+@@ -577,7 +577,11 @@
+   if (controller.CanGoBack()) {
+     controller.GoBack();
+   } else {
+-    controller.LoadURL(chrome::ChromeUINewTabURLAsGURL(), content::Referrer(),
++    GURL safe_url = chrome::ChromeUINewTabURLAsGURL();
++#if BUILDFLAG(IS_MAC)
++    if (boaz::NativeHostEnabled()) safe_url = GURL("about:blank");
++#endif
++    controller.LoadURL(safe_url, content::Referrer(),
+                        ui::PAGE_TRANSITION_AUTO_TOPLEVEL, std::string());
+   }
+   // LINT.ThenChange(components/security_interstitials/content/security_interstitial_controller_client.cc:InterstitialGoBackLogic)
