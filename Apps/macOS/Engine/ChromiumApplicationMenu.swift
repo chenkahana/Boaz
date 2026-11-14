@@ -24,8 +24,14 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         super.init()
     }
 
+    @objc private func handleQuit(_ event: NSAppleEventDescriptor, reply: NSAppleEventDescriptor) { quit() }
+
     func install() {
         entries.removeAll()
+        // Logout, restart and scripts send Quit as an Apple event; Chromium's own terminate path closes the windows
+        // without requesting Boaz's shutdown, leaving the process running. Route it through Quit Boaz instead.
+        NSAppleEventManager.shared().setEventHandler(self, andSelector: #selector(handleQuit(_:reply:)),
+            forEventClass: AEEventClass(kCoreEventClass), andEventID: AEEventID(kAEQuitApplication))
         let bar = NSMenu()
         func menu(_ title: String) -> NSMenu {
             let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
