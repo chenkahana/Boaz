@@ -83,6 +83,10 @@ struct CommandBar: View {
             }
             .frame(width: 620)
             .glassEffect(.regular, in: .rect(cornerRadius: MacRadius.panel))
+            #if BOAZ_CHROMIUM
+            // Glass can't sample Chromium's page layer, so without a backing the page reads straight through.
+            .background(RoundedRectangle(cornerRadius: MacRadius.panel, style: .continuous).fill(.background.opacity(0.92)))
+            #endif
             .overlay(RoundedRectangle(cornerRadius: MacRadius.panel, style: .continuous).strokeBorder(.white.opacity(0.35)))
             .shadow(color: tint.opacity(0.25), radius: 30)
             .shadow(color: .black.opacity(0.25), radius: 40, y: 20)

@@ -23,14 +23,21 @@ struct ChromiumAddressField: NSViewRepresentable {
             addSubview(field)
         }
         required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+        // One line tall and centered, like the SwiftUI field it replaces; stretched, the text sits at the top.
+        override func layout() {
+            super.layout()
+            let height = min(field.intrinsicContentSize.height, bounds.height)
+            field.frame = NSRect(x: 0, y: ((bounds.height - height) / 2).rounded(), width: bounds.width, height: height)
+        }
     }
 
     func makeNSView(context: Context) -> Container {
         let container = Container(field: field)
         field.isHidden = false
-        field.frame = container.bounds
-        field.autoresizingMask = [.width, .height]
+        field.autoresizingMask = []
         field.isBordered = false
+        field.isBezeled = false
+        field.focusRingType = .none
         field.drawsBackground = false
         field.isEditable = true
         field.isSelectable = true
