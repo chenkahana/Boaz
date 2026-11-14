@@ -1,5 +1,26 @@
 # Chromium parity ledger
 
+## Current merge-readiness status — 2026-11-14
+
+This checklist supersedes historical checkpoint statuses below. The PR remains draft until all essential gates pass on the final candidate.
+
+| Gate | Status | Evidence / next action |
+|---|---|---|
+| Merge current master | Passed locally | `f4234ad`; release shell syntax and staged whitespace checks passed |
+| Production cloud signing | Passed on earlier candidate | Existing cloud submission exported successfully; Developer ID team and production profile verified |
+| Notarization / Gatekeeper | Passed on earlier candidate | `20261114T070158.082063Z.log`; stapler validation, Gatekeeper and deep/strict codesign passed |
+| Local DMG packaging | Passed on earlier candidate | `20261114-production-cloud-package/candidate-receipt.json`; no publication |
+| Final merged UI build | Running | Build started from `f4234ad`; native ABI unchanged |
+| Runtime reopen / popup quit / engine switching | Pending | Verify matching final candidate |
+| Upgrade and data continuity | Blocked | Both sandboxed and ordinary Application Support databases exist; preserve both and establish intended library |
+| Profiles, private data, passwords, fallback, media, permissions, downloads, extensions | Pending | Prior partial development evidence is not final production acceptance |
+| WebKit Mac / iOS preservation | Pending | Verify merged sources |
+| Qwen sanity review | Pending | Two tool-based packets timed out; bounded no-tool sanity retry requested |
+| Performance budgets, exhaustive matrices, extended deltas, three-day dogfood | Deferred | Previously agreed completion scope |
+
+Recovered artifacts: `/Volumes/BoazBuild/cef/direct/artifacts/20261114-production-cloud-notarized/Boaz.app` and `/Volumes/BoazBuild/cef/direct/artifacts/20261114-production-cloud-package/Boaz.dmg`. They predate the merged source and do not establish final runtime acceptance.
+
+
 Baseline: Boaz `045132d7bd3b7a191730031a018554ad1f0bcfbe`. Every acceptance row below remains pending. Source implementation progress is recorded separately below; it does not establish runtime parity. Runtime uncertainty blocks only the acceptance or implementation that needs that finding. Verified pinned APIs and existing contracts permit independent implementation while the custom build runs.
 
 Paths below are repository-relative. Existing behavior is a source reference, not proof that the requested enhancement already exists. Acceptance extends [the existing QA checklist](../qa.md) and [Develop menu inventory](../devtools.md).

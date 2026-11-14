@@ -1,5 +1,5 @@
 #!/opt/homebrew/bin/python3.12
-"""Unpublished archive/cloud-export experiment. Never a production signing receipt."""
+"""Submit an unpublished cloud-signed archive or finish its notarized export."""
 import argparse
 import datetime
 import fcntl
@@ -191,12 +191,71 @@ def experiment(args):
     print('Cloud export attempt finished. Output remains unpublished and unverified; no notarization polling or launch performed.')
 
 
+def finish(args):
+    source, output = Path(args.input), Path(args.output)
+    for path in (source, output):
+        if not path.is_absolute() or path.resolve() != path or not path.is_relative_to(ROOT / 'artifacts'):
+            raise RuntimeError('Canonical unpublished artifact paths required')
+    if output.exists() or output.is_symlink() or output.is_relative_to(source):
+        raise RuntimeError('Output must be new and outside input')
+    record = json.loads((source / 'cloud-export-experiment.json').read_text())
+    archive = source / 'Boaz.xcarchive'
+    if record.get('export_succeeded') is not True or not archive.is_dir() or archive.resolve() != archive:
+        raise RuntimeError('A successfully submitted cloud archive is required')
+    output.mkdir()
+    receipt = {'published': False, 'verified': False, 'production_usable': False,
+               'source_submission': str(source), 'notarized_export': False}
+    receipt_path = output / 'cloud-signing-receipt.json'
+    receipt_path.write_text(json.dumps(receipt, indent=2) + '\n')
+    with (output / 'verification.log').open('xb') as log:
+        execute(['/usr/bin/xcodebuild', '-exportNotarizedApp', '-archivePath', str(archive),
+                 '-exportPath', str(output / 'export'), '-quiet'], log)
+        app = output / 'export/Boaz.app'
+        execute(['/usr/bin/codesign', '--verify', '--deep', '--strict', str(app)], log)
+        _, raw = execute(['/usr/bin/codesign', '-dv', '--verbose=4', str(app)], log, capture=True)
+        details = raw.decode()
+        if ('Authority=Developer ID Application:' not in details or
+                'TeamIdentifier=' + TEAM not in details or
+                not re.search(r'flags=.*\bruntime\b', details)):
+            raise RuntimeError('Production identity and hardened runtime are required')
+        raw, _ = execute(['/usr/bin/codesign', '-d', '--entitlements', ':-', str(app)], log, capture=True)
+        entitlements = plistlib.loads(raw)
+        raw, _ = execute(['/usr/bin/security', 'cms', '-D', '-i',
+                          str(app / 'Contents/embedded.provisionprofile')], log, capture=True)
+        profile = plistlib.loads(raw)
+        grants = profile['Entitlements']
+        required = {'com.apple.application-identifier': TEAM + '.com.chenkahana.boaz',
+                    'com.apple.developer.team-identifier': TEAM,
+                    'com.apple.developer.icloud-container-environment': 'Production',
+                    'com.apple.developer.aps-environment': 'production'}
+        if any(entitlements.get(key) != value or grants.get(key) != value for key, value in required.items()):
+            raise RuntimeError('Production provisioning does not match application entitlements')
+        if (profile['ExpirationDate'] <= datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                or 'iCloud.com.chenkahana.boaz' not in grants.get('com.apple.developer.icloud-container-identifiers', [])
+                or entitlements.get('com.apple.developer.icloud-container-identifiers') != ['iCloud.com.chenkahana.boaz']
+                or entitlements.get('com.apple.developer.icloud-services') != ['CloudKit']
+                or grants.get('com.apple.developer.icloud-services') not in ('*', ['CloudKit'])
+                or entitlements.get('com.apple.security.get-task-allow', False)
+                or entitlements.get('com.apple.security.cs.disable-library-validation', False)):
+            raise RuntimeError('Expired or unsafe production provisioning')
+        execute(['/usr/bin/xcrun', 'stapler', 'validate', str(app)], log)
+        execute(['/usr/sbin/spctl', '--assess', '--type', 'execute', str(app)], log)
+        receipt.update(notarized_export=True, verified=True, app=str(app),
+                       remaining='Package with package-candidate.py; final runtime acceptance remains required.')
+        receipt_path.write_text(json.dumps(receipt, indent=2) + '\n')
+    print(str(receipt_path))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ('input', 'output', 'identity'):
+    for name in ('input', 'output'):
         parser.add_argument('--' + name, required=True)
+    parser.add_argument('--identity')
+    parser.add_argument('--finish', action='store_true', help='Export and verify a previously submitted archive')
     parser.add_argument('--guarded', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if not args.finish and not args.identity:
+        parser.error('--identity is required when submitting an archive')
     if not args.guarded:
         return subprocess.call([PYTHON, str(HERE.parent / 'cef/run-build.py'), '--',
                                 PYTHON, str(Path(__file__).resolve()), *sys.argv[1:], '--guarded'])
@@ -209,7 +268,10 @@ def main():
             pass
         else:
             raise RuntimeError('Build guard does not hold its lock')
-    experiment(args)
+    if args.finish:
+        finish(args)
+    else:
+        experiment(args)
     return 0
 
 

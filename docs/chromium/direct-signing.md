@@ -49,3 +49,11 @@ Required runtime results include retained tabs, real extension IDs, address edit
 ## Browser passkey capability
 
 See [native website passkeys](passkeys.md) before enabling browser-passkey entitlements. The approval-required template is inactive. The current unbranded browser does not inherit Google's managed browser entitlement. Inspect the finished signed executable and authorized provisioning configuration before claiming Apple Passwords support.
+
+## Cloud-managed Developer ID recovery
+
+When the Developer ID key is cloud-managed, `export-cloud-application.py --input ASSEMBLY_DIRECTORY --output NEW_SUBMISSION_DIRECTORY --identity APPLE_DEVELOPMENT_SHA1` prepares and uploads an archive through the existing Xcode account. Submission success alone does not establish notarization.
+
+After Apple processes the submission, run `export-cloud-application.py --finish --input SUBMISSION_DIRECTORY --output NEW_VERIFICATION_DIRECTORY`. This preserves the submitted archive, exports its notarized app, and checks signatures, production provisioning, stapling and Gatekeeper. A pending or rejected submission fails visibly; retry with a new output directory after resolving it. Package the returned `export/Boaz.app` through `package-candidate.py --no-publish` to enforce nested entitlement and Sparkle checks. Runtime acceptance is separate.
+
+On 2026-11-14, the existing cloud archive exported successfully and its notarized app passed Gatekeeper and strict signature verification. The previous statement that no production signing route had run is superseded by this result.

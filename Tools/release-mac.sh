@@ -15,6 +15,10 @@ then package Boaz.dmg and a candidate appcast. Nothing is published.
 --output must be a new canonical directory under /Volumes/BoazBuild/cef/direct/artifacts.
 --base-app and --ui-receipt must be completed artifacts accepted by the assembly verifier.
 Build the UI beforehand with Tools/chromium/build-application.py --build.
+For Xcode cloud signing, add --cloud-signing and pass an Apple Development
+certificate SHA-1 as --identity; omit --notary-profile and --provisioning-profile.
+If Apple is still processing, finish the preserved submission with
+export-cloud-application.py --finish, then package-candidate.py --no-publish.
 
 Explicit WebKit rollback path:
   Tools/release-mac.sh VERSION --webkit [--no-publish]
@@ -28,9 +32,11 @@ shift
 BASE_APP= UI_RECEIPT= OUTPUT= IDENTITY= NOTARY_PROFILE= PROVISIONING_PROFILE= SPARKLE_BIN=
 BUILD=$(date -u +%Y%m%d%H%M)
 WEBKIT=false
+CLOUD=false
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --webkit) WEBKIT=true; shift ;;
+        --cloud-signing) CLOUD=true; shift ;;
         --no-publish) shift ;;
         --base-app|--ui-receipt|--output|--identity|--notary-profile|--provisioning-profile|--sparkle-bin|--build)
             [ "$#" -ge 2 ] && [ -n "$2" ] || { echo "Missing value for $1" >&2; exit 2; }
@@ -45,15 +51,21 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 if "$WEBKIT"; then
+    ! "$CLOUD" || { echo "Cloud Chromium signing cannot be combined with --webkit." >&2; exit 2; }
     [ -z "$BASE_APP$UI_RECEIPT$OUTPUT$IDENTITY$NOTARY_PROFILE$PROVISIONING_PROFILE$SPARKLE_BIN" ] || {
         echo "Chromium options cannot be combined with --webkit." >&2; exit 2; }
     exec "$TOOLS/release-webkit-mac.sh" "$VERSION" --no-publish
 fi
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || { echo "VERSION must contain two or three numeric components." >&2; exit 2; }
 [[ "$BUILD" =~ ^[0-9]+$ ]] || { echo "BUILD must be numeric." >&2; exit 2; }
-for name in BASE_APP UI_RECEIPT OUTPUT IDENTITY NOTARY_PROFILE PROVISIONING_PROFILE SPARKLE_BIN; do
+for name in BASE_APP UI_RECEIPT OUTPUT IDENTITY SPARKLE_BIN; do
     [ -n "${!name}" ] || { echo "Missing required Chromium release input: $name" >&2; usage >&2; exit 2; }
 done
+if "$CLOUD"; then
+    [ -z "$NOTARY_PROFILE$PROVISIONING_PROFILE" ] || { echo "Cloud signing uses Xcode provisioning and notarization." >&2; exit 2; }
+else
+    [ -n "$NOTARY_PROFILE" ] && [ -n "$PROVISIONING_PROFILE" ] || { echo "Local signing requires notary and provisioning profiles." >&2; exit 2; }
+fi
 [ -x "$PYTHON" ] || { echo "Required Python is unavailable: $PYTHON" >&2; exit 1; }
 case "$OUTPUT" in
     /Volumes/BoazBuild/cef/direct/artifacts/*) ;;
@@ -64,11 +76,20 @@ esac
     --base-app "$BASE_APP" --ui-receipt "$UI_RECEIPT" \
     --output "$OUTPUT/assembly/Boaz.app" --native-launch \
     --production-version "$VERSION" --production-build "$BUILD"
-"$PYTHON" "$TOOLS/chromium/sign-production-application.py" \
+if "$CLOUD"; then
+    "$PYTHON" "$TOOLS/chromium/export-cloud-application.py" \
+        --input "$OUTPUT/assembly" --output "$OUTPUT/cloud-submission" --identity "$IDENTITY"
+    "$PYTHON" "$TOOLS/chromium/export-cloud-application.py" --finish \
+        --input "$OUTPUT/cloud-submission" --output "$OUTPUT/cloud-verification"
+    SIGNED_APP="$OUTPUT/cloud-verification/export/Boaz.app"
+else
+    "$PYTHON" "$TOOLS/chromium/sign-production-application.py" \
     --input "$OUTPUT/assembly" --output "$OUTPUT/signing" \
     --identity "$IDENTITY" --notary-profile "$NOTARY_PROFILE" --provisioning-profile "$PROVISIONING_PROFILE"
+    SIGNED_APP="$OUTPUT/signing/signed/stable/Boaz.app"
+fi
 "$PYTHON" "$TOOLS/chromium/package-candidate.py" "$VERSION" \
-    --chromium-app "$OUTPUT/signing/signed/stable/Boaz.app" \
+    --chromium-app "$SIGNED_APP" \
     --output "$OUTPUT/package" --sparkle-bin "$SPARKLE_BIN" --no-publish
 echo "Production Chromium candidate prepared: $OUTPUT/package/Boaz.dmg"
 echo "Nothing published; receipts and signing/notarization evidence remain under $OUTPUT."
