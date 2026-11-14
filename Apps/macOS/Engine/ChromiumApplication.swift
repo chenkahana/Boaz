@@ -15,6 +15,7 @@ private final class ChromiumApplication: NSObject {
     var quickWindows: [ChromiumQuickWindow] = []
     private var pendingNativeWindows: [UInt: ChromiumAppWindow] = [:]
     var auxiliaryWindows: [NSWindow] = []
+    private var settings: ChromiumSettingsWindow?
     var finished = false
     private var startupWindow: Task<ChromiumAppWindow?, Never>?
     private var defaultsObserver: NSObjectProtocol?
@@ -174,6 +175,7 @@ private final class ChromiumApplication: NSObject {
             pendingNativeWindows.values.forEach { $0.finishClose() }
             pendingNativeWindows.removeAll()
             auxiliaryWindows.forEach { $0.close() }
+            settings?.close()
             auxiliaryWindows.removeAll()
         }
         runtime.reopenRequested = { [weak self] in
@@ -275,7 +277,7 @@ private final class ChromiumApplication: NSObject {
                         if let adapter = page.adapter as? ChromiumEnginePageAdapter {
                             try adapter.showDevTools(BOAZ_DEVTOOLS_SHOW)
                         } else {
-                            model.showToast("Use the page's Inspect Element action for this WebKit page.")
+                            model.showToast("Developer tools aren't available on this page.")
                         }
                     } catch { model.showToast(error.localizedDescription) }
                     owner.window.makeKeyAndOrderFront(nil)
@@ -303,7 +305,10 @@ private final class ChromiumApplication: NSObject {
         guard !finished else { return }
         if let error = model.loadError { showError(error); return }
         switch id {
-        case "settings": present(MacSettingsView().environment(model), title: "Boaz Settings")
+        case "settings":
+            let controller = settings ?? ChromiumSettingsWindow(model: model)
+            settings = controller
+            controller.showWindow(nil)
         case "history": present(HistoryWindow().environment(model), title: "History")
         case "archive": present(ArchiveWindow().environment(model), title: "Archive")
         case "little":

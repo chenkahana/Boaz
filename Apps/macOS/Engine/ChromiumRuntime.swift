@@ -531,6 +531,17 @@ final class ChromiumRuntime {
         throw EnginePageError.unavailable
     }
 
+    /// The installed, signature-checked Widevine CDM version; nil while this build doesn't register one or none passes.
+    static func widevineVersion() throws -> String? {
+        guard let owner = callbackOwner else { throw EnginePageError.unavailable }
+        try owner.requireRunning()
+        guard let read = owner.api.widevine_status else { throw EnginePageError.unavailable }
+        var state = BOAZ_WIDEVINE_DISABLED
+        var version = [CChar](repeating: 0, count: 64)
+        try owner.check(read(&state, &version, version.count))
+        return state == BOAZ_WIDEVINE_READY ? String(cString: version) : nil
+    }
+
     static func automationStatus() throws -> ChromiumAutomationStatus {
         guard let owner = callbackOwner else { throw EnginePageError.unavailable }
         try owner.requireRunning()

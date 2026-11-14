@@ -253,7 +253,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
                 }
                 if result == BOAZ_HOST_OK, actual.second != 0 { result = clearSplit(handle) }
                 if result == BOAZ_HOST_OK { appliedSplit = nil }
-                else { window.subtitle = "Could not update the mixed-engine split view." }
+                else { window.subtitle = "Could not update the split view." }
                 return
             }
             let ratio = Double(split.fraction)
@@ -307,8 +307,8 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         guard browser.hasWebKitPages else { return true }
         guard window.attachedSheet == nil else { return false }
         let alert = NSAlert()
-        alert.messageText = "Close WebKit pages?"
-        alert.informativeText = "This window contains WebKit pages. Closing it may lose unsaved changes."
+        alert.messageText = "Close this window?"
+        alert.informativeText = "Some pages in this window may have unsaved changes."
         alert.addButton(withTitle: "Keep Window Open")
         alert.addButton(withTitle: "Close Window")
         return await alert.beginSheetModal(for: window) == .alertSecondButtonReturn

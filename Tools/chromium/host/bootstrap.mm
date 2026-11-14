@@ -27,6 +27,7 @@
 #include "native_window.h"
 #include "native_profiles.h"
 #include "native_cookie_import.h"
+#include "native_widevine.h"
 #include "native_automation.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/common/pref_names.h"
@@ -54,6 +55,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/no_destructor.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/time/time.h"
 #include "chrome/browser/chrome_browser_main_extra_parts.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/profiles/profile.h"
@@ -1053,6 +1055,16 @@ BoazHostResult AutomationStatus(BoazHostAutomationVisitor visitor, void* context
       snapshot.port, snapshot.error.c_str()); });
   return BOAZ_HOST_OK;
 }
+BoazHostResult WidevineStatus(BoazHostWidevineState* widevine, char* version, size_t capacity) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (!widevine || !version || capacity < 64) return BOAZ_HOST_INVALID_ARGUMENT;
+  std::string installed;
+  *widevine = NativeWidevineState(&installed);
+  if (installed.size() >= capacity) return BOAZ_HOST_INVALID_ARGUMENT;
+  // The C ABI caller supplies `capacity` writable bytes.
+  UNSAFE_BUFFERS(memcpy(version, installed.c_str(), installed.size() + 1));
+  return BOAZ_HOST_OK;
+}
 BoazHostResult PrepareBlockingAssets(const char* directory,
     BoazHostBlockingCompletion completion, void* context) {
   if (auto result = Check(); result != BOAZ_HOST_OK) return result;
@@ -1116,7 +1128,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension, InstallExtension, InstallUnpackedExtension, UninstallExtension, ExtensionMetadata, ReviewExtensionPermissions, TogglePictureInPicture, EnumerateSitePermissions, ResetSitePermission, SetAutomaticPictureInPictureEnabled, PrepareBlockingAssets, ConfigureProfileBlocking, ImportCookies};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension, InstallExtension, InstallUnpackedExtension, UninstallExtension, ExtensionMetadata, ReviewExtensionPermissions, TogglePictureInPicture, EnumerateSitePermissions, ResetSitePermission, SetAutomaticPictureInPictureEnabled, PrepareBlockingAssets, ConfigureProfileBlocking, ImportCookies, WidevineStatus};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
@@ -1184,6 +1196,9 @@ class MainParts final : public ChromeBrowserMainExtraParts {
         [[NSUserDefaults standardUserDefaults] boolForKey:@"boaz.chromium.automation.enabled"];
     state->automation->Start(state->automation_requested,
         g_browser_process->local_state()->GetBoolean(prefs::kDevToolsRemoteDebuggingAllowed));
+    // Checks the installed CDM's signature early, so the first Widevine request can already use Chromium.
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(FROM_HERE,
+        base::BindOnce([] { std::string version; NativeWidevineState(&version); }), base::Seconds(3));
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
         base::BindOnce([] {
           const bool application_ui = base::CommandLine::ForCurrentProcess()->HasSwitch("boaz-app-ui");

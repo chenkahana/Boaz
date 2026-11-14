@@ -745,6 +745,94 @@
           "after": "50391598030409a9fcc1bd38682acb048ffcbd4deaa804a8c28963ac78172586"
         }
       ]
+    },
+    {
+      "file": "patches/widevine-cdm-helper.patch",
+      "sha256": "6720b9ef7d06978e97d61beaafa3fe8833b8ae277f0230e2a844b688fe0ce1f3",
+      "files": [
+        {
+          "path": "chrome/BUILD.gn",
+          "before": "66c7722e64e00dd68dfc4b640b079e827ded2cd7dbe4613d16a265c97d89917b",
+          "after": "8445c22e20326ccc40cc1bc2c10243888a1ddcde1e9eb14110087a9a9a37f76c"
+        },
+        {
+          "path": "chrome/browser/child_process_host_flags.h",
+          "before": "c094ac97e85e2fc0eb659d411b9a90c6cf642cf55a4f2cdbdf4fff294b5b3716",
+          "after": "07c3dbdea3d9c8454753ed8aab47b61d72790f61e207da7fbdc0fca59a45ca6d"
+        },
+        {
+          "path": "chrome/browser/chrome_content_browser_client.cc",
+          "before": "c32e82b6ffd8717b6021de00415f7bdb36c92573ba6429be48913fa8481cd8e5",
+          "after": "d22992dcebf4bbdf3813feccc85de7bf8a8231ee5c802921a07ed3d96227a815"
+        },
+        {
+          "path": "chrome/browser/chrome_content_browser_client.h",
+          "before": "7aa1d29f32c6af53a4d72c1486ad9df45b2ab0b0bf47001dbc80567ca7d516a5",
+          "after": "20043edabfa115cf81e5a6bb8733bb9e3ea5293b5f9c20c9bd0570c6455bfc14"
+        },
+        {
+          "path": "chrome/installer/mac/BUILD.gn",
+          "before": "ffa1bd928dd0655fb87cb93ca0f13d5c79457c0d450e78ffc462e0339b193935",
+          "after": "e3ac76334e28938f57c2ebab0aa2f5c15bc402206992997450df240995045ebd"
+        },
+        {
+          "path": "chrome/installer/mac/signing/parts.py",
+          "before": "e5878973553323f6c73dc315b03e51717d8c1003a0c5ee753ecfdcae8bca7c17",
+          "after": "a1d4d1f3f7e949aaad8341a78129b6c277081f55353ccdc9fd22ffdcc2e23986"
+        },
+        {
+          "path": "content/browser/media/service_factory.cc",
+          "before": "0522d0d43cf3a74bdad9c5e7035b4bb77f297318ded797f5201ded86f133bcee",
+          "after": "03c316ed1a5162f4e3a7fcf941de2e5aede491801912163c2214bb0e91abcc7a"
+        },
+        {
+          "path": "content/public/browser/content_browser_client.cc",
+          "before": "4a6b9cbe894f92712b41f96d786a53479b901669f45936323f17788bee1e709c",
+          "after": "b79dea547fd1fdef3f276c8f3cc7b62151ef8093960d4a87b8101edede2b4255"
+        },
+        {
+          "path": "content/public/browser/content_browser_client.h",
+          "before": "8e5b441ca060440049044bd458f7ac07e34647af87aeec851fa89d9c59641c06",
+          "after": "d91227dc76a417d910cf87e7636fd4b16b20675ee6dcadaaf0f77ebe14f9ac57"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-modal-dialog-position.patch",
+      "sha256": "507463442eabd6b799ab6d95626814bcc33857743bc3309fe6985a6079a1ab0c",
+      "files": [
+        {
+          "path": "components/constrained_window/constrained_window_views.cc",
+          "before": "49149ba4374f35e97bb73423b4b1cc92cbee54d4cda5bca36ac7be2e8a173766",
+          "after": "3ec964afe4b44a1135a6565528290bd4e12213fabaf6fde1d5ee933972d2ecb3"
+        },
+        {
+          "path": "components/web_modal/modal_dialog_host.cc",
+          "before": "2c1312fbdda83268fa356bbea39db45512b16f272c2c351d6d0f06e5909353bb",
+          "after": "3ab445c79eeeaa4539a3c5e575f9d861ee89a0cce7a2ec28b379d521107f76d4"
+        },
+        {
+          "path": "components/web_modal/modal_dialog_host.h",
+          "before": "e7b474ebd8e660ba129502c45a403c5c4ed6cba7d645fa348f5632a88b77fbd2",
+          "after": "affa6ca21d3ac2af60339f429b414d561efd6b8a266342138e3924e3a1f8adf8"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-context-menu.patch",
+      "sha256": "b782c55412b9ddb2053a673ec816b91a008bf018ecd54cf2a268b84c6588ed37",
+      "files": [
+        {
+          "path": "chrome/browser/renderer_context_menu/render_view_context_menu.cc",
+          "before": "bee071786682b77c31aec334d456f3aacd2aa5ad3d16340218ac98943a1e2463",
+          "after": "d57bb955ae4885c9899b411165213c51c32a99a8918262a6589abb9c8bf50e7f"
+        },
+        {
+          "path": "chrome/browser/ui/cocoa/renderer_context_menu/render_view_context_menu_mac_cocoa.mm",
+          "before": "903582053e2ac7de59513ee8f5c4dc06b7e5359bc4873f11b3efaf6634124000",
+          "after": "51b5dff06a0545e366aa394cf7ccf048e82e21c75bfbe2f522cb9640a4ffcc62"
+        }
+      ]
     }
   ]
 }
