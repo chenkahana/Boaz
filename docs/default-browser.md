@@ -19,8 +19,8 @@ Apple's requirements: [Preparing your app to be the default browser](https://dev
 | Settings › Default Browser: shows "Boaz is your default browser", or a button that opens iOS Settings › Apps › Default Apps | `Apps/iOS/Views/DefaultBrowserSection.swift` |
 
 The entitlement and the Settings section are both in [`web-browser.yml`](../web-browser.yml), which `project.yml`
-includes with `enable: false`. While it's off, the app neither requests the entitlement (signing would fail without
-the grant) nor shows the Settings section (it would point to a choice iOS doesn't offer yet).
+includes. Apple granted the entitlement on 2026-11-14 and it's on. With `enable: false` the app neither requests the
+entitlement (signing would fail on an App ID without the grant) nor shows the Settings section.
 
 The Settings section asks iOS with `UIApplication.isDefault(.webBrowser)` once per launch when Settings opens, and again
 when you come back from the Settings app. iOS rate-limits that call; when it's limited, the section keeps offering the

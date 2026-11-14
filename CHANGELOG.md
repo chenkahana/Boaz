@@ -8,8 +8,8 @@ All notable changes to Boaz are recorded here. The format follows
 
 ### Added
 
-- iPhone: Settings › Default Browser shows whether Boaz is your default browser and opens iOS Settings to choose it.
-  It appears once Apple grants the default browser entitlement (`web-browser.yml`; see `docs/default-browser.md`).
+- iPhone: Boaz can be your default browser (Settings › Apps › Default Apps › Browser App), so links from other apps
+  open in it. Settings › Default Browser shows whether it is and opens iOS Settings to choose it.
 
 ### Fixed
 
