@@ -117,8 +117,8 @@ needed: it lists saved passkeys for browsers that draw their own sign-in suggest
 
 **Default browser on iPhone.** iOS only offers "Default Browser App" to apps holding the managed entitlement
 `com.apple.developer.web-browser`, which Apple grants per App ID through its default browser entitlement request
-form. The iPhone app gets it from [`web-browser.yml`](../web-browser.yml), which `project.yml` includes with
-`enable: false` until the grant, the same way as passkeys; the same file compiles the Settings › Default Browser
+form. The iPhone app gets it from [`web-browser.yml`](../web-browser.yml), which `project.yml` includes (Apple
+granted it to Boaz's App ID); the same file compiles the Settings › Default Browser
 section (`DEFAULT_BROWSER`). The iPhone app already declares the `http` and `https` schemes Apple requires, and
 `DeepLink` opens those links in a new tab, or switches to the tab already showing that URL. The steps to get the
 entitlement and verify it are in [default-browser.md](default-browser.md). The Mac needs no entitlement to be the
