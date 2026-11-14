@@ -1,6 +1,28 @@
+--- a/chrome/browser/renderer_context_menu/BUILD.gn
++++ b/chrome/browser/renderer_context_menu/BUILD.gn
+@@ -201,6 +201,9 @@
+     if (enable_print_preview) {
+       deps += [ "//chrome/browser/printing" ]
+     }
++    if (is_mac) {
++      deps += [ "//boaz:headers" ]
++    }
+   }
+ 
+   if (is_chromeos) {
 --- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 +++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
-@@ -1057,6 +1057,55 @@
+@@ -96,6 +96,9 @@
+ #include "chrome/browser/profiles/profile_window.h"
+ #include "chrome/browser/reading_list/reading_list_model_factory.h"
+ #include "chrome/browser/renderer_context_menu/accessibility_labels_menu_observer.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/bootstrap.h"
++#endif
+ #include "chrome/browser/renderer_context_menu/context_menu_content_type_factory.h"
+ #include "chrome/browser/renderer_context_menu/dictation_menu_observer.h"
+ #include "chrome/browser/renderer_context_menu/link_to_text_menu_observer.h"
+@@ -1057,6 +1060,60 @@
    return nullptr;
  }
  
@@ -53,18 +75,76 @@
 +  }
 +}
 +
++#if BUILDFLAG(IS_MAC)
++// Boaz's Apple Intelligence item: Explain the selection, or Ask About This Page. A free id in the content range.
++constexpr int kBoazAskCommandId = 50900;
++#endif
++
  }  // namespace
  
  // static
-@@ -1619,6 +1668,8 @@
+@@ -1617,8 +1674,22 @@
+     if (!use_simplified_menu_for_text_selection &&
+         !took_simplified_page_items_path) {
        AppendReadAnythingItem();
-     }
-   }
++    }
++  }
 +
 +  KeepBoazItems(menu_model_);
++#if BUILDFLAG(IS_MAC)
++  if (boaz::PageAssistantEnabled(source_web_contents_)) {
++    if (menu_model_.GetItemCount()) {
++      menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
+     }
++    menu_model_.AddItem(kBoazAskCommandId,
++                        params_.selection_text.empty()
++                            ? u"Ask About This Page\u2026"
++                            : u"Explain \u201c" + GetElidedSelectionText(kMaxSelectionTextLength, gfx::WORD_BREAK) +
++                                  u"\u201d");
+   }
++#endif
  }
  
  Profile* RenderViewContextMenu::GetProfile() const {
+@@ -1686,6 +1757,12 @@
+ }
+ 
+ void RenderViewContextMenu::RecordUsedItem(int id) {
++#if BUILDFLAG(IS_MAC)
++  // Boaz's own item has no histogram bucket.
++  if (id == kBoazAskCommandId) {
++    return;
++  }
++#endif
+   // Log general ID.
+ 
+   int enum_id =
+@@ -3426,6 +3503,11 @@
+ // Menu delegate functions -----------------------------------------------------
+ 
+ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
++#if BUILDFLAG(IS_MAC)
++  if (id == kBoazAskCommandId) {
++    return true;
++  }
++#endif
+ #if BUILDFLAG(IS_CHROMEOS)
+   // Disable context menu in locked fullscreen mode to prevent users from
+   // exiting this mode (the menu is not really disabled as the user can still
+@@ -3866,6 +3948,13 @@
+     return;
+   }
+   command_executed_ = true;
++
++#if BUILDFLAG(IS_MAC)
++  if (id == kBoazAskCommandId) {
++    boaz::AskAboutPage(source_web_contents_, params_.selection_text);
++    return;
++  }
++#endif
+ 
+   // Process extension menu items.
+   if (ContextMenuMatcher::IsExtensionsCustomCommandId(id)) {
 --- a/chrome/browser/ui/cocoa/renderer_context_menu/render_view_context_menu_mac_cocoa.mm
 +++ b/chrome/browser/ui/cocoa/renderer_context_menu/render_view_context_menu_mac_cocoa.mm
 @@ -78,12 +78,14 @@

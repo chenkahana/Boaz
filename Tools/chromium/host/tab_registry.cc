@@ -640,6 +640,11 @@ BoazHostResult TabRegistry::CancelPDF(BoazHostPage id, uint64_t request) {
   BOAZ_FIND_PAGE();
   return page->pdf ? page->pdf->Cancel(request) : BOAZ_HOST_INVALID_ARGUMENT;
 }
+BoazHostPage TabRegistry::PageFor(content::WebContents* contents) {
+  if (impl_->Check() != BOAZ_HOST_OK || !contents) return 0;
+  auto* page = impl_->FindContents(contents);
+  return page && !page->closing && !page->destroyed ? page->id : 0;
+}
 bool TabRegistry::TakeProtectedMediaRequest(content::RenderFrameHost* frame,
     BoazHostPage* output, uint64_t* navigation) {
   if (!output || !navigation || impl_->Check() != BOAZ_HOST_OK || !frame) return false;

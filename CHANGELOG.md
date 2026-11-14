@@ -6,6 +6,11 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Mac (DMG): right-click selected text and choose Explain, and Apple Intelligence explains it on this Mac, using the
+  page for context. Without a selection, Ask About This Page… opens the page's questions.
+
 ## [0.4.1] - 2026-11-14
 
 ### Fixed

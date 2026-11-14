@@ -20,6 +20,8 @@ final class ChromiumRuntime {
     var shutdownReady: (() -> Void)?
     var externalURLs: (([URL]) -> Void)?
     var reopenRequested: (() -> Void)?
+    /// The context menu's Explain/Ask About This Page; the selection is empty for Ask.
+    var askAboutPage: ((BoazHostPage, String) -> Void)?
     var pageActivated: ((BoazHostWindow, BoazHostPage) -> Void)?
     var pageCreated: ((BoazHostWindow, EnginePage, Bool) -> Void)?
     var pageEvent: ((BoazHostPage, BoazHostPageEvent) -> Void)?
@@ -203,6 +205,17 @@ final class ChromiumRuntime {
                 DispatchQueue.main.async { [weak owner] in
                     guard let owner, !owner.stopped, owner.preparedProfiles[profile] != nil else { return }
                     owner.downloadModel(profile).update(copied)
+                }
+            }
+        }
+        callbacks.ask_about_page = { context, page, selection in
+            guard let context else { return }
+            let text = selection.map { String(cString: $0) } ?? ""
+            MainActor.assumeIsolated {
+                let owner = Unmanaged<ChromiumRuntime>.fromOpaque(context).takeUnretainedValue()
+                DispatchQueue.main.async { [weak owner] in
+                    guard let owner, !owner.stopped, owner.pages[page] != nil else { return }
+                    owner.askAboutPage?(page, text)
                 }
             }
         }

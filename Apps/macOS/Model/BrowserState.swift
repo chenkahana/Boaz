@@ -1132,6 +1132,13 @@ final class BrowserState {
         }
     }
 
+    /// The page's context menu chose Explain (with a selection) or Ask About This Page.
+    func askAboutPage(_ handle: BoazHostPage, selection: String) {
+        guard let entry = enginePages.first(where: { ($0.value.adapter as? ChromiumEnginePageAdapter)?.handle == handle }),
+              let tab = tab(entry.key) else { return }
+        ai = selection.isEmpty ? .page(tabID: tab.id, mode: .ask) : .explain(tabID: tab.id, selection: selection)
+    }
+
     func chromiumPageEvent(_ handle: BoazHostPage, event: BoazHostPageEvent) {
         if let native = peek?.nativePage,
            (native.adapter as? ChromiumEnginePageAdapter)?.handle == handle {

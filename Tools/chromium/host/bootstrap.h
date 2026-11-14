@@ -14,6 +14,8 @@ class AdblockProfileState;
 std::shared_ptr<AdblockProfileState> NativeBlockingState(Profile*);
 void ReportNativePasswordSubmission(content::WebContents*, std::string origin, std::string username, std::string password);
 void ReportProtectedMediaRequest(content::RenderFrameHost* frame, const std::string& key);
+bool PageAssistantEnabled(content::WebContents* contents);
+void AskAboutPage(content::WebContents* contents, const std::u16string& selection);
 bool NativeHostEnabled();
 bool AutomaticPictureInPictureEnabled();
 bool IsNativeExtensionPromptContext(Profile*, void* native_window);

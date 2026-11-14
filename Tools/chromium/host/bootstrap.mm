@@ -110,6 +110,7 @@ struct State {
   uint64_t pending_cookie_imports = 0;
   uint64_t pending_profiles = 0;
   bool automatic_picture_in_picture_enabled = false;
+  bool page_assistant_enabled = false;
   uint64_t pending_extension_installs = 0;
   std::set<Profile*> extension_install_profiles;
   bool exit_started = false;
@@ -730,6 +731,12 @@ BoazHostResult SetAutomaticPictureInPictureEnabled(uint8_t enabled) {
   state->automatic_picture_in_picture_enabled = enabled != 0;
   return BOAZ_HOST_OK;
 }
+BoazHostResult SetPageAssistantEnabled(uint8_t enabled) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  if (enabled > 1) return BOAZ_HOST_INVALID_ARGUMENT;
+  state->page_assistant_enabled = enabled != 0;
+  return BOAZ_HOST_OK;
+}
 BoazHostResult TogglePictureInPicture(BoazHostPage page) {
   if (auto r = Check(); r != BOAZ_HOST_OK) return r;
   return state->tabs->TogglePictureInPicture(page);
@@ -1128,7 +1135,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension, InstallExtension, InstallUnpackedExtension, UninstallExtension, ExtensionMetadata, ReviewExtensionPermissions, TogglePictureInPicture, EnumerateSitePermissions, ResetSitePermission, SetAutomaticPictureInPictureEnabled, PrepareBlockingAssets, ConfigureProfileBlocking, ImportCookies, WidevineStatus};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension, InstallExtension, InstallUnpackedExtension, UninstallExtension, ExtensionMetadata, ReviewExtensionPermissions, TogglePictureInPicture, EnumerateSitePermissions, ResetSitePermission, SetAutomaticPictureInPictureEnabled, PrepareBlockingAssets, ConfigureProfileBlocking, ImportCookies, WidevineStatus, SetPageAssistantEnabled};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
@@ -1271,6 +1278,20 @@ void ReportProtectedMediaRequest(content::RenderFrameHost* frame, const std::str
   if (!profile || !state->tabs->TakeProtectedMediaRequest(frame, &page, &navigation)) return;
   const auto system = key == "com.widevine.alpha" ? BOAZ_KEY_WIDEVINE : BOAZ_KEY_PLAYREADY;
   Notify([&] { state->callbacks.protected_media(state->callbacks.context, page, navigation, profile, system); });
+}
+bool PageAssistantEnabled(content::WebContents* contents) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  return NativeHostEnabled() && state && !state->exit_requested && state->page_assistant_enabled &&
+      state->callbacks.ask_about_page && state->tabs && state->tabs->PageFor(contents);
+}
+void AskAboutPage(content::WebContents* contents, const std::u16string& selection) {
+  if (!PageAssistantEnabled(contents)) return;
+  // Posted: the menu is still running its command, and the receiver may call the API in response.
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
+      base::BindOnce([](BoazHostPage page, std::string text) {
+        if (!state || state->exit_requested || !state->callbacks.ask_about_page) return;
+        Notify([&] { state->callbacks.ask_about_page(state->callbacks.context, page, text.c_str()); });
+      }, state->tabs->PageFor(contents), base::UTF16ToUTF8(selection)));
 }
 bool ShouldRetainEmptyBrowser(BrowserWindowInterface* browser) {
   if (!NativeHostEnabled() || !state || state->exit_requested || !browser || browser->IsDeleteScheduled()) return false;
