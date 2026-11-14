@@ -210,6 +210,8 @@ final class BrowserState {
             engineRulesRevision = ChromiumEnginePreferences.revision
             cachedEngineRules.removeAll()
         }
+        // A Chromium window is bound to one profile; other profiles' spaces in it use WebKit.
+        if let window = chromiumProfileIdentity, !window.isPrivate, tab.profileID != window.id { return .webKit }
         if engineRoutingFailures.contains(tab.id) { return .chromium }
         if let choice = engineChoices[tab.id] { return choice }
         if let live = enginePages[tab.id] { return live.kind }
