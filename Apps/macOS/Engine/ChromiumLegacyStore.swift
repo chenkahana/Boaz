@@ -110,7 +110,26 @@ enum ChromiumLegacyStore {
         guard !UserDefaults.standard.bool(forKey: marker) else { return }
         let log = Logger(subsystem: "com.chenkahana.boaz", category: "app")
         do {
-            let result = try await runtime.importCookies(profile: profile, cookies: await store.httpCookieStore.allCookies())
+            let sites = await store.dataRecords(ofTypes: [WKWebsiteDataTypeCookies])
+            var cookies = await store.httpCookieStore.allCookies()
+            // WebKit can answer empty until a web view has used the store; one that sees nothing wakes it.
+            var waker: WKWebView?
+            for _ in 0..<20 where cookies.isEmpty && !sites.isEmpty {
+                if waker == nil {
+                    let configuration = WKWebViewConfiguration()
+                    configuration.websiteDataStore = store
+                    waker = WKWebView(frame: .zero, configuration: configuration)
+                    waker?.loadHTMLString("", baseURL: nil)
+                }
+                try await Task.sleep(for: .milliseconds(250))
+                cookies = await store.httpCookieStore.allCookies()
+            }
+            waker = nil
+            guard sites.isEmpty || !cookies.isEmpty else {
+                log.error("Previous cookies were not readable yet; next launch retries")
+                return
+            }
+            let result = try await runtime.importCookies(profile: profile, cookies: cookies)
             UserDefaults.standard.set(true, forKey: marker)
             log.info("Imported \(result.imported) previous cookies, rejected \(result.rejected)")
         } catch {
