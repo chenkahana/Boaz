@@ -6,6 +6,13 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-14
+
+### Fixed
+
+- Mac (DMG): Boaz › Check for Updates… is back, and Boaz checks for updates daily again. 0.3 and 0.4.0 never
+  started the updater, so download this version once from GitHub; later updates install themselves.
+
 ## [0.4.0] - 2026-11-14
 
 ### Added
@@ -248,7 +255,8 @@ First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone
 - Share extension, search widget, App Shortcuts, the `boaz://` URL scheme and alternate app icons.
 - Privacy manifest, privacy policy and an About section with third-party notices.
 
-[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/chenkahana/Boaz/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/chenkahana/Boaz/compare/v0.2.6...v0.4.0
 [0.2.6]: https://github.com/chenkahana/Boaz/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/chenkahana/Boaz/compare/v0.2.4...v0.2.5
