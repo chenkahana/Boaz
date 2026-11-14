@@ -478,18 +478,19 @@ final class MacModel {
     func newTab(_ url: URL, title: String? = nil, in spaceID: String?, below source: SidebarItem? = nil) -> SidebarItem? {
         guard let space = space(spaceID) ?? sidebar.spaces.first,
               let box = sidebar.container(.unpinned, in: space.id) else { return nil }
-        let positions = sidebar.children(of: box.id).map(\.position)
-        let position: Double
-        if let source, source.parentID == box.id {
-            position = positions.filter { $0 > source.position }.min().map { (source.position + $0) / 2 } ?? source.position + 1
-        } else {
-            position = (positions.min() ?? 1) - 1
-        }
         let tab = SidebarItem(id: UUID().uuidString, spaceID: space.id, profileID: space.profileID, parentID: box.id,
-                              kind: .tab, title: title ?? url.host(), url: url, position: position, lastActiveAt: .now,
+                              kind: .tab, title: title ?? url.host(), url: url,
+                              position: newTabPosition(in: box.id, below: source), lastActiveAt: .now,
                               deviceID: deviceID)
         commit(tab)
         return tab
+    }
+
+    /// Where a new tab goes in `boxID`: right below `source` when it's there, otherwise at the top.
+    func newTabPosition(in boxID: String, below source: SidebarItem?) -> Double {
+        let positions = sidebar.children(of: boxID).map(\.position)
+        guard let source, source.parentID == boxID else { return (positions.min() ?? 1) - 1 }
+        return positions.filter { $0 > source.position }.min().map { (source.position + $0) / 2 } ?? source.position + 1
     }
 
     func markActive(_ tab: SidebarItem) {
