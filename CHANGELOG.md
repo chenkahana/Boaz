@@ -6,6 +6,8 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-11-14
+
 ### Added
 
 - Mac (DMG): right-click selected text and choose Explain, and Apple Intelligence explains it on this Mac, using the
@@ -260,7 +262,8 @@ First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone
 - Share extension, search widget, App Shortcuts, the `boaz://` URL scheme and alternate app icons.
 - Privacy manifest, privacy policy and an About section with third-party notices.
 
-[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/chenkahana/Boaz/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/chenkahana/Boaz/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/chenkahana/Boaz/compare/v0.2.6...v0.4.0
 [0.2.6]: https://github.com/chenkahana/Boaz/compare/v0.2.5...v0.2.6
