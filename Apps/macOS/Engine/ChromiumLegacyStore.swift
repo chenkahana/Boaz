@@ -1,6 +1,8 @@
 #if BOAZ_CHROMIUM
 import Foundation
 import Darwin
+import OSLog
+import WebKit
 
 /// Selects the existing library in place; GRDB still owns opening and migration.
 enum ChromiumLegacyStore {
@@ -53,6 +55,66 @@ enum ChromiumLegacyStore {
             defaults.removeObject(forKey: marker)
             _ = defaults.synchronize()
             throw failure("Boaz could not record preference import completion. It will retry without replacing existing values.")
+        }
+    }
+
+    /// Copies each profile's sandboxed WebKit website data (cookies, storage) to the unsandboxed location
+    /// `WKWebsiteDataStore(forIdentifier:)` now reads. Existing destinations are never replaced; the source is kept.
+    static func importWebKitData() throws {
+        let domain = "com.chenkahana.boaz"
+        guard Bundle.main.bundleIdentifier == domain,
+              Bundle.main.object(forInfoDictionaryKey: "BoazDistributionChannel") as? String == "production" else { return }
+        let defaults = UserDefaults.standard
+        let marker = "BoazChromiumLegacyWebKitDataImportedV1"
+        guard !defaults.bool(forKey: marker) else { return }
+        let files = FileManager.default
+        let home = files.homeDirectoryForCurrentUser
+        let legacy = home.appendingPathComponent(
+            "Library/Containers/\(domain)/Data/Library/WebKit/WebsiteDataStore", isDirectory: true)
+        let current = home.appendingPathComponent("Library/WebKit/\(domain)/WebsiteDataStore", isDirectory: true)
+        let stores: [URL]
+        do {
+            stores = try files.contentsOfDirectory(at: legacy, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+        } catch let error as NSError where error.domain == NSCocoaErrorDomain &&
+                    (error.code == NSFileReadNoSuchFileError || error.code == NSFileNoSuchFileError) {
+            stores = []
+        } catch let error as NSError {
+            throw failure("Boaz could not read its previous website data. Check access to the previous Boaz container before continuing.", underlying: error)
+        }
+        do {
+            for store in stores where UUID(uuidString: store.lastPathComponent) != nil {
+                let values = try store.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+                guard values.isDirectory == true, values.isSymbolicLink != true else { continue }
+                let destination = current.appendingPathComponent(store.lastPathComponent, isDirectory: true)
+                guard !files.fileExists(atPath: destination.path) else { continue }
+                try files.createDirectory(at: current, withIntermediateDirectories: true)
+                let staging = current.appendingPathComponent(".\(store.lastPathComponent).importing", isDirectory: true)
+                try? files.removeItem(at: staging)
+                try files.copyItem(at: store, to: staging)
+                try files.moveItem(at: staging, to: destination)
+            }
+        } catch let error as NSError {
+            throw failure("Boaz could not copy its previous website data. The original data remains unchanged; Boaz will retry on next launch.", underlying: error)
+        }
+        defaults.set(true, forKey: marker)
+        guard defaults.synchronize() else {
+            throw failure("Boaz could not record website data import completion. It will retry without replacing copied data.")
+        }
+    }
+
+    /// One-time per profile: imports the previous WebKit cookies into its Chromium profile. Failure retries next launch.
+    @MainActor static func importWebKitCookies(runtime: ChromiumRuntime, profile: ChromiumProfile, store: WKWebsiteDataStore) async {
+        guard !profile.identity.isPrivate, Bundle.main.bundleIdentifier == "com.chenkahana.boaz",
+              Bundle.main.object(forInfoDictionaryKey: "BoazDistributionChannel") as? String == "production" else { return }
+        let marker = "BoazChromiumLegacyCookiesImportedV1.\(profile.identity.id)"
+        guard !UserDefaults.standard.bool(forKey: marker) else { return }
+        let log = Logger(subsystem: "com.chenkahana.boaz", category: "app")
+        do {
+            let result = try await runtime.importCookies(profile: profile, cookies: await store.httpCookieStore.allCookies())
+            UserDefaults.standard.set(true, forKey: marker)
+            log.info("Imported \(result.imported) previous cookies, rejected \(result.rejected)")
+        } catch {
+            log.error("Importing previous cookies failed; next launch retries: \(String(describing: error))")
         }
     }
 

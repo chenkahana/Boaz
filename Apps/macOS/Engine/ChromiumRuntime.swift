@@ -50,6 +50,7 @@ final class ChromiumRuntime {
     private var blockingShutdownRequested = false
     private var cacheRequestID: UInt64 = 0
     private var clearingCacheProfiles: Set<BoazHostProfile> = []
+    private var cookieRequestID: UInt64 = 0
     private var started = false
     private var stopped = false
     private var inCallback = false
@@ -600,6 +601,54 @@ final class ChromiumRuntime {
         let continuation: CheckedContinuation<Void, Error>
         init(profile: BoazHostProfile, request: UInt64, continuation: CheckedContinuation<Void, Error>) {
             self.profile = profile; self.request = request; self.continuation = continuation
+        }
+    }
+
+    func importCookies(profile: ChromiumProfile, cookies: [HTTPCookie]) async throws -> (imported: UInt32, rejected: UInt32) {
+        try requireRunning()
+        guard preparedProfiles[profile.handle] == profile, cookieRequestID < UInt64.max,
+              let importCookies = api.import_cookies else { throw EnginePageError.unavailable }
+        cookieRequestID += 1
+        let requestID = cookieRequestID
+        let strings = cookies.map { [$0.name, $0.value, $0.domain, $0.path].map { strdup($0) } }
+        defer { strings.joined().forEach { free($0) } }
+        let values = zip(cookies, strings).map { cookie, text in
+            let sameSite: Int32 = cookie.sameSitePolicy == .sameSiteLax ? 2 : cookie.sameSitePolicy == .sameSiteStrict ? 3 : 0
+            return BoazHostCookie(name: UnsafePointer(text[0]), value: UnsafePointer(text[1]),
+                domain: UnsafePointer(text[2]), path: UnsafePointer(text[3]),
+                expires_unix: cookie.isSessionOnly ? 0 : cookie.expiresDate?.timeIntervalSince1970 ?? 0,
+                secure: cookie.isSecure ? 1 : 0, http_only: cookie.isHTTPOnly ? 1 : 0, same_site: sameSite)
+        }
+        return try await withCheckedThrowingContinuation { continuation in
+            let box = CookieImportRequest(request: requestID, continuation: continuation)
+            let context = Unmanaged.passRetained(box).toOpaque()
+            let result = values.withUnsafeBufferPointer {
+                importCookies(profile.handle, $0.baseAddress, $0.count, requestID, { context, request, status, imported, rejected in
+                    guard let context else { return }
+                    MainActor.assumeIsolated {
+                        let box = Unmanaged<CookieImportRequest>.fromOpaque(context).takeRetainedValue()
+                        DispatchQueue.main.async {
+                            guard request == box.request, status == BOAZ_HOST_OK else {
+                                box.continuation.resume(throwing: EnginePageError.unavailable)
+                                return
+                            }
+                            box.continuation.resume(returning: (imported, rejected))
+                        }
+                    }
+                }, context)
+            }
+            if result != BOAZ_HOST_OK {
+                Unmanaged<CookieImportRequest>.fromOpaque(context).release()
+                do { try check(result) } catch { continuation.resume(throwing: error) }
+            }
+        }
+    }
+
+    private final class CookieImportRequest {
+        let request: UInt64
+        let continuation: CheckedContinuation<(imported: UInt32, rejected: UInt32), Error>
+        init(request: UInt64, continuation: CheckedContinuation<(imported: UInt32, rejected: UInt32), Error>) {
+            self.request = request; self.continuation = continuation
         }
     }
 

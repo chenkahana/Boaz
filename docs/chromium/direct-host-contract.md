@@ -58,3 +58,9 @@ ABI15 adds a synchronous residency busy query over native playback, capture, PiP
 ABI17 adds origin-bearing document capture. The copied ASCII origin and opaque single-use token come from the same authoritative target. Callers capture before authentication, retain page/profile/navigation identity, release on cancellation, and execute only against that target. Password callers restrict origins to HTTP/HTTPS. Page JavaScript never supplies the trusted origin. The older general capture operation remains available to non-password page services.
 
 Host objects through ABI17 compiled at ab93cfc. The full application runtime security scenarios remain required.
+
+## ABI 48 cookie import
+
+ABI48 appends `import_cookies` for the one-time WebKit-to-Chromium login migration. The caller passes a prepared profile and borrowed UTF-8 cookie records; the host copies them before returning. Each record builds its source URL from host, path and secure flag and goes through Chromium's sanitized cookie constructor. Malformed or expired records count as rejected. Accepted records are set through the profile's default storage partition with HTTP-only and inclusive same-site options. A set the network service refuses or drops also counts as rejected.
+
+Immediate errors promise no callback. An accepted import posts exactly one UI-thread completion after every set finishes, and the bootstrap holds `shutdown_ready` until it drains. Production Swift imports each regular profile once, before its first window loads tabs. It marks the profile only after `BOAZ_HOST_OK`; a failure is logged and retried on the next launch without blocking startup.

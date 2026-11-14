@@ -26,6 +26,7 @@
 #include "boaz_host.h"
 #include "native_window.h"
 #include "native_profiles.h"
+#include "native_cookie_import.h"
 #include "native_automation.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/common/pref_names.h"
@@ -104,6 +105,7 @@ struct State {
   bool automation_requested = false;
   uint64_t pending_emulations = 0;
   uint64_t pending_cache_clears = 0;
+  uint64_t pending_cookie_imports = 0;
   uint64_t pending_profiles = 0;
   bool automatic_picture_in_picture_enabled = false;
   uint64_t pending_extension_installs = 0;
@@ -183,7 +185,7 @@ void FinishIfDrained() {
     }
   }
   if (!state->exit_requested || !state->windows.empty() ||
-      state->pending_scripts || state->pending_captures || state->pending_emulations || state->pending_cache_clears || state->pending_profiles || state->pending_extension_installs || PendingNativeExtensionPrompts() || PendingNativeExtensionStoreDialogs() || PendingExtensionPermissionReviews() || PendingNativeOptionalPermissionPrompts() || state->finished) return;
+      state->pending_scripts || state->pending_captures || state->pending_emulations || state->pending_cache_clears || state->pending_cookie_imports || state->pending_profiles || state->pending_extension_installs || PendingNativeExtensionPrompts() || PendingNativeExtensionStoreDialogs() || PendingExtensionPermissionReviews() || PendingNativeOptionalPermissionPrompts() || state->finished) return;
   state->finished = true;
   if (state->automation) state->automation->Stop();
   Notify([] { state->callbacks.shutdown_ready(state->callbacks.context); });
@@ -363,6 +365,27 @@ BoazHostResult ClearCache(BoazHostProfile profile, uint64_t request,
       }, profile, request, completion, context));
   if (result != BOAZ_HOST_OK) --state->pending_cache_clears;
   return result;
+}
+BoazHostResult ImportCookies(BoazHostProfile profile, const BoazHostCookie* cookies, size_t count,
+    uint64_t request, BoazHostCookieImportCompletion completion, void* context) {
+  if (auto result = Check(); result != BOAZ_HOST_OK) return result;
+  if (!request || !completion || (count && !cookies) || count > std::numeric_limits<uint32_t>::max())
+    return BOAZ_HOST_INVALID_ARGUMENT;
+  if (state->exit_requested || !state->profiles) return BOAZ_HOST_CLOSING;
+  Profile* resolved = state->profiles->Resolve(profile);
+  if (!resolved) return BOAZ_HOST_INVALID_HANDLE;
+  CHECK_LT(state->pending_cookie_imports, std::numeric_limits<uint64_t>::max());
+  ++state->pending_cookie_imports;
+  ImportNativeCookies(resolved, cookies, count, base::BindOnce(
+      [](uint64_t request, BoazHostCookieImportCompletion completion, void* context,
+         uint32_t imported, uint32_t rejected) {
+        CHECK(state);
+        Notify([&] { completion(context, request, BOAZ_HOST_OK, imported, rejected); });
+        CHECK_GT(state->pending_cookie_imports, 0u);
+        --state->pending_cookie_imports;
+        FinishIfDrained();
+      }, request, completion, context));
+  return BOAZ_HOST_OK;
 }
 BoazHostResult SetExternalTabCount(BoazHostWindow id, uint32_t count) {
   if (auto result = Check(); result != BOAZ_HOST_OK) return result;
@@ -1093,7 +1116,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension, InstallExtension, InstallUnpackedExtension, UninstallExtension, ExtensionMetadata, ReviewExtensionPermissions, TogglePictureInPicture, EnumerateSitePermissions, ResetSitePermission, SetAutomaticPictureInPictureEnabled, PrepareBlockingAssets, ConfigureProfileBlocking};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension, InstallExtension, InstallUnpackedExtension, UninstallExtension, ExtensionMetadata, ReviewExtensionPermissions, TogglePictureInPicture, EnumerateSitePermissions, ResetSitePermission, SetAutomaticPictureInPictureEnabled, PrepareBlockingAssets, ConfigureProfileBlocking, ImportCookies};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:

@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 47u
+#define BOAZ_HOST_ABI_VERSION 48u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT,
@@ -93,6 +93,20 @@ typedef void (*BoazHostProfileCompletion)(void* context, BoazHostResult result,
 typedef enum BoazHostCacheStatus { BOAZ_CACHE_SUCCESS, BOAZ_CACHE_FAILED } BoazHostCacheStatus;
 typedef void (*BoazHostCacheCompletion)(void* context, BoazHostProfile profile,
     uint64_t request, BoazHostCacheStatus status);
+
+/* UTF-8 strings. expires_unix 0 is a session cookie. same_site: 0 unspecified,
+ * 1 none, 2 lax, 3 strict. */
+typedef struct BoazHostCookie {
+  const char* name;
+  const char* value;
+  const char* domain;
+  const char* path;
+  double expires_unix;
+  uint8_t secure, http_only;
+  int32_t same_site;
+} BoazHostCookie;
+typedef void (*BoazHostCookieImportCompletion)(void* context, uint64_t request,
+    BoazHostResult status, uint32_t imported, uint32_t rejected);
 
 typedef enum BoazHostAutomationState { BOAZ_AUTOMATION_DISABLED, BOAZ_AUTOMATION_STARTING,
   BOAZ_AUTOMATION_READY, BOAZ_AUTOMATION_FAILED } BoazHostAutomationState;
@@ -384,6 +398,10 @@ typedef struct BoazHostAPI {
   /* JSON array of canonical schemeful sites. Enabled requires prepared assets. */
   BoazHostResult (*configure_profile_blocking)(BoazHostProfile profile, uint8_t enabled,
       const char* exception_sites_json);
+  /* Input is copied before return. Invalid or expired cookies count as rejected.
+   * Accepted imports complete once on UI thread; rejection produces no callback. */
+  BoazHostResult (*import_cookies)(BoazHostProfile profile, const BoazHostCookie* cookies,
+      size_t count, uint64_t request, BoazHostCookieImportCompletion completion, void* context);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

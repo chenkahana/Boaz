@@ -312,6 +312,7 @@ private final class ChromiumApplication: NSObject {
                 try await runtime.prepareBlockingAssets()
                 guard !finished else { return }
                 let profile = try await runtime.prepareProfile(.init(id: profileID, isPrivate: false))
+                await ChromiumLegacyStore.importWebKitCookies(runtime: runtime, profile: profile, store: model.dataStore(for: profileID))
                 guard !finished else { return }
                 let window = try ChromiumQuickWindow(runtime: runtime, profile: profile, url: url, model: model)
                 quickWindows.append(window)
@@ -342,6 +343,9 @@ private final class ChromiumApplication: NSObject {
                 try await runtime.prepareBlockingAssets()
                 guard !finished else { return }
                 let profile = try await runtime.prepareProfile(identity)
+                if model.sidebar.profiles.contains(where: { $0.id == profile.identity.id }) {
+                    await ChromiumLegacyStore.importWebKitCookies(runtime: runtime, profile: profile, store: model.dataStore(for: profile.identity.id))
+                }
                 guard !finished else { return }
                 if let tabID {
                     guard let tab = model.item(tabID), tab.kind == .tab, (tab.profileID ?? "default") == profile.identity.id,
@@ -431,6 +435,7 @@ public func boazApplicationStart(_ api: UnsafePointer<BoazHostAPI>?) -> BoazHost
         guard chromiumApplication == nil else { return BOAZ_HOST_UNAVAILABLE }
         do {
             try ChromiumLegacyStore.importMissingPreferences()
+            try ChromiumLegacyStore.importWebKitData()
             let app = try ChromiumApplication(runtime: ChromiumRuntime(api: api))
             chromiumApplication = app
             try app.start()
