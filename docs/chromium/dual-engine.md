@@ -1,5 +1,7 @@
 # Dual-engine migration revision
 
+> **Revision 2026-11-14:** WebKit is invisible in the DMG. To the user Boaz is Chromium: there are no engine menu items, badges, Websites settings or engine prompts, and user-chosen engine rules are no longer offered. Only protected video that Chromium can't play opens in WebKit, silently, through `protectedMedia` rules. The UI parts of section 1 and the toast in section 2 below are superseded.
+
 Effective 2026-11-13. This revision supersedes Chromium-only DMG and mandatory Chromium Widevine playback before release. Chromium becomes the default; system WebKit remains available at runtime for protected media and user-selected pages. Working protected playback in the selected engine remains a release gate. Google approval is required before enabling Widevine, but no longer blocks a release whose WebKit protected-media acceptance passes.
 
 Apply this revision before further Wave 0 work. [S0](spikes/S0-crest.md) studied Crest read-only and selected an independently authored direct Chromium host. CEF-specific S2a/S2b are replaced by direct-host acceptance with unchanged native/extension gates. Existing CEF experiments and artifacts are retained as evidence, not production integration. The guarded baseline build was stopped normally with exit 130; source and outputs remain on the verified SSD image. CEF patch workers have paused.

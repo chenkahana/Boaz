@@ -46,10 +46,10 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         add(app, "Load Developer Extension…", enabled: {
             $0?.isIncognito == false && $0?.loadChromiumDeveloperExtension != nil
         }) { $0?.loadChromiumDeveloperExtension?() }
-        add(app, "Install Chromium Extension…", enabled: {
+        add(app, "Install Extension…", enabled: {
             $0?.isIncognito == false && $0?.installChromiumExtension != nil
         }) { $0?.installChromiumExtension?() }
-        add(app, "Manage Chromium Extensions…", enabled: {
+        add(app, "Manage Extensions…", enabled: {
             $0?.isIncognito == false && $0?.manageChromiumExtensions != nil
         }) { $0?.manageChromiumExtensions?() }
         add(app, "Review Previous Extensions…", enabled: {
@@ -186,14 +186,6 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
                   let window = browser?.window else { return }
             ChromiumSitePermissions.present(page: page, window: window)
         }
-        add(pageMenu, "Open Page in WebKit", enabled: { browser in
-            guard let browser, let tab = browser.activeTab else { return false }
-            return browser.engineKind(for: tab) != .webKit
-        }) { browser in Task { await browser?.switchActiveEngine(to: .webKit) } }
-        add(pageMenu, "Open Page in Chromium", enabled: { browser in
-            guard let browser, let tab = browser.activeTab else { return false }
-            return browser.engineKind(for: tab) != .chromium
-        }) { browser in Task { await browser?.switchActiveEngine(to: .chromium) } }
 
         let develop = menu("Develop")
         add(develop, "Responsive Viewport…", command: .responsiveDesignMode,
@@ -215,7 +207,6 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         add(develop, "Inspect Element", enabled: hasPage, perform: {
             Self.showDevTools(BOAZ_DEVTOOLS_INSPECT, browser: $0)
         }, key: "c", modifiers: [.command, .option])
-        add(develop, "WebKit Inspect Element: Right-click the page", enabled: { _ in false }) { _ in }
         develop.addItem(.separator())
         add(develop, "Capture Visible Area…", enabled: hasEnginePage) { browser in
             if let adapter = browser?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter {
@@ -256,41 +247,8 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
             } else if hasWebKitPage(browser) { browser.emptyCaches() }
         }
         develop.addItem(.separator())
-        func webKitSubmenu(_ title: String) -> NSMenu {
-            add(develop, title, enabled: hasWebKitPage) { _ in }
-            let submenu = NSMenu(title: title)
-            develop.items.last?.submenu = submenu
-            return submenu
-        }
         func state(_ browser: BrowserState?) -> DevTools.TabState {
             browser?.devTools[browser?.activeTabID] ?? DevTools.TabState()
-        }
-        let agents = webKitSubmenu("WebKit User Agent")
-        add(agents, "Default", enabled: hasWebKitPage,
-            checked: { (state($0).effectiveUserAgent ?? .default) == .default }) { $0?.setUserAgent(.default) }
-        agents.addItem(.separator())
-        for agent in UserAgent.presets {
-            add(agents, agent.title, enabled: hasWebKitPage,
-                checked: { state($0).effectiveUserAgent == agent }) { $0?.setUserAgent(agent) }
-        }
-        agents.addItem(.separator())
-        add(agents, "Other…", enabled: hasWebKitPage, checked: {
-            if case .custom = state($0).effectiveUserAgent { return true }
-            return false
-        }) { browser in
-            if let id = browser?.activeTabID { browser?.devTools.sheet = .userAgent(tabID: id) }
-        }
-        let media = webKitSubmenu("WebKit Emulate Media")
-        add(media, "Screen", enabled: hasWebKitPage, checked: { state($0).media != .print }) { $0?.setMediaType(nil) }
-        add(media, "Print", enabled: hasWebKitPage, checked: { state($0).media == .print }) { $0?.setMediaType(.print) }
-        media.addItem(.separator())
-        add(media, "Light Appearance", enabled: hasWebKitPage, checked: { state($0).appearance == .light }) { $0?.setAppearance(.light) }
-        add(media, "Dark Appearance", enabled: hasWebKitPage, checked: { state($0).appearance == .dark }) { $0?.setAppearance(.dark) }
-        add(media, "System Appearance", enabled: hasWebKitPage, checked: { state($0).appearance == nil }) { $0?.setAppearance(nil) }
-        let vision = webKitSubmenu("WebKit Vision Simulator")
-        for mode in Vision.allCases {
-            add(vision, mode.title, enabled: hasWebKitPage, checked: { state($0).vision == mode }) { $0?.setVision(mode) }
-            if mode == .none { vision.addItem(.separator()) }
         }
         add(develop, "Disable JavaScript", enabled: { $0?.activeEnginePage?.state.lifecycle == .active },
             checked: { state($0).javaScriptDisabled }) { $0?.toggleJavaScript() }

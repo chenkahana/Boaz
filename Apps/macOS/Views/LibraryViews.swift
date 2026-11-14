@@ -189,23 +189,39 @@ private func dayTitle(_ day: Date) -> String {
     return day.formatted(calendar.isDate(day, equalTo: .now, toGranularity: .year) ? date : date.year())
 }
 
-/// Boaz ▸ Settings: same preferences as iOS, plus keyboard shortcut overrides.
+/// Boaz ▸ Settings: same preferences as iOS, plus keyboard shortcut overrides. The App Store build shows the panes in
+/// SwiftUI's Settings scene; the DMG shows them in `ChromiumSettingsWindow`.
+enum MacSettingsPane: CaseIterable {
+    case general, privacy, sync, passwords, shortcuts
+
+    var title: String {
+        switch self {
+        case .general: "General"
+        case .privacy: "Privacy"
+        case .sync: "Sync"
+        case .passwords: "Passwords"
+        case .shortcuts: "Shortcuts"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .general: "gearshape"
+        case .privacy: "hand.raised"
+        case .sync: "icloud"
+        case .passwords: "key"
+        case .shortcuts: "keyboard"
+        }
+    }
+}
+
 struct MacSettingsView: View {
     var body: some View {
         TabView {
-            GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }
-            PrivacySettings().tabItem { Label("Privacy", systemImage: "hand.raised") }
-            #if BOAZ_CHROMIUM
-            WebsiteEngineSettings().tabItem { Label("Websites", systemImage: "globe") }
-            #endif
-            SyncSettings().tabItem { Label("Sync", systemImage: "icloud") }
-            PasswordsSettings().frame(minHeight: 460).tabItem { Label("Passwords", systemImage: "key") }
-            ShortcutsSettings().tabItem { Label("Shortcuts", systemImage: "keyboard") }
+            ForEach(MacSettingsPane.allCases, id: \.self) { pane in
+                MacSettingsPaneView(pane: pane).tabItem { Label(pane.title, systemImage: pane.symbol) }
+            }
         }
-        // System label colors on the system background. Footnotes and values take the second level, which reads at
-        // 4.5:1 or better (the system's secondary label is about 4:1 in Light).
-        .foregroundStyle(.primary, Self.footnote)
-        .frame(width: 520)
     }
 
     static let footnote = Color(nsColor: NSColor(name: nil) { appearance in
@@ -213,93 +229,25 @@ struct MacSettingsView: View {
     })
 }
 
-#if BOAZ_CHROMIUM
-private struct WebsiteEngineSettings: View {
-    @Environment(MacModel.self) private var model
-    @State private var profileID = ""
-    @State private var selectedEngine = StoredBrowserEngine.chromium
-    @State private var rules: [SiteEngineRule] = []
-    @State private var error: String?
+struct MacSettingsPaneView: View {
+    let pane: MacSettingsPane
 
     var body: some View {
-        Form {
-            Section("Profile") {
-                Picker("Profile", selection: $profileID) {
-                    ForEach(model.sidebar.profiles) { profile in Text(profile.name).tag(profile.id) }
-                }
-                .disabled(model.sidebar.profiles.isEmpty)
-                if model.sidebar.profiles.isEmpty { Text("No profiles are available yet.") }
-            }
-            Section("Default Browser Engine") {
-                Picker("Engine", selection: Binding(get: { selectedEngine }, set: { engine in
-                    guard !profileID.isEmpty else { return }
-                    ChromiumEnginePreferences.setDefaultEngine(engine, profileID: profileID)
-                    let saved = ChromiumEnginePreferences.defaultEngine(profileID: profileID)
-                    selectedEngine = saved
-                    error = saved == engine ? nil : "The default engine could not be saved."
-                })) {
-                    Text("Chromium").tag(StoredBrowserEngine.chromium)
-                    Text("WebKit").tag(StoredBrowserEngine.webkit)
-                }.disabled(profileID.isEmpty)
-                Text("Applies when routing new pages. Existing tabs are not reloaded. Individual tab choices and website rules take precedence.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Text("Cookies and website storage are separate between engines. Chromium extensions work only in Chromium tabs.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Section("Website Rules") {
-                if rules.isEmpty, error == nil { Text("No website rules for this profile.").foregroundStyle(.secondary) }
-                ForEach(Array(rules.enumerated()), id: \.offset) { _, rule in
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(rule.host + (rule.pathPrefix ?? ""))
-                            Text("\(rule.engine == .chromium ? "Chromium" : "WebKit") · \(rule.reason == .user ? "Your choice" : "Protected media")")
-                                .font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Button("Remove") { remove(rule) }
-                            .accessibilityLabel("Remove rule for \(rule.host + (rule.pathPrefix ?? ""))")
-                    }
-                }
-                if let error { Text(error).foregroundStyle(.red) }
-                Button("Refresh Rules") { load() }.disabled(profileID.isEmpty)
+        Group {
+            switch pane {
+            case .general: GeneralSettings()
+            case .privacy: PrivacySettings()
+            case .sync: SyncSettings()
+            case .passwords: PasswordsSettings().frame(minHeight: 460)
+            case .shortcuts: ShortcutsSettings()
             }
         }
-        .formStyle(.grouped)
-        .onAppear { selectAvailableProfile() }
-        .onChange(of: model.sidebar.profiles.map(\.id)) { selectAvailableProfile() }
-        .onChange(of: profileID) { load() }
-    }
-
-    private func selectAvailableProfile() {
-        if !model.sidebar.profiles.contains(where: { $0.id == profileID }) {
-            profileID = model.sidebar.profiles.first?.id ?? ""
-        }
-        load()
-    }
-    private func load() {
-        rules = []
-        error = nil
-        guard !profileID.isEmpty else { return }
-        selectedEngine = ChromiumEnginePreferences.defaultEngine(profileID: profileID)
-        guard let store = model.store else { error = "Website rules are unavailable. Try refreshing after the library loads."; return }
-        do {
-            try store.seedProtectedMediaRules(profileID: profileID)
-            rules = try store.siteEngineRules(profileID: profileID)
-        }
-        catch { self.error = "Website rules could not be read. Try refreshing." }
-    }
-    private func remove(_ rule: SiteEngineRule) {
-        guard rule.profileID == profileID, let store = model.store else {
-            error = "Website rules are unavailable. Try refreshing."; return
-        }
-        do {
-            try store.removeSiteEngineRule(rule)
-            ChromiumEnginePreferences.rulesDidChange()
-            load()
-        } catch { self.error = "The website rule could not be removed. Try again." }
+        // System label colors on the system background. Footnotes and values take the second level, which reads at
+        // 4.5:1 or better (the system's secondary label is about 4:1 in Light).
+        .foregroundStyle(.primary, MacSettingsView.footnote)
+        .frame(width: 520)
     }
 }
-#endif
 
 private struct GeneralSettings: View {
     @Environment(MacModel.self) private var model

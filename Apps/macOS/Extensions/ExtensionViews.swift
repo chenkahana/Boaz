@@ -193,7 +193,7 @@ struct ExtensionsManagerView: View {
     }
 }
 
-/// The enabled extensions' toolbar buttons, under the address field: icon and badge; a click opens the popup.
+/// The enabled extensions' toolbar buttons, beside the address field: icon and badge; a click opens the popup.
 struct ExtensionActionsBar: View {
     @Environment(BrowserState.self) private var browser
     var body: some View {
@@ -243,7 +243,6 @@ private struct WebKitExtensionActionsBar: View {
                     .help(action?.label ?? installed.name)
                     .accessibilityLabel(action?.label ?? installed.name)
                 }
-                Spacer(minLength: 0)
             }
         }
     }
