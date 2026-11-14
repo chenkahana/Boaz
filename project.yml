@@ -119,6 +119,10 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         ITSAppUsesNonExemptEncryption: false
+        # Without these, macOS denies location and terminates the app when a site starts the camera or microphone.
+        NSCameraUsageDescription: Websites you visit can ask to use your camera, for example for video calls or to take a photo to upload.
+        NSMicrophoneUsageDescription: Websites you visit can ask to use your microphone, for example for calls or voice search.
+        NSLocationUsageDescription: Websites you visit can ask for your location, for example to show nearby places on a map.
         CFBundleURLTypes:
           - CFBundleTypeRole: Viewer
             CFBundleURLName: com.chenkahana.boaz.web
