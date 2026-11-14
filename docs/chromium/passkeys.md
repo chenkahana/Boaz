@@ -1,6 +1,6 @@
 # Native website passkeys
 
-Status: required work in PR #70. The native-window adapter is implementation-ready; manifest integration and compilation remain pending. No WebAuthn runtime scenario has passed. This concerns third-party website authentication, not sign-in to Boaz.
+Status (2026-11-14): WebAuthn works in the Chromium DMG for security keys and phone passkeys, and through Chromium's own checks end to end. Apple Passwords / iCloud Keychain passkeys wait on Apple's grant of the browser passkey entitlement (request Z6525VUX9T, "Submitted" in the developer portal). This concerns third-party website authentication, not sign-in to Boaz.
 
 Reuse Chromium 157.0.8103.51 WebAuthn, FIDO, origin/RP validation, secure-context checks, user verification and profile isolation. Do not replace navigator.credentials, add OAuth/Sign in with Apple, or build a separate Swift AuthenticationServices authenticator. Keep WebKit, extensions and isolated passwords intact.
 
@@ -24,21 +24,32 @@ The pinned `device/fido/mac/icloud_keychain_sys.mm:228–239,267` checks the pro
 
 Local Touch ID keychain-group authorization is distinct from iCloud browser authorization. USB/security-key and hybrid paths must be verified separately; missing Apple approval does not by itself prove those transports unavailable.
 
+## What changed on 2026-11-14
+
+- `native-modal-dialog-position.patch`: Chromium positions web-modal dialogs only for hosts backed by a Views widget, and Boaz's native window isn't one. The passkey dialog opened wherever AppKit put it, on another display in testing. `ModalDialogHost::ReportsScreenDialogPosition()` lets Boaz's window report a screen position. It now centers WebAuthn, HTTP sign-in and other web-modal dialogs over the page.
+- `NSBluetoothAlwaysUsageDescription` in the Mac app. Without it macOS refuses Bluetooth ("the responsible app for the process does not…"), and Chromium hides phone passkeys (hybrid) and Bluetooth security keys.
+- `release-mac.sh --passkeys` (cloud signing only) adds `com.apple.developer.web-browser.public-key-credential` to the browser entitlements. `export-cloud-application.py --finish` then fails unless both the signed app and Apple's provisioning profile carry it, because Xcode drops an ungranted entitlement without failing.
+- `Tools/chromium/webauthn-check.py` runs WebAuthn checks in a running Boaz through Chromium's DevTools virtual authenticator. They go through Boaz's real origin, RP ID and secure-context checks and never touch the user's passkeys.
+
 ## Required runtime evidence
 
 Use the real signed Boaz Chromium host with isolated test profiles and test accounts. Start at https://webauthn.io/, then Google and GitHub test accounts configured for passkeys. Never log credentials, assertions, authentication payloads or account details. Use existing affected tests/fixtures for source inspection; do not add new tests under the standing repository policy.
 
-| Scenario | State | Required evidence |
+| Scenario | State | Evidence (development-signed build, arm64) |
 |---|---|---|
-| New passkey registration | Pending host | Site confirms successful creation, correct RP/profile |
-| Existing passkey assertion | Pending host/account | Successful site sign-in without credential migration assumptions |
-| Apple Passwords and Touch ID | Pending authorization/host | Actual signed entitlement/profile plus successful native authentication |
-| External security key | Pending host/hardware | Real device creation/assertion and cancellation |
-| Phone passkey | Pending host/phone | Real hybrid QR/phone completion and cancellation |
-| Conditional passkey UI | Pending implementation/runtime | Native suggestion selection completes the site's conditional request |
-| User cancellation | Pending host | Dismissal returns expected failure, no orphaned dialog |
-| Navigation/close during authentication | Pending host | Original request cancels; no result delivered to a replacement document |
-| Multiple windows/profiles | Pending host | Correct originating tab/window, isolated profile behavior |
-| Relaunch | Pending host | Same signed identity/profile authenticates after restart |
+| API and secure context | Passed | `PublicKeyCredential` present on HTTPS, absent on HTTP (`http://neverssl.com`) |
+| Platform authenticator | Reports unavailable | `isUserVerifyingPlatformAuthenticatorAvailable()` is false until Apple grants the entitlement; Chromium's own Touch ID store stays off (no Chrome keychain group, by design) |
+| Registration and sign-in | Passed (virtual authenticator) | Discoverable create, discoverable get and allow-list get; webauthn.io's own Register and Authenticate succeed |
+| RP ID validation | Passed | `create` and `get` for a foreign RP ID raise `SecurityError` |
+| Cancellation | Passed | Aborting a modal or conditional request raises `AbortError`; Escape on the real dialog returns `NotAllowedError` to webauthn.io |
+| Focus rule | Passed | A request from an unfocused page fails ("the page does not have focus") |
+| Native dialog | Passed | "Passkeys & Security Keys" chooser opens centered over the page; it takes focus when Boaz is active |
+| Phone passkey | QR shown | After the Bluetooth fix the "Use your phone or tablet" QR appears; completing it needs a phone |
+| Navigation during authentication | Passed | Navigating the tab closes the dialog and cancels the request |
+| Conditional passkey UI | Partly | webauthn.io's conditional request completes with a saved passkey (signs in); the autofill suggestion list itself isn't verified (DevTools completes conditional requests without it) |
+| Apple Passwords and Touch ID | Blocked | Needs Apple's entitlement grant |
+| External security key | Needs hardware | Dialog offers it; no key was attached |
+| Signed production build | Not run | `--passkeys` export refuses until the grant appears in provisioning |
+| Relaunch, multiple tabs | Not run | Depends on Apple Passwords |
 
 Record version, procedure, result, and any hardware/account/approval dependency for each row. Full host build, native window focus/accessibility, signed app inspection and end-to-end site success are separate gates. Source compilation cannot mark any row passed. Apple approval blocks only dependent Apple Passwords work; continue unrelated migration work.

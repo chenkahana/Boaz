@@ -6,15 +6,10 @@ page and prints one JSON report. Exit status 0 means every required check passed
 No license, key or session material is printed.
 """
 import argparse
-import base64
 import json
-import os
-import pathlib
-import socket
-import struct
 import sys
-import time
-import urllib.request
+
+from automation_client import connection, evaluate
 
 PROBE = r"""
 (async () => {
@@ -113,85 +108,6 @@ PLAYBACK = r"""
   return JSON.stringify(report);
 })()
 """
-
-
-class Socket:
-    """Just enough RFC 6455 for one DevTools target: masked text frames out, unfragmented frames in."""
-
-    def __init__(self, port, path, token):
-        self.sock = socket.create_connection(("127.0.0.1", port), timeout=60)
-        key = base64.b64encode(os.urandom(16)).decode()
-        self.sock.sendall((f"GET {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nUpgrade: websocket\r\n"
-                           f"Connection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n"
-                           f"Authorization: Bearer {token}\r\n\r\n").encode())
-        head = b""
-        while b"\r\n\r\n" not in head:
-            chunk = self.sock.recv(1)
-            if not chunk:
-                raise RuntimeError("Automation closed the WebSocket handshake")
-            head += chunk
-        if b" 101 " not in head.split(b"\r\n", 1)[0]:
-            raise RuntimeError("Automation refused the WebSocket: " + head.split(b"\r\n", 1)[0].decode())
-        self.next_id = 0
-
-    def _read(self, count):
-        data = b""
-        while len(data) < count:
-            chunk = self.sock.recv(count - len(data))
-            if not chunk:
-                raise RuntimeError("Automation closed the connection")
-            data += chunk
-        return data
-
-    def call(self, method, **params):
-        self.next_id += 1
-        payload = json.dumps({"id": self.next_id, "method": method, "params": params}).encode()
-        mask = os.urandom(4)
-        length = len(payload)
-        header = bytes([0x81]) + (bytes([0x80 | length]) if length < 126 else
-                                  struct.pack("!BH", 0x80 | 126, length) if length < 65536 else
-                                  struct.pack("!BQ", 0x80 | 127, length))
-        self.sock.sendall(header + mask + bytes(b ^ mask[i % 4] for i, b in enumerate(payload)))
-        while True:
-            first, second = self._read(2)
-            length = second & 0x7F
-            if length == 126:
-                length = struct.unpack("!H", self._read(2))[0]
-            elif length == 127:
-                length = struct.unpack("!Q", self._read(8))[0]
-            message = json.loads(self._read(length)) if first & 0x0F == 1 else {}
-            if message.get("id") == self.next_id:
-                if "error" in message:
-                    raise RuntimeError(f"{method}: {message['error'].get('message')}")
-                return message["result"]
-
-
-def connection(record_dir):
-    records = sorted(pathlib.Path(record_dir).glob("boaz-*.json"), key=lambda p: p.stat().st_mtime)
-    for path in reversed(records):
-        record = json.loads(path.read_text())
-        try:
-            os.kill(record["pid"], 0)
-            return record["port"], record["token"]
-        except OSError:
-            continue
-    raise SystemExit(f"No running Boaz automation record in {record_dir}")
-
-
-def evaluate(port, token, url, script, settle):
-    """Navigate the first open Boaz tab; Boaz owns tab creation, so automation never opens or closes one."""
-    request = urllib.request.Request(f"http://127.0.0.1:{port}/json/list",
-                                     headers={"Authorization": f"Bearer {token}"})
-    pages = [t for t in json.load(urllib.request.urlopen(request, timeout=30)) if t["type"] == "page"]
-    if not pages:
-        raise SystemExit("Open any web page in Boaz first; the probe runs in that tab.")
-    ws = Socket(port, "/" + pages[0]["webSocketDebuggerUrl"].split("/", 3)[3], token)
-    ws.call("Page.navigate", url=url)
-    time.sleep(settle)
-    result = ws.call("Runtime.evaluate", expression=script, awaitPromise=True, returnByValue=True)
-    if "exceptionDetails" in result:
-        raise RuntimeError(result["exceptionDetails"].get("text", "Page script failed"))
-    return json.loads(result["result"]["value"])
 
 
 def main():

@@ -320,7 +320,15 @@ class NativeWindow final : public BrowserWindow,
   bool CanUserExitFullscreen() const override { return true; }
 
   gfx::NativeView GetHostView() const override { Main(); return gfx::NativeView(Content()); }
-  gfx::Point GetDialogPosition(const gfx::Size& size) override { const auto bounds = GetContentsSize(); return gfx::Point(std::max(0, (bounds.width() - size.width()) / 2), std::max(0, (bounds.height() - size.height()) / 2)); }
+  // The page area has no Views widget, so Chromium places web-modal dialogs (passkeys, HTTP sign-in) from this
+  // screen position: centered over the page.
+  bool ReportsScreenDialogPosition() const override { return true; }
+  gfx::Point GetDialogPosition(const gfx::Size& size) override {
+    Main(); NSView* view = Content();
+    const gfx::Rect page = gfx::ScreenRectFromNSRect([window_ convertRectToScreen:[view convertRect:view.bounds toView:nil]]);
+    return gfx::Point(page.x() + std::max(0, (page.width() - size.width()) / 2),
+                      page.y() + std::max(0, (page.height() - size.height()) / 2));
+  }
   gfx::Size GetMaximumDialogSize() override { return GetContentsSize(); }
   bool ShouldActivateDialog() const override { return IsActive(); }
   void AddObserver(web_modal::ModalDialogHostObserver* observer) override { Main(); modal_observers_.AddObserver(observer); }

@@ -123,6 +123,8 @@ targets:
         NSCameraUsageDescription: Websites you visit can ask to use your camera, for example for video calls or to take a photo to upload.
         NSMicrophoneUsageDescription: Websites you visit can ask to use your microphone, for example for calls or voice search.
         NSLocationUsageDescription: Websites you visit can ask for your location, for example to show nearby places on a map.
+        # Chromium needs Bluetooth to sign in with a passkey on your phone and with Bluetooth security keys.
+        NSBluetoothAlwaysUsageDescription: Websites you visit can let you sign in with a passkey from your phone or a Bluetooth security key.
         CFBundleURLTypes:
           - CFBundleTypeRole: Viewer
             CFBundleURLName: com.chenkahana.boaz.web

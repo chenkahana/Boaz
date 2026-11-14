@@ -34,5 +34,13 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Websites you visit can let you sign in with a passkey from your phone or a Bluetooth security key.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Websites you visit can ask to use your camera, for example for video calls or to take a photo to upload.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>Websites you visit can ask for your location, for example to show nearby places on a map.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Websites you visit can ask to use your microphone, for example for calls or voice search.</string>
 </dict>
 </plist>

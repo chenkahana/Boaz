@@ -1,0 +1,39 @@
+--- a/components/constrained_window/constrained_window_views.cc
++++ b/components/constrained_window/constrained_window_views.cc
+@@ -172,6 +172,10 @@
+   // modal dialogs are displayed as sheets, and their position is managed by a
+   // ConstrainedWindowSheetController instance.
+   if (!host_widget) {
++    if (dialog_host->ReportsScreenDialogPosition()) {
++      widget->SetBounds(gfx::Rect(dialog_host->GetDialogPosition(size), size));
++      return;
++    }
+     widget->SetSize(size);
+     return;
+   }
+--- a/components/web_modal/modal_dialog_host.cc
++++ b/components/web_modal/modal_dialog_host.cc
+@@ -10,6 +10,10 @@
+   return true;
+ }
+ 
++bool ModalDialogHost::ReportsScreenDialogPosition() const {
++  return false;
++}
++
+ bool ModalDialogHost::ShouldConstrainDialogBoundsByHost() {
+   // Please consult with //constrained_window OWNERS if you intend to release
+   // the bounds constraint for your WebContents container (i.e. returning
+--- a/components/web_modal/modal_dialog_host.h
++++ b/components/web_modal/modal_dialog_host.h
+@@ -40,6 +40,10 @@
+   // Returns whether a dialog currently about to be shown should be activated.
+   virtual bool ShouldActivateDialog() const;
+ 
++  // True when the host view has no Views widget and GetDialogPosition()
++  // returns the dialog's origin in screen coordinates instead.
++  virtual bool ReportsScreenDialogPosition() const;
++
+   // Returns true if the web modal dialog should be constrained within the
+   // bounds of the modal host. True by default. Please consult with
+   // //constrained_window OWNERS if you intend to release the bounds constraint

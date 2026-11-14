@@ -18,6 +18,7 @@ ROOT = Path('/Volumes/BoazBuild/cef/direct')
 HERE = Path(__file__).resolve().parent
 PYTHON = '/opt/homebrew/bin/python3.12'
 TEAM = 'DPF8459C2J'
+PASSKEYS = 'com.apple.developer.web-browser.public-key-credential'
 
 
 def sha(path):
@@ -82,7 +83,8 @@ def experiment(args):
     signed_output.mkdir()
     receipt_path = output / 'cloud-export-experiment.json'
     receipt = {'published': False, 'verified': False, 'production_usable': False,
-               'assembly_sha256': sha(assembly), 'export_attempted': False, 'export_succeeded': False}
+               'assembly_sha256': sha(assembly), 'export_attempted': False, 'export_succeeded': False,
+               'passkeys_requested': args.passkeys}
     receipt_path.write_text(json.dumps(receipt, indent=2))
     with (output / 'experiment.log').open('xb') as log:
         execute(['/usr/bin/ditto', '--clone', str(app), str(work / 'Boaz.app')], log)
@@ -99,6 +101,8 @@ def experiment(args):
             'com.apple.developer.icloud-container-environment': 'Production',
             'com.apple.developer.aps-environment': 'production',
         })
+        if args.passkeys:
+            entitlements[PASSKEYS] = True
         entitlements_path.write_bytes(plistlib.dumps(entitlements))
         config = packaging / 'signing/internal_config.py'
         if config.exists() or config.is_symlink():
@@ -238,6 +242,10 @@ def finish(args):
                 or entitlements.get('com.apple.security.get-task-allow', False)
                 or entitlements.get('com.apple.security.cs.disable-library-validation', False)):
             raise RuntimeError('Expired or unsafe production provisioning')
+        # Xcode drops an entitlement Apple hasn't granted without failing, so check what was actually signed.
+        if record.get('passkeys_requested') and not (entitlements.get(PASSKEYS) is True and grants.get(PASSKEYS) is True):
+            raise RuntimeError('Apple has not granted the browser passkey entitlement to this App ID '
+                               '(Capability Requests: Web Browser Public Key Credential Requests)')
         execute(['/usr/bin/xcrun', 'stapler', 'validate', str(app)], log)
         execute(['/usr/sbin/spctl', '--assess', '--type', 'execute', str(app)], log)
         receipt.update(notarized_export=True, verified=True, app=str(app),
@@ -252,6 +260,8 @@ def main():
         parser.add_argument('--' + name, required=True)
     parser.add_argument('--identity')
     parser.add_argument('--finish', action='store_true', help='Export and verify a previously submitted archive')
+    parser.add_argument('--passkeys', action='store_true',
+                        help='Sign with the browser passkey entitlement; --finish fails unless Apple granted it')
     parser.add_argument('--guarded', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
     if not args.finish and not args.identity:
