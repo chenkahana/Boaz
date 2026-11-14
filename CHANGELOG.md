@@ -12,9 +12,12 @@ All notable changes to Boaz are recorded here. The format follows
   Store and iPhone apps stay on WebKit. Upgrading from an earlier version keeps your library, settings, saved passwords and signed-in sites.
 - iPhone: Boaz can be your default browser (Settings › Apps › Default Apps › Browser App), so links from other apps
   open in it. Settings › Default Browser shows whether it is and opens iOS Settings to choose it.
+- Mac (DMG): extensions sit beside the address, as in Arc. Pin the ones you use; the puzzle button lists them all,
+  opens their popups and manages them.
 
 ### Fixed
 
+- Mac (DMG): right-click shows a menu again: a short one with the link, image, text and Inspect items that apply.
 - Mac (DMG): websites can ask to use the camera, microphone and location. The Mac app didn't declare them before.
 - Mac (DMG): logging out or restarting the Mac quits Boaz instead of being held up.
 - iPhone: saving a photo from a website (Save to Photos, or Save Image from the share sheet) no longer closes
@@ -24,6 +27,9 @@ All notable changes to Boaz are recorded here. The format follows
 
 ### Changed
 
+- Mac (DMG): Boaz presents itself as Chromium. Engine menus, badges and prompts are gone; video Chromium can't play
+  still opens in WebKit, without asking.
+- Mac (DMG): Settings is a standard Mac settings window with a tab for each pane.
 - Mac: Boaz uses less energy. The shadow around a web page is no longer redrawn each time the page redraws, and in
   Low Power Mode Boaz checks iCloud for changes from your other devices every 10 minutes instead of every 2.
 
