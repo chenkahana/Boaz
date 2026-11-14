@@ -1,10 +1,10 @@
 # Chromium migration
 
-The GitHub DMG is intended to move to Chromium while the Mac App Store and iPhone apps remain on WebKit. All migration work belongs to one draft PR on `codex/chromium-migration`. The DMG keeps both engines at runtime. Do not merge or release until full dual-engine parity and protected playback through WebKit are verified; Widevine remains disabled pending approval.
+The GitHub DMG runs Chromium (from Boaz 0.3.0, PR #70) while the Mac App Store and iPhone apps remain on WebKit. The DMG keeps both engines at runtime: any tab or site can switch to WebKit, and spaces on another profile open in WebKit. Widevine remains disabled pending approval; protected media uses WebKit.
 
 ## Current status
 
-The [S0 Crest study](spikes/S0-crest.md) selects a direct Chromium host. CEF development is frozen; the original runtime gates now apply to the new host. The [dual-engine revision](dual-engine.md) governs subsequent work. The external SSD now contains a verified APFS build image; CMake and Ninja are installed. The pinned direct Chromium source and Mac toolchains are installed; the full native host builds successfully. The real Boaz UI also builds and has launched through onboarding, sidebar, menus, and the command bar; page navigation in that application still awaits verification after an AppController menu crash fix. Earlier prebuilt CEF runtime evidence does not pass the new host gates. See [feasibility.md](feasibility.md) and [SSD verification](spikes/storage.md).
+The [S0 Crest study](spikes/S0-crest.md) selected a direct Chromium host, which ships through the [dual-engine revision](dual-engine.md). Essential acceptance of the released candidate (signing and notarization, upgrade from WebKit Boaz with cookies and passwords, quit and reopen, fallback, downloads and media) is recorded at the end of the [parity ledger](parity.md). Open items: native iCloud Keychain passkeys need Apple's managed entitlement ([passkeys.md](passkeys.md)), and the DMG is above its deferred size target.
 
 The [parity ledger](parity.md) records the existing implementation and required acceptance coverage. Source inventory is not runtime verification.
 

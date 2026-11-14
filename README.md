@@ -7,7 +7,7 @@
 **A calm web browser for iPhone and Mac.**
 
 On iPhone, the page fills the screen and opens where you left it, with your tabs, New Tab and the page menu
-within thumb reach and a layout that follows every posture of iPhone Duo. On the Mac, spaces that keep work, home and projects apart. Both stay in step through your private iCloud.
+within thumb reach and a layout that follows every posture of iPhone Duo. On the Mac, spaces that keep work, home and projects apart, and a DMG built on Chromium. Both stay in step through your private iCloud.
 
 ![iOS 27.1+](https://img.shields.io/badge/iOS-27.1%2B-000000?logo=apple)
 ![macOS 26+](https://img.shields.io/badge/macOS-26%2B-000000?logo=apple)
@@ -38,6 +38,7 @@ within thumb reach and a layout that follows every posture of iPhone Duo. On the
 | **On-device AI** | Summarize Page, Ask This Page and Tidy Tabs, using only Apple's on-device model. Nothing goes to a server. |
 | **iCloud sync** | Spaces, pins, folders, favorites and Today sync between iPhone and Mac through your **private** CloudKit database (`CKSyncEngine`). When iCloud is unavailable, a folder you choose works as a fallback. History and Incognito tabs never leave the device. |
 | **Built for iPhone Duo** | Folded: the page with the rail beside it, its edges tinted to match the site. Open: a sidebar with search and Today next to the page. Book: sidebar on the left half, page on the right. Laptop: page on top, controls on the lower half. The page is never reloaded as the hinge moves. Standard iPhones get the page with the bar across the bottom. |
+| **Chromium on the Mac** | The DMG from GitHub is built on Chromium: Chrome Web Store extensions, and Chromium's DevTools docked beside the page. Upgrading from an earlier version keeps your library, settings, saved passwords and signed-in sites. The Mac App Store and iPhone apps use WebKit. |
 | **A full Mac browser** | Sidebar with spaces, command bar (⌘T / ⌘L), split view, rebindable shortcuts, downloads, and a small Quick Window for links opened from other apps. |
 | **Bring Arc with you** | On Mac, import Arc's spaces, pinned folders, favorites, themes, keyboard shortcuts and, if you opt in, cookies as they are. Chrome, Brave, Edge and Safari bookmarks import too. |
 | **Private by design** | Built-in ad and tracker blocking (EasyList), cookie-banner declining on iPhone, Incognito tabs and a reader view. No accounts, analytics or third-party SDKs. |
@@ -84,7 +85,9 @@ Mac:
 ## Architecture
 
 Boaz is two native SwiftUI apps over one shared Swift package. All app targets compile in Swift 6 language mode with
-main-actor default isolation; database and sync work runs off the main actor.
+main-actor default isolation; database and sync work runs off the main actor. In the DMG, the Mac app's UI is loaded
+by a pinned Chromium build (the native host) and talks to it through a versioned C bridge; WebKit pages run in the
+same windows.
 
 ```mermaid
 flowchart LR
@@ -92,7 +95,10 @@ flowchart LR
         iOS[Boaz for iPhone] --- Share[Share extension]
         iOS --- Widgets[Widgets]
     end
-    Mac[Boaz for Mac]
+    subgraph MacDMG[Boaz for Mac · DMG]
+        Mac[Boaz for Mac] <-->|C bridge| Host[Chromium host]
+        Mac --- WebKit[WebKit fallback]
+    end
     subgraph BoazKit[BoazKit · Swift package]
         Store[(Library store<br/>GRDB · SQLite)]
         Sync[Sync engine<br/>CKSyncEngine · folder fallback]
@@ -108,7 +114,8 @@ flowchart LR
 | Layer | Path | What it holds |
 |---|---|---|
 | iPhone app | [`Apps/iOS`](Apps/iOS) | App model, posture-aware shell, tab browser, rail and tab carousel, bottom panels, reader, onboarding, App Intents |
-| Mac app | [`Apps/macOS`](Apps/macOS) | Window and sidebar, command bar, key bindings, Arc import UI, onboarding |
+| Mac app | [`Apps/macOS`](Apps/macOS) | Window and sidebar, command bar, key bindings, Arc import UI, onboarding; `Engine/` drives Chromium and the WebKit fallback |
+| Chromium host | [`Tools/chromium`](Tools/chromium) | The bridge header (`host/boaz_host.h`), native host sources, Chromium patches, build, signing and DMG tooling. Docs: [docs/chromium](docs/chromium/README.md) |
 | Extensions | [`Apps/Extensions`](Apps/Extensions) | Share extension and WidgetKit widgets |
 | Shared UI | [`Apps/Shared`](Apps/Shared) | Theme, assets, onboarding content, privacy manifest |
 | Web engine glue | [`Apps/Browser`](Apps/Browser) | WebKit content blocking, downloads, favicons, site colors, search suggestions, on-device AI |
@@ -152,6 +159,8 @@ or settings.
 | `make project` | Regenerates `Boaz.xcodeproj` from `project.yml` |
 | `make build` | Builds BoazKit and both apps without code signing (what CI runs) |
 | `make archive` | Builds signed Release archives for App Store Connect into `build/archives` |
+| `make mac-dmg` | Builds the Chromium host and the matching Release Boaz UI for the DMG. Needs the Chromium source and build volume set up first: [docs/chromium/direct-build.md](docs/chromium/direct-build.md) |
+| `make dmg VERSION=… RELEASE_ARGS=…` | Assembles, signs, notarizes and packages an unpublished DMG ([docs/release.md](docs/release.md)) |
 | `make clean` | Removes build output |
 
 ## Repository layout
@@ -166,6 +175,7 @@ Boaz/
 │   └── Shared/           Theme, assets, privacy manifest
 ├── Packages/BoazKit/    Core library: model, store, sync, importers
 ├── Tools/                Icon generator and release scripts
+│   └── chromium/         Chromium host, patches, DMG build and signing
 ├── docs/                 Architecture, privacy policy, release guide, screenshots
 ├── .github/              CI, issue and pull-request templates
 ├── project.yml           XcodeGen project definition
@@ -181,7 +191,8 @@ device. The full policy is in [docs/privacy.md](docs/privacy.md); each app ships
 ## Releasing
 
 Versioning, archives, App Store metadata and the review checklist are in [docs/app-store.md](docs/app-store.md).
-Changes are recorded in [CHANGELOG.md](CHANGELOG.md).
+The Chromium DMG, its signing and the Sparkle feed are in [docs/release.md](docs/release.md). Changes are recorded
+in [CHANGELOG.md](CHANGELOG.md).
 
 ## Contributing
 
