@@ -56,6 +56,8 @@
 	<string>Websites you visit can ask for your location, for example to show nearby places on a map.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Websites you visit can ask to use your microphone, for example for calls or voice search.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Boaz saves images and videos you choose to save from websites to your photo library.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

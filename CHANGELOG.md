@@ -6,6 +6,18 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- iPhone: Boaz can be your default browser (Settings › Apps › Default Apps › Browser App), so links from other apps
+  open in it. Settings › Default Browser shows whether it is and opens iOS Settings to choose it.
+
+### Fixed
+
+- iPhone: saving a photo from a website (Save to Photos, or Save Image from the share sheet) no longer closes
+  Boaz. iOS now asks for permission to add to your photo library instead.
+- iPhone: a link sent to Boaz again (tapped twice, or replayed after a cold launch) goes back to its tab instead of
+  opening a duplicate.
+
 ### Changed
 
 - Mac: Boaz uses less energy. The shadow around a web page is no longer redrawn each time the page redraws, and in

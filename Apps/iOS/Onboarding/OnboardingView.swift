@@ -5,8 +5,6 @@ import UIKit
 /// First-run setup, full screen on the cover screen and unfolded. It starts with signing in to iCloud, which is how
 /// the library reaches the Mac and back; Arc, Chrome and Safari data comes to the iPhone through that sync.
 struct OnboardingView: View {
-    // No default-browser step yet: iOS only offers "Default Browser App" to apps Apple has granted the
-    // com.apple.developer.web-browser entitlement, which Boaz doesn't have.
     enum Step: Int, CaseIterable { case signIn, done }
 
     @Environment(AppModel.self) private var model

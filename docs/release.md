@@ -35,3 +35,7 @@ Production Chromium keeps the existing sandboxed Boaz library in place when pres
 Before marking the PR ready, exercise the actual signed app: HTTP/HTTPS navigation, tab creation/switch/close, same-profile restart/restoration, normal quit, WebKit fallback, and representative existing password, download, extension, permission and media behavior. Verify an essential upgrade without data loss. No development-only artifact substitutes for this pass.
 
 Three-day dogfooding, exhaustive matrices, strict numerical performance/size gates and extended delta/rollback campaigns are deferred. Existing core features, security, data preservation, and a distributable Chromium-default application are not deferred.
+
+## Automatic beta watcher
+
+`Tools/release-watch.sh` retains the existing WebKit beta workflow. For Chromium revisions it stops before creating or pushing a tag: production candidates require explicit verified build/signing inputs and this PR does not enable automatic publication. The installed launchd watcher reads the checked-out script; reinstall it after changing its implementation. Logs remain in `~/Library/Application Support/BoazRelease`.

@@ -3,9 +3,9 @@ include:
   # Passkeys in web pages: a managed entitlement, off until Apple grants it (passkeys.yml).
   - path: passkeys.yml
     enable: false
-  # Default browser on iPhone: a managed entitlement, off until Apple grants it (web-browser.yml).
+  # Default browser on iPhone: a managed entitlement Apple has granted to com.chenkahana.boaz (web-browser.yml).
   - path: web-browser.yml
-    enable: false
+    enable: true
 options:
   bundleIdPrefix: com.chenkahana
   deploymentTarget:
@@ -21,7 +21,7 @@ settings:
     DEVELOPMENT_TEAM: DPF8459C2J
     CODE_SIGN_STYLE: Automatic
     MARKETING_VERSION: "1.0.1"
-    CURRENT_PROJECT_VERSION: "4"
+    CURRENT_PROJECT_VERSION: "6"
     PRODUCT_NAME: Boaz
     GENERATE_INFOPLIST_FILE: YES
     INFOPLIST_KEY_CFBundleDisplayName: Boaz
@@ -69,6 +69,8 @@ targets:
         NSMicrophoneUsageDescription: Websites you visit can ask to use your microphone, for example for calls or voice search.
         NSLocationWhenInUseUsageDescription: Websites you visit can ask for your location, for example to show nearby places on a map.
         NSFaceIDUsageDescription: Boaz asks for Face ID before it fills a saved password or shows your passwords.
+        # Required by WebKit's Save to Photos and the share sheet's Save Image; without it iOS kills the app.
+        NSPhotoLibraryAddUsageDescription: Boaz saves images and videos you choose to save from websites to your photo library.
         # Background refresh for sync; remote notifications are CloudKit's change pushes.
         BGTaskSchedulerPermittedIdentifiers: [com.chenkahana.boaz.sync]
         # audio: a video keeps playing, and floats in Picture in Picture, after leaving Boaz.

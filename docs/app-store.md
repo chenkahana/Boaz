@@ -12,7 +12,7 @@ Everything needed to submit Boaz for iPhone and Mac. Facts here match the code a
 | SKU | `boaz` |
 | Primary / secondary category | Productivity / Utilities |
 | Minimum OS | iOS 27.1, macOS 26.0 |
-| Version / build | 1.0.1 / 4 (iPhone 1.0 is approved; Mac 1.0 (4) is uploaded) (`MARKETING_VERSION`, `CURRENT_PROJECT_VERSION` in `project.yml`) |
+| Version / build | 1.0.1 / 6 (iPhone 1.0 is approved; Mac 1.0 (4) is uploaded) (`MARKETING_VERSION`, `CURRENT_PROJECT_VERSION` in `project.yml`) |
 | Price | Free |
 | Support URL | https://github.com/chenkahana/Boaz/issues |
 | Privacy Policy URL | https://github.com/chenkahana/Boaz/blob/master/docs/privacy.md |
@@ -99,6 +99,8 @@ No account or sign-in is needed, and iCloud sync is optional during the short fi
   never uploaded or synced. Saved passwords are not imported.
 - iCloud is optional; without it Boaz works fully on one device.
 - Camera, microphone and location prompts appear only when a website asks for them.
+- The iPhone asks to add to the photo library only when you save an image or video from a website; Boaz can't
+  read the library (add-only access).
 
 ## Screenshots
 
