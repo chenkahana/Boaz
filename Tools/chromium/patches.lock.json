@@ -820,12 +820,17 @@
     },
     {
       "file": "patches/native-context-menu.patch",
-      "sha256": "b782c55412b9ddb2053a673ec816b91a008bf018ecd54cf2a268b84c6588ed37",
+      "sha256": "3e4f33e0508e065aba299c859053ddb706fb12da25a2834e4a7514b8bafc8026",
       "files": [
+        {
+          "path": "chrome/browser/renderer_context_menu/BUILD.gn",
+          "before": "41854faf97ce76cb73d184190152c6fb4d8088b9b993baabf9b920fb457bc3e8",
+          "after": "c1a0dd0a08048488abbfd71e347bfd5bef32565a77842ecd0e93142ba4a87dfe"
+        },
         {
           "path": "chrome/browser/renderer_context_menu/render_view_context_menu.cc",
           "before": "bee071786682b77c31aec334d456f3aacd2aa5ad3d16340218ac98943a1e2463",
-          "after": "d57bb955ae4885c9899b411165213c51c32a99a8918262a6589abb9c8bf50e7f"
+          "after": "00880056511caaaf1d7284dfa99d77ec564d08bcb65437007620fb4786ac1d2a"
         },
         {
           "path": "chrome/browser/ui/cocoa/renderer_context_menu/render_view_context_menu_mac_cocoa.mm",

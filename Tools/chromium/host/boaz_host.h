@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 49u
+#define BOAZ_HOST_ABI_VERSION 50u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT,
@@ -231,6 +231,8 @@ typedef struct BoazHostCallbacks {
   void (*extensions_changed)(void* context, BoazHostWindow window);
   /* macOS reopen intent, coalesced during startup. UI notification; no API reentry. */
   void (*reopen_requested)(void* context);
+  /* Context menu Explain/Ask About This Page; selection is borrowed UTF-8, empty without one. UI notification; no API reentry. */
+  void (*ask_about_page)(void* context, BoazHostPage page, const char* selection);
 } BoazHostCallbacks;
 
 /* Enumeration values are borrowed for the visitor call. Visitors must copy
@@ -408,6 +410,8 @@ typedef struct BoazHostAPI {
       size_t count, uint64_t request, BoazHostCookieImportCompletion completion, void* context);
   /* Version is NUL-terminated and empty unless READY; capacity must fit 64 bytes. */
   BoazHostResult (*widevine_status)(BoazHostWidevineState* state, char* version, size_t capacity);
+  /* Shows the context menu's Explain/Ask About This Page item (ask_about_page). Off until set. */
+  BoazHostResult (*set_page_assistant_enabled)(uint8_t enabled);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

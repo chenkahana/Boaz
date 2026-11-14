@@ -20,6 +20,7 @@ private final class ChromiumApplication: NSObject {
     private var startupWindow: Task<ChromiumAppWindow?, Never>?
     private var defaultsObserver: NSObjectProtocol?
     private var appliedAutomaticPiP: Bool?
+    private var appliedPageAssistant: Bool?
     private var applicationMenu: ChromiumApplicationMenu?
 
     init(runtime: ChromiumRuntime) {
@@ -181,6 +182,9 @@ private final class ChromiumApplication: NSObject {
         runtime.reopenRequested = { [weak self] in
             Task { @MainActor in await self?.reopen() }
         }
+        runtime.askAboutPage = { [weak self] page, selection in
+            self?.windows.forEach { $0.browser.askAboutPage(page, selection: selection) }
+        }
         runtime.externalURLs = { [weak self] urls in
             guard let self else { return }
             externalURLBatches.append(urls)
@@ -188,6 +192,7 @@ private final class ChromiumApplication: NSObject {
         }
         try runtime.startCallbacks()
         try applyAutomaticPiPPreference()
+        applyPageAssistantPreference()
         defaultsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
             object: UserDefaults.standard, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.defaultsChanged() }
@@ -403,8 +408,17 @@ private final class ChromiumApplication: NSObject {
               update(enabled ? 1 : 0) == BOAZ_HOST_OK else { throw EnginePageError.unavailable }
         appliedAutomaticPiP = enabled
     }
+    /// The context menu offers Explain/Ask About This Page when the AI features are shown.
+    private func applyPageAssistantPreference() {
+        let enabled = AIFeatures.showsEntryPoints(
+            preference: UserDefaults.standard.object(forKey: AIFeatures.preferenceKey) as? Bool ?? true)
+        guard appliedPageAssistant != enabled, let update = runtime.api.set_page_assistant_enabled,
+              update(enabled ? 1 : 0) == BOAZ_HOST_OK else { return }
+        appliedPageAssistant = enabled
+    }
     private func defaultsChanged() {
         guard !finished else { return }
+        applyPageAssistantPreference()
         do { try applyAutomaticPiPPreference() }
         catch { model.showToast("The automatic Picture in Picture preference could not be applied.") }
         do { try runtime.applyBlockingPreference(Preferences.blockTrackers) }

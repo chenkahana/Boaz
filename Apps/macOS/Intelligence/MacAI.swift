@@ -21,6 +21,14 @@ struct MacAISheet: View {
                 PageAssistantView(page: browser.page(for: tab), mode: mode)
                 #endif
             }
+        case .explain(let tabID, let selection):
+            #if BOAZ_CHROMIUM
+            if let tab = browser.tab(tabID) {
+                ChromiumPageAssistantSheet(tab: tab, mode: .ask, explaining: selection.isEmpty ? nil : selection)
+            }
+            #else
+            EmptyView()
+            #endif
         case .tidyTabs(let spaceID):
             if let space = model.space(spaceID) {
                 TidyTabsView(tabs: model.todayTabs(in: space)) { model.applyTidy($0, in: space) }
@@ -38,6 +46,7 @@ private struct ChromiumPageAssistantSheet: View {
     @Environment(BrowserState.self) private var browser
     let tab: SidebarItem
     let mode: PageAssistantView.Mode
+    var explaining: String?
     @State private var adapter: ChromiumEnginePageAdapter?
     @State private var failure: String?
 
@@ -45,7 +54,7 @@ private struct ChromiumPageAssistantSheet: View {
         Group {
             if let adapter {
                 PageAssistantView(title: adapter.state.title,
-                    host: adapter.state.url?.host() ?? "", mode: mode,
+                    host: adapter.state.url?.host() ?? "", mode: mode, explaining: explaining,
                     extractText: { try await PageText.extractThrowing(from: adapter) })
             } else if let failure {
                 ContentUnavailableView("Couldn't Read This Page", systemImage: "doc.text.magnifyingglass",

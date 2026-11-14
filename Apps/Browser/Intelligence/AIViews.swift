@@ -5,12 +5,15 @@ import WebKit
 /// What an AI sheet shows.
 enum AIRequest: Identifiable, Equatable {
     case page(tabID: String, mode: PageAssistantView.Mode)
+    /// Ask about a page, starting with an explanation of the text selected on it.
+    case explain(tabID: String, selection: String)
     case tidyTabs(spaceID: String)
     case tidyTitles(spaceID: String)
 
     var id: String {
         switch self {
         case .page(let tabID, _): "page-\(tabID)"
+        case .explain(let tabID, _): "explain-\(tabID)"
         case .tidyTabs(let spaceID): "tabs-\(spaceID)"
         case .tidyTitles(let spaceID): "titles-\(spaceID)"
         }
@@ -136,16 +139,19 @@ struct PageAssistantView: View {
     @State private var mode: Mode
     @State private var question = ""
     @FocusState private var questionFocused: Bool
+    private var explaining: String?
 
     init(page: WebPage, mode: Mode) {
         _assistant = State(initialValue: PageAssistant(page: page))
         _mode = State(initialValue: mode)
     }
 
-    init(title: String, host: String, mode: Mode,
+    /// `explaining`, when set, opens Ask with an explanation of that selected text.
+    init(title: String, host: String, mode: Mode, explaining: String? = nil,
          extractText: @escaping @MainActor () async throws -> PageText?) {
         _assistant = State(initialValue: PageAssistant(title: title, host: host, extractText: extractText))
-        _mode = State(initialValue: mode)
+        _mode = State(initialValue: explaining == nil ? mode : .ask)
+        self.explaining = explaining
     }
 
     var body: some View {
@@ -170,6 +176,7 @@ struct PageAssistantView: View {
                     case .ask:
                         assistant.prepareToAsk()
                         questionFocused = true
+                        if let explaining, assistant.turns.isEmpty { await assistant.explain(explaining) }
                     }
                 }
             }

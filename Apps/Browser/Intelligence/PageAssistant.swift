@@ -76,6 +76,14 @@ final class PageAssistant {
         \(AIFeatures.untrustedContentRule)
         """
 
+    private static let explainInstructions = """
+        You explain a word or passage a reader selected on a web page: what it means and what it refers to there. \
+        Explain the selection itself, not the whole page; use the page only as context, and general knowledge for \
+        terms the page doesn't define. Start with the explanation itself, and never mention blocks, markers or "the \
+        selected text". Answer in at most four sentences. Don't use Markdown headings.
+        \(AIFeatures.untrustedContentRule)
+        """
+
     // MARK: Summary
 
     func summarize() async {
@@ -136,6 +144,36 @@ final class PageAssistant {
             }
         } catch {
             fail(index, error)
+        }
+    }
+
+    /// Explains a selected passage as the conversation's first turn; follow-up questions use the page as usual.
+    func explain(_ selection: String) async {
+        let selection = String(selection.trimmingCharacters(in: .whitespacesAndNewlines).prefix(1000))
+        guard !selection.isEmpty, !isAnswering else { return }
+        isAnswering = true
+        defer { isAnswering = false }
+        turns.append(Turn(question: "Explain \u{201C}\(selection)\u{201D}"))
+        let index = turns.count - 1
+        guard let content = await pageContent(tokens: AIFeatures.contextSize / 2) else {
+            turns[index].error = extractionError ?? "This page has no text to explain from."
+            return
+        }
+        let session = LanguageModelSession(model: AIFeatures.pageModel, instructions: Self.explainInstructions)
+        let prompt = """
+            \(AIFeatures.delimited(content))
+
+            \(AIFeatures.delimited(selection))
+
+            The first block above is a web page; the second is the text the reader selected on it. Explain what the \
+            selected text means as it is used on this page.
+            """
+        do {
+            for try await snapshot in session.streamResponse(to: prompt) {
+                turns[index].answer = snapshot.content
+            }
+        } catch {
+            turns[index].error = AIFeatures.message(for: error)
         }
     }
 
