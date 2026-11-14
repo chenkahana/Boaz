@@ -316,3 +316,37 @@ The same candidate reproduced a separate shortcut failure with the extension pop
 2026-11-14 scope override: PR completion now requires the production Chromium-default GitHub DMG with existing-feature parity, data preservation and working WebKit fallback. Exhaustive matrices, strict numerical performance/size gates, extended delta campaigns and three-day dogfooding are deferred. `Tools/release-mac.sh` and `make mac-dmg` now select Chromium; explicit WebKit build/release targets remain. Production upgrades select the existing sandboxed library in place and import missing preferences before model initialization. Production signing requires an authorized Boaz CloudKit/push provisioning profile as well as Developer ID credentials. No security requirement is bypassed.
 
 Final Release UI/BoazKit build at `5ae53d3` passed (`20261113T223817.337900Z.log`), reusing unchanged native host `6bcb542`. Production assembly passed (`20261113T224049.811955Z.log`): `/Volumes/BoazBuild/cef/direct/artifacts/20261114-production-0.2.18-unsigned/Boaz.app`. It has production identity `com.chenkahana.boaz`, production Sparkle metadata and `Boaz/Chromium` engine storage. This is unsigned and has not passed production launch, notarization, actual-store upgrade or essential parity acceptance. Local usable signing identities are Apple Development only; a Developer ID private key and verified notary/profile inputs remain unavailable. PR #70 remains draft and not mergeable.
+
+## Essential acceptance, 2026-11-14 — final candidate `478a64c`
+
+Candidate: Boaz 0.2.18, `/Volumes/BoazBuild/cef/direct/artifacts/20261114-final-478a64c-package/Boaz.dmg`, SHA-256 `f758b3efaf31f71dc2e531e3d92612b52a57f88103f57a42fd4b675f7b873d9e`. Native host ABI 48; Release UI run `20261114T123032Z-21a709e2146347f48783a0bd271b34aa`. Nothing published.
+
+Distribution
+- [x] Xcode cloud signing: `Developer ID Application: Chen Kahana (DPF8459C2J)`, hardened runtime, library validation, `codesign --deep --strict` clean.
+- [x] Notarized and stapled; `spctl` reports `Notarized Developer ID`.
+- [x] Quarantined DMG install: Gatekeeper's first-launch prompt states Apple found no malicious software; app launches.
+- [x] Production provisioning/entitlements checked by `export-cloud-application.py --finish`.
+
+Upgrade from WebKit Boaz 0.2.7 (real library, backed up first)
+- [x] Library selected in place; profiles/sidebar/history/archive counts unchanged (3/377/488/141).
+- [x] Preferences imported; source container untouched.
+- [x] WebKit website data copied to the unsandboxed store: WebKit tabs stay signed in.
+- [x] Cookies imported into Chromium (ABI 48): 257 cookies across 54 hosts; GitHub signed in inside a Chromium tab.
+- [x] Saved passwords offered ("Fill Saved Password…").
+- [x] Second launch restores the session.
+- Library conflict (sandbox and Application Support both present) refuses visibly without changing either.
+
+Runtime
+- [x] Minimize, then Dock reopen restores the window.
+- [x] Cmd-Q from the main window and with DevTools focused, and the macOS Quit Apple event (logout/restart), leave no owned processes within 2 s.
+- [x] Quitting with WebKit pages asks before closing them.
+- [x] Per-tab WebKit fallback (Open Page in WebKit) keeps the tab selected.
+- [x] Spaces on another profile open in WebKit inside a Chromium window instead of failing.
+- [x] Download completes with quarantine; H.264 video plays.
+- [x] Command bar: single centered field, no focus ring, opaque backing over Chromium pages.
+- [x] iCloud: `SiteEngineRule` created in Development and deployed to Production; sync no longer rejects it.
+
+Open, not blocking
+- Geolocation is denied without a prompt. 0.2.7 behaved the same (no usage strings); the strings are now present, so the remaining cause is the system location authorization for `com.chenkahana.boaz`.
+- Extension-popup Cmd-Q not rechecked on this candidate (no extension installed in the real profile).
+- DMG is 222.7 MB, above the deferred 160 MB size target.
