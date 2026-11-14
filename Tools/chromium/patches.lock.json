@@ -745,6 +745,57 @@
           "after": "50391598030409a9fcc1bd38682acb048ffcbd4deaa804a8c28963ac78172586"
         }
       ]
+    },
+    {
+      "file": "patches/widevine-cdm-helper.patch",
+      "sha256": "6720b9ef7d06978e97d61beaafa3fe8833b8ae277f0230e2a844b688fe0ce1f3",
+      "files": [
+        {
+          "path": "chrome/BUILD.gn",
+          "before": "66c7722e64e00dd68dfc4b640b079e827ded2cd7dbe4613d16a265c97d89917b",
+          "after": "8445c22e20326ccc40cc1bc2c10243888a1ddcde1e9eb14110087a9a9a37f76c"
+        },
+        {
+          "path": "chrome/browser/child_process_host_flags.h",
+          "before": "c094ac97e85e2fc0eb659d411b9a90c6cf642cf55a4f2cdbdf4fff294b5b3716",
+          "after": "07c3dbdea3d9c8454753ed8aab47b61d72790f61e207da7fbdc0fca59a45ca6d"
+        },
+        {
+          "path": "chrome/browser/chrome_content_browser_client.cc",
+          "before": "c32e82b6ffd8717b6021de00415f7bdb36c92573ba6429be48913fa8481cd8e5",
+          "after": "d22992dcebf4bbdf3813feccc85de7bf8a8231ee5c802921a07ed3d96227a815"
+        },
+        {
+          "path": "chrome/browser/chrome_content_browser_client.h",
+          "before": "7aa1d29f32c6af53a4d72c1486ad9df45b2ab0b0bf47001dbc80567ca7d516a5",
+          "after": "20043edabfa115cf81e5a6bb8733bb9e3ea5293b5f9c20c9bd0570c6455bfc14"
+        },
+        {
+          "path": "chrome/installer/mac/BUILD.gn",
+          "before": "ffa1bd928dd0655fb87cb93ca0f13d5c79457c0d450e78ffc462e0339b193935",
+          "after": "e3ac76334e28938f57c2ebab0aa2f5c15bc402206992997450df240995045ebd"
+        },
+        {
+          "path": "chrome/installer/mac/signing/parts.py",
+          "before": "e5878973553323f6c73dc315b03e51717d8c1003a0c5ee753ecfdcae8bca7c17",
+          "after": "a1d4d1f3f7e949aaad8341a78129b6c277081f55353ccdc9fd22ffdcc2e23986"
+        },
+        {
+          "path": "content/browser/media/service_factory.cc",
+          "before": "0522d0d43cf3a74bdad9c5e7035b4bb77f297318ded797f5201ded86f133bcee",
+          "after": "03c316ed1a5162f4e3a7fcf941de2e5aede491801912163c2214bb0e91abcc7a"
+        },
+        {
+          "path": "content/public/browser/content_browser_client.cc",
+          "before": "4a6b9cbe894f92712b41f96d786a53479b901669f45936323f17788bee1e709c",
+          "after": "b79dea547fd1fdef3f276c8f3cc7b62151ef8093960d4a87b8101edede2b4255"
+        },
+        {
+          "path": "content/public/browser/content_browser_client.h",
+          "before": "8e5b441ca060440049044bd458f7ac07e34647af87aeec851fa89d9c59641c06",
+          "after": "d91227dc76a417d910cf87e7636fd4b16b20675ee6dcadaaf0f77ebe14f9ac57"
+        }
+      ]
     }
   ]
 }

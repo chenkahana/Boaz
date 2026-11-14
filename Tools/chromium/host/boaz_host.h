@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 48u
+#define BOAZ_HOST_ABI_VERSION 49u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT,
@@ -192,6 +192,10 @@ typedef struct BoazHostDownload {
 typedef void (*BoazHostDownloadVisitor)(void* context, BoazHostProfile profile,
     const BoazHostDownload* download);
 
+/* DISABLED: this build does not register the Widevine component. NOT_INSTALLED: enabled, no compatible CDM yet. */
+typedef enum BoazHostWidevineState {
+  BOAZ_WIDEVINE_DISABLED, BOAZ_WIDEVINE_NOT_INSTALLED, BOAZ_WIDEVINE_READY
+} BoazHostWidevineState;
 typedef enum BoazHostKeySystem { BOAZ_KEY_WIDEVINE, BOAZ_KEY_PLAYREADY } BoazHostKeySystem;
 typedef struct BoazHostCallbacks {
   size_t size;
@@ -402,6 +406,8 @@ typedef struct BoazHostAPI {
    * Accepted imports complete once on UI thread; rejection produces no callback. */
   BoazHostResult (*import_cookies)(BoazHostProfile profile, const BoazHostCookie* cookies,
       size_t count, uint64_t request, BoazHostCookieImportCompletion completion, void* context);
+  /* Version is NUL-terminated and empty unless READY; capacity must fit 64 bytes. */
+  BoazHostResult (*widevine_status)(BoazHostWidevineState* state, char* version, size_t capacity);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

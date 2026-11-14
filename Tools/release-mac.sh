@@ -76,6 +76,7 @@ esac
     --base-app "$BASE_APP" --ui-receipt "$UI_RECEIPT" \
     --output "$OUTPUT/assembly/Boaz.app" --native-launch \
     --production-version "$VERSION" --production-build "$BUILD"
+"$PYTHON" "$TOOLS/chromium/vmp-sign.py" "$OUTPUT/assembly/Boaz.app"
 if "$CLOUD"; then
     "$PYTHON" "$TOOLS/chromium/export-cloud-application.py" \
         --input "$OUTPUT/assembly" --output "$OUTPUT/cloud-submission" --identity "$IDENTITY"
