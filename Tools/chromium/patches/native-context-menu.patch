@@ -1,0 +1,96 @@
+--- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
++++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
+@@ -1057,6 +1057,55 @@
+   return nullptr;
+ }
+ 
++// Boaz keeps a short menu: Chromium builds it and runs every command, and Boaz keeps only these items, the page's
++// and extensions' own items, and spelling suggestions.
++void KeepBoazItems(ui::SimpleMenuModel& menu) {
++  static constexpr int kKept[] = {
++      IDC_BACK,
++      IDC_FORWARD,
++      IDC_RELOAD,
++      IDC_CONTENT_CONTEXT_OPENLINKNEWTAB,
++      IDC_CONTENT_CONTEXT_COPYLINKLOCATION,
++      IDC_CONTENT_CONTEXT_OPENIMAGENEWTAB,
++      IDC_CONTENT_CONTEXT_SAVEIMAGEAS,
++      IDC_CONTENT_CONTEXT_COPYIMAGE,
++      IDC_CONTENT_CONTEXT_COPYIMAGELOCATION,
++      IDC_CONTENT_CONTEXT_OPENAVNEWTAB,
++      IDC_CONTENT_CONTEXT_SAVEAVAS,
++      IDC_CONTENT_CONTEXT_COPYAVLOCATION,
++      IDC_CONTENT_CONTEXT_LOOP,
++      IDC_CONTENT_CONTEXT_CONTROLS,
++      IDC_CONTENT_CONTEXT_PICTUREINPICTURE,
++      IDC_CONTENT_CONTEXT_UNDO,
++      IDC_CONTENT_CONTEXT_REDO,
++      IDC_CONTENT_CONTEXT_CUT,
++      IDC_CONTENT_CONTEXT_COPY,
++      IDC_CONTENT_CONTEXT_PASTE,
++      IDC_CONTENT_CONTEXT_PASTE_AND_MATCH_STYLE,
++      IDC_CONTENT_CONTEXT_SELECTALL,
++      IDC_CONTENT_CONTEXT_EMOJI,
++      IDC_CONTENT_CONTEXT_SEARCHWEBFOR,
++      IDC_SPELLCHECK_ADD_TO_DICTIONARY,
++      IDC_CONTENT_CONTEXT_INSPECTELEMENT,
++  };
++  for (size_t i = menu.GetItemCount(); i-- > 0;) {
++    const int id = menu.GetCommandIdAt(i);
++    if (menu.GetTypeAt(i) != ui::MenuModel::TYPE_SEPARATOR && std::ranges::find(kKept, id) == std::ranges::end(kKept) &&
++        !(id >= IDC_SPELLCHECK_SUGGESTION_0 && id < IDC_SPELLCHECK_LANGUAGES_FIRST) &&
++        !RenderViewContextMenuBase::IsContentCustomCommandId(id) &&
++        !ContextMenuMatcher::IsExtensionsCustomCommandId(id)) {
++      menu.RemoveItemAt(i);
++    }
++  }
++  // No separator first, last or next to another.
++  for (size_t i = menu.GetItemCount(); i-- > 0;) {
++    if (menu.GetTypeAt(i) == ui::MenuModel::TYPE_SEPARATOR &&
++        (i == 0 || i + 1 == menu.GetItemCount() || menu.GetTypeAt(i - 1) == ui::MenuModel::TYPE_SEPARATOR)) {
++      menu.RemoveItemAt(i);
++    }
++  }
++}
++
+ }  // namespace
+ 
+ // static
+@@ -1619,6 +1668,8 @@
+       AppendReadAnythingItem();
+     }
+   }
++
++  KeepBoazItems(menu_model_);
+ }
+ 
+ Profile* RenderViewContextMenu::GetProfile() const {
+--- a/chrome/browser/ui/cocoa/renderer_context_menu/render_view_context_menu_mac_cocoa.mm
++++ b/chrome/browser/ui/cocoa/renderer_context_menu/render_view_context_menu_mac_cocoa.mm
+@@ -78,12 +78,14 @@
+   views::Widget* widget = views::Widget::GetTopLevelWidgetForNativeView(
+       source_web_contents_->GetNativeView());
+ 
+-  if (!widget || headless::IsHeadlessMode()) {
++  // Boaz windows are native windows without a Views widget; their menus keep the default menu styling.
++  if ((!widget && ![parent_view_ window]) || headless::IsHeadlessMode()) {
+     return;
+   }
+ 
+   menu_controller_delegate_ = [[MenuControllerCocoaDelegateImpl alloc]
+-      initWithParams:MenuControllerParamsForWidget(widget)];
++      initWithParams:widget ? MenuControllerParamsForWidget(widget)
++                            : remote_cocoa::mojom::MenuControllerParams::New()];
+   menu_controller_ =
+       [[MenuControllerCocoa alloc] initWithModel:&menu_model_
+                                    isContextMenu:YES
+@@ -97,7 +99,8 @@
+ 
+   ui::ShowContextMenu(menu_controller_.menu, clickEvent, parent_view_,
+                       /*allow_nested_tasks=*/true,
+-                      views::ElementTrackerViews::GetContextForWidget(widget));
++                      widget ? views::ElementTrackerViews::GetContextForWidget(widget)
++                             : ui::ElementContext());
+ }
+ 
+ void RenderViewContextMenuMacCocoa::CancelToolkitMenu() {

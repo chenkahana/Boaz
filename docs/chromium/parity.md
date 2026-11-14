@@ -340,7 +340,7 @@ Runtime
 - [x] Minimize, then Dock reopen restores the window.
 - [x] Cmd-Q from the main window and with DevTools focused, and the macOS Quit Apple event (logout/restart), leave no owned processes within 2 s.
 - [x] Quitting with WebKit pages asks before closing them.
-- [x] Per-tab WebKit fallback (Open Page in WebKit) keeps the tab selected.
+- [x] Per-tab WebKit fallback for protected video keeps the tab selected.
 - [x] Spaces on another profile open in WebKit inside a Chromium window instead of failing.
 - [x] Download completes with quarantine; H.264 video plays.
 - [x] Command bar: single centered field, no focus ring, opaque backing over Chromium pages.
