@@ -5,6 +5,7 @@ import SwiftUI
 struct HomeBar: View {
     @Environment(AppModel.self) private var model
     @Environment(\.paneIndex) private var pane
+    @Environment(\.collapsesBar) private var collapsesBar
     let axis: Axis
 
     var body: some View {
@@ -33,14 +34,14 @@ struct HomeBar: View {
                             Image(systemName: "plus")
                         }
                         .font(.body.weight(.medium))
-                        .padding(.horizontal, 18).padding(.vertical, 14)
+                        .padding(.horizontal, 18).padding(.vertical, collapsesBar ? 10 : 14)
                         .glassEffect(.regular.interactive(), in: .capsule)
                     }
                     .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 16)
             }
-            .padding(.bottom, 8)
+            .padding(.bottom, collapsesBar ? 2 : 8)
         }
     }
 
