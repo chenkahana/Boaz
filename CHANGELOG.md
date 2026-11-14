@@ -6,9 +6,11 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-14
+
 ### Added
 
-- Mac (DMG, 0.3.0): Boaz runs on Chromium, with Chrome Web Store extensions and Chromium's DevTools. The Mac App
+- Mac (DMG): Boaz runs on Chromium, with Chrome Web Store extensions and Chromium's DevTools. The Mac App
   Store and iPhone apps stay on WebKit. Upgrading from an earlier version keeps your library, settings, saved passwords and signed-in sites.
 - iPhone: Boaz can be your default browser (Settings › Apps › Default Apps › Browser App), so links from other apps
   open in it. Settings › Default Browser shows whether it is and opens iOS Settings to choose it.
@@ -246,7 +248,8 @@ First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone
 - Share extension, search widget, App Shortcuts, the `boaz://` URL scheme and alternate app icons.
 - Privacy manifest, privacy policy and an About section with third-party notices.
 
-[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.2.6...HEAD
+[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/chenkahana/Boaz/compare/v0.2.6...v0.4.0
 [0.2.6]: https://github.com/chenkahana/Boaz/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/chenkahana/Boaz/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/chenkahana/Boaz/compare/v0.2.3...v0.2.4
