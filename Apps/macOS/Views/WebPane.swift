@@ -172,16 +172,6 @@ private struct ChromiumTabPane: View {
                 revealedSurface = expected
             }
         }
-        .task(id: faviconDocument) {
-            guard faviconDocument != nil,
-                  let adapter = engine?.adapter as? ChromiumEnginePageAdapter else { return }
-            await ChromiumPageServices.learnFavicon(from: adapter)
-        }
-        .onChange(of: engine?.state, initial: true) {
-            guard let state = engine?.state, !state.isLoading, state.loadFailure == nil,
-                  state.lifecycle == .active else { return }
-            browser.didNavigate(tab.id, url: state.url, title: state.title)
-        }
     }
 
     private var offlineFailure: OfflineFailure? {
@@ -196,14 +186,6 @@ private struct ChromiumTabPane: View {
               adapter.state.lifecycle == .active, !adapter.state.isLoading,
               adapter.state.loadFailure == nil, let url = adapter.state.url else { return nil }
         return "\(adapter.handle):\(adapter.state.navigationID):\(adapter.viewGeneration):\(url.absoluteString)"
-    }
-
-    private var faviconDocument: String? {
-        guard let adapter = engine?.adapter as? ChromiumEnginePageAdapter,
-              !adapter.profile.isPrivate, adapter.state.lifecycle == .active,
-              !adapter.state.isLoading, adapter.state.loadFailure == nil,
-              let url = adapter.state.url else { return nil }
-        return "\(adapter.handle):\(adapter.state.navigationID):\(url.absoluteString)"
     }
 
     private func open(retry: Bool = false) {

@@ -301,13 +301,14 @@ final class BrowserState {
             if active, let item = tab(existing.key) { activate(item) }
             return
         }
+        // A page Chromium opened (a middle-click, ⌘-click or target=_blank link) goes right below the tab it came from.
         let item: SidebarItem
         let title = page.state.title.isEmpty ? page.state.url?.host() : page.state.title
         if isIncognito {
+            let slot = incognitoSlot(below: activeTab)
             item = SidebarItem(id: UUID().uuidString, spaceID: nil, profileID: "incognito", parentID: nil,
-                kind: .tab, title: title, url: page.state.url,
-                position: (incognitoTabs.first?.position ?? 1) - 1, lastActiveAt: .now)
-            incognitoTabs.insert(item, at: 0)
+                kind: .tab, title: title, url: page.state.url, position: slot.position, lastActiveAt: .now)
+            incognitoTabs.insert(item, at: slot.index)
         } else {
             guard let space = model.sidebar.spaces.first(where: {
                 $0.id == spaceID && $0.profileID == page.profile.id
@@ -317,7 +318,7 @@ final class BrowserState {
             }
             item = SidebarItem(id: UUID().uuidString, spaceID: space.id, profileID: space.profileID,
                 parentID: box.id, kind: .tab, title: title, url: page.state.url,
-                position: (model.sidebar.children(of: box.id).map(\.position).min() ?? 1) - 1,
+                position: model.newTabPosition(in: box.id, below: activeTab),
                 lastActiveAt: .now, deviceID: model.deviceID)
             model.commit(item)
         }
@@ -328,6 +329,7 @@ final class BrowserState {
         closeIdlePages()
     }
     @ObservationIgnored private var chromiumScrollDocuments: [String: UInt64] = [:]
+    @ObservationIgnored private var chromiumFaviconDocuments: [String: String] = [:]
     @ObservationIgnored private var chromiumScrollTasks: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var pendingChromiumCloses: [String: SidebarItem] = [:]
     @ObservationIgnored private var pendingChromiumUnloads: Set<String> = []
@@ -743,6 +745,7 @@ final class BrowserState {
         _ = reportExternalTabs()
         chromiumScrollTasks.removeValue(forKey: tabID)?.cancel()
         chromiumScrollDocuments[tabID] = nil
+        chromiumFaviconDocuments[tabID] = nil
         pendingRestores[tabID] = nil
         chromiumLayoutChanged?()
         #endif
@@ -882,17 +885,10 @@ final class BrowserState {
     func openTab(_ url: URL, title: String? = nil, below source: SidebarItem? = nil, inBackground: Bool = false, engine: BrowserEngineKind? = nil) {
         let tab: SidebarItem
         if isIncognito {
-            let index = source.flatMap { source in incognitoTabs.firstIndex { $0.id == source.id } }.map { $0 + 1 } ?? 0
-            let above = index > 0 ? incognitoTabs[index - 1].position : nil
-            let below = index < incognitoTabs.count ? incognitoTabs[index].position : nil
-            let position = switch (above, below) {
-            case let (above?, below?): (above + below) / 2
-            case let (above?, nil): above + 1
-            default: (below ?? 1) - 1
-            }
+            let slot = incognitoSlot(below: source)
             tab = SidebarItem(id: UUID().uuidString, spaceID: nil, profileID: "incognito", parentID: nil,
-                              kind: .tab, title: title ?? url.host(), url: url, position: position, lastActiveAt: .now)
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { incognitoTabs.insert(tab, at: index) }
+                              kind: .tab, title: title ?? url.host(), url: url, position: slot.position, lastActiveAt: .now)
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { incognitoTabs.insert(tab, at: slot.index) }
         } else {
             guard let new = withAnimation(.spring(response: 0.35, dampingFraction: 0.8), {
                 model.newTab(url, title: title, in: spaceID, below: source)
@@ -913,6 +909,19 @@ final class BrowserState {
             do { _ = try enginePage(for: tab) }
             catch { model.showToast(error.localizedDescription) }
         } else { activate(tab) }
+    }
+
+    /// Where a new private tab goes: right below `source` when it's one, otherwise at the top.
+    private func incognitoSlot(below source: SidebarItem?) -> (index: Int, position: Double) {
+        let index = source.flatMap { source in incognitoTabs.firstIndex { $0.id == source.id } }.map { $0 + 1 } ?? 0
+        let above = index > 0 ? incognitoTabs[index - 1].position : nil
+        let below = index < incognitoTabs.count ? incognitoTabs[index].position : nil
+        let position = switch (above, below) {
+        case let (above?, below?): (above + below) / 2
+        case let (above?, nil): above + 1
+        default: (below ?? 1) - 1
+        }
+        return (index, position)
     }
 
     func load(_ url: URL) {
@@ -1081,6 +1090,18 @@ final class BrowserState {
         pageStates.set(state, for: id)
     }
 
+    /// Every tab, shown or loading in the background, takes its page's address and title, and learns its favicon.
+    private func followChromiumPage(_ id: String, page: ChromiumEnginePageAdapter) {
+        let state = page.state
+        guard state.lifecycle == .active, !state.isLoading, state.loadFailure == nil else { return }
+        didNavigate(id, url: state.url, title: state.title)
+        guard !page.profile.isPrivate, let url = state.url else { return }
+        let document = "\(state.navigationID):\(url.absoluteString)"
+        guard chromiumFaviconDocuments[id] != document else { return }
+        chromiumFaviconDocuments[id] = document
+        Task { await ChromiumPageServices.learnFavicon(from: page) }
+    }
+
     private func prepareChromiumScroll(_ id: String, page: ChromiumEnginePageAdapter) {
         guard page.state.lifecycle == .active, !page.state.isLoading,
               page.state.loadFailure == nil,
@@ -1167,6 +1188,7 @@ final class BrowserState {
                 chromiumScrollDocuments[id] = nil
             } else {
                 prepareChromiumScroll(id, page: page)
+                followChromiumPage(id, page: page)
             }
         }
         if event == BOAZ_HOST_PAGE_CLOSE_CANCELLED {
