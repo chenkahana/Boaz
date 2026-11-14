@@ -11,29 +11,38 @@ struct RootView: View {
     @State private var fold: CGRect?
     /// The whole window, keyboard or not: what a posture is made of.
     @State private var window = CGSize.zero
+    @State private var landscapeStatusCollapsed = false
 
     private var arrangement: PostureLayout.Arrangement {
         guard let fold else { return .single }
         if model.isSplit { return .split(fold: fold) }
-        // The window's shape, not the layout's: the keyboard doesn't turn a tall screen wide. Whole points, so the
-        // page beside the strip is too: WebKit lays a page out in whole points and leaves the rest of a fractional
-        // width as a sliver of the backdrop.
-        return window.width > window.height ? .strip(width: min(max(window.width * 0.18, 150), 260).rounded()) : .single
+        return .single
     }
 
     var body: some View {
         @Bindable var model = model
         let arrangement = arrangement
+        let isPortrait = fold != nil && arrangement == .single && window.height >= window.width
+        let isLandscape = fold != nil && arrangement == .single && window.width > window.height
         PostureLayout(arrangement: arrangement) {
             if case .strip = arrangement { TabStrip().layoutValue(key: PaneSlot.self, value: -1) }
             Pane(index: 0)
             if case .split = arrangement { Pane(index: 1).layoutValue(key: PaneSlot.self, value: 1) }
         }
+        .statusBarHidden(isPortrait || isLandscape)
+        .ignoresSafeArea(.container, edges: isLandscape ? [.top, .leading, .trailing] : isPortrait ? .top : [])
+        .overlay(alignment: .topTrailing) {
+            if isLandscape {
+                LandscapeStatusPill(collapsed: $landscapeStatusCollapsed, site: focusedSite)
+                    .padding(.top, 20)
+                    .padding(.trailing, 16)
+            }
+        }
         // The keyboard doesn't move the fold: the panes keep to their halves and it comes up over them.
         .ignoresSafeArea(.keyboard, edges: arrangement == .single || arrangement.hasStrip ? [] : .all)
         .environment(\.listsTabsElsewhere, arrangement.hasStrip)
         // Unfolded and taller than wide: the bar gets out of the way while reading.
-        .environment(\.collapsesBar, fold != nil && arrangement == .single)
+        .environment(\.collapsesBar, isPortrait)
         .environment(\.posture, Posture(arrangement: arrangement, window: window))
         // A posture change resizes the panes; their pages are never animated to the new size.
         .transaction(value: Posture(arrangement: arrangement, window: window)) { $0.animation = nil }
@@ -88,6 +97,11 @@ struct RootView: View {
         .onChange(of: arrangement.hasStrip) { _, strip in
             if strip { model.showsCoverFlow = false }
         }
+    }
+
+    private var focusedSite: SiteColor? {
+        guard let id = model.activeTabID else { return nil }
+        return model.siteEdges[id]?.top
     }
 }
 
@@ -150,6 +164,8 @@ struct PostureLayout: Layout {
 private struct Pane: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.collapsesBar) private var collapsesBar
+    @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
     let index: Int
     /// The side the next tab slides in from; set while the finger is still down, so the outgoing page
     /// has already rendered with it by the time the tab changes.
@@ -157,27 +173,28 @@ private struct Pane: View {
     @State private var bump = 0
 
     var body: some View {
-        ZStack {
-            if let tab = model.tab(inPane: index) {
-                TabBrowser(tab: tab, pageDirection: $pageDirection, bump: $bump)
-                    .environment(\.isPrivateBrowsing, model.isPrivate(tab))
-                    .id(tab.id)
-                    .transition(pageTransition)
-            } else {
-                EmptyBrowser().toolRail { axis in HomeBar(axis: axis) }
+        VStack(spacing: 0) {
+            if collapsesBar { PortraitStatusBar(site: statusSite) }
+            ZStack {
+                if let tab = model.tab(inPane: index) {
+                    TabBrowser(tab: tab, pageDirection: $pageDirection, bump: $bump)
+                        .environment(\.isPrivateBrowsing, model.isPrivate(tab))
+                        .id(tab.id)
+                        .transition(pageTransition)
+                } else {
+                    EmptyBrowser().toolRail { axis in HomeBar(axis: axis) }
+                }
+            }
+            .overlay {
+                ZStack {
+                    if model.showsCoverFlow, model.focusedPane == index {
+                        TabCarousel().transition(.asymmetric(insertion: .identity, removal: .opacity))
+                    }
+                }
+                .animation(carouselMotion, value: model.showsCoverFlow)
             }
         }
         .sensoryFeedback(.selection, trigger: bump)
-        // The animation stays on the carousel: a tab opened from it changes the page underneath without sliding.
-        .overlay {
-            ZStack {
-                // It animates itself in and out; this fade covers being closed from outside (unfolding).
-                if model.showsCoverFlow, model.focusedPane == index {
-                    TabCarousel().transition(.asymmetric(insertion: .identity, removal: .opacity))
-                }
-            }
-            .animation(carouselMotion, value: model.showsCoverFlow)
-        }
         .environment(\.paneIndex, index)
         .simultaneousGesture(TapGesture().onEnded { model.focusPane(index) }, including: model.isSplit ? .all : .subviews)
     }
@@ -190,6 +207,97 @@ private struct Pane: View {
 
     private var carouselMotion: Animation {
         reduceMotion ? .easeInOut(duration: 0.2) : .interpolatingSpring(duration: 0.42, bounce: 0.08)
+    }
+
+    private var statusSite: SiteColor? {
+        guard tintWithSiteColors, let id = model.tabID(inPane: index) else { return nil }
+        return model.siteEdges[id]?.top
+    }
+}
+
+private struct PortraitStatusBar: View {
+    let site: SiteColor?
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "cellularbars")
+            Image(systemName: "wifi")
+            StatusClock()
+            Spacer(minLength: 8)
+            BatteryReadout()
+        }
+        .font(.system(size: 15, weight: .semibold))
+        .padding(.horizontal, 18)
+        .frame(height: 36)
+        .padding(.top, 16)
+        .background(site?.color ?? Color(uiColor: .systemBackground))
+        .chromeScheme(site)
+    }
+}
+
+private struct LandscapeStatusPill: View {
+    @Binding var collapsed: Bool
+    let site: SiteColor?
+
+    var body: some View {
+        Button { withAnimation(.smooth(duration: 0.25)) { collapsed.toggle() } } label: {
+            HStack(spacing: 8) {
+                Image(systemName: collapsed ? "chevron.down" : "chevron.up")
+                if !collapsed {
+                    StatusClock()
+                    Image(systemName: "wifi")
+                    BatteryReadout()
+                }
+            }
+            .font(.system(size: 14, weight: .semibold))
+            .padding(.horizontal, 14)
+            .frame(minWidth: collapsed ? 44 : 210, minHeight: 40)
+            .fixedSize(horizontal: true, vertical: false)
+            .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.chrome(site?.color), in: .capsule)
+        .chromeScheme(site)
+        .accessibilityLabel(collapsed ? "Show Status" : "Hide Status")
+    }
+}
+
+private struct StatusClock: View {
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 60)) { context in
+            Text(context.date, format: .dateTime.hour().minute()).monospacedDigit()
+        }
+    }
+}
+
+private struct BatteryReadout: View {
+    @State private var batteryLevel = UIDevice.current.batteryLevel
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: batterySymbol)
+            if batteryLevel >= 0 { Text("\(Int((batteryLevel * 100).rounded()))%") }
+        }
+        .fixedSize(horizontal: true, vertical: false)
+        .onAppear {
+            UIDevice.current.isBatteryMonitoringEnabled = true
+            batteryLevel = UIDevice.current.batteryLevel
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIDevice.batteryLevelDidChangeNotification)) { _ in
+            batteryLevel = UIDevice.current.batteryLevel
+        }
+        .onDisappear { UIDevice.current.isBatteryMonitoringEnabled = false }
+    }
+
+    private var batterySymbol: String {
+        guard batteryLevel >= 0 else { return "battery.100percent" }
+        return switch batteryLevel {
+        case ..<0.25: "battery.0percent"
+        case ..<0.5: "battery.25percent"
+        case ..<0.75: "battery.50percent"
+        case ..<0.95: "battery.75percent"
+        default: "battery.100percent"
+        }
     }
 }
 

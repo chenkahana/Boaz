@@ -1,8 +1,8 @@
 import BoazKit
 import SwiftUI
 
-/// The phone's tabs (private tabs in Incognito): the one showing on top, as in the carousel it opens, and the one
-/// used before it peeking out beneath. A tab just opened is on top at once. Tapping opens the tab carousel.
+/// The phone's tabs (private tabs in Incognito): the most recent tab behind the current one on top, with the
+/// current tab peeking out beneath. Tapping opens the tab carousel.
 struct TabStack: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -12,8 +12,8 @@ struct TabStack: View {
     var body: some View {
         let tabs = model.phoneTabs
         let showing = model.tabID(inPane: pane)
-        let recent = tabs.sorted { ($0.id == showing ? 1 : 0, $0.lastUsed) > ($1.id == showing ? 1 : 0, $1.lastUsed) }
-            .prefix(2)
+        let recent = showing == nil ? Array(tabs.prefix(2))
+            : [tabs.first { $0.id != showing }, tabs.first { $0.id == showing }].compactMap { $0 }
         Button {
             model.focusPane(pane)
             model.openCoverFlow()
@@ -66,6 +66,7 @@ struct TabStack: View {
 struct TabCarousel: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.collapsesBar) private var collapsesBar
     @Environment(\.colorScheme) private var scheme
     /// The focused tab's index; fractional while swiping.
     @State private var position: Double = 0
@@ -115,7 +116,7 @@ struct TabCarousel: View {
                 if let id = card(at: value.location, tabs: tabs, metrics: metrics) { open(id) } else { dismiss() }
             })
         }
-        .toolRail { axis in
+        .toolRail(edgeEffect: !collapsesBar) { axis in
             CarouselRail(axis: axis, hasMac: hasMac,
                          onMacTabs: { sheet = .macTabs },
                          onNewTab: newTab,
@@ -504,6 +505,7 @@ private struct DeckCard: View {
 
 /// The rail while the carousel is up.
 private struct CarouselRail: View {
+    @Environment(\.collapsesBar) private var collapsesBar
     let axis: Axis
     let hasMac: Bool
     let onMacTabs: () -> Void
@@ -532,8 +534,8 @@ private struct CarouselRail: View {
                 BarDock { RailButton(symbol: "gearshape", label: "Settings", action: onSettings) }
             }
             .padding(.horizontal, 12)
-            .padding(.top, 6)
-            .padding(.bottom, 4)
+            .padding(.top, collapsesBar ? 2 : 6)
+            .padding(.bottom, collapsesBar ? 2 : 4)
         }
     }
 }

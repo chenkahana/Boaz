@@ -109,7 +109,7 @@ struct TabBrowser: View {
                 }
             }
             .onGeometryChange(for: Bool.self, of: { $0.safeAreaInsets.trailing >= 44 }) { hasRail = $0 }
-            .toolRail(edgeEffect: false, overlaysContent: collapsesBar) { axis in
+            .toolRail(edgeEffect: false) { axis in
                 BrowserBar(tab: tab, page: page, axis: axis, collapsed: collapsesBar && barCollapsed,
                            expand: { setBarCollapsed(false) })
                     .highPriorityGesture(paging(axis))
@@ -181,7 +181,6 @@ struct TabBrowser: View {
             .overlay { PasswordSuggestions(tabID: tab.id, page: page) }
             .overlay(alignment: .top) { SavePasswordPrompt(tabID: tab.id) }
             .animation(.smooth(duration: 0.25), value: PasswordAutofill.shared.offer)
-            .ignoresSafeArea(.container, edges: collapsesBar ? .bottom : [])
             .modifier(RelayoutCover(page: page, scroll: scroll, snapshot: { [tab] in model.snapshots[tab.id] },
                                     background: edges?.page.color ?? Color(.systemBackground)))
             // A page loaded again shows its top until it is back at the reader's place: its preview covers it.
@@ -427,6 +426,7 @@ private struct BrowserBar: View {
     @Environment(\.listsTabsElsewhere) private var listsTabsElsewhere
     @Environment(\.siteEdges) private var edges
     @Environment(\.paneIndex) private var pane
+    @Environment(\.collapsesBar) private var collapsesBar
     let tab: SidebarItem
     let page: WebPage
     let axis: Axis
@@ -463,7 +463,7 @@ private struct BrowserBar: View {
             if axis == .vertical {
                 TabStack(cardSize: CGSize(width: 26, height: 36)).padding(.vertical, 4)
             } else {
-                TabStack(cardSize: CGSize(width: 34, height: 46))
+                TabStack(cardSize: collapsesBar ? CGSize(width: 30, height: 39) : CGSize(width: 34, height: 46))
             }
         }
     }
@@ -480,7 +480,7 @@ private struct BrowserBar: View {
                     Image(systemName: "plus")
                 }
                     .font(.title3.weight(.semibold))
-                    .frame(width: 116, height: 50)
+                    .frame(width: 116, height: collapsesBar ? 44 : 50)
                     .railSelection(searching)
                     .contentShape(.capsule)
             }
@@ -489,23 +489,30 @@ private struct BrowserBar: View {
             .accessibilityLabel("New Tab")
             .accessibilityAddTraits(searching ? .isSelected : [])
             RailButton(symbol: "ellipsis", label: "Page Settings", isSelected: showsPageSettings,
+                       size: collapsesBar ? 44 : 46,
                        action: togglePageSettings)
                 .glassEffect(.regular.interactive(), in: .circle)
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding(.horizontal, 16)
-        .padding(.top, 8)
-        .padding(.bottom, 4)
+        .padding(.top, collapsesBar ? 6 : 8)
+        .padding(.bottom, collapsesBar ? 6 : 4)
         .opacity(collapsed ? 0 : 1)
         .scaleEffect(collapsed && !reduceMotion ? 0.8 : 1, anchor: .bottom)
         .allowsHitTesting(!collapsed)
         .popoverTip(SwipeTabsTip(), arrowEdge: .bottom)
         .frame(maxWidth: .infinity)
         .background(alignment: .bottom) {
-            Rectangle().fill(.bar)
-                .ignoresSafeArea(.container, edges: .bottom)
-                .frame(height: collapsed ? 14 : nil)
-                .overlay(alignment: .top) { Divider() }
+            Group {
+                if collapsesBar, let site = edges?.bottom {
+                    Rectangle().fill(site.color)
+                } else {
+                    Rectangle().fill(.bar)
+                }
+            }
+            .ignoresSafeArea(.container, edges: .bottom)
+            .frame(height: collapsed ? 14 : nil)
+            .overlay(alignment: .top) { Divider() }
         }
         .overlay(alignment: .bottom) {
             Button(action: expand) {

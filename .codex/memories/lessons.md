@@ -18,3 +18,13 @@
 - Trigger: Repeated compilation polling while independent migration implementation remained ready.
 - Rule: Keep build inputs stable, dispatch bounded source implementation in parallel, and scope runtime blockers to the exact dependent work. Code complete is a milestone, never a substitute for acceptance.
 - Scope: repo / long-running builds and migrations
+
+- Date: 2026-11-14
+- Trigger: Implemented and installed iPhone layout changes from `feat/phone-toolbar` without checking whether the user expected current `master`; that branch still contained the retired Spaces UI.
+- Rule: Before changing or installing an app, compare the checkout branch with the requested release base and build from a worktree at fetched `origin/master` when the user asks for latest master.
+- Scope: repo / iOS device installs
+
+- Date: 2026-11-14
+- Trigger: A floating bottom toolbar and a web view that ignored the bottom safe area let page content sit behind the toolbar on unfolded portrait.
+- Rule: When the requirement is reachable page content, make the toolbar consume layout height and keep the web view inside that viewport; inspect both the toolbar container and the web view's safe-area modifiers.
+- Scope: repo / iPhone Duo browser layout

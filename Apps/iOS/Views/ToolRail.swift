@@ -134,10 +134,11 @@ struct RailButton: View {
     var label: String?
     /// Shown pressed: the panel or screen this button opens is up.
     var isSelected = false
+    var size: CGFloat = 46
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) { RailGlyph(symbol: symbol).railSelection(isSelected) }
+        Button(action: action) { RailGlyph(symbol: symbol, size: size).railSelection(isSelected) }
             .buttonStyle(PressableStyle())
             .accessibilityLabel(label ?? symbol)
             .accessibilityAddTraits(isSelected ? .isSelected : [])
