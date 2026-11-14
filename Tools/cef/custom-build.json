@@ -1,0 +1,23 @@
+{
+  "cef_branch": "8078",
+  "cef_commit": "57389f04a61ab0e9603d9f96602843d0e08bb11c",
+  "chromium_checkout": "refs/tags/156.0.8078.88",
+  "chromium_commit": "8954d18543712dc11b97c3aca0a6e714aa2d7dcd",
+  "depot_tools_commit": "132599ebbd8d22d1b1bd5ea703a6d3bc493edd71",
+  "automate_url": "https://raw.githubusercontent.com/chromiumembedded/cef/57389f04a61ab0e9603d9f96602843d0e08bb11c/tools/automate/automate-git.py",
+  "automate_sha256": "94d3ddd1e0d35482132f45dc101a593c9371b6eb2d8ff4af6cfe2734d2e48c6a",
+  "compatibility_url": "https://raw.githubusercontent.com/chromiumembedded/cef/57389f04a61ab0e9603d9f96602843d0e08bb11c/CHROMIUM_BUILD_COMPATIBILITY.txt",
+  "gn_args": {
+    "is_official_build": true,
+    "is_component_build": false,
+    "proprietary_codecs": true,
+    "ffmpeg_branding": "Chrome",
+    "enable_widevine": true,
+    "use_official_google_api_keys": false,
+    "chrome_pgo_phase": 0,
+    "symbol_level": 0,
+    "use_siso": false,
+    "use_remoteexec": false,
+    "use_system_xcode": true
+  }
+}

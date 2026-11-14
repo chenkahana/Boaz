@@ -1,0 +1,60 @@
+cmake_minimum_required(VERSION 3.21)
+project(BoazCEFSpike LANGUAGES C CXX OBJCXX Swift)
+if(NOT APPLE OR NOT CEF_ROOT)
+  message(FATAL_ERROR "Requires macOS and -DCEF_ROOT=<verified standard distribution>")
+endif()
+set(PROJECT_ARCH arm64)
+set(USE_SANDBOX ON CACHE BOOL "CEF sandbox" FORCE)
+list(APPEND CMAKE_MODULE_PATH "${CEF_ROOT}/cmake")
+find_package(CEF REQUIRED)
+add_subdirectory("${CEF_LIBCEF_DLL_WRAPPER_PATH}" "${CMAKE_BINARY_DIR}/wrapper")
+set(CMAKE_OSX_ARCHITECTURES arm64)
+set(CMAKE_OSX_DEPLOYMENT_TARGET 13.0)
+
+add_executable(BoazCEFSpike MACOSX_BUNDLE main.mm RootView.swift)
+target_include_directories(BoazCEFSpike PRIVATE "${CEF_ROOT}" "${CMAKE_CURRENT_SOURCE_DIR}")
+target_compile_definitions(BoazCEFSpike PRIVATE "$<$<COMPILE_LANGUAGE:OBJCXX>:CEF_USE_SANDBOX>")
+target_compile_options(BoazCEFSpike PRIVATE
+  "$<$<COMPILE_LANGUAGE:OBJCXX>:-std=c++20;-fobjc-arc;-Wno-unused-parameter>"
+  "$<$<COMPILE_LANGUAGE:Swift>:-import-objc-header;${CMAKE_CURRENT_SOURCE_DIR}/Bridge.h;-parse-as-library>")
+target_link_libraries(BoazCEFSpike PRIVATE libcef_dll_wrapper ${CEF_STANDARD_LIBS} "-framework SwiftUI")
+set(EXECUTABLE_NAME BoazCEFSpike)
+set(BUNDLE_IDENTIFIER com.chenkahana.boaz.cef-spike)
+set(PRINCIPAL_CLASS BZCApplication)
+set(UI_ELEMENT false)
+configure_file(Info.plist.in "${CMAKE_BINARY_DIR}/app-Info.plist")
+set_target_properties(BoazCEFSpike PROPERTIES MACOSX_BUNDLE_INFO_PLIST "${CMAKE_BINARY_DIR}/app-Info.plist")
+set(CEF_APP "${CMAKE_BINARY_DIR}/BoazCEFSpike.app")
+set(SPIKE_FRAMEWORK "${CEF_APP}/Contents/Frameworks/Chromium Embedded Framework.framework")
+add_custom_command(TARGET BoazCEFSpike POST_BUILD
+  COMMAND "${CMAKE_COMMAND}" -E copy_directory
+    "${CEF_BINARY_DIR}/Chromium Embedded Framework.framework" "${SPIKE_FRAMEWORK}/Versions/A"
+  COMMAND /bin/ln -sfn "Versions/A/Chromium Embedded Framework" "${SPIKE_FRAMEWORK}/Chromium Embedded Framework"
+  COMMAND /bin/ln -sfn "Versions/A/Libraries" "${SPIKE_FRAMEWORK}/Libraries"
+  COMMAND /bin/ln -sfn "Versions/A/Resources" "${SPIKE_FRAMEWORK}/Resources"
+  COMMAND /bin/ln -sfn A "${SPIKE_FRAMEWORK}/Versions/Current"
+  VERBATIM)
+
+foreach(suffix ${CEF_HELPER_APP_SUFFIXES})
+  string(REPLACE ":" ";" parts "${suffix}")
+  list(GET parts 0 name_suffix)
+  list(GET parts 1 target_suffix)
+  list(GET parts 2 id_suffix)
+  set(helper "BoazCEFSpike_Helper${target_suffix}")
+  set(EXECUTABLE_NAME "BoazCEFSpike Helper${name_suffix}")
+  set(BUNDLE_IDENTIFIER "com.chenkahana.boaz.cef-spike.helper${id_suffix}")
+  set(PRINCIPAL_CLASS NSApplication)
+  set(UI_ELEMENT true)
+  configure_file(Info.plist.in "${CMAKE_BINARY_DIR}/${helper}-Info.plist")
+  add_executable(${helper} MACOSX_BUNDLE helper.cc)
+  SET_EXECUTABLE_TARGET_PROPERTIES(${helper})
+  target_link_libraries(${helper} libcef_dll_wrapper ${CEF_STANDARD_LIBS})
+  set_target_properties(${helper} PROPERTIES
+    OUTPUT_NAME "${EXECUTABLE_NAME}"
+    MACOSX_BUNDLE_INFO_PLIST "${CMAKE_BINARY_DIR}/${helper}-Info.plist")
+  add_dependencies(BoazCEFSpike ${helper})
+  add_custom_command(TARGET BoazCEFSpike POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory
+      "$<TARGET_BUNDLE_DIR:${helper}>"
+      "${CEF_APP}/Contents/Frameworks/${EXECUTABLE_NAME}.app" VERBATIM)
+endforeach()

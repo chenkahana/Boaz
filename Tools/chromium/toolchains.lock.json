@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "chromium_version": "157.0.8103.51",
+  "root": "/Volumes/BoazBuild/cef/direct",
+  "python": "/opt/homebrew/bin/python3.12",
+  "depot_tools": "/Volumes/BoazBuild/cef/depot_tools",
+  "depot_tools_commit": "132599ebbd8d22d1b1bd5ea703a6d3bc493edd71",
+  "gcs": [
+    {
+      "id": "clang",
+      "destination": "third_party/llvm-build/Release+Asserts",
+      "bucket": "chromium-browser-clang",
+      "object": "Mac_arm64/clang-llvmorg-24-init-7747-g62397f8b-67.tar.xz",
+      "sha256": "7ac4fb2a7fd4996bbade60ce75835d46f0bc3e89c9d994d0510c81d53b0bb2bf",
+      "size_bytes": 44479696
+    },
+    {
+      "id": "rust",
+      "destination": "third_party/rust-toolchain",
+      "bucket": "chromium-browser-clang",
+      "object": "Mac_arm64/rust-toolchain-1edd55dcfcd573872c727fa3e086369a71661ee0-1125-llvmorg-24-init-7747-g62397f8b.tar.xz",
+      "sha256": "71b31b71326d7bf53eef44676f88d759c03677ae382dd9d331615c4f491e0dd1",
+      "size_bytes": 258108500
+    },
+    {
+      "id": "libclang",
+      "destination": "third_party/llvm-libclang",
+      "bucket": "chromium-browser-clang",
+      "object": "Mac_arm64/rust-libclang-1edd55dcfcd573872c727fa3e086369a71661ee0-1125-llvmorg-24-init-7747-g62397f8b.tar.xz",
+      "sha256": "4b82de2a286aeb02fa0ed99cf75a7b3f3c8dd408abd176a4e5c5fc5e7217754d",
+      "size_bytes": 20585892
+    },
+    {
+      "id": "node",
+      "destination": "third_party/node/mac_arm64",
+      "bucket": "chromium-nodejs",
+      "object": "6661e9b9bd7df6b45daf506c82d06d303597cb27",
+      "sha256": "b1be502d1635330ebf51d85f8d32a0d3dd92b35c6700def56ae6f903906ea825",
+      "size_bytes": 48369082
+    }
+  ],
+  "cipd": [
+    {
+      "id": "gn",
+      "destination": "buildtools/mac",
+      "package": "gn/gn/mac-arm64",
+      "version": "git_revision:0035961837fbcfe875d855744b3eda4fd2eefb43"
+    },
+    {
+      "id": "python",
+      "destination": "third_party/cpython3/host",
+      "package": "infra/3pp/tools/cpython3/mac-arm64",
+      "version": "version:3@3.11.9.chromium.38"
+    },
+    {
+      "id": "typescript",
+      "destination": "third_party/typescript/mac-arm64/src",
+      "package": "chromium/third_party/typescript/mac-arm64",
+      "version": "version:2@7.0.2"
+    },
+    {
+      "id": "angle",
+      "destination": "ui/gl/resources/angle-metal",
+      "package": "chromium/gpu/angle-metal-shader-libraries",
+      "version": "S0FPOVKrgaiqyuR20SSHiPorLgYez29bfwEdKBobUMMC"
+    },
+    {
+      "id": "esbuild",
+      "destination": "third_party/devtools-frontend/src/third_party/esbuild",
+      "package": "infra/3pp/tools/esbuild/mac-arm64",
+      "version": "version:3@0.28.2.chromium.2"
+    },
+    {
+      "id": "go",
+      "destination": "third_party/dawn/tools/golang/mac-arm64",
+      "package": "infra/3pp/tools/go/mac-arm64",
+      "version": "version:3@1.26.6"
+    }
+  ],
+  "cipd_client_sha256": "c94d10dc389f673a20949d5189253171cb5b4c8304551bea9b878724198393ee",
+  "cipd_client_instance": "PDJn8PeT1PnwXIX9GsT7q8E-HutCU7XvOe2Y4EQQJNAC"
+}

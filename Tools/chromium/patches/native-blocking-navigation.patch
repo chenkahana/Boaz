@@ -1,0 +1,20 @@
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -6,6 +6,7 @@
+ #include "build/build_config.h"
+ #if BUILDFLAG(IS_MAC)
+ #include "boaz/adblock_browser_client.h"
++#include "boaz/adblock_navigation.h"
+ #endif
+ 
+ #include <algorithm>
+@@ -5747,6 +5748,9 @@
+ void ChromeContentBrowserClient::CreateThrottlesForNavigation(
+     content::NavigationThrottleRegistry& registry) {
+   CreateAndAddChromeThrottlesForNavigation(registry);
++#if BUILDFLAG(IS_MAC)
++  boaz::AddAdblockNavigationThrottle(registry);
++#endif
+ }
+ 
+ void ChromeContentBrowserClient::CreateThrottlesForCommitWithoutUrlLoader(

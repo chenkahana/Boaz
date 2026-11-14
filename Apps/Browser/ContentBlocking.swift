@@ -45,7 +45,12 @@ enum ContentBlocking {
         for old in await store.availableIdentifiers() ?? [] where old.hasPrefix(easyListPrefix) {
             try? await store.removeContentRuleList(forIdentifier: old)
         }
-        guard let url = Bundle.main.url(forResource: "easylist_min_content_blocker", withExtension: "json"),
+        #if BOAZ_CHROMIUM
+        let resources = BoazRuntimeResources.bundle
+        #else
+        let resources = Bundle.main
+        #endif
+        guard let url = resources.url(forResource: "easylist_min_content_blocker", withExtension: "json"),
               let json = await Task.detached(operation: { webKitCompatible(url) }).value
         else { return nil }
         return try? await store.compileContentRuleList(forIdentifier: identifier, encodedContentRuleList: json)

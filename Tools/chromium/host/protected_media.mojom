@@ -1,0 +1,6 @@
+module boaz.mojom;
+
+// Untrusted intent only. The receiver derives document and profile identity.
+interface EncryptedMediaObserver {
+  Requested(string key_system);
+};

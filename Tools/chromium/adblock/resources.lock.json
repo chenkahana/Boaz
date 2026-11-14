@@ -1,0 +1,900 @@
+{
+  "schema_version": 1,
+  "adblock_rust_revision": "0016bc16a75ca9f87354a537a8b006fdd2b5b5b9",
+  "files": [
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/scriptlets.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/scriptlets.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/scriptlets.js",
+      "size_bytes": 72143,
+      "sha256": "fadafd1f9b3b25ccfe29b98fb791014c169fd6337edd58d63fbe3633bfb50b91"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/set-constant.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/set-constant.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/set-constant.js",
+      "size_bytes": 9880,
+      "sha256": "827d8ca244d2fbcdb967592c9247958e9e6eb7ebbe7186d0165015093ced0ab9"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/safe-self.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/safe-self.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/safe-self.js",
+      "size_bytes": 8273,
+      "sha256": "0f50fbccc8f2dcf96a977976611a4a300b15eadcafda28ba46b6a5c4cb46ea0e"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/base.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/base.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/base.js",
+      "size_bytes": 1405,
+      "sha256": "5eb0f5c20866149f99537e64959c51c466f9b43cd4fde1682ae0534a4096a4b8"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/run-at.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/run-at.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/run-at.js",
+      "size_bytes": 2949,
+      "sha256": "12daa1b79691095b8ba782b77122ef68923ff2dd1020f3b1b008fc33adf95a6c"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/proxy-apply.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/proxy-apply.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/proxy-apply.js",
+      "size_bytes": 6376,
+      "sha256": "7fb12b6e29dcdae0dcaa5709e76271bf6152eb0dfc7e55894ffceb3eafd8a4ca"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/prevent-xhr.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/prevent-xhr.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/prevent-xhr.js",
+      "size_bytes": 12276,
+      "sha256": "3619684e46f0cfc7a9f48553cc8e8f193c807b61a07e4b9e9a7ff043c242d9bf"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/utils.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/utils.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/utils.js",
+      "size_bytes": 15167,
+      "sha256": "9d8781cc4ae1e16aa5330f18377addcbd2cd8f67d86edc20136f73df5ac2e40d"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/stack-trace.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/stack-trace.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/stack-trace.js",
+      "size_bytes": 5075,
+      "sha256": "7a912904f5816f09605cbafa6e40be595e520f96eeb8e267e4f628f29a9767db"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/localstorage.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/localstorage.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/localstorage.js",
+      "size_bytes": 6536,
+      "sha256": "ea2ebb44b8189fb4c98e08a86c2ac6afde781c6b3d6af03195b8fcaeaef89ced"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/cookie.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/cookie.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/cookie.js",
+      "size_bytes": 13633,
+      "sha256": "31cf19e9dd0f6e5c957e9e952647e1bc7094ff603303924625c3c530a009a315"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/vod.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/vod.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/vod.js",
+      "size_bytes": 6324,
+      "sha256": "8de2a299d79f51336ebaa5ac66c2c8f73e0ca34dfe562e1e18da557d0b594899"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/spoof-css.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/spoof-css.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/spoof-css.js",
+      "size_bytes": 6544,
+      "sha256": "dd30b098802b23ef0b46c62d9242c0af49997a6d66afac54493791d7fbcee225"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/replace-argument.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/replace-argument.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/replace-argument.js",
+      "size_bytes": 4968,
+      "sha256": "667a602eee73ced208f9f42a6eba85300a0fb81b6dedbd6abbbc1a974a6cde10"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/parse-replace.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/parse-replace.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/parse-replace.js",
+      "size_bytes": 1935,
+      "sha256": "fca20f23d68dfc906a02838330e26d1123dce48fcdaa086b37dba5c0d5b38e57"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/shared.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/shared.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/shared.js",
+      "size_bytes": 1448,
+      "sha256": "26b04fa095d81230f46ac90addf6810a01bbf096f06afd14304dfbb9001995e2"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/jsonpath.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/jsonpath.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/jsonpath.js",
+      "size_bytes": 23391,
+      "sha256": "2accde5c2b714e96b22e9811cd7accb6a964b5144a26c9586073560e648ead44"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/arglist-parser.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/arglist-parser.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/arglist-parser.js",
+      "size_bytes": 4803,
+      "sha256": "57dbdf89705f59d79bb20189c8b1c784ea4105323d0bcd07eec74e818cc8c106"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/prevent-settimeout.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/prevent-settimeout.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/prevent-settimeout.js",
+      "size_bytes": 7926,
+      "sha256": "4a5152c4cc9715183bc9e49c4e4e27a87f02b978de89b71c6a1586cc9cc15f95"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/prevent-navigation.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/prevent-navigation.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/prevent-navigation.js",
+      "size_bytes": 2252,
+      "sha256": "bd7031b200172aca316b489e4b4e95a52e891b1098b83c483a45f8cf7995ac49"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/prevent-innerHTML.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/prevent-innerHTML.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/prevent-innerHTML.js",
+      "size_bytes": 4129,
+      "sha256": "18719306c7beb87b5f09d5b241cf2ec893638e3fb96a93d2218cbde217bbee2d"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/prevent-fetch.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/prevent-fetch.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/prevent-fetch.js",
+      "size_bytes": 6587,
+      "sha256": "46ab941003b999cb506201c786eaf428e78a4c3e519656f45361d7b0a1b6c887"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/prevent-dialog.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/prevent-dialog.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/prevent-dialog.js",
+      "size_bytes": 2234,
+      "sha256": "904fcae08eb72ea2e1624650c7e24741fc80f717f8c2438367807fbca195821d"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/prevent-clipboard-write.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/prevent-clipboard-write.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/prevent-clipboard-write.js",
+      "size_bytes": 5913,
+      "sha256": "1c1fbb9c8f28e2b9617f6859a91ec42ffeafd4e36611ec4b0a923005570f5cb0"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/prevent-bab.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/prevent-bab.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/prevent-bab.js",
+      "size_bytes": 3283,
+      "sha256": "ef5762c46a193211b335e0cb2ea439865cb98cb9cd4df8a90b159ddd35a66094"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/prevent-addeventlistener.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/prevent-addeventlistener.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/prevent-addeventlistener.js",
+      "size_bytes": 6370,
+      "sha256": "ce919028953e4cb4a49db61e0649d475ccab7b3cf150c77aeb001305a384b8c8"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/object-prune.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/object-prune.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/object-prune.js",
+      "size_bytes": 9102,
+      "sha256": "fc68ac88bcadc6774c0a1a3d87b142a9062d804dc5f0f87bb18a7d48c690d135"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/noeval.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/noeval.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/noeval.js",
+      "size_bytes": 1947,
+      "sha256": "0b42472114120bd586410d0bbfd912c198de1abb0b3b62d11183ff6b893e5731"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/json-prune.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/json-prune.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/json-prune.js",
+      "size_bytes": 9860,
+      "sha256": "e4f13cc99cb4ae8428de4889135ed5f62e30f02c397f3f5f4b2941189bd76ced"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/json-edit.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/json-edit.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/json-edit.js",
+      "size_bytes": 51833,
+      "sha256": "c5616d2fd6f85248bc96e57b136d6d73b62ebdbb1205e6bfc79a3849a6675b8e"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/href-sanitizer.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/href-sanitizer.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/href-sanitizer.js",
+      "size_bytes": 5856,
+      "sha256": "b17df68062d8d87240c970763c10e891224961759b6178cb7c58e1ade2ed7bfc"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/urlskip.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/urlskip.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/urlskip.js",
+      "size_bytes": 6186,
+      "sha256": "1d71ddafee30b70137e603e32c79b5ae65af65e7b71f4b61ae65301d76216d6d"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/create-html.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/create-html.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/create-html.js",
+      "size_bytes": 5074,
+      "sha256": "0d8025aa3748395c6d0c7bd1b7487a2d2d8b1632e109b509576341cb7254fedf"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/attribute.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/attribute.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/attribute.js",
+      "size_bytes": 10460,
+      "sha256": "c8cfbf5f44baa8d80f8150218540d50fce0a6d4f65823ec15648ae105603a90e"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/resources/abort-current-script.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/abort-current-script.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/resources/abort-current-script.js",
+      "size_bytes": 4329,
+      "sha256": "820b2234576b91a7d71b8ff380a03d604a561a83a0ad7334900d146b616e380d"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/js/redirect-resources.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/redirect-resources.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/js/redirect-resources.js",
+      "size_bytes": 5823,
+      "sha256": "870666664a8cc95a4d55566c440d71a5ee00e0f3f4326a15287aa55f138b547a"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/LICENSE.txt",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/LICENSE.txt",
+      "size_bytes": 35126,
+      "sha256": "e73d33841f942fa73aa5a63d4a6399cc39a29564db1dbca0915485842fcb236d"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/web_accessible_resources/1x1.gif",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/web_accessible_resources/1x1.gif",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/web_accessible_resources/1x1.gif",
+      "size_bytes": 43,
+      "sha256": "afe0dcfca292a0fae8bce08a48c14d3e59c9d82c6052ab6d48a22ecc6c48f277"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/web_accessible_resources/chartbeat.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/web_accessible_resources/chartbeat.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/web_accessible_resources/chartbeat.js",
+      "size_bytes": 1175,
+      "sha256": "5e6add14da36b213c093e77fae622f2624cc3ec1ed77ef0a7da934a69a62288d"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/web_accessible_resources/fingerprint2.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/web_accessible_resources/fingerprint2.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/web_accessible_resources/fingerprint2.js",
+      "size_bytes": 1829,
+      "sha256": "7552c3423619eb239d6042a91f8430cbe4f298b4de9c263954abbcda07ec9725"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/web_accessible_resources/google-analytics_analytics.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/web_accessible_resources/google-analytics_analytics.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/web_accessible_resources/google-analytics_analytics.js",
+      "size_bytes": 3695,
+      "sha256": "6b4621868cac589a603fe1263aad242f67262ef971bdacaccc1a515cd0488466"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/web_accessible_resources/noop-1s.mp4",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/web_accessible_resources/noop-1s.mp4",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/web_accessible_resources/noop-1s.mp4",
+      "size_bytes": 3753,
+      "sha256": "a27edba0e34b2648a90a800ae94fdef3e39016d1b9bd6e54a31ede1f1cddfed0"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/web_accessible_resources/noop.js",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/web_accessible_resources/noop.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/web_accessible_resources/noop.js",
+      "size_bytes": 38,
+      "sha256": "5592bfa25de75c18ef0116cbb9990c122178b1efe5e076f1c45049a09d935a25"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/web_accessible_resources/noop.json",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/web_accessible_resources/noop.json",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/web_accessible_resources/noop.json",
+      "size_bytes": 2,
+      "sha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+    },
+    {
+      "repository": "brave/uBlock",
+      "revision": "cfa955fa8e1732e895e59fc6b8014e2317695ff3",
+      "path": "src/web_accessible_resources/noop.txt",
+      "url": "https://raw.githubusercontent.com/brave/uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/web_accessible_resources/noop.txt",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--uBlock/cfa955fa8e1732e895e59fc6b8014e2317695ff3/src/web_accessible_resources/noop.txt",
+      "size_bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "repository": "brave/brave-core-crx-packager",
+      "revision": "46709f1745c13478a4b10223ab96d25f390a9dab",
+      "path": "lib/adBlockRustUtils.js",
+      "url": "https://raw.githubusercontent.com/brave/brave-core-crx-packager/46709f1745c13478a4b10223ab96d25f390a9dab/lib/adBlockRustUtils.js",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--brave-core-crx-packager/46709f1745c13478a4b10223ab96d25f390a9dab/lib/adBlockRustUtils.js",
+      "size_bytes": 13983,
+      "sha256": "5a390676467d32a8038a396f4ee77680fde04b103c90fcded448d3758e776956"
+    },
+    {
+      "repository": "brave/brave-core-crx-packager",
+      "revision": "46709f1745c13478a4b10223ab96d25f390a9dab",
+      "path": ".gitmodules",
+      "url": "https://raw.githubusercontent.com/brave/brave-core-crx-packager/46709f1745c13478a4b10223ab96d25f390a9dab/.gitmodules",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--brave-core-crx-packager/46709f1745c13478a4b10223ab96d25f390a9dab/.gitmodules",
+      "size_bytes": 97,
+      "sha256": "81627af658e2081d367dd4cb69b6e9d0a3992b095783e2cd167c1391dc862d13"
+    },
+    {
+      "repository": "brave/brave-core-crx-packager",
+      "revision": "46709f1745c13478a4b10223ab96d25f390a9dab",
+      "path": "package.json",
+      "url": "https://raw.githubusercontent.com/brave/brave-core-crx-packager/46709f1745c13478a4b10223ab96d25f390a9dab/package.json",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--brave-core-crx-packager/46709f1745c13478a4b10223ab96d25f390a9dab/package.json",
+      "size_bytes": 6167,
+      "sha256": "624cc08db0a7592084837b83f1613cfb44bd344046789f5843cf44f862ebe52e"
+    },
+    {
+      "repository": "brave/brave-core-crx-packager",
+      "revision": "46709f1745c13478a4b10223ab96d25f390a9dab",
+      "path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/brave/brave-core-crx-packager/46709f1745c13478a4b10223ab96d25f390a9dab/LICENSE",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--brave-core-crx-packager/46709f1745c13478a4b10223ab96d25f390a9dab/LICENSE",
+      "size_bytes": 16725,
+      "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5"
+    },
+    {
+      "repository": "brave/adblock-resources",
+      "revision": "6da9b247c3368baa8b4f24cd02046e18702a6527",
+      "path": "dist/resources.json",
+      "url": "https://raw.githubusercontent.com/brave/adblock-resources/6da9b247c3368baa8b4f24cd02046e18702a6527/dist/resources.json",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--adblock-resources/6da9b247c3368baa8b4f24cd02046e18702a6527/dist/resources.json",
+      "size_bytes": 596542,
+      "sha256": "d085eb0754b7a54d9e1a18a0314b1946b066f61a15457de834d98beb53b4e40f"
+    },
+    {
+      "repository": "brave/adblock-resources",
+      "revision": "6da9b247c3368baa8b4f24cd02046e18702a6527",
+      "path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/brave/adblock-resources/6da9b247c3368baa8b4f24cd02046e18702a6527/LICENSE",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--adblock-resources/6da9b247c3368baa8b4f24cd02046e18702a6527/LICENSE",
+      "size_bytes": 16725,
+      "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5"
+    },
+    {
+      "repository": "brave/adblock-resources",
+      "revision": "6da9b247c3368baa8b4f24cd02046e18702a6527",
+      "path": "package.json",
+      "url": "https://raw.githubusercontent.com/brave/adblock-resources/6da9b247c3368baa8b4f24cd02046e18702a6527/package.json",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--adblock-resources/6da9b247c3368baa8b4f24cd02046e18702a6527/package.json",
+      "size_bytes": 722,
+      "sha256": "db2b61871ec9b0a9601e8712fee7b284cd8ef603c01a1ecf4db09547c0248a59"
+    },
+    {
+      "repository": "brave/adblock-resources",
+      "revision": "6da9b247c3368baa8b4f24cd02046e18702a6527",
+      "path": "README.md",
+      "url": "https://raw.githubusercontent.com/brave/adblock-resources/6da9b247c3368baa8b4f24cd02046e18702a6527/README.md",
+      "artifact_path": "/Volumes/BoazBuild/cef/direct/adblock/resource-inputs/brave--adblock-resources/6da9b247c3368baa8b4f24cd02046e18702a6527/README.md",
+      "size_bytes": 6016,
+      "sha256": "70b90e1622bbdbcdc8dd0274347b247c775418e9e3632cd66299240a8ac1675e"
+    }
+  ],
+  "redirect_resource_mapping": {
+    "1x1.gif": "1x1.gif",
+    "chartbeat.js": "chartbeat.js",
+    "fingerprint2.js": "fingerprint2.js",
+    "googletagmanager_gtm.js": "google-analytics_analytics.js",
+    "abp-resource:blank-mp4": "noop-1s.mp4",
+    "noopjs": "noop.js",
+    "noop.js": "noop.js",
+    "abp-resource:blank-js": "noop.js",
+    "noopjson": "noop.json",
+    "nooptext": "noop.txt",
+    "noop.txt": "noop.txt"
+  },
+  "unresolved_redirect_names": [],
+  "scriptlet_mapping": {
+    "rmnt": {
+      "canonical_name": "remove-node-text.js",
+      "source_path": "src/js/resources/scriptlets.js",
+      "line": 1352,
+      "declared_world": "ISOLATED",
+      "requires_trust": false,
+      "dependency_declarations": "'replace-node-text.fn',",
+      "execution_world": "ISOLATED"
+    },
+    "set": {
+      "canonical_name": "set-constant.js",
+      "source_path": "src/js/resources/set-constant.js",
+      "line": 255,
+      "declared_world": null,
+      "requires_trust": false,
+      "dependency_declarations": "setConstantFn,",
+      "execution_world": "MAIN"
+    },
+    "no-xhr-if": {
+      "canonical_name": "prevent-xhr.js",
+      "source_path": "src/js/resources/prevent-xhr.js",
+      "line": 294,
+      "declared_world": null,
+      "requires_trust": false,
+      "dependency_declarations": "preventXhrFn,",
+      "execution_world": "MAIN"
+    },
+    "aost": {
+      "canonical_name": "abort-on-stack-trace.js",
+      "source_path": "src/js/resources/stack-trace.js",
+      "line": 137,
+      "declared_world": null,
+      "requires_trust": false,
+      "dependency_declarations": "getExceptionTokenFn,\n        matchesStackTraceFn,\n        safeSelf,",
+      "execution_world": "MAIN"
+    },
+    "set-local-storage-item": {
+      "canonical_name": "set-local-storage-item.js",
+      "source_path": "src/js/resources/localstorage.js",
+      "line": 148,
+      "declared_world": "ISOLATED",
+      "requires_trust": false,
+      "dependency_declarations": "safeSelf,\n        setLocalStorageItemFn,",
+      "execution_world": "ISOLATED"
+    },
+    "set-cookie": {
+      "canonical_name": "set-cookie.js",
+      "source_path": "src/js/resources/cookie.js",
+      "line": 227,
+      "declared_world": "ISOLATED",
+      "requires_trust": false,
+      "dependency_declarations": "getSafeCookieValuesFn,\n        safeSelf,\n        setCookieFn,",
+      "execution_world": "ISOLATED"
+    },
+    "cookie-remover": {
+      "canonical_name": "remove-cookie.js",
+      "source_path": "src/js/resources/cookie.js",
+      "line": 435,
+      "declared_world": "ISOLATED",
+      "requires_trust": false,
+      "dependency_declarations": "safeSelf,",
+      "execution_world": "ISOLATED"
+    },
+    "no-fetch-if": {
+      "canonical_name": "prevent-fetch.js",
+      "source_path": "src/js/resources/prevent-fetch.js",
+      "line": 154,
+      "declared_world": null,
+      "requires_trust": false,
+      "dependency_declarations": "preventFetchFn,",
+      "execution_world": "MAIN"
+    },
+    "aeld": {
+      "canonical_name": "prevent-addEventListener.js",
+      "source_path": "src/js/resources/prevent-addeventlistener.js",
+      "line": 149,
+      "declared_world": null,
+      "requires_trust": false,
+      "dependency_declarations": "proxyApplyFn,\n        runAt,\n        safeSelf,",
+      "execution_world": "MAIN"
+    },
+    "json-edit": {
+      "canonical_name": "json-edit.js",
+      "source_path": "src/js/resources/json-edit.js",
+      "line": 187,
+      "declared_world": null,
+      "requires_trust": false,
+      "dependency_declarations": "jsonEditFn,",
+      "execution_world": "MAIN"
+    },
+    "acs": {
+      "canonical_name": "abort-current-script.js",
+      "source_path": "src/js/resources/abort-current-script.js",
+      "line": 112,
+      "declared_world": null,
+      "requires_trust": false,
+      "dependency_declarations": "abortCurrentScriptFn,\n        runAtHtmlElementFn,",
+      "execution_world": "MAIN"
+    }
+  },
+  "unresolved_scriptlet_names": [],
+  "scriptlet_dependency_closure": {
+    "abort-current-script.js": {
+      "source_path": "src/js/resources/abort-current-script.js",
+      "line": 112,
+      "dependencies": [
+        "abort-current-script.fn",
+        "run-at-html-element.fn"
+      ]
+    },
+    "run-at-html-element.fn": {
+      "source_path": "src/js/resources/run-at.js",
+      "line": 94,
+      "dependencies": []
+    },
+    "abort-current-script.fn": {
+      "source_path": "src/js/resources/abort-current-script.js",
+      "line": 94,
+      "dependencies": [
+        "get-exception-token.fn",
+        "safe-self.fn",
+        "trap-property-access.fn"
+      ]
+    },
+    "trap-property-access.fn": {
+      "source_path": "src/js/resources/utils.js",
+      "line": 134,
+      "dependencies": [
+        "safe-self.fn"
+      ]
+    },
+    "safe-self.fn": {
+      "source_path": "src/js/resources/safe-self.js",
+      "line": 207,
+      "dependencies": []
+    },
+    "get-exception-token.fn": {
+      "source_path": "src/js/resources/utils.js",
+      "line": 53,
+      "dependencies": [
+        "get-random-token.fn"
+      ]
+    },
+    "get-random-token.fn": {
+      "source_path": "src/js/resources/utils.js",
+      "line": 33,
+      "dependencies": [
+        "safe-self.fn"
+      ]
+    },
+    "json-edit.js": {
+      "source_path": "src/js/resources/json-edit.js",
+      "line": 187,
+      "dependencies": [
+        "json-edit.fn"
+      ]
+    },
+    "json-edit.fn": {
+      "source_path": "src/js/resources/json-edit.js",
+      "line": 157,
+      "dependencies": [
+        "jsonpath.fn",
+        "proxy-apply.fn",
+        "safe-self.fn"
+      ]
+    },
+    "proxy-apply.fn": {
+      "source_path": "src/js/resources/proxy-apply.js",
+      "line": 151,
+      "dependencies": []
+    },
+    "jsonpath.fn": {
+      "source_path": "src/js/resources/shared.js",
+      "line": 38,
+      "dependencies": []
+    },
+    "prevent-addEventListener.js": {
+      "source_path": "src/js/resources/prevent-addeventlistener.js",
+      "line": 149,
+      "dependencies": [
+        "proxy-apply.fn",
+        "run-at.fn",
+        "safe-self.fn"
+      ]
+    },
+    "run-at.fn": {
+      "source_path": "src/js/resources/run-at.js",
+      "line": 74,
+      "dependencies": [
+        "safe-self.fn"
+      ]
+    },
+    "prevent-fetch.js": {
+      "source_path": "src/js/resources/prevent-fetch.js",
+      "line": 154,
+      "dependencies": [
+        "prevent-fetch.fn"
+      ]
+    },
+    "prevent-fetch.fn": {
+      "source_path": "src/js/resources/prevent-fetch.js",
+      "line": 116,
+      "dependencies": [
+        "collate-fetch-arguments.fn",
+        "generate-content.fn",
+        "match-object-properties.fn",
+        "parse-properties-to-match.fn",
+        "proxy-apply.fn",
+        "safe-self.fn"
+      ]
+    },
+    "parse-properties-to-match.fn": {
+      "source_path": "src/js/resources/utils.js",
+      "line": 206,
+      "dependencies": [
+        "safe-self.fn"
+      ]
+    },
+    "match-object-properties.fn": {
+      "source_path": "src/js/resources/utils.js",
+      "line": 234,
+      "dependencies": [
+        "safe-self.fn"
+      ]
+    },
+    "generate-content.fn": {
+      "source_path": "src/js/resources/utils.js",
+      "line": 299,
+      "dependencies": [
+        "safe-self.fn"
+      ]
+    },
+    "collate-fetch-arguments.fn": {
+      "source_path": "src/js/resources/utils.js",
+      "line": 177,
+      "dependencies": [
+        "safe-self.fn"
+      ]
+    },
+    "remove-cookie.js": {
+      "source_path": "src/js/resources/cookie.js",
+      "line": 435,
+      "dependencies": [
+        "safe-self.fn"
+      ]
+    },
+    "set-cookie.js": {
+      "source_path": "src/js/resources/cookie.js",
+      "line": 227,
+      "dependencies": [
+        "get-safe-cookie-values.fn",
+        "safe-self.fn",
+        "set-cookie.fn"
+      ]
+    },
+    "set-cookie.fn": {
+      "source_path": "src/js/resources/cookie.js",
+      "line": 168,
+      "dependencies": [
+        "get-cookie.fn"
+      ]
+    },
+    "get-cookie.fn": {
+      "source_path": "src/js/resources/cookie.js",
+      "line": 93,
+      "dependencies": [
+        "safe-self.fn"
+      ]
+    },
+    "get-safe-cookie-values.fn": {
+      "source_path": "src/js/resources/cookie.js",
+      "line": 56,
+      "dependencies": []
+    },
+    "set-local-storage-item.js": {
+      "source_path": "src/js/resources/localstorage.js",
+      "line": 148,
+      "dependencies": [
+        "safe-self.fn",
+        "set-local-storage-item.fn"
+      ]
+    },
+    "set-local-storage-item.fn": {
+      "source_path": "src/js/resources/localstorage.js",
+      "line": 122,
+      "dependencies": [
+        "get-safe-cookie-values.fn",
+        "safe-self.fn"
+      ]
+    },
+    "abort-on-stack-trace.js": {
+      "source_path": "src/js/resources/stack-trace.js",
+      "line": 137,
+      "dependencies": [
+        "get-exception-token.fn",
+        "matches-stack-trace.fn",
+        "safe-self.fn"
+      ]
+    },
+    "matches-stack-trace.fn": {
+      "source_path": "src/js/resources/stack-trace.js",
+      "line": 73,
+      "dependencies": [
+        "get-exception-token.fn",
+        "safe-self.fn"
+      ]
+    },
+    "prevent-xhr.js": {
+      "source_path": "src/js/resources/prevent-xhr.js",
+      "line": 294,
+      "dependencies": [
+        "prevent-xhr.fn"
+      ]
+    },
+    "prevent-xhr.fn": {
+      "source_path": "src/js/resources/prevent-xhr.js",
+      "line": 263,
+      "dependencies": [
+        "generate-content.fn",
+        "match-object-properties.fn",
+        "parse-properties-to-match.fn",
+        "proxy-apply.fn",
+        "safe-self.fn"
+      ]
+    },
+    "set-constant.js": {
+      "source_path": "src/js/resources/set-constant.js",
+      "line": 255,
+      "dependencies": [
+        "set-constant.fn"
+      ]
+    },
+    "set-constant.fn": {
+      "source_path": "src/js/resources/set-constant.js",
+      "line": 239,
+      "dependencies": [
+        "run-at.fn",
+        "safe-self.fn",
+        "validate-constant.fn"
+      ]
+    },
+    "validate-constant.fn": {
+      "source_path": "src/js/resources/set-constant.js",
+      "line": 80,
+      "dependencies": [
+        "safe-self.fn"
+      ]
+    },
+    "remove-node-text.js": {
+      "source_path": "src/js/resources/scriptlets.js",
+      "line": 1352,
+      "dependencies": [
+        "replace-node-text.fn"
+      ]
+    },
+    "replace-node-text.fn": {
+      "source_path": "src/js/resources/scriptlets.js",
+      "line": 78,
+      "dependencies": [
+        "get-random-token.fn",
+        "run-at.fn",
+        "safe-self.fn"
+      ]
+    }
+  },
+  "unresolved_scriptlet_dependencies": [],
+  "assembly": {
+    "reference_repository": "brave/brave-core-crx-packager",
+    "reference_revision": "46709f1745c13478a4b10223ab96d25f390a9dab",
+    "reference_path": "lib/adBlockRustUtils.js",
+    "reference_lines": "65-106",
+    "format": "adblock::resources::Resource JSON array; names, aliases, kind, base64 content, dependencies, permission",
+    "scriptlets": "Import pinned scriptlets.js module closure; builtinScriptlets entries supply fn.toString() and dependency names. Source-only inspection performed; no JavaScript executed or resources generated.",
+    "redirects": "Pinned Rust resource-assembler assemble_web_accessible_resources accepts resource directory and redirect-resources.js. Only8required redirect payloads fetched; use a bounded equivalent selected-entry assembly or fetchremainingpayloads beforewhole-map assembly.",
+    "trust": "Keep defaultPermissionMask0 for public lists. Preserve requiresTrust metadata; do not elevate resource permission to make rules work.",
+    "world": "Resource serialization has no world field; upstream packager drops world metadata. Native renderer must explicitly handle page-world scriptlets independently from private password world."
+  },
+  "compatibility_status": "SOURCE_RESOLVED_NOT_ASSEMBLED_OR_RUNTIME_VALIDATED",
+  "licenses": [
+    {
+      "repository": "brave/uBlock",
+      "license": "GPL-3.0-or-later",
+      "attribution": "Raymond Hill and uBlock Origin contributors; per-file notices retained"
+    },
+    {
+      "repository": "brave/adblock-resources",
+      "license": "MPL-2.0",
+      "attribution": "Brave adblock-resources contributors; per-file notices retained"
+    },
+    {
+      "repository": "brave/brave-core-crx-packager",
+      "license": "MPL-2.0",
+      "purpose": "assembly reference only"
+    }
+  ],
+  "renderer_contract": {
+    "public_scriptlets": "Execute only pinned rule/resource-generated scriptlets in the matching document main world; no credentials, secrets, privileged native bindings, or password-world access. Retain original world metadata for future separate-world output.",
+    "document_binding": "Native host selects authoritative frame/document URL and profile/site-exception snapshot; inject at document start before page hooks run, cancel on document replacement/close/crash. Do not accept page-supplied source URL or injection code.",
+    "cosmetics": "CSS and procedural DOM work use a distinct content-blocking context; generic selectors honor exceptions and generichide. Procedural actions require implementation, not treating JSON as ordinary CSS.",
+    "password_separation": "Never send combined injected_script through the trusted password isolated-world channel. No cosmetic or scriptlet code receives password bridge capability.",
+    "limits": "Main-world scriptlets are visible to and alter page JavaScript; successful source resolution does not establish timing, CSP, frame lifecycle, or runtime compatibility."
+  }
+}

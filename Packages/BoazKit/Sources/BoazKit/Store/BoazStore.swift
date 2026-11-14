@@ -16,11 +16,13 @@ public final class BoazStore: Sendable {
     public static let appGroup = "group.com.chenkahana.boaz"
 
     /// Opens the database in the App Group container when the entitlement is present, else in Application Support.
+    /// An explicit applicationSupportDirectory selects the base directory without copying the database.
     /// Configured per GRDB's "Sharing a Database": the app and its extensions wait for each other's writes instead
     /// of failing with `SQLITE_BUSY`, and the iOS app suspends the database in the background
     /// (`Database.suspendNotification`) so it is never killed for holding a lock. Extensions pass `migrate: false`.
-    public static func onDisk(appGroup: String? = nil, migrate: Bool = true) throws -> BoazStore {
-        let base = try appGroup.flatMap { FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: $0) }
+    public static func onDisk(appGroup: String? = nil, migrate: Bool = true,
+                              applicationSupportDirectory: URL? = nil) throws -> BoazStore {
+        let base = try applicationSupportDirectory ?? appGroup.flatMap { FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: $0) }
             ?? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                        appropriateFor: nil, create: true)
         let dir = base.appendingPathComponent("Boaz", isDirectory: true)
@@ -213,6 +215,70 @@ public final class BoazStore: Sendable {
                 t.column("deletedAt", .datetime)
             }
             try createSyncTriggers(for: .device, in: db)
+        }
+        migrator.registerMigration("v6-local-engine-routing") { db in
+            try db.create(table: "tabEngineChoice") { t in
+                t.column("profileID", .text).notNull()
+                t.column("tabID", .text).notNull()
+                t.column("engine", .text).notNull()
+                t.primaryKey(["profileID", "tabID"])
+            }
+            try db.create(table: "siteEngineRule") { t in
+                t.column("profileID", .text).notNull()
+                t.column("host", .text).notNull()
+                t.column("pathPrefix", .text).notNull()
+                t.column("engine", .text).notNull()
+                t.column("reason", .text).notNull()
+                t.column("createdAt", .datetime).notNull()
+                t.primaryKey(["profileID", "host", "pathPrefix", "reason"])
+            }
+        }
+        migrator.registerMigration("v7-protected-engine-seeds") { db in
+            try db.create(table: "protectedEngineSeed") { t in
+                t.primaryKey("profileID", .text)
+                t.column("completedAt", .datetime).notNull()
+            }
+        }
+        migrator.registerMigration("v8-synced-site-engine-rules") { db in
+            try db.create(table: "siteEngineRuleRecord") { t in
+                t.primaryKey("id", .text)
+                t.column("profileID", .text).notNull()
+                t.column("host", .text).notNull()
+                t.column("pathPrefix", .text).notNull()
+                t.column("reason", .text).notNull()
+                t.column("engine", .text).notNull()
+                t.column("createdAt", .datetime).notNull()
+                t.column("modifiedAt", .datetime).notNull()
+                t.column("deletedAt", .datetime)
+                t.uniqueKey(["profileID", "host", "pathPrefix", "reason"])
+            }
+            for row in try Row.fetchAll(db, sql: "SELECT * FROM siteEngineRule") {
+                guard let engine = StoredBrowserEngine(rawValue: row["engine"]),
+                      let reason = SiteEngineRule.Reason(rawValue: row["reason"]) else {
+                    throw SiteEngineRule.ValidationError.invalidHost
+                }
+                let path: String = row["pathPrefix"]
+                let rule = try SiteEngineRule(profileID: row["profileID"], host: row["host"],
+                    pathPrefix: path.isEmpty ? nil : path, engine: engine, reason: reason, createdAt: row["createdAt"])
+                let seedDate = try Date.fetchOne(db,
+                    sql: "SELECT completedAt FROM protectedEngineSeed WHERE profileID = ?", arguments: [rule.profileID])
+                let isSeed = rule.reason == .protectedMedia && seedDate == rule.createdAt &&
+                    Self.protectedMediaSeedSites.contains { $0.0 == rule.host && $0.1 == rule.pathPrefix }
+                try SiteEngineRuleRecord(rule: rule,
+                    modifiedAt: isSeed ? Date(timeIntervalSince1970: 0) : rule.createdAt).insert(db)
+            }
+            let migratedAt = Date.now
+            for profileID in try String.fetchAll(db, sql: "SELECT profileID FROM protectedEngineSeed") {
+                for (host, path) in Self.protectedMediaSeedSites {
+                    let rule = try SiteEngineRule(profileID: profileID, host: host, pathPrefix: path,
+                        engine: .webkit, reason: .protectedMedia, createdAt: migratedAt)
+                    let deletion = SiteEngineRuleRecord(rule: rule, modifiedAt: migratedAt, deletedAt: migratedAt)
+                    if try SiteEngineRuleRecord.fetchOne(db, key: deletion.id) == nil {
+                        try deletion.insert(db)
+                    }
+                }
+            }
+            try createSyncTriggers(for: .siteEngineRule, in: db)
         }
         return migrator
     }

@@ -273,6 +273,8 @@ extension BoazStore {
         return try await writer.write { db in
             var count = 0
             for type in SyncRecordType.allCases {
+                // New devices need these tombstones to avoid reseeding rules the user removed.
+                if type == .siteEngineRule { continue }
                 try db.execute(sql: """
                     DELETE FROM \(type.tableName)
                     WHERE deletedAt IS NOT NULL AND deletedAt < ?

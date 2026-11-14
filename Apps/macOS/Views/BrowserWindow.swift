@@ -9,12 +9,33 @@ struct BrowserWindow: View {
     @Environment(MacModel.self) private var model
     @Environment(\.openWindow) private var openWindow
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private let nativeRestoration: MacModel.NativeWindowRestoration?
+    private let initialTabID: String?
+    @State private var consumedInitialTab = false
+    private let claimsSavedWindow: Bool
     @State private var browser: BrowserState
     @AppStorage("sidebarWidth") private var sidebarWidth = 250.0
     @AppStorage(Preferences.skipsPinnedRemovalWarningKey) private var skipsPinnedRemovalWarning = false
 
     init(incognito: Bool) {
+        nativeRestoration = nil
+        initialTabID = nil
+        claimsSavedWindow = true
         _browser = State(initialValue: BrowserState(incognito: incognito))
+    }
+
+    init(browser: BrowserState) {
+        nativeRestoration = nil
+        initialTabID = nil
+        claimsSavedWindow = true
+        _browser = State(initialValue: browser)
+    }
+
+    init(browser: BrowserState, nativeRestoration: MacModel.NativeWindowRestoration?, initialTabID: String? = nil) {
+        self.initialTabID = initialTabID
+        self.nativeRestoration = nativeRestoration
+        claimsSavedWindow = false
+        _browser = State(initialValue: browser)
     }
 
     var body: some View {
@@ -39,6 +60,17 @@ struct BrowserWindow: View {
                     .transition(reduceMotion ? .opacity : .scale(scale: 0.96, anchor: .top).combined(with: .opacity))
             }
         }
+        #if BOAZ_CHROMIUM
+        .overlay(alignment: .topTrailing) {
+            if ChromiumAutomation.shared.status?.state == .ready {
+                Label("Automation enabled", systemImage: "terminal")
+                    .font(.caption).padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(10)
+                    .accessibilityLabel("Local automation enabled for all profiles, including private windows")
+            }
+        }
+        #endif
         .overlay(alignment: .bottom) { ToastView() }
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: browser.commandMode)
         .background { AlternateShortcuts() }
@@ -96,24 +128,60 @@ struct BrowserWindow: View {
         .onChange(of: browser.activeTabID) { if !browser.isIncognito { model.saveOpenWindows() } }
         .task {
             if !browser.isIncognito { model.beginRestoring() }
-            defer { if !browser.isIncognito { model.endRestoring() } }
+            var restorationFinished = false
+            defer {
+                if !browser.isIncognito { model.endRestoring() }
+                if let nativeRestoration {
+                    model.finishNativeRestoration(nativeRestoration, succeeded: restorationFinished)
+                }
+            }
             // Welcome can go up before the library has loaded; a URL to open has to wait for it.
             while model.sidebar.spaces.isEmpty && model.loadError == nil && !model.needsOnboarding {
+                if !claimsSavedWindow && Task.isCancelled { return }
                 try? await Task.sleep(for: .milliseconds(100))
             }
             if model.needsOnboarding && !browser.isIncognito {
                 model.needsOnboarding = false
                 browser.onboarding = .welcome
             }
-            while model.sidebar.spaces.isEmpty && model.loadError == nil { try? await Task.sleep(for: .milliseconds(100)) }
-            if !browser.isIncognito, let saved = model.claimSavedWindow() {
-                if let id = saved.spaceID, model.space(id) != nil { browser.currentSpaceID = id }
-                if let tab = browser.tab(saved.tabID) { browser.activate(tab) }
+            while model.sidebar.spaces.isEmpty && model.loadError == nil {
+                if !claimsSavedWindow && Task.isCancelled { return }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            if !claimsSavedWindow && Task.isCancelled { return }
+            let savedWindow = browser.isIncognito ? nil : (claimsSavedWindow ? model.claimSavedWindow() : nativeRestoration?.saved)
+            if !browser.isIncognito, let saved = savedWindow {
+                browser.devToolsDockSide = ["right", "bottom", "left", "undocked"].contains(saved.devToolsDockSide ?? "")
+                    ? saved.devToolsDockSide! : "right"
+                browser.devToolsLastDockSide = ["right", "bottom", "left"].contains(saved.devToolsLastDockSide ?? "")
+                    ? saved.devToolsLastDockSide! : "right"
+                browser.restoreChromiumDockPreferences?(browser.devToolsDockSide, browser.devToolsLastDockSide)
+                #if BOAZ_CHROMIUM
+                let nativeProfile = browser.chromiumProfileIdentity?.id
+                #else
+                let nativeProfile: String? = nil
+                #endif
+                if let id = saved.spaceID, let space = model.space(id),
+                   nativeProfile == nil || space.profileID == nativeProfile { browser.currentSpaceID = id }
+                if let tab = browser.tab(saved.tabID),
+                   nativeProfile == nil || (tab.profileID ?? "default") == nativeProfile { browser.activate(tab) }
                 for _ in 0..<25 where browser.window == nil { try? await Task.sleep(for: .milliseconds(20)) }
                 if let frame = saved.frame { browser.window?.setFrame(from: frame) }
                 if saved.minimized == true { browser.window?.miniaturize(nil) }
             }
-            browser.consumePendingURL()
+            restorationFinished = !Task.isCancelled
+            if claimsSavedWindow { browser.consumePendingURL() }
+            #if BOAZ_CHROMIUM
+            if !claimsSavedWindow, !consumedInitialTab, let initialTabID, !Task.isCancelled {
+                consumedInitialTab = true
+                if let tab = browser.tab(initialTabID),
+                   (tab.profileID ?? "default") == browser.chromiumProfileIdentity?.id {
+                    browser.activate(tab)
+                } else {
+                    model.showToast("This tab or its profile is no longer available.")
+                }
+            }
+            #endif
         }
     }
 
@@ -276,7 +344,17 @@ private struct ContentArea: View {
             WebStoreBanner().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
             #endif
             if let peek = browser.peek {
-                PeekOverlay(peek: peek)
+                Group {
+                    #if BOAZ_CHROMIUM
+                    if let native = peek.nativePage, let adapter = native.adapter as? ChromiumEnginePageAdapter {
+                        ChromiumPeekView(adapter: adapter, backdrop: peek.backdrop)
+                    } else if let page = peek.page {
+                        PeekOverlay(page: page)
+                    }
+                    #else
+                    if let page = peek.page { PeekOverlay(page: page) }
+                    #endif
+                }
                     .transition(reduceMotion ? .opacity : .scale(scale: 0.9).combined(with: .opacity))
             }
         }
@@ -384,7 +462,7 @@ private struct SplitDivider: View {
 /// Floating preview for links that would leave a pinned tab.
 private struct PeekOverlay: View {
     @Environment(BrowserState.self) private var browser
-    let peek: BrowserState.Peek
+    let page: WebPage
 
     var body: some View {
         ZStack {
@@ -393,17 +471,17 @@ private struct PeekOverlay: View {
                 .onTapGesture { browser.closePeek() }
             VStack(spacing: 0) {
                 HStack(spacing: 8) {
-                    Image(systemName: peek.page.url?.scheme == "https" && peek.page.serverTrust != nil ? "lock.fill" : "globe")
+                    Image(systemName: page.url?.scheme == "https" && page.serverTrust != nil ? "lock.fill" : "globe")
                         .font(.caption).foregroundStyle(.secondary)
-                    Text(peek.page.title.isEmpty ? (peek.page.url?.host() ?? "Loading…") : peek.page.title)
+                    Text(page.title.isEmpty ? (page.url?.host() ?? "Loading…") : page.title)
                         .font(.callout.weight(.medium)).lineLimit(1)
                     Spacer()
                     HoverIconButton(symbol: "arrow.up.left.and.arrow.down.right", help: "Open as Tab") { browser.promotePeek() }
                     HoverIconButton(symbol: "xmark", help: "Close", hint: "Close (Esc)") { browser.closePeek() }
                 }
                 .padding(.horizontal, 12).frame(height: 38)
-                WebView(peek.page)
-                    .overlay(alignment: .top) { LoadingGlow(page: peek.page) }
+                WebView(page)
+                    .overlay(alignment: .top) { LoadingGlow(page: page) }
             }
             .background(.regularMaterial)
             .clipShape(.rect(cornerRadius: MacRadius.panel, style: .continuous))

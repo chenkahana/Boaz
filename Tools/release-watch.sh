@@ -54,6 +54,11 @@ release() {
 
     [ -d "$WORKTREE" ] || git -C "$repo" worktree add -q --detach "$WORKTREE" "$head"
     git -C "$WORKTREE" checkout -q --detach "$head"
+    if git -C "$WORKTREE" cat-file -e "$head:Tools/chromium/package-candidate.py" 2>/dev/null; then
+        echo "Chromium releases require verified candidate preparation; automatic publication is unavailable."
+        echo "$head" > "$STATE/failed"
+        return 1
+    fi
     git -C "$WORKTREE" tag -a "v$version" -m "Boaz $version" "$head"
     git -C "$WORKTREE" push -q origin "v$version"
     echo "$(date '+%F %T') releasing $version from $head"

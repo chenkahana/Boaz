@@ -1,0 +1,98 @@
+--- a/third_party/blink/public/platform/media/web_encrypted_media_client_impl.h
++++ b/third_party/blink/public/platform/media/web_encrypted_media_client_impl.h
+@@ -36,7 +36,8 @@
+       media::CdmFactory* cdm_factory,
+       media::MediaPermission* media_permission,
+       std::unique_ptr<KeySystemConfigSelector::WebLocalFrameDelegate>
+-          web_frame_delegate);
++          web_frame_delegate,
++      base::RepeatingCallback<void(const std::string&)> key_system_requested = {});
+   ~WebEncryptedMediaClientImpl() override;
+ 
+   // WebEncryptedMediaClient implementation.
+@@ -82,6 +83,7 @@
+   const raw_ptr<media::KeySystems> key_systems_;
+   const raw_ptr<media::CdmFactory> cdm_factory_;
+   KeySystemConfigSelector key_system_config_selector_;
++  base::RepeatingCallback<void(const std::string&)> key_system_requested_;
+ 
+   // Pending requests while waiting for KeySystems initialization.
+   std::vector<WebEncryptedMediaRequest> pending_requests_;
+--- a/third_party/blink/renderer/platform/media/web_encrypted_media_client_impl.cc
++++ b/third_party/blink/renderer/platform/media/web_encrypted_media_client_impl.cc
+@@ -249,12 +249,14 @@
+     media::CdmFactory* cdm_factory,
+     media::MediaPermission* media_permission,
+     std::unique_ptr<KeySystemConfigSelector::WebLocalFrameDelegate>
+-        web_frame_delegate)
++        web_frame_delegate,
++    base::RepeatingCallback<void(const std::string&)> key_system_requested)
+     : key_systems_(key_systems),
+       cdm_factory_(cdm_factory),
+       key_system_config_selector_(key_systems_,
+                                   media_permission,
+-                                  std::move(web_frame_delegate)) {
++                                  std::move(web_frame_delegate)),
++      key_system_requested_(std::move(key_system_requested)) {
+   DCHECK(cdm_factory_);
+ }
+ 
+@@ -262,6 +264,13 @@
+ 
+ void WebEncryptedMediaClientImpl::RequestMediaKeySystemAccess(
+     WebEncryptedMediaRequest request) {
++  const auto key_system = request.KeySystem();
++  if (key_system_requested_ && !key_system.IsEmpty() &&
++      key_system.length() <= 128 && key_system.ContainsOnlyAscii()) {
++    auto alive = weak_factory_.GetWeakPtr();
++    key_system_requested_.Run(key_system.Ascii());
++    if (!alive) return;
++  }
+   GetReporter(request.KeySystem())->ReportRequested();
+ 
+   GetPerProcessReporter(request.KeySystem())->ReportRequested();
+--- a/content/renderer/media/media_factory.cc
++++ b/content/renderer/media/media_factory.cc
+@@ -513,7 +513,14 @@
+         std::make_unique<blink::WebEncryptedMediaClientImpl>(
+             GetKeySystems(), GetCdmFactory(),
+             render_frame_->GetMediaPermission(),
+-            std::make_unique<LocalFrameDelegate>(render_frame_->GetWebFrame()));
++            std::make_unique<LocalFrameDelegate>(render_frame_->GetWebFrame()),
++            base::BindRepeating(
++                [](base::WeakPtr<RenderFrameImpl> frame, const std::string& key_system) {
++                  if (frame) {
++                    GetContentClient()->renderer()->OnRequestMediaKeySystemAccess(
++                        frame.get(), key_system);
++                  }
++                }, render_frame_->GetWeakPtr()));
+   }
+   return web_encrypted_media_client_.get();
+ }
+--- a/content/public/renderer/content_renderer_client.h
++++ b/content/public/renderer/content_renderer_client.h
+@@ -293,6 +293,12 @@
+   virtual std::unique_ptr<blink::WebPrescientNetworking>
+   CreatePrescientNetworking(RenderFrame* render_frame);
+ 
++  // Observes a bounded ASCII key-system request before renderer support selection.
++  // The callback runs on the calling frame's renderer sequence; it must not
++  // alter the request or expose page-supplied identity as browser authority.
++  virtual void OnRequestMediaKeySystemAccess(RenderFrame* render_frame,
++                                            const std::string& key_system);
++
+   // Allows embedder to register the key system(s) it supports.
+   virtual std::unique_ptr<media::KeySystemSupportRegistration>
+   GetSupportedKeySystems(RenderFrame* render_frame,
+--- a/content/public/renderer/content_renderer_client.cc
++++ b/content/public/renderer/content_renderer_client.cc
+@@ -195,6 +195,9 @@
+   return nullptr;
+ }
+ 
++void ContentRendererClient::OnRequestMediaKeySystemAccess(
++    RenderFrame* render_frame, const std::string& key_system) {}
++
+ std::unique_ptr<media::KeySystemSupportRegistration>
+ ContentRendererClient::GetSupportedKeySystems(
+     RenderFrame* render_frame,

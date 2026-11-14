@@ -1,0 +1,26 @@
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -3,6 +3,10 @@
+ // found in the LICENSE file.
+ 
+ #include "chrome/browser/chrome_content_browser_client.h"
++#include "build/build_config.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/adblock_browser_client.h"
++#endif
+ 
+ #include <algorithm>
+ #include <iterator>
+@@ -6904,6 +6908,12 @@
+   }
+ #endif
+ 
++#if BUILDFLAG(IS_MAC)
++  if (is_for_network_service)
++    boaz::MaybeProxyBlockingFactory(browser_context, frame, type,
++        request_initiator, isolation_info, factory_override);
++#endif
++
+   // Install the HTTP Header Injection proxying factory.
+   enterprise_custom_headers::HttpHeaderInjectionProxyingURLLoaderFactory::
+       MaybeProxyRequest(browser_context, factory_builder);

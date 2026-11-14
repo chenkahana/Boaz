@@ -1,123 +1,95 @@
 #!/bin/bash
-# Releases the Mac app outside the App Store: signs it with Developer ID, has Apple notarize it, and publishes Boaz.dmg
-# on the GitHub release for tag vVERSION, with the appcast.xml that Sparkle in installed copies reads to update them.
-# Signing and notarization go through the Apple account signed in to Xcode (Settings › Accounts), and Sparkle's EdDSA
-# key stays in this Mac's login keychain, so no certificates or keys are kept anywhere else. See docs/release.md.
-#
-#   Tools/release-mac.sh 0.2.0 [--no-publish]
+# Prepare an unpublished production Chromium DMG. Each stage verifies its inputs
+# and enters the existing SSD build guard; this wrapper never bypasses that guard.
 set -euo pipefail
+TOOLS=$(cd "$(dirname "$0")" && pwd -P)
+PYTHON=/opt/homebrew/bin/python3.12
+usage() {
+    cat <<'HELP'
+Usage: Tools/release-mac.sh VERSION --base-app PATH --ui-receipt PATH \
+  --output PATH --identity 'Developer ID Application: ...' \
+  --notary-profile NAME --provisioning-profile PATH --sparkle-bin PATH [--build NUMBER] [--no-publish]
 
-VERSION=${1:?usage: Tools/release-mac.sh VERSION [--no-publish]}
-PUBLISH=${2:-}
-TAG=v$VERSION
-TEAM_ID=DPF8459C2J
-OUT=build/release
-ARCHIVE=$OUT/Boaz-macOS.xcarchive
-BUILD=$(date +%Y%m%d%H%M)
-# Where the archive resolves Sparkle, whose package carries sign_update and generate_keys.
-PACKAGES=$OUT/SourcePackages
-SPARKLE_BIN=$PACKAGES/artifacts/sparkle/Sparkle/bin
+Default: assemble verified native/UI builds as production Boaz, sign and notarize,
+then package Boaz.dmg and a candidate appcast. Nothing is published.
+--output must be a new canonical directory under /Volumes/BoazBuild/cef/direct/artifacts.
+--base-app and --ui-receipt must be completed artifacts accepted by the assembly verifier.
+Build the UI beforehand with Tools/chromium/build-application.py --build.
+For Xcode cloud signing, add --cloud-signing and pass an Apple Development
+certificate SHA-1 as --identity; omit --notary-profile and --provisioning-profile.
+If Apple is still processing, finish the preserved submission with
+export-cloud-application.py --finish, then package-candidate.py --no-publish.
 
-cd "$(dirname "$0")/.."
-# Before an archive that would only fail at the key check.
-! grep -q SPARKLE_PUBLIC_ED_KEY_PLACEHOLDER project-dmg.yml || {
-    echo "project-dmg.yml still has the placeholder SUPublicEDKey: paste the Sparkle public key first (docs/release.md)."; exit 1; }
-if [ "$PUBLISH" != "--no-publish" ]; then
-    git fetch -q origin tag "$TAG" 2>/dev/null || { echo "Tag $TAG isn't on GitHub yet: tag the release commit first."; exit 1; }
-    # Not checked out here: bash reads this script as it runs, so it can't change underneath itself.
-    [ "$(git rev-parse HEAD)" = "$(git rev-parse "$TAG^{commit}")" ] || { echo "Check out $TAG first."; exit 1; }
-fi
-rm -rf "$OUT" && mkdir -p "$OUT"
-
-echo "==> Archiving Boaz $VERSION"
-# The DMG build: project.yml plus Sparkle (project-dmg.yml). The App Store build never contains Sparkle.
-xcodegen generate --quiet --spec project-dmg.yml
-# Back to the App Store project however this ends, so a later `make mac` or Xcode build doesn't pick up Sparkle.
-trap 'xcodegen generate --quiet' EXIT
-# Seeded with BoazKit's pins, so Xcode records Sparkle's here and not in BoazKit's Package.resolved.
-mkdir -p Boaz.xcodeproj/project.xcworkspace/xcshareddata/swiftpm
-cp Packages/BoazKit/Package.resolved Boaz.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
-xcodebuild archive -project Boaz.xcodeproj -scheme Boaz-macOS -configuration Release \
-    -destination 'generic/platform=macOS' -archivePath "$ARCHIVE" -allowProvisioningUpdates -quiet \
-    -clonedSourcePackagesDirPath "$PACKAGES" MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD"
-
-# An update installs only on copies that carry the public half of the key it was signed with.
-KEY=$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" "$ARCHIVE/Products/Applications/Boaz.app/Contents/Info.plist")
-[ "$KEY" = "$("$SPARKLE_BIN/generate_keys" -p)" ] || {
-    echo "SUPublicEDKey in project-dmg.yml isn't the public half of this Mac's Sparkle key (docs/release.md)."; exit 1; }
-
-echo "==> Signing with Developer ID and sending to Apple for notarization"
-cat > "$OUT/ExportOptions.plist" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>method</key><string>developer-id</string>
-    <key>teamID</key><string>$TEAM_ID</string>
-    <key>signingStyle</key><string>automatic</string>
-    <key>destination</key><string>upload</string>
-</dict>
-</plist>
-EOF
-xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportPath "$OUT/upload" \
-    -exportOptionsPlist "$OUT/ExportOptions.plist" -allowProvisioningUpdates -quiet
-
-echo "==> Waiting for notarization"
-# Usually minutes; give up after an hour and show why the last attempt failed.
-for attempt in $(seq 120); do
-    xcodebuild -exportNotarizedApp -archivePath "$ARCHIVE" -exportPath "$OUT/export" -quiet 2> "$OUT/notarize.log" && break
-    # Apple turning the app down won't change by waiting.
-    grep -qiE "invalid|rejected" "$OUT/notarize.log" && { echo "Notarization failed:"; tail -20 "$OUT/notarize.log"; exit 1; }
-    [ "$attempt" = 120 ] && { echo "Notarization didn't finish within an hour:"; tail -20 "$OUT/notarize.log"; exit 1; }
-    sleep 30
+Explicit WebKit rollback path:
+  Tools/release-mac.sh VERSION --webkit [--no-publish]
+This wrapper also keeps WebKit artifacts unpublished.
+HELP
+}
+if [ "$#" -eq 0 ]; then usage >&2; exit 2; fi
+if [ "$1" = --help ] || [ "$1" = -h ]; then usage; exit 0; fi
+VERSION=$1
+shift
+BASE_APP= UI_RECEIPT= OUTPUT= IDENTITY= NOTARY_PROFILE= PROVISIONING_PROFILE= SPARKLE_BIN=
+BUILD=$(date -u +%Y%m%d%H%M)
+WEBKIT=false
+CLOUD=false
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --webkit) WEBKIT=true; shift ;;
+        --cloud-signing) CLOUD=true; shift ;;
+        --no-publish) shift ;;
+        --base-app|--ui-receipt|--output|--identity|--notary-profile|--provisioning-profile|--sparkle-bin|--build)
+            [ "$#" -ge 2 ] && [ -n "$2" ] || { echo "Missing value for $1" >&2; exit 2; }
+            case "$1" in
+                --base-app) BASE_APP=$2 ;; --ui-receipt) UI_RECEIPT=$2 ;;
+                --output) OUTPUT=$2 ;; --identity) IDENTITY=$2 ;;
+                --notary-profile) NOTARY_PROFILE=$2 ;; --provisioning-profile) PROVISIONING_PROFILE=$2 ;; --sparkle-bin) SPARKLE_BIN=$2 ;;
+                --build) BUILD=$2 ;;
+            esac
+            shift 2 ;;
+        *) echo "Unknown release argument: $1" >&2; usage >&2; exit 2 ;;
+    esac
 done
-APP=$OUT/export/Boaz.app
-xcrun stapler validate "$APP"
-spctl --assess --type execute "$APP"
-
-echo "==> Making the DMG"
-mkdir -p "$OUT/dmg"
-cp -R "$APP" "$OUT/dmg/"
-ln -s /Applications "$OUT/dmg/Applications"
-hdiutil create -volname Boaz -srcfolder "$OUT/dmg" -fs HFS+ -format UDZO -ov "$OUT/Boaz.dmg" -quiet
-(cd "$OUT" && shasum -a 256 Boaz.dmg > Boaz.dmg.sha256 && cat Boaz.dmg.sha256)
-
-echo "==> Signing the DMG for Sparkle and writing the appcast"
-# sign_update reads the EdDSA private key from the login keychain and prints only the signature.
-SIGNATURE=$("$SPARKLE_BIN/sign_update" -p "$OUT/Boaz.dmg")
-cat > "$OUT/appcast.xml" <<EOF
-<?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
-    <channel>
-        <title>Boaz</title>
-        <item>
-            <title>Boaz $VERSION</title>
-            <pubDate>$(LC_ALL=C date -R)</pubDate>
-            <sparkle:version>$BUILD</sparkle:version>
-            <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <sparkle:releaseNotesLink>https://github.com/chenkahana/Boaz/releases/tag/$TAG</sparkle:releaseNotesLink>
-            <enclosure url="https://github.com/chenkahana/Boaz/releases/download/$TAG/Boaz.dmg"
-                       length="$(stat -f%z "$OUT/Boaz.dmg")" type="application/octet-stream"
-                       sparkle:edSignature="$SIGNATURE"/>
-        </item>
-    </channel>
-</rss>
-EOF
-
-[ "$PUBLISH" = "--no-publish" ] && exit 0
-
-echo "==> Publishing $TAG"
-title="Boaz $VERSION"
-# 0.x versions are betas. Not marked as pre-releases, which "latest" (the README button) would skip.
-if [[ $VERSION == 0.* ]]; then title="$title (beta)"; fi
-awk -v v="$VERSION" '$0 ~ "^## \\[" v "\\]" {on=1; next} on && /^## \[/ {exit} on' CHANGELOG.md > "$OUT/notes.md"
-# A beta release-watch.sh made from master has no section of its own: its notes are the titles of the commits since
-# the previous release.
-[ -s "$OUT/notes.md" ] || git log --format='- %s' "$(git describe --tags --abbrev=0 --match 'v*' "$TAG^")..$TAG" \
-    > "$OUT/notes.md"
-printf '\n---\nOpen the DMG and drag Boaz to Applications. Requires macOS 26. Signed with Developer ID and notarized by Apple.\n' \
-    >> "$OUT/notes.md"
-# Installed copies read the newest release's appcast: releases/latest/download/appcast.xml (SUFeedURL).
-gh release create "$TAG" "$OUT/Boaz.dmg" "$OUT/Boaz.dmg.sha256" "$OUT/appcast.xml" --title "$title" \
-    --notes-file "$OUT/notes.md" --verify-tag
+if "$WEBKIT"; then
+    ! "$CLOUD" || { echo "Cloud Chromium signing cannot be combined with --webkit." >&2; exit 2; }
+    [ -z "$BASE_APP$UI_RECEIPT$OUTPUT$IDENTITY$NOTARY_PROFILE$PROVISIONING_PROFILE$SPARKLE_BIN" ] || {
+        echo "Chromium options cannot be combined with --webkit." >&2; exit 2; }
+    exec "$TOOLS/release-webkit-mac.sh" "$VERSION" --no-publish
+fi
+[[ "$VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || { echo "VERSION must contain two or three numeric components." >&2; exit 2; }
+[[ "$BUILD" =~ ^[0-9]+$ ]] || { echo "BUILD must be numeric." >&2; exit 2; }
+for name in BASE_APP UI_RECEIPT OUTPUT IDENTITY SPARKLE_BIN; do
+    [ -n "${!name}" ] || { echo "Missing required Chromium release input: $name" >&2; usage >&2; exit 2; }
+done
+if "$CLOUD"; then
+    [ -z "$NOTARY_PROFILE$PROVISIONING_PROFILE" ] || { echo "Cloud signing uses Xcode provisioning and notarization." >&2; exit 2; }
+else
+    [ -n "$NOTARY_PROFILE" ] && [ -n "$PROVISIONING_PROFILE" ] || { echo "Local signing requires notary and provisioning profiles." >&2; exit 2; }
+fi
+[ -x "$PYTHON" ] || { echo "Required Python is unavailable: $PYTHON" >&2; exit 1; }
+case "$OUTPUT" in
+    /Volumes/BoazBuild/cef/direct/artifacts/*) ;;
+    *) echo "Release output must be under /Volumes/BoazBuild/cef/direct/artifacts." >&2; exit 2 ;;
+esac
+[ ! -e "$OUTPUT" ] && [ ! -L "$OUTPUT" ] || { echo "Refusing to reuse release output." >&2; exit 1; }
+"$PYTHON" "$TOOLS/chromium/stage-application.py" \
+    --base-app "$BASE_APP" --ui-receipt "$UI_RECEIPT" \
+    --output "$OUTPUT/assembly/Boaz.app" --native-launch \
+    --production-version "$VERSION" --production-build "$BUILD"
+if "$CLOUD"; then
+    "$PYTHON" "$TOOLS/chromium/export-cloud-application.py" \
+        --input "$OUTPUT/assembly" --output "$OUTPUT/cloud-submission" --identity "$IDENTITY"
+    "$PYTHON" "$TOOLS/chromium/export-cloud-application.py" --finish \
+        --input "$OUTPUT/cloud-submission" --output "$OUTPUT/cloud-verification"
+    SIGNED_APP="$OUTPUT/cloud-verification/export/Boaz.app"
+else
+    "$PYTHON" "$TOOLS/chromium/sign-production-application.py" \
+    --input "$OUTPUT/assembly" --output "$OUTPUT/signing" \
+    --identity "$IDENTITY" --notary-profile "$NOTARY_PROFILE" --provisioning-profile "$PROVISIONING_PROFILE"
+    SIGNED_APP="$OUTPUT/signing/signed/stable/Boaz.app"
+fi
+"$PYTHON" "$TOOLS/chromium/package-candidate.py" "$VERSION" \
+    --chromium-app "$SIGNED_APP" \
+    --output "$OUTPUT/package" --sparkle-bin "$SPARKLE_BIN" --no-publish
+echo "Production Chromium candidate prepared: $OUTPUT/package/Boaz.dmg"
+echo "Nothing published; receipts and signing/notarization evidence remain under $OUTPUT."

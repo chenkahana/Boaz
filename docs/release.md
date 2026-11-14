@@ -1,78 +1,41 @@
-# Releasing the Mac app outside the App Store
+# Preparing the GitHub Mac DMG
 
-Besides the App Store (see [app-store.md](app-store.md)), each release puts a notarized `Boaz.dmg` on
-[GitHub Releases](https://github.com/chenkahana/Boaz/releases). The README's **Download for Mac** button links to
-`releases/latest/download/Boaz.dmg`, so it always points at the newest release.
+The default release path is Chromium with Boaz's native interface and in-app WebKit fallback. Mac App Store and iOS still use WebKit. PR #70 remains draft until essential production-distribution and existing-feature acceptance passes.
 
-A release is built on a maintainer's Mac with `make dmg VERSION=X.Y.Z` ([`Tools/release-mac.sh`](../Tools/release-mac.sh)).
-Signing with Developer ID and notarization go through the Apple account signed in to Xcode, and the update signing
-key stays in that Mac's login keychain, so the repo and its CI hold no certificates or keys.
+Build the pinned native host and matching Release UI with `make mac-dmg`. The guarded build uses `/Volumes/BoazBuild/cef`; keep that image attached. Build receipts identify completed immutable inputs. Do not combine a UI library with a different native ABI.
 
-## Updates
+Prepare an unpublished production candidate using the completed native application and UI receipt:
 
-The DMG build updates itself with [Sparkle 2](https://sparkle-project.org). Once a day, and from Boaz › Check for
-Updates…, it reads `appcast.xml` from the newest GitHub release
-(`releases/latest/download/appcast.xml`), and installs a newer DMG whose EdDSA signature matches the public key it
-carries (`SUPublicEDKey`). The app is sandboxed, so Sparkle's installer runs through its XPC launcher
-(`SUEnableInstallerLauncherService`, with the mach-lookup exceptions `<bundle ID>-spks` and `-spki`).
+```sh
+Tools/release-mac.sh X.Y.Z \
+  --base-app /Volumes/BoazBuild/cef/direct/chromium/src/out/BoazDevelopment/Chromium.app \
+  --ui-receipt /Volumes/BoazBuild/cef/direct/app/runs/RUN/artifacts/build.json \
+  --output /Volumes/BoazBuild/cef/direct/artifacts/NEW_RELEASE_DIRECTORY \
+  --identity 'Developer ID Application: YOUR_AUTHORIZED_IDENTITY' \
+  --notary-profile YOUR_NOTARYTOOL_PROFILE \
+  --provisioning-profile /ABSOLUTE/PATH/Boaz.provisionprofile \
+  --sparkle-bin /ABSOLUTE/PATH/SourcePackages/artifacts/sparkle/Sparkle/bin \
+  --no-publish
+```
 
-Sparkle is only in the DMG build. [`project-dmg.yml`](../project-dmg.yml) is `project.yml` plus the Sparkle package,
-those Info.plist keys and entitlements (generated under `build/dmg/`) and the `SPARKLE` compilation condition that
-compiles [`Updates.swift`](../Apps/macOS/Updates/Updates.swift). The App Store build and CI generate from
-`project.yml` alone, so they never resolve, link or contain Sparkle, and Xcode Cloud keeps BoazKit's pinned packages.
-To build the DMG variant locally: `make mac-dmg`.
+Use a version newer than the published release and a new output directory. The command assembles `Boaz.app`, signs nested components and the browser, requires successful notarization, verifies Gatekeeper/stapling, and creates `package/Boaz.dmg`, its checksum, and a local candidate appcast. It never publishes. `make dmg VERSION=X.Y.Z RELEASE_ARGS='...'` forwards the same options.
 
-Boaz 0.1.0 predates Sparkle, so people on 0.1.0 download 0.2.0 from the Releases page once; from 0.2.0 on, updates
-arrive in the app.
+The Developer ID private key must be available to `codesign`. An Apple Development identity is insufficient. The provisioning profile must authorize team `DPF8459C2J`, application `com.chenkahana.boaz`, production CloudKit container `iCloud.com.chenkahana.boaz`, and push notifications. The signer checks and embeds those grants, retaining Chromium helper entitlements and library validation. For a cloud-managed Developer ID key, add `--cloud-signing`, pass the local Apple Development certificate SHA-1 as `--identity`, and omit the notary/provisioning arguments. Xcode supplies distribution signing and provisioning. See [cloud export recovery](chromium/direct-signing.md#cloud-managed-developer-id-recovery) if notarization is still pending. Store notarytool credentials in the Keychain; never put passwords or private keys in command arguments or the repository.
 
-## Before the first release on a Mac
+Sparkle's existing EdDSA key stays in the login Keychain. The packager verifies its public key against the application. Preserve that key so existing installations can authenticate upgrades. The candidate appcast uses a local file URL and must not replace the production appcast. Publishing remains a separate reviewed release action.
 
-- Xcode › Settings › Accounts is signed in to an account with the Account Holder or Admin role on team `DPF8459C2J`.
-  The first export creates the team's Developer ID certificate in the cloud.
-- `xcodegen` and the GitHub CLI (`gh auth login`, with write access to the repo) are installed.
-- Sparkle's EdDSA key is in the login keychain, and its public half is in `project-dmg.yml`. This is done once, on the
-  first release with Sparkle (0.2.0), and again only on a new Mac:
-  1. Run `make mac-dmg` once, so the Sparkle package (and its tools) is downloaded.
-  2. Run `build/DerivedData/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_keys`. It creates the key in the
-     login keychain (or finds the one already there) and prints the public key.
-  3. Replace `SPARKLE_PUBLIC_ED_KEY_PLACEHOLDER` in `project-dmg.yml` with that public key, and merge it.
+## WebKit preservation
 
-  On another Mac, move the key with `generate_keys -x <file>` and `generate_keys -f <file>` instead of making a new
-  one: copies already installed only accept updates signed with the key they carry. Never commit the private key.
-  `release-mac.sh` stops if the public key in the app isn't the one in the keychain.
+`make mac-webkit-dmg` builds the separate unsigned WebKit configuration. `Tools/release-mac.sh X.Y.Z --webkit --no-publish` preserves the previous Xcode archive/export/notarization workflow as an explicit rollback path. It does not silently replace a failed Chromium build. App Store builds continue to use `project.yml`.
 
-## Betas from master
+## Upgrade and practical acceptance
 
-Each commit merged to master becomes a beta: the next patch version, tagged on that commit and published with
-`release-mac.sh`. [`Tools/release-watch.sh`](../Tools/release-watch.sh) does it from launchd on the maintainer's Mac,
-checking `origin/master` every 5 minutes, because the signing account and the Sparkle key are in that Mac's keychain.
-Commits merged between two checks ship as one release, whose notes are the commit titles since the previous release.
-Set it up once with `Tools/release-watch.sh --install`, and again after changing the script. It releases from its own
-worktree, `~/.worktrees/Boaz/release`, and writes each release's log to `~/Library/Application Support/BoazRelease`.
-A failed release deletes its tag, posts a notification and isn't retried for that commit; the next commit retries.
-The Mac has to be awake and logged in for a release to go out.
+Production Chromium keeps the existing sandboxed Boaz library in place when present and imports only missing preferences before restoring windows. It retains source data, refuses ambiguous duplicate libraries, and reports access failures. Cookie/password continuity and actual previous-store access still require upgrade acceptance; source implementation alone is not a pass.
 
-## Each release
+Before marking the PR ready, exercise the actual signed app: HTTP/HTTPS navigation, tab creation/switch/close, same-profile restart/restoration, normal quit, WebKit fallback, and representative existing password, download, extension, permission and media behavior. Verify an essential upgrade without data loss. No development-only artifact substitutes for this pass.
 
-1. Move the `[Unreleased]` notes in `CHANGELOG.md` under `## [X.Y.Z] - YYYY-MM-DD`, update the links at the bottom,
-   and merge.
-2. Tag the merge commit and push: `git tag -a vX.Y.Z -m "Boaz X.Y.Z" && git push origin vX.Y.Z`.
-3. Check out the tag (`git checkout vX.Y.Z`) and run `make dmg VERSION=X.Y.Z`. It archives the Mac app with Sparkle,
-   signs it with Developer ID, waits for Apple's notarization (a few minutes), builds `Boaz.dmg`, signs it with the
-   Sparkle key (`sign_update`, which may ask for keychain access), writes `appcast.xml`, and publishes the GitHub
-   release with the DMG, its checksum and the appcast, and the changelog section as its notes. 0.x versions are
-   titled "(beta)". Installed copies see the update on their next daily check.
+Three-day dogfooding, exhaustive matrices, strict numerical performance/size gates and extended delta/rollback campaigns are deferred. Existing core features, security, data preservation, and a distributable Chromium-default application are not deferred.
 
-To build the DMG without publishing it, run `Tools/release-mac.sh X.Y.Z --no-publish`. The DMG and appcast go to
-`build/release/`.
+## Automatic beta watcher
 
-## Notes
-
-- The DMG build and the App Store build share the bundle ID, the iCloud container and the library. Install one
-  copy at a time in `/Applications`.
-- The DMG build uses the production CloudKit environment, as the App Store build does. Deploy schema changes to
-  Production before releasing (app-store.md, step 1).
-- The app inside the DMG is signed, notarized and stapled. The DMG itself isn't code-signed (Xcode keeps the Developer
-  ID key in the cloud), which Gatekeeper doesn't require; Sparkle checks its EdDSA signature instead.
-- Sparkle compares build numbers (`CFBundleVersion`), which the script sets to the release time, so each release is
-  newer than the last.
+`Tools/release-watch.sh` retains the existing WebKit beta workflow. For Chromium revisions it stops before creating or pushing a tag: production candidates require explicit verified build/signing inputs and this PR does not enable automatic publication. The installed launchd watcher is a copied script; reinstall the updated watcher before enabling automatic processing of Chromium revisions. Logs remain in `~/Library/Application Support/BoazRelease`.

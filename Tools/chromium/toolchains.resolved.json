@@ -1,0 +1,11 @@
+{
+  "recipe_sha256": "937b5ce060f5d98ae4a392a5cb9332e2389735963a481dfcabc125fed5775397",
+  "instances": {
+    "gn": "dFRyvuQlPGyQfWSK2KVSyHizR5_OVVHKE8EE-bTQVYEC",
+    "python": "z6bO4Z5kwtk0uh9oxGXOd5O7LyZDAnmlO-e86nZLRiEC",
+    "typescript": "63sEajfB6_MIU0PehstKopK1_P_yfUm21-o-zedkrz0C",
+    "angle": "S0FPOVKrgaiqyuR20SSHiPorLgYez29bfwEdKBobUMMC",
+    "esbuild": "faF4X_ujxOEXHoLYZqpZRoN8oCfc6QYhuK1EObbgNBkC",
+    "go": "GV753evfC30xSfiiI6ycB66mmNJupBAGnkcJo8F_mn4C"
+  }
+}

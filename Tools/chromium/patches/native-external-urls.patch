@@ -1,0 +1,22 @@
+--- a/chrome/browser/app_controller_mac.mm
++++ b/chrome/browser/app_controller_mac.mm
+@@ -12,6 +12,7 @@
+ #include <memory>
+ #include <vector>
+ 
++#include "boaz/bootstrap.h"
+ #include "base/apple/bridging.h"
+ #include "base/apple/foundation_util.h"
+ #include "base/apple/scoped_cftyperef.h"
+@@ -2058,6 +2059,11 @@
+ }
+ 
+ - (void)application:(NSApplication*)sender openURLs:(NSArray<NSURL*>*)urls {
++  std::vector<std::string> native_urls;
++  native_urls.reserve(urls.count);
++  for (NSURL* url in urls)
++    native_urls.push_back(base::SysNSStringToUTF8(url.absoluteString));
++  if (boaz::RouteExternalURLs(std::move(native_urls))) return;
+   StartupTabs startupTabs;
+   for (NSURL* url in urls) {
+     // Handle the google-chrome:// scheme (and chromium://).

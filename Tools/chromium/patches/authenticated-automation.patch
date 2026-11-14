@@ -1,0 +1,199 @@
+--- a/content/public/browser/devtools_agent_host.h
++++ b/content/public/browser/devtools_agent_host.h
+@@ -6,6 +6,7 @@
+ #define CONTENT_PUBLIC_BROWSER_DEVTOOLS_AGENT_HOST_H_
+ 
+ #include <memory>
++#include <optional>
+ #include <string>
+ #include <vector>
+ 
+@@ -145,7 +146,8 @@
+       std::unique_ptr<DevToolsSocketFactory> server_socket_factory,
+       const base::FilePath& active_port_output_directory,
+       const base::FilePath& debug_frontend_dir,
+-      RemoteDebuggingServerMode mode = RemoteDebuggingServerMode::kDefault);
++      RemoteDebuggingServerMode mode = RemoteDebuggingServerMode::kDefault,
++      std::optional<std::string> bearer_token = std::nullopt);
+   static void StopRemoteDebuggingServer();
+   // Returns the address of the remote debugging server, if started.
+   // Returns empty string if server is not started.
+--- a/content/browser/devtools/devtools_agent_host_impl.cc
++++ b/content/browser/devtools/devtools_agent_host_impl.cc
+@@ -207,13 +207,14 @@
+     std::unique_ptr<DevToolsSocketFactory> server_socket_factory,
+     const base::FilePath& active_port_output_directory,
+     const base::FilePath& debug_frontend_dir,
+-    RemoteDebuggingServerMode mode) {
++    RemoteDebuggingServerMode mode,
++    std::optional<std::string> bearer_token) {
+   DevToolsManagerDelegate* delegate =
+       DevToolsManager::GetInstance()->delegate();
+   CHECK(delegate);
+   SetDevToolsHttpHandler(std::make_unique<DevToolsHttpHandler>(
+       delegate, std::move(server_socket_factory), active_port_output_directory,
+-      debug_frontend_dir, mode));
++      debug_frontend_dir, mode, std::move(bearer_token)));
+ }
+ 
+ // static
+--- a/content/browser/devtools/devtools_http_handler.h
++++ b/content/browser/devtools/devtools_http_handler.h
+@@ -56,7 +56,8 @@
+       const base::FilePath& active_port_output_directory,
+       const base::FilePath& debug_frontend_dir,
+       DevToolsAgentHost::RemoteDebuggingServerMode mode =
+-          DevToolsAgentHost::RemoteDebuggingServerMode::kDefault);
++          DevToolsAgentHost::RemoteDebuggingServerMode::kDefault,
++      std::optional<std::string> bearer_token = std::nullopt);
+ 
+   DevToolsHttpHandler(const DevToolsHttpHandler&) = delete;
+   DevToolsHttpHandler& operator=(const DevToolsHttpHandler&) = delete;
+--- a/content/browser/devtools/devtools_http_handler.cc
++++ b/content/browser/devtools/devtools_http_handler.cc
+@@ -14,6 +14,7 @@
+ #include <utility>
+ 
+ #include "base/command_line.h"
++#include "base/containers/span.h"
+ #include "base/compiler_specific.h"
+ #include "base/files/file_util.h"
+ #include "base/functional/bind.h"
+@@ -49,6 +50,7 @@
+ #include "content/public/common/content_constants.h"
+ #include "content/public/common/content_switches.h"
+ #include "content/public/common/url_constants.h"
++#include "crypto/secure_util.h"
+ #include "net/base/io_buffer.h"
+ #include "net/base/net_errors.h"
+ #include "net/base/url_util.h"
+@@ -151,7 +153,8 @@
+   ServerWrapper(base::WeakPtr<DevToolsHttpHandler> handler,
+                 std::unique_ptr<net::ServerSocket> socket,
+                 const base::FilePath& debug_frontend_dir,
+-                bool bundles_resources);
++                bool bundles_resources,
++                std::optional<std::string> bearer_token);
+ 
+   int GetLocalAddress(net::IPEndPoint* address);
+ 
+@@ -170,6 +173,9 @@
+   ~ServerWrapper() override {}
+ 
+  private:
++  bool Authorize(int connection_id,
++                 const net::HttpServerRequestInfo& request);
++
+   // net::HttpServer::Delegate implementation.
+   void OnConnect(int connection_id) override {}
+   void OnHttpRequest(int connection_id,
+@@ -183,16 +189,19 @@
+   std::unique_ptr<net::HttpServer> server_;
+   base::FilePath debug_frontend_dir_;
+   bool bundles_resources_;
++  const std::optional<std::string> bearer_token_;
+ };
+ 
+ ServerWrapper::ServerWrapper(base::WeakPtr<DevToolsHttpHandler> handler,
+                              std::unique_ptr<net::ServerSocket> socket,
+                              const base::FilePath& debug_frontend_dir,
+-                             bool bundles_resources)
++                             bool bundles_resources,
++                             std::optional<std::string> bearer_token)
+     : handler_(handler),
+       server_(new net::HttpServer(std::move(socket), this)),
+       debug_frontend_dir_(debug_frontend_dir),
+-      bundles_resources_(bundles_resources) {}
++      bundles_resources_(bundles_resources),
++      bearer_token_(std::move(bearer_token)) {}
+ 
+ int ServerWrapper::GetLocalAddress(net::IPEndPoint* address) {
+   return server_->GetLocalAddress(address);
+@@ -281,7 +290,8 @@
+     const base::FilePath& output_directory,
+     const base::FilePath& debug_frontend_dir,
+     const std::string& browser_guid,
+-    bool bundles_resources) {
++    bool bundles_resources,
++    std::optional<std::string> bearer_token) {
+   CHECK(thread->task_runner()->BelongsToCurrentThread(),
+         base::NotFatalUntil::M159);
+   std::unique_ptr<ServerWrapper> server_wrapper;
+@@ -291,7 +301,8 @@
+   if (server_socket) {
+     server_wrapper =
+         std::make_unique<ServerWrapper>(handler, std::move(server_socket),
+-                                        debug_frontend_dir, bundles_resources);
++                                        debug_frontend_dir, bundles_resources,
++                                        std::move(bearer_token));
+     if (server_wrapper->GetLocalAddress(ip_address.get()) != net::OK)
+       ip_address.reset();
+   } else {
+@@ -467,8 +478,31 @@
+   return "text/plain";
+ }
+ 
++bool ServerWrapper::Authorize(
++    int connection_id, const net::HttpServerRequestInfo& request) {
++  if (!bearer_token_) return true;
++  bool browser_request = request.headers.contains("origin");
++  for (const auto& [name, value] : request.headers) {
++    if (base::StartsWith(name, "sec-fetch-")) browser_request = true;
++  }
++  const std::string expected = "Bearer " + *bearer_token_;
++  const std::string supplied = request.GetHeaderValue("authorization");
++  if (!browser_request && supplied.size() == expected.size() &&
++      crypto::SecureMemEqual(base::as_byte_span(supplied),
++                             base::as_byte_span(expected))) {
++    return true;
++  }
++  net::HttpServerResponseInfo response(net::HTTP_UNAUTHORIZED);
++  response.SetBody("Unauthorized", "text/plain");
++  response.AddHeader("Connection", "close");
++  SendResponse(connection_id, response);
++  Close(connection_id);
++  return false;
++}
++
+ void ServerWrapper::OnHttpRequest(int connection_id,
+                                   const net::HttpServerRequestInfo& info) {
++  if (!Authorize(connection_id, info)) return;
+   if (!RequestIsSafeToServe(info)) {
+     Send500(connection_id,
+             "Host header is specified and is not an IP address or localhost.");
+@@ -524,6 +558,7 @@
+ void ServerWrapper::OnWebSocketRequest(
+     int connection_id,
+     const net::HttpServerRequestInfo& request) {
++  if (!Authorize(connection_id, request)) return;
+   if (!RequestIsSafeToServe(request)) {
+     Send500(connection_id,
+             "Host header is specified and is not an IP address or localhost.");
+@@ -935,8 +970,16 @@
+     std::unique_ptr<DevToolsSocketFactory> socket_factory,
+     const base::FilePath& output_directory,
+     const base::FilePath& debug_frontend_dir,
+-    DevToolsAgentHost::RemoteDebuggingServerMode mode)
++    DevToolsAgentHost::RemoteDebuggingServerMode mode,
++    std::optional<std::string> bearer_token)
+     : mode_(mode), delegate_(delegate) {
++  if (bearer_token &&
++      (bearer_token->size() != 64 ||
++       !std::ranges::all_of(*bearer_token, [](char c) {
++         return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
++       }))) {
++    return;
++  }
+   browser_guid_ =
+       delegate_->IsBrowserTargetDiscoverable()
+           ? kBrowserUrlPrefix
+@@ -954,7 +997,8 @@
+         base::BindOnce(&StartServerOnHandlerThread, weak_factory_.GetWeakPtr(),
+                        std::move(thread), std::move(socket_factory),
+                        output_directory, debug_frontend_dir, browser_guid_,
+-                       delegate_->HasBundledFrontendResources()));
++                       delegate_->HasBundledFrontendResources(),
++                       std::move(bearer_token)));
+   }
+   std::string remote_allow_origins = base::ToLowerASCII(
+       base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(

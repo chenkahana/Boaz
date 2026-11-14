@@ -1,0 +1,42 @@
+packages:
+  BoazKit:
+    path: ${BOAZ_REPO_ROOT}/Packages/BoazKit
+targets:
+  Boaz-macOS:
+    sources:REPLACE:
+      - path: Apps/macOS
+        excludes: [Info.plist, "*.entitlements"]
+      - Apps/Shared
+      - Apps/Browser
+    info:
+      path: ${BOAZ_GENERATED_DIR}/Boaz-macOS/Info.plist
+    entitlements:
+      path: ${BOAZ_GENERATED_DIR}/Boaz-macOS/Boaz.entitlements
+  Boaz-iOS:
+    sources:REPLACE:
+      - path: Apps/iOS
+        excludes: [Info.plist, "*.entitlements"]
+      - Apps/Shared
+      - Apps/Browser
+    info:
+      path: ${BOAZ_GENERATED_DIR}/Boaz-iOS/Info.plist
+    entitlements:
+      path: ${BOAZ_GENERATED_DIR}/Boaz-iOS/Boaz.entitlements
+  ShareExtension:
+    sources:REPLACE:
+      - path: Apps/Extensions/ShareExtension
+        excludes: [Info.plist, "*.entitlements"]
+      - Apps/Shared
+    info:
+      path: ${BOAZ_GENERATED_DIR}/ShareExtension/Info.plist
+    entitlements:
+      path: ${BOAZ_GENERATED_DIR}/ShareExtension/ShareExtension.entitlements
+  Widgets:
+    sources:REPLACE:
+      - path: Apps/Extensions/Widgets
+        excludes: [Info.plist, "*.entitlements"]
+      - Apps/Shared
+    info:
+      path: ${BOAZ_GENERATED_DIR}/Widgets/Info.plist
+    entitlements:
+      path: ${BOAZ_GENERATED_DIR}/Widgets/Widgets.entitlements

@@ -1,0 +1,61 @@
+--- a/chrome/browser/chrome_browser_interface_binders.cc
++++ b/chrome/browser/chrome_browser_interface_binders.cc
+@@ -10,4 +10,7 @@
+ #include "base/functional/bind.h"
+ #include "build/build_config.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/protected_media.h"
++#endif
+ #include "build/chromeos_buildflags.h"
+ #include "chrome/browser/accessibility/accessibility_labels_service.h"
+@@ -453,4 +456,7 @@
+     mojo::BinderMapWithContext<content::RenderFrameHost*>* map,
+     content::RenderFrameHost* render_frame_host) {
++#if BUILDFLAG(IS_MAC)
++  map->Add<boaz::mojom::EncryptedMediaObserver>(&boaz::BindProtectedMediaObserver);
++#endif
+   map->Add<glic::mojom::WebClientHandler>(&glic::BindGlicWebClientHandler);
+   // Defense in depth: privileged capability interfaces are not even registered
+--- a/chrome/renderer/chrome_content_renderer_client.h
++++ b/chrome/renderer/chrome_content_renderer_client.h
+@@ -87,4 +87,8 @@
+       public service_manager::LocalInterfaceProvider {
+  public:
++#if BUILDFLAG(IS_MAC)
++  void OnRequestMediaKeySystemAccess(content::RenderFrame* frame,
++      const std::string& key_system) override;
++#endif
+   ChromeContentRendererClient();
+   explicit ChromeContentRendererClient(bool create_extensions_client);
+--- a/chrome/renderer/chrome_content_renderer_client.cc
++++ b/chrome/renderer/chrome_content_renderer_client.cc
+@@ -33,4 +33,7 @@
+ #include "build/branding_buildflags.h"
+ #include "build/build_config.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/protected_media_renderer.h"
++#endif
+ #include "chrome/common/buildflags.h"
+ #include "chrome/common/channel_info.h"
+@@ -650,4 +653,11 @@
+ }
+ 
++#if BUILDFLAG(IS_MAC)
++void ChromeContentRendererClient::OnRequestMediaKeySystemAccess(
++    content::RenderFrame* frame, const std::string& key_system) {
++  boaz::ObserveKeySystemRequest(frame, key_system);
++}
++#endif
++
+ void ChromeContentRendererClient::RenderFrameCreated(
+     content::RenderFrame* render_frame) {
+--- a/chrome/renderer/BUILD.gn
++++ b/chrome/renderer/BUILD.gn
+@@ -439,4 +439,7 @@
+     ]
+   }
++  if (is_mac) {
++    deps += [ "//boaz:renderer" ]
++  }
+ }
+ 

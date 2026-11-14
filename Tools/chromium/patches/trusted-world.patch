@@ -1,0 +1,12 @@
+--- a/chrome/common/chrome_isolated_world_ids.h
++++ b/chrome/common/chrome_isolated_world_ids.h
+@@ -22,6 +22,9 @@
+ #if BUILDFLAG(IS_MAC)
+   // Isolated world ID for AppleScript.
+   ISOLATED_WORLD_ID_APPLESCRIPT,
++
++  // Dedicated Boaz trusted-script world. Android IDs remain unchanged.
++  ISOLATED_WORLD_ID_BOAZ,
+ #endif  // BUILDFLAG(IS_MAC)
+ 
+   // Numbers for isolated worlds for extensions are set in
