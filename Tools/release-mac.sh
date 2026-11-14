@@ -17,6 +17,8 @@ then package Boaz.dmg and a candidate appcast. Nothing is published.
 Build the UI beforehand with Tools/chromium/build-application.py --build.
 For Xcode cloud signing, add --cloud-signing and pass an Apple Development
 certificate SHA-1 as --identity; omit --notary-profile and --provisioning-profile.
+Add --passkeys (cloud signing only) to sign with the browser passkey entitlement;
+the export fails unless Apple granted it to com.chenkahana.boaz.
 If Apple is still processing, finish the preserved submission with
 export-cloud-application.py --finish, then package-candidate.py --no-publish.
 
@@ -33,10 +35,12 @@ BASE_APP= UI_RECEIPT= OUTPUT= IDENTITY= NOTARY_PROFILE= PROVISIONING_PROFILE= SP
 BUILD=$(date -u +%Y%m%d%H%M)
 WEBKIT=false
 CLOUD=false
+PASSKEYS=()
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --webkit) WEBKIT=true; shift ;;
         --cloud-signing) CLOUD=true; shift ;;
+        --passkeys) PASSKEYS=(--passkeys); shift ;;
         --no-publish) shift ;;
         --base-app|--ui-receipt|--output|--identity|--notary-profile|--provisioning-profile|--sparkle-bin|--build)
             [ "$#" -ge 2 ] && [ -n "$2" ] || { echo "Missing value for $1" >&2; exit 2; }
@@ -64,6 +68,7 @@ done
 if "$CLOUD"; then
     [ -z "$NOTARY_PROFILE$PROVISIONING_PROFILE" ] || { echo "Cloud signing uses Xcode provisioning and notarization." >&2; exit 2; }
 else
+    [ "${#PASSKEYS[@]}" -eq 0 ] || { echo "--passkeys requires --cloud-signing." >&2; exit 2; }
     [ -n "$NOTARY_PROFILE" ] && [ -n "$PROVISIONING_PROFILE" ] || { echo "Local signing requires notary and provisioning profiles." >&2; exit 2; }
 fi
 [ -x "$PYTHON" ] || { echo "Required Python is unavailable: $PYTHON" >&2; exit 1; }
@@ -79,7 +84,7 @@ esac
 "$PYTHON" "$TOOLS/chromium/vmp-sign.py" "$OUTPUT/assembly/Boaz.app"
 if "$CLOUD"; then
     "$PYTHON" "$TOOLS/chromium/export-cloud-application.py" \
-        --input "$OUTPUT/assembly" --output "$OUTPUT/cloud-submission" --identity "$IDENTITY"
+        --input "$OUTPUT/assembly" --output "$OUTPUT/cloud-submission" --identity "$IDENTITY" ${PASSKEYS[@]+"${PASSKEYS[@]}"}
     "$PYTHON" "$TOOLS/chromium/export-cloud-application.py" --finish \
         --input "$OUTPUT/cloud-submission" --output "$OUTPUT/cloud-verification"
     SIGNED_APP="$OUTPUT/cloud-verification/export/Boaz.app"

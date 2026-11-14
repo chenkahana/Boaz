@@ -796,6 +796,43 @@
           "after": "d91227dc76a417d910cf87e7636fd4b16b20675ee6dcadaaf0f77ebe14f9ac57"
         }
       ]
+    },
+    {
+      "file": "patches/native-modal-dialog-position.patch",
+      "sha256": "507463442eabd6b799ab6d95626814bcc33857743bc3309fe6985a6079a1ab0c",
+      "files": [
+        {
+          "path": "components/constrained_window/constrained_window_views.cc",
+          "before": "49149ba4374f35e97bb73423b4b1cc92cbee54d4cda5bca36ac7be2e8a173766",
+          "after": "3ec964afe4b44a1135a6565528290bd4e12213fabaf6fde1d5ee933972d2ecb3"
+        },
+        {
+          "path": "components/web_modal/modal_dialog_host.cc",
+          "before": "2c1312fbdda83268fa356bbea39db45512b16f272c2c351d6d0f06e5909353bb",
+          "after": "3ab445c79eeeaa4539a3c5e575f9d861ee89a0cce7a2ec28b379d521107f76d4"
+        },
+        {
+          "path": "components/web_modal/modal_dialog_host.h",
+          "before": "e7b474ebd8e660ba129502c45a403c5c4ed6cba7d645fa348f5632a88b77fbd2",
+          "after": "affa6ca21d3ac2af60339f429b414d561efd6b8a266342138e3924e3a1f8adf8"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-context-menu.patch",
+      "sha256": "b782c55412b9ddb2053a673ec816b91a008bf018ecd54cf2a268b84c6588ed37",
+      "files": [
+        {
+          "path": "chrome/browser/renderer_context_menu/render_view_context_menu.cc",
+          "before": "bee071786682b77c31aec334d456f3aacd2aa5ad3d16340218ac98943a1e2463",
+          "after": "d57bb955ae4885c9899b411165213c51c32a99a8918262a6589abb9c8bf50e7f"
+        },
+        {
+          "path": "chrome/browser/ui/cocoa/renderer_context_menu/render_view_context_menu_mac_cocoa.mm",
+          "before": "903582053e2ac7de59513ee8f5c4dc06b7e5359bc4873f11b3efaf6634124000",
+          "after": "51b5dff06a0545e366aa394cf7ccf048e82e21c75bfbe2f522cb9640a4ffcc62"
+        }
+      ]
     }
   ]
 }

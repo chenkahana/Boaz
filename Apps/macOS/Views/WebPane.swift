@@ -11,19 +11,10 @@ struct TabPane: View {
 
     var body: some View {
         #if BOAZ_CHROMIUM
-        VStack(spacing: 0) {
-            if browser.showsProtectedMediaBanner(for: tab.id) {
-                HStack {
-                    Text("Opened in WebKit for protected video")
-                    Spacer()
-                    Button("Move Back") { Task { await browser.moveProtectedMediaBack(tab.id) } }
-                }.font(.caption).padding(8).background(.bar)
-            }
         if browser.engineKind(for: tab) == .chromium {
             ChromiumTabPane(tab: tab, inSplit: inSplit).id(tab.id + ":chromium")
         } else {
             RoutedWebKitPane(tab: tab, inSplit: inSplit).id(tab.id + ":webkit")
-        }
         }
         #else
         WebKitTabPane(tab: tab, inSplit: inSplit, page: browser.page(for: tab))
@@ -42,8 +33,8 @@ private struct RoutedWebKitPane: View {
         Group {
             if let page { WebKitTabPane(tab: tab, inSplit: inSplit, page: page) }
             else if failed {
-                ContentUnavailableView("Couldn't Open WebKit", systemImage: "exclamationmark.triangle",
-                    description: Text("The selected engine could not open this page."))
+                ContentUnavailableView("Couldn't Open This Page", systemImage: "exclamationmark.triangle",
+                    description: Text("Boaz couldn't open this page's video player."))
             } else { ProgressView("Opening page…") }
         }.task(id: tab.id) {
             do {
