@@ -8,11 +8,15 @@ All notable changes to Boaz are recorded here. The format follows
 
 ### Added
 
+- Mac (DMG, 0.3.0): Boaz runs on Chromium, with Chrome Web Store extensions and Chromium's DevTools. The Mac App
+  Store and iPhone apps stay on WebKit. Upgrading from an earlier version keeps your library, settings, saved passwords and signed-in sites.
 - iPhone: Boaz can be your default browser (Settings › Apps › Default Apps › Browser App), so links from other apps
   open in it. Settings › Default Browser shows whether it is and opens iOS Settings to choose it.
 
 ### Fixed
 
+- Mac (DMG): websites can ask to use the camera, microphone and location. The Mac app didn't declare them before.
+- Mac (DMG): logging out or restarting the Mac quits Boaz instead of being held up.
 - iPhone: saving a photo from a website (Save to Photos, or Save Image from the share sheet) no longer closes
   Boaz. iOS now asks for permission to add to your photo library instead.
 - iPhone: a link sent to Boaz again (tapped twice, or replayed after a cold launch) goes back to its tab instead of
