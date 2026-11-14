@@ -42,6 +42,12 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         }
         let app = menu("Boaz")
         responder(app, "About Boaz", #selector(NSApplication.orderFrontStandardAboutPanel(_:)))
+#if SPARKLE
+        // Touching Updates.shared here also starts the updater and its daily checks.
+        if Updates.isConfigured {
+            add(app, "Check for Updates…", enabled: { _ in Updates.shared.canCheck }) { _ in Updates.shared.check() }
+        }
+#endif
         add(app, "Settings…", enabled: { _ in true }, perform: { [weak self] _ in self?.openScene("settings") }, key: ",")
         add(app, "Load Developer Extension…", enabled: {
             $0?.isIncognito == false && $0?.loadChromiumDeveloperExtension != nil
