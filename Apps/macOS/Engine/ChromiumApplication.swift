@@ -61,7 +61,12 @@ private final class ChromiumApplication: NSObject {
             guard let self, let context else { return }
             if let inspector = pendingDevToolsWindows.removeValue(forKey: UInt(bitPattern: context)) {
                 devToolsWindows.append(inspector)
-                do { try inspector.adoptNativeWindow(handle) }
+                // A popup keeps the frame its opener asked for; adopting centers DevTools' window.
+                let requested = inspector.window.identifier?.rawValue == "screen.popupWindow" ? inspector.window.frame : nil
+                do {
+                    try inspector.adoptNativeWindow(handle)
+                    if let requested { inspector.window.setFrame(requested, display: true) }
+                }
                 catch { model.showToast(error.localizedDescription); _ = runtime.api.close_window?(handle) }
                 return
             }

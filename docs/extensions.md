@@ -64,13 +64,14 @@ extension behaves as it does in Chrome. The host side is in [`Tools/chromium/hos
   the profile's `extensions.pinned_extensions` pref); Boaz's older `chromiumPinnedExtensions` setting is moved into it
   once. Icons are Chromium's toolbar icons with the badge (text and background color) drawn in, at 2x. Right-click
   shows Chromium's action menu (pin, site access, options, remove, inspect popup). The request-access button
-  ("Allow") appears when an extension asks for the current site, and Chromium's reload prompt follows a grant.
+  ("Allow", with the extensions' icons) appears when an extension with withheld site access asks for the current
+  site (`permissions.addHostAccessRequest`), and Chromium's reload prompt follows a grant.
 - **Popups.** `action.openPopup()`, `_execute_action` and clicks open the popup at the action's button, or at the
   extensions button when it isn't pinned. It closes as Chrome's does: on a click back in the window, a tab switch, or
   the window closing; not when it opens a dialog or DevTools.
 - **Commands.** Manifest `commands` (`_execute_action` and custom ones) run from the window and its popups; edits in
-  `chrome://extensions/shortcuts` apply at once. Global (system-wide) shortcuts don't work: Chromium's Mac global
-  shortcut listener needs the Views browser window.
+  `chrome://extensions/shortcuts` apply at once. Global (system-wide) shortcuts go through Chromium's own Mac
+  listener; they haven't been checked in Boaz.
 - **Side panel.** `sidePanel.open()`, `openPanelOnActionClick` and the action menu's **Open side panel** show the
   extension's panel at the window's trailing edge; drag its edge to resize it, close it with its × button
   (`sidePanel.onClosed` fires). Tab-specific panels follow the active tab.
@@ -86,7 +87,7 @@ extension behaves as it does in Chrome. The host side is in [`Tools/chromium/hos
 
 ### Chrome Web Store and Arc
 
-The store page says **Add to Chrome** and shows a "Switch to Chrome" banner in Boaz. Arc's store page doesn't show
+The store page says **Add to Chrome** and shows a "Switch to Chrome?" card in Boaz. Arc's store page doesn't show
 the banner. Inspecting Arc's app found no generic store mechanism to copy; the difference comes from how Arc
 identifies itself to Google's sites (it presents as Chrome). Boaz doesn't spoof Chrome's identity. Installing works either way: the store's own button installs through Chromium's
 `chrome.webstorePrivate` with Boaz's native prompt.
