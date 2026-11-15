@@ -11,7 +11,8 @@ enum UITestMode {
     /// app's would, while the on-disk store is a fresh temp directory every time. Call once, before anything
     /// reads a persisted default (`applicationDidFinishLaunching`, first thing).
     static func resetDefaultsIfNeeded() {
-        guard isActive, let bundleID = Bundle.main.bundleIdentifier else { return }
+        // Only the ad hoc test build (`make uitest`), never a real install launched with the flag by mistake.
+        guard isActive, let bundleID = Bundle.main.bundleIdentifier, bundleID.hasSuffix(".uitest") else { return }
         UserDefaults.standard.removePersistentDomain(forName: bundleID)
     }
 
