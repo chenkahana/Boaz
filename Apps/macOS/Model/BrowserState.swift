@@ -93,7 +93,9 @@ final class BrowserState {
     var spaceToDelete: Space?
     /// The unloaded pinned tab a middle-click asked to remove, waiting for confirmation.
     var pinnedTabToRemove: SidebarItem?
+    #if !BOAZ_CHROMIUM
     var extensionSheet: ExtensionSheet?
+    #endif
     /// Summarize/Ask or a tidy preview (`MacAISheet`).
     var ai: AIRequest?
     var showImport = false
@@ -387,14 +389,18 @@ final class BrowserState {
         window.tabbingMode = .disallowed
         updateTrafficLights()
         if !isIncognito { model.lastActiveBrowser = self }
+        #if !BOAZ_CHROMIUM
         Extensions.shared.didOpenWindow(self)
+        #endif
         if let keyObserver { NotificationCenter.default.removeObserver(keyObserver) }
         keyObserver = NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: window,
                                                              queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, !self.isIncognito else { return }
                 self.model.lastActiveBrowser = self
+                #if !BOAZ_CHROMIUM
                 Extensions.shared.didFocusWindow(self)
+                #endif
             }
         }
         if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
@@ -409,7 +415,9 @@ final class BrowserState {
                 #endif
                 self.windowWillCloseForPictureInPicture()
                 self.model.windowWillClose(self)
+                #if !BOAZ_CHROMIUM
                 Extensions.shared.didCloseWindow(self)
+                #endif
             }
         }
         if let occlusionObserver { NotificationCenter.default.removeObserver(occlusionObserver) }
@@ -687,7 +695,9 @@ final class BrowserState {
     func makePage(profileID: String?, context: NavigationRouter.Context, loading url: URL? = nil) -> WebPage {
         var configuration = WebPage.Configuration()
         configuration.websiteDataStore = dataStore(profileID: profileID)
+        #if !BOAZ_CHROMIUM
         if !isIncognito { configuration.webExtensionController = Extensions.shared.controller(profileID: profileID) }
+        #endif
         configuration.applicationNameForUserAgent = "Version/26.0 Safari/605.1.15"
         model.applyContentBlocking(to: &configuration)
         if case .tab(let id) = context {
@@ -878,7 +888,9 @@ final class BrowserState {
         let previous = activeTabID
         activeTabID = tab.id
         if let spaceID { lastTabPerSpace[spaceID] = tab.id }
+        #if !BOAZ_CHROMIUM
         if previous != tab.id { Extensions.shared.didActivate(tab, previous: previous, in: self) }
+        #endif
     }
 
     /// A new Today tab, at the top or right below `source`. One opened in the background starts loading without

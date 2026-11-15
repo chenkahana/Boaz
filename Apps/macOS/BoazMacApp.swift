@@ -207,10 +207,11 @@ struct BoazCommands: Commands {
             }
         }
 
+        #if !BOAZ_CHROMIUM
         CommandMenu("Extensions") {
             Button("Manage Extensions…") { browser?.extensionSheet = .manage }.disabled(browser == nil || browser?.isIncognito == true)
             Divider()
-            #if DIRECT_DISTRIBUTION && !BOAZ_CHROMIUM
+            #if DIRECT_DISTRIBUTION
             Button("Install from Chrome Web Store…") { browser?.extensionSheet = .webStore() }
                 .disabled(browser == nil || browser?.isIncognito == true)
             #endif
@@ -218,6 +219,7 @@ struct BoazCommands: Commands {
             Button("Install from File…") { browser?.chooseExtension(folder: false) }
                 .disabled(browser == nil || browser?.isIncognito == true)
         }
+        #endif
 
         CommandMenu("Spaces") {
             Button("Next Space") { browser?.shiftSpace(by: 1) }.keyboardShortcut(key(.nextSpace)).disabled(browser == nil)
