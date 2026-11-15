@@ -218,11 +218,12 @@ private func dayTitle(_ day: Date) -> String {
 /// Boaz ▸ Settings: same preferences as iOS, plus keyboard shortcut overrides. The App Store build shows the panes in
 /// SwiftUI's Settings scene; the DMG shows them in `ChromiumSettingsWindow`.
 enum MacSettingsPane: CaseIterable {
-    case general, privacy, sync, passwords, accounts, sites, shortcuts
+    case general, appIcon, privacy, sync, passwords, accounts, sites, shortcuts
 
     var title: String {
         switch self {
         case .general: "General"
+        case .appIcon: "App Icon"
         case .privacy: "Privacy"
         case .sync: "Sync"
         case .passwords: "Passwords"
@@ -235,6 +236,7 @@ enum MacSettingsPane: CaseIterable {
     var symbol: String {
         switch self {
         case .general: "gearshape"
+        case .appIcon: "app.badge.checkmark"
         case .privacy: "hand.raised"
         case .sync: "icloud"
         case .passwords: "key"
@@ -266,6 +268,7 @@ struct MacSettingsPaneView: View {
         Group {
             switch pane {
             case .general: GeneralSettings()
+            case .appIcon: AppIconSettings()
             case .privacy: PrivacySettings()
             case .sync: SyncSettings()
             case .passwords: PasswordsSettings().frame(minHeight: 460)

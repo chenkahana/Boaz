@@ -167,11 +167,19 @@ def build(jobs, resume_run=None, cache_from=None):
         raise RuntimeError('Boaz asset catalog was not produced')
     shutil.copy2(asset_catalog, bundle_resources / 'Assets.car')
     shutil.copy2(REPO / 'Apps/Browser/easylist_min_content_blocker.json', bundle_resources)
+    # Alternate app icons for Settings ▸ App Icon and the Dock tile plug-in (MacAppIcon, BoazDockTilePlugIn).
+    for icon_file in sorted((REPO / 'Apps/macOS/Resources/AppIcons').glob('AppIcon-*.icns')):
+        shutil.copy2(icon_file, bundle_resources)
     with (bundle_contents / 'Info.plist').open('xb') as stream:
         plistlib.dump({'CFBundleIdentifier': 'com.chenkahana.boaz.resources',
                       'CFBundleName': 'BoazResources', 'CFBundlePackageType': 'BNDL',
                       'CFBundleVersion': '1'}, stream)
     resources.append({'source': str(REPO), 'staged': str(resource_bundle)})
+    dock_tile = products / 'BoazDockTile.docktileplugin'
+    if not dock_tile.is_dir() or dock_tile.is_symlink():
+        raise RuntimeError('Expected the Dock tile plug-in to be produced')
+    shutil.copytree(dock_tile, artifacts / dock_tile.name, symlinks=True)
+    resources.append({'source': str(dock_tile), 'staged': str(artifacts / dock_tile.name)})
     available(final)
     previous = None
     if final.exists():
