@@ -370,6 +370,7 @@ private struct SpaceHeader: View {
             Text(space.title).font(SidebarStyle.titleFont(size: textSize)).lineLimit(1)
                 .onTapGesture(count: 2) { browser.spaceEditor = .init(spaceID: space.id) }
                 .help("Double-click to customize")
+                .accessibilityAddTraits(.isHeader)
             Spacer()
             Menu {
                 SpaceMenu(space: space)
@@ -387,6 +388,9 @@ private struct SpaceHeader: View {
         .onHover { hovering = $0 }
         .animation(SidebarStyle.motion, value: hovering)
         .contextMenu { SpaceMenu(space: space) }
+        // A container of its own, so the title keeps its own frame rather than taking the whole row's.
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(space.title)
     }
 }
 
@@ -523,9 +527,11 @@ struct ItemRow: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel(title)
-            .accessibilityValue(item.kind == .folder ? (item.isExpanded ? "Expanded" : "Collapsed") : "")
+            .accessibilityValue(item.kind == .folder ? (item.isExpanded ? "Expanded" : "Collapsed")
+                                : liveStatus.map { LivePullIcon.label($0) } ?? "")
             .accessibilityAddTraits(active ? .isSelected : [])
-            .accessibilityIdentifier(item.kind == .folder ? "sidebar.folder.\(title)" : "")
+            .accessibilityIdentifier(item.kind == .folder ? "sidebar.folder.\(title)"
+                                     : liveStatus.map { LivePullIcon.identifier($0) } ?? "")
             .help(liveStatus??.detail ?? "")
             if item.kind == .tab, browser.hasWandered(item) {
                 HoverIconButton(symbol: "arrow.uturn.backward", help: "Back to Pinned Page", size: 20) {

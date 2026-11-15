@@ -39,12 +39,13 @@ final class LibraryPanelUITests: BoazUITestCase {
         XCTAssertTrue(search.waitForExistence(timeout: 2))
         search.click()
         search.typeText("boarding")
-        XCTAssertTrue(app.staticTexts["control.library.download.boardingcard.pdf"].waitForExistence(timeout: 2))
+        XCTAssertTrue(element("control.library.download.boardingcard.pdf").waitForExistence(timeout: 2))
         assertScreenIntact(panel, name: "library-downloads-search-\(appearance)")
         search.typeText(XCUIKeyboardKey.delete.rawValue)
 
         // The Filter menu narrows by kind.
-        let filter = panel.buttons["control.library.filter"]
+        // A SwiftUI `Menu` is a menu button, not a button.
+        let filter = panel.menuButtons["control.library.filter"]
         XCTAssertTrue(filter.waitForExistence(timeout: 2))
         filter.click()
         app.menuItems["PDFs"].click()

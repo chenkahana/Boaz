@@ -37,7 +37,7 @@ final class LiveFolderUITests: BoazUITestCase {
         for title in rows {
             XCTAssertTrue(mainWindow.buttons[title].waitForExistence(timeout: 10), "\(title) isn't listed")
         }
-        XCTAssertEqual(mainWindow.buttons.matching(identifier: "Live folders for GitHub pull requests").count, 1)
+        XCTAssertEqual(mainWindow.buttons.matching(NSPredicate(format: "label == %@", "Live folders for GitHub pull requests")).count, 1)
         XCTAssertFalse(mainWindow.buttons["chore(knip): drop unused exports"].exists, "Team Review Requests is off by default")
 
         let badges = mainWindow.descendants(matching: .any)
@@ -92,8 +92,8 @@ final class LiveFolderUITests: BoazUITestCase {
         XCTAssertTrue(sheet.waitForExistence(timeout: 5), "No sign-in sheet")
         XCTAssertTrue(app.staticTexts["BOAZ-TEST"].waitForExistence(timeout: 5), "The fixture's device code isn't shown")
         assertScreenIntact(sheet, name: "github-sign-in")
-        // The fixture's device flow succeeds by itself and makes the folder.
-        XCTAssertTrue(folder.waitForExistence(timeout: 10))
+        // The fixture's device flow succeeds by itself (after 6 s) and makes the folder.
+        XCTAssertTrue(folder.waitForExistence(timeout: 15))
     }
 
     func testAccountsSettingsShowsTheAccount() {

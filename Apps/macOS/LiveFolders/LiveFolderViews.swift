@@ -53,8 +53,13 @@ struct LivePullIcon: View {
         GitHubMark(size: 16)
             .overlay(alignment: .bottomTrailing) { badge.offset(x: 4, y: 4) }
             .accessibilityElement()
-            .accessibilityLabel(label)
-            .accessibilityIdentifier("sidebar.livePull.checks.\(status?.checks?.rawValue ?? "none")")
+            .accessibilityLabel(Self.label(status))
+            .accessibilityIdentifier(Self.identifier(status))
+    }
+
+    /// The row's button is what accessibility reaches (it takes in this icon), so it carries these as well.
+    static func identifier(_ status: LiveFolderState.ItemStatus?) -> String {
+        "sidebar.livePull.checks.\(status?.checks?.rawValue ?? "none")"
     }
 
     @ViewBuilder private var badge: some View {
@@ -72,7 +77,7 @@ struct LivePullIcon: View {
         }
     }
 
-    private var label: String {
+    static func label(_ status: LiveFolderState.ItemStatus?) -> String {
         switch status?.checks {
         case .success: "Checks passed"
         case .failure: "Checks failed"
@@ -235,9 +240,9 @@ struct FolderIconPicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Change Icon").font(.headline)
-            grid(Self.symbols) { Image(systemName: $0).font(.system(size: 14)) }
+            grid(Self.symbols, named: "Symbols") { Image(systemName: $0).font(.system(size: 14)) }
             Divider()
-            grid(Self.emoji) { Text($0).font(.system(size: 16)) }
+            grid(Self.emoji, named: "Emoji") { Text($0).font(.system(size: 16)) }
             Divider()
             HStack {
                 TextField("Emoji or symbol name", text: $custom).textFieldStyle(.roundedBorder).onSubmit(useCustom)
@@ -255,7 +260,8 @@ struct FolderIconPicker: View {
         .accessibilityIdentifier("screen.iconPicker")
     }
 
-    private func grid(_ icons: [String], @ViewBuilder label: @escaping (String) -> some View) -> some View {
+    private func grid(_ icons: [String], named name: String,
+                      @ViewBuilder label: @escaping (String) -> some View) -> some View {
         LazyVGrid(columns: Array(repeating: GridItem(.fixed(28), spacing: 6), count: 8), spacing: 6) {
             ForEach(icons, id: \.self) { icon in
                 Button { set(icon) } label: {
@@ -264,9 +270,12 @@ struct FolderIconPicker: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(icon)
+                // A symbol's name read as words ("wrench and screwdriver"), not "wrench.and.screwdriver".
+                .accessibilityLabel(icon.replacingOccurrences(of: ".", with: " "))
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(name)
     }
 
     private func useCustom() {

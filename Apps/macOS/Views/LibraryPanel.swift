@@ -187,11 +187,13 @@ private struct LibraryDownloadsPane: View {
                             Text(section.title.uppercased())
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundStyle(style.secondary)
+                                .accessibilityAddTraits(.isHeader)
                         }
                     }
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
+                .accessibilityLabel("Downloads")
                 .contextMenu(forSelectionType: URL.self) { urls in
                     LibraryDownloadContextMenu(urls: urls, downloads: downloads)
                 } primaryAction: { urls in
@@ -251,7 +253,8 @@ private struct LibraryDownloadRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            DownloadThumbnail(url: item.url, size: 30)
+            // Beside the file's name, the thumbnail is decoration.
+            DownloadThumbnail(url: item.url, size: 30).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 Text(item.name).font(.system(size: 13)).lineLimit(1).truncationMode(.middle)
                     .foregroundStyle(style.foreground)
@@ -262,6 +265,7 @@ private struct LibraryDownloadRow: View {
         .padding(.vertical, 4)
         .contentShape(Rectangle())
         .onDrag { NSItemProvider(contentsOf: item.url) ?? NSItemProvider() }
+        .accessibilityElement(children: .combine)
         .accessibilityIdentifier("control.library.download.\(item.name)")
     }
 }
@@ -369,6 +373,10 @@ private struct LibraryMediaPane: View {
                                     Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }
                                 }
                                 .onDrag { NSItemProvider(contentsOf: item.url) ?? NSItemProvider() }
+                                .accessibilityElement(children: .ignore)
+                                .accessibilityLabel(item.name)
+                                .accessibilityAddTraits(.isImage)
+                                .accessibilityAction { NSWorkspace.shared.open(item.url) }
                                 .accessibilityIdentifier("control.library.download.\(item.name)")
                         }
                     }

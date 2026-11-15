@@ -47,8 +47,9 @@ class BoazUITestCase: XCTestCase {
         // whatever this bundle id's windows looked like when IT last quit (a separate mechanism from our own
         // `MacModel.SavedWindow`, which `UITestMode.resetDefaultsIfNeeded()` clears instead).
         var launchArguments = ["-BoazUITest", "YES", "-ApplePersistenceIgnoreState", "YES"]
-        // Absence of the key reads as Light; CI runners boot Light by default.
-        if appearance == .dark { launchArguments += ["-AppleInterfaceStyle", "Dark"] }
+        // Set either way: AppKit reads anything but "Dark" as Light, and a Mac set to Dark would otherwise run the
+        // Light tests dark.
+        launchArguments += ["-AppleInterfaceStyle", appearance == .dark ? "Dark" : "Light"]
         launchArguments += arguments
 
         var launchEnvironment = environment
@@ -123,14 +124,21 @@ class BoazUITestCase: XCTestCase {
 
         // Every issue the audit raises is reported with the element it's about (type, identifier, label, value,
         // frame): XCTest's own failure only says "Element has no description" with a screenshot.
+        // The audit covers the whole app; only issues about elements on this screen count against it, so a window
+        // behind a sheet or the Settings window is checked by its own test, not by every test that opens something.
         let issues = IssueLog()
+        let screenFrame = frame
+        let containerFrames = (app.windows.allElementsBoundByIndex + app.popovers.allElementsBoundByIndex
+            + app.sheets.allElementsBoundByIndex).filter(\.exists).map(\.frame)
         do {
             try app.performAccessibilityAudit(
                 // `.textClipped`, `.dynamicType` and `.trait` are iOS/tvOS/watchOS-only; macOS adds `.action`
                 // and `.parentChild` in their place.
                 for: [.elementDetection, .hitRegion, .contrast, .sufficientElementDescription, .action, .parentChild]
             ) { issue in
-                if Self.auditIssueIsAllowed(issue) { return true }
+                if let issueFrame = issue.element?.frame, !issueFrame.isEmpty,
+                   !screenFrame.insetBy(dx: -1, dy: -1).intersects(issueFrame) { return true }
+                if Self.auditIssueIsAllowed(issue, containerFrames: containerFrames) { return true }
                 issues.lines.append(Self.describe(issue))
                 return true
             }
@@ -174,15 +182,16 @@ class BoazUITestCase: XCTestCase {
     /// Known system-control accessibility-audit false positives. Keep tight; justify every entry here. Confirmed
     /// by inspecting each flagged element's identifier/label/elementType/frame (`XCUIAccessibilityAuditIssue`)
     /// before writing the condition below, not by guessing.
-    private static func auditIssueIsAllowed(_ issue: XCUIAccessibilityAuditIssue) -> Bool {
+    private static func auditIssueIsAllowed(_ issue: XCUIAccessibilityAuditIssue, containerFrames: [CGRect]) -> Bool {
         guard let element = issue.element else { return false }
-        // Every window's root SwiftUI hosting view is bridged as one unlabeled `.group` the size of the whole
-        // window's content: it sits above our own `screen.*`-identified root view, so no modifier we put on our
-        // own views can label it. Scoped to the content-sized case so a real, mistakenly unlabeled large group
-        // elsewhere in the UI isn't silently allowed.
-        if issue.auditType == .sufficientElementDescription, element.elementType == .group,
-           element.identifier.isEmpty, element.label.isEmpty,
-           element.frame.width > 500, element.frame.height > 400 {
+        // Every window, sheet and popover's root SwiftUI hosting view, and the popover itself, are bridged as an
+        // unlabeled element exactly the size of that window: they sit above our own `screen.*`-identified root view,
+        // so no modifier we put on our own views can label them. Matched by frame, so an unlabeled group of our own
+        // anywhere else still fails.
+        if issue.auditType == .sufficientElementDescription, element.identifier.isEmpty, element.label.isEmpty,
+           [.group, .popover, .sheet].contains(element.elementType),
+           containerFrames.contains(where: { abs($0.minX - element.frame.minX) <= 1 && abs($0.minY - element.frame.minY) <= 1
+               && abs($0.width - element.frame.width) <= 1 && abs($0.height - element.frame.height) <= 1 }) {
             return true
         }
         // The hidden-titlebar window's traffic-light button cluster is bridged as a small unlabeled `.group`
@@ -199,7 +208,9 @@ class BoazUITestCase: XCTestCase {
         // check to AppKit's audited AX node — confirmed by trying the label on the Menu itself, on its label
         // view, and `.accessibilityElement(children: .ignore)` with `.accessibilityAddTraits(.isButton)`, none of
         // which changed what the audit sees. Matched by its (working) label since its identifier isn't its own.
-        if issue.auditType == .action, element.elementType == .menuButton, element.label == "New" {
+        // The same holds for every `.menuStyle(.button)` menu (the Library's Filter as well as "New"): a menu button's
+        // action is AXShowMenu, which it has, and XCUITest itself opens them with a click.
+        if issue.auditType == .action, element.elementType == .menuButton, !element.label.isEmpty {
             return true
         }
         return false
@@ -216,10 +227,17 @@ class BoazUITestCase: XCTestCase {
         let tabButton = app.toolbars.buttons[tab].firstMatch
         XCTAssertTrue(tabButton.waitForExistence(timeout: 10), "Settings never opened, or has no \(tab) pane",
                       file: file, line: line)
-        tabButton.click()
+        // The window opens on the last pane; a click while it's still appearing can be lost, so wait for a pane first
+        // and click again if the one asked for doesn't come up.
+        _ = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'screen.settings.'"))
+            .firstMatch.waitForExistence(timeout: 5)
         let id = Self.settingsPaneIDs[tab] ?? tab
         let pane = element("screen.settings.\(id)")
-        XCTAssertTrue(pane.waitForExistence(timeout: 5), "The \(tab) pane never appeared", file: file, line: line)
+        for _ in 0..<3 where !pane.exists {
+            tabButton.click()
+            _ = pane.waitForExistence(timeout: 3)
+        }
+        XCTAssertTrue(pane.exists, "The \(tab) pane never appeared", file: file, line: line)
         return pane
     }
 
