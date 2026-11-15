@@ -6,6 +6,18 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.7] - 2026-11-15
+
+### Added
+
+- Mac (DMG): right-click a link to open it in an Incognito window or in split view next to the current tab, or
+  right-click a page or image to show a QR code for it, which you can copy or save. The right-click menu shows your own
+  shortcuts for Back, Forward, Reload, View Page Source and Picture in Picture.
+
+### Fixed
+
+- Mac (DMG): opening an Incognito window no longer quits Boaz.
+
 ## [1.0.2] - 2026-11-15
 
 ### Fixed
@@ -308,7 +320,8 @@ First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone
 - Share extension, search widget, App Shortcuts, the `boaz://` URL scheme and alternate app icons.
 - Privacy manifest, privacy policy and an About section with third-party notices.
 
-[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.6...HEAD
+[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.7...HEAD
+[0.4.7]: https://github.com/chenkahana/Boaz/compare/v0.4.6...v0.4.7
 [0.4.6]: https://github.com/chenkahana/Boaz/compare/v0.4.5...v0.4.6
 [0.4.5]: https://github.com/chenkahana/Boaz/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/chenkahana/Boaz/compare/v0.4.3...v0.4.4
