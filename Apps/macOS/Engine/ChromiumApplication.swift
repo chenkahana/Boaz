@@ -317,7 +317,9 @@ private final class ChromiumApplication: NSObject {
         case "history": present(HistoryWindow().environment(model), title: "History")
         case "archive": present(ArchiveWindow().environment(model), title: "Archive")
         case "little":
-            let profileID = (model.sidebar.profiles.first(where: \.isDefault) ?? model.sidebar.profiles.first)?.id ?? "default"
+            let ruleProfileID = url.flatMap(model.ruleSpace(for:))?.profileID
+            let profileID = ruleProfileID
+                ?? (model.sidebar.profiles.first(where: \.isDefault) ?? model.sidebar.profiles.first)?.id ?? "default"
             do {
                 try await runtime.prepareBlockingAssets()
                 guard !finished else { return }

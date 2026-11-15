@@ -456,7 +456,9 @@ struct QuickWindow: View {
                 }
                 Spacer()
                 Button {
-                    if let current = page?.url ?? url { model.openInMainWindow(current, title: page?.title) }
+                    if let current = page?.url ?? url {
+                        model.openInMainWindow(current, title: page?.title, spaceID: model.ruleSpace(for: current)?.id)
+                    }
                     dismiss()
                 } label: {
                     Label("Open in Boaz", systemImage: "arrow.up.forward.app")
@@ -524,7 +526,10 @@ struct QuickWindow: View {
     private func start(_ url: URL) {
         let holder = LittleRouter.Holder()
         var configuration = WebPage.Configuration()
-        if let profile = model.sidebar.profiles.first(where: \.isDefault) ?? model.sidebar.profiles.first {
+        let ruleProfileID = model.ruleSpace(for: url)?.profileID
+        let profile = ruleProfileID.flatMap { id in model.sidebar.profiles.first { $0.id == id } }
+            ?? model.sidebar.profiles.first(where: \.isDefault) ?? model.sidebar.profiles.first
+        if let profile {
             configuration.websiteDataStore = model.dataStore(for: profile.id)
             profileID = profile.id
         }

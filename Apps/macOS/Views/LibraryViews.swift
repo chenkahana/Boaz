@@ -192,7 +192,7 @@ private func dayTitle(_ day: Date) -> String {
 /// Boaz ▸ Settings: same preferences as iOS, plus keyboard shortcut overrides. The App Store build shows the panes in
 /// SwiftUI's Settings scene; the DMG shows them in `ChromiumSettingsWindow`.
 enum MacSettingsPane: CaseIterable {
-    case general, privacy, sync, passwords, shortcuts
+    case general, privacy, sync, passwords, sites, shortcuts
 
     var title: String {
         switch self {
@@ -200,6 +200,7 @@ enum MacSettingsPane: CaseIterable {
         case .privacy: "Privacy"
         case .sync: "Sync"
         case .passwords: "Passwords"
+        case .sites: "Sites"
         case .shortcuts: "Shortcuts"
         }
     }
@@ -210,6 +211,7 @@ enum MacSettingsPane: CaseIterable {
         case .privacy: "hand.raised"
         case .sync: "icloud"
         case .passwords: "key"
+        case .sites: "arrow.triangle.branch"
         case .shortcuts: "keyboard"
         }
     }
@@ -239,6 +241,7 @@ struct MacSettingsPaneView: View {
             case .privacy: PrivacySettings()
             case .sync: SyncSettings()
             case .passwords: PasswordsSettings().frame(minHeight: 460)
+            case .sites: SiteRulesSettings()
             case .shortcuts: ShortcutsSettings()
             }
         }
@@ -346,6 +349,70 @@ private struct PrivacySettings: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+private struct SiteRulesSettings: View {
+    @Environment(MacModel.self) private var model
+    @State private var newHost = ""
+    @State private var newSpaceID: String?
+
+    private var rules: [SpaceHostRule] {
+        model.spaceHostRules.filter { model.space($0.spaceID) != nil }
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                Text("Links from other apps to these sites open in their space.")
+                    .font(.caption).foregroundStyle(.secondary)
+                if rules.isEmpty {
+                    Text("No site rules").foregroundStyle(.secondary)
+                }
+                ForEach(rules, id: \.host) { rule in
+                    LabeledContent(rule.host) {
+                        Picker("Space", selection: spaceBinding(for: rule.host)) {
+                            ForEach(model.sidebar.spaces) { space in Text(space.title).tag(space.id) }
+                        }
+                        .labelsHidden()
+                        Button(role: .destructive) {
+                            model.spaceHostRules.removeAll { $0.host == rule.host }
+                        } label: { Image(systemName: "trash") }
+                        .buttonStyle(.borderless)
+                    }
+                }
+            }
+            Section {
+                HStack {
+                    TextField("Host, e.g. github.com", text: $newHost)
+                    Picker("Space", selection: $newSpaceID) {
+                        Text("Choose a space").tag(String?.none)
+                        ForEach(model.sidebar.spaces) { space in Text(space.title).tag(String?.some(space.id)) }
+                    }
+                    .labelsHidden()
+                    Button("Add", action: addRule)
+                        .disabled(SpaceHostRule.normalizeHost(newHost) == nil || newSpaceID == nil)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear { newSpaceID = newSpaceID ?? model.sidebar.spaces.first?.id }
+    }
+
+    private func spaceBinding(for host: String) -> Binding<String> {
+        Binding(
+            get: { model.spaceHostRules.first { $0.host == host }?.spaceID ?? "" },
+            set: { spaceID in
+                guard let index = model.spaceHostRules.firstIndex(where: { $0.host == host }) else { return }
+                model.spaceHostRules[index].spaceID = spaceID
+            })
+    }
+
+    private func addRule() {
+        guard let host = SpaceHostRule.normalizeHost(newHost), let spaceID = newSpaceID else { return }
+        model.spaceHostRules.removeAll { $0.host == host }
+        model.spaceHostRules.append(SpaceHostRule(host: host, spaceID: spaceID))
+        newHost = ""
     }
 }
 

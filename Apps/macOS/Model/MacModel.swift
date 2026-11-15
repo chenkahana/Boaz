@@ -24,6 +24,8 @@ final class MacModel {
     var sidebar = Sidebar()
     var loadError: String?
     var toast: Toast?
+    /// Site rules: external links to these hosts open in their Space. Mac only, no sync.
+    var spaceHostRules: [SpaceHostRule] = MacModel.loadSpaceHostRules() { didSet { persistSpaceHostRules() } }
     let keyBindings = KeyBindings()
     /// This Mac, in the device list: the sidebar's Today shows only the tabs opened here (see `SidebarItem.deviceID`).
     let deviceID = Device.localID(in: .standard)
@@ -278,8 +280,19 @@ final class MacModel {
         for url in urls { openWindowAction("little", url) }
     }
 
-    /// Opens a URL as a Today tab in the most recent main window, creating one if needed.
-    func openInMainWindow(_ url: URL, title: String? = nil) {
+    /// Opens a URL as a Today tab in the most recent main window, creating one if needed. `spaceID` (a site
+    /// rule's space, computed by the caller) puts the tab there and shows it instead of the current space.
+    func openInMainWindow(_ url: URL, title: String? = nil, spaceID: String? = nil) {
+        if let spaceID, space(spaceID) != nil, let tab = newTab(url, title: title, in: spaceID) {
+            if let browser = lastActiveBrowser, !browser.isIncognito, let window = browser.window, window.isVisible {
+                browser.activate(tab)
+                window.makeKeyAndOrderFront(nil)
+                NSApp.activate()
+            } else {
+                openInNewWindow(tab)
+            }
+            return
+        }
         if let browser = lastActiveBrowser, !browser.isIncognito, let window = browser.window, window.isVisible {
             browser.openTab(url, title: title)
             window.makeKeyAndOrderFront(nil)
