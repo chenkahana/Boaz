@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.files.bookmarks.app-scope</key>
+	<true/>
+	<!-- Deliberately no com.apple.security.files.downloads.read-write: that exception entitlement grants standing
+	     access to the user's REAL ~/Downloads regardless of this app's own sandbox container, so test runs go
+	     without it. A download test redirects via BOAZ_UITEST_DOWNLOADS_DIR to a fixture folder inside the test's
+	     own container, which needs no extra entitlement. -->
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.get-task-allow</key>
+	<true/>
+</dict>
+</plist>

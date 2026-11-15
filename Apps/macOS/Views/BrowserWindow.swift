@@ -52,6 +52,9 @@ struct BrowserWindow: View {
             }
             if !browser.sidebarVisible { PeekingSidebar(width: sidebarWidth) }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(browser.isIncognito ? "Incognito window" : "Boaz window")
+        .accessibilityIdentifier(browser.isIncognito ? "screen.incognito" : "screen.browser")
         .background { WindowBackdrop() }
         .overlay {
             if let mode = browser.commandMode {

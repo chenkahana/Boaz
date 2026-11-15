@@ -26,7 +26,7 @@ struct BoazMacApp: App {
             BoazCommands(model: model)
             DevelopCommands(model: model)
             #if SPARKLE
-            UpdateCommands()
+            if !UITestMode.isActive { UpdateCommands() }
             #endif
         }
 
@@ -72,7 +72,7 @@ struct BoazMacApp: App {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApplication.shared.registerForRemoteNotifications()
+        if !UITestMode.isActive { NSApplication.shared.registerForRemoteNotifications() }
         LinkDownloadMenu.install()
     }
 

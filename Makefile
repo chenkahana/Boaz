@@ -3,12 +3,23 @@
 PROJECT  := Boaz.xcodeproj
 ARCHIVES := build/archives
 DERIVED  := build/DerivedData
+RESULTS  := build/UITestResults.xcresult
 # CI and local builds skip signing; archives are signed with the team in project.yml.
 UNSIGNED := CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+# BoazUITests runs the app it builds (or BOAZ_UITEST_APP's), so both it and the Boaz-macOS host need a real
+# signature to launch; ad hoc here only, project.yml's Automatic/team release signing is untouched. The CloudKit/
+# aps-environment entitlements need a real provisioning profile, which a CI runner doesn't have and the app never
+# uses in `-BoazUITest` mode anyway, so test runs sign against a trimmed, sandbox-only entitlements file instead.
+# A distinct bundle id is essential, not cosmetic: a sandboxed app's container (Application Support, defaults,
+# Keychain) is keyed by bundle identifier, so a test build sharing com.chenkahana.boaz would share the real,
+# already-installed Boaz's container and preferences domain instead of getting its own.
+ADHOC    := CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=YES CODE_SIGNING_ALLOWED=YES \
+            DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= CODE_SIGN_ENTITLEMENTS=$(CURDIR)/Apps/macOS/BoazUITest.entitlements \
+            BOAZ_BUNDLE_ID=com.chenkahana.boaz.uitest
 XCB      := xcodebuild -project $(PROJECT) -derivedDataPath $(DERIVED) -quiet
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap project kit ios mac mac-dmg mac-webkit-dmg build device archive dmg clean
+.PHONY: help bootstrap project kit ios mac mac-dmg mac-webkit-dmg build device archive dmg uitest clean
 
 help: ## List the available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "  %-10s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -54,6 +65,10 @@ archive: project ## Signed Release archives for App Store Connect, in build/arch
 
 dmg: ## Prepare an unpublished Chromium DMG: VERSION and RELEASE_ARGS required (docs/release.md)
 	Tools/release-mac.sh $(VERSION) $(RELEASE_ARGS)
+
+uitest: project ## Run the BoazUITests suite (set BOAZ_UITEST_APP=<path to .app> to target another build)
+	rm -rf $(RESULTS)
+	$(XCB) -scheme Boaz-macOS -destination 'platform=macOS' -resultBundlePath $(RESULTS) $(ADHOC) test
 
 clean: ## Remove build output (keeps release archives)
 	rm -rf "$(DERIVED)" Packages/BoazKit/.build

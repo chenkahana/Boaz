@@ -11,6 +11,9 @@ enum Onboarding {
     static func shouldShow(_ store: BoazStore) -> Bool {
         let defaults = UserDefaults.standard
         if defaults.bool(forKey: resetArgument) { return true }
+        // UI test mode (`-BoazUITest YES`, see `UITestMode` in the Mac target) never shows onboarding on its own;
+        // the raw key is read here, rather than the mac-only type, since this file is shared with iOS.
+        guard !defaults.bool(forKey: "BoazUITest") else { return false }
         guard !defaults.bool(forKey: completedKey) else { return false }
         if (try? StarterLibrary.hasUserContent(store)) == true {
             markCompleted()
