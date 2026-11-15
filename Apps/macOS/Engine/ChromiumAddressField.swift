@@ -11,6 +11,7 @@ struct ChromiumAddressField: NSViewRepresentable {
     let moveDown: () -> Void
     let submit: () -> Void
     let cancel: () -> Void
+    var fontSize: CGFloat = 19
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
     final class Container: NSView {
@@ -41,7 +42,7 @@ struct ChromiumAddressField: NSViewRepresentable {
         field.drawsBackground = false
         field.isEditable = true
         field.isSelectable = true
-        field.font = .systemFont(ofSize: 19)
+        field.font = .systemFont(ofSize: fontSize)
         field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         field.delegate = context.coordinator
         updateNSView(container, context: context)
