@@ -6,6 +6,14 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-11-15
+
+### Added
+
+- Mac: right-clicking a tab in the sidebar offers more of Chrome's tab items: New Tab Below, Add to New Folder, Move
+  to Folder, Move Tab to New Window, Mute Tab, Close Other Tabs and Close Tabs Below. Items have icons and are grouped
+  as in Chrome.
+
 ## [0.4.5] - 2026-11-15
 
 ### Added
@@ -293,7 +301,8 @@ First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone
 - Share extension, search widget, App Shortcuts, the `boaz://` URL scheme and alternate app icons.
 - Privacy manifest, privacy policy and an About section with third-party notices.
 
-[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.5...HEAD
+[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.6...HEAD
+[0.4.6]: https://github.com/chenkahana/Boaz/compare/v0.4.5...v0.4.6
 [0.4.5]: https://github.com/chenkahana/Boaz/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/chenkahana/Boaz/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/chenkahana/Boaz/compare/v0.4.2...v0.4.3
