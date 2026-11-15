@@ -34,8 +34,14 @@ private final class ChromiumApplication: NSObject {
     func start() throws {
         runtime.prepareWindow = { [weak self] profile, role in
             guard let self, !finished else { return nil }
-            if role == BOAZ_WINDOW_DEVTOOLS {
+            // Chrome's popup windows (windows.create({type: "popup"}), window.open with features) are bare, as
+            // DevTools' window is: one page, no sidebar or address row.
+            if role == BOAZ_WINDOW_DEVTOOLS || role == BOAZ_WINDOW_POPUP {
                 let window = ChromiumDevToolsWindow(runtime: runtime, profile: profile)
+                if role == BOAZ_WINDOW_POPUP {
+                    window.window.title = ""
+                    window.window.identifier = NSUserInterfaceItemIdentifier("screen.popupWindow")
+                }
                 let options = window.makeOptions()
                 guard let context = options.context else { return nil }
                 pendingDevToolsWindows[UInt(bitPattern: context)] = window
@@ -55,7 +61,12 @@ private final class ChromiumApplication: NSObject {
             guard let self, let context else { return }
             if let inspector = pendingDevToolsWindows.removeValue(forKey: UInt(bitPattern: context)) {
                 devToolsWindows.append(inspector)
-                do { try inspector.adoptNativeWindow(handle) }
+                // A popup keeps the frame its opener asked for; adopting centers DevTools' window.
+                let requested = inspector.window.identifier?.rawValue == "screen.popupWindow" ? inspector.window.frame : nil
+                do {
+                    try inspector.adoptNativeWindow(handle)
+                    if let requested { inspector.window.setFrame(requested, display: true) }
+                }
                 catch { model.showToast(error.localizedDescription); _ = runtime.api.close_window?(handle) }
                 return
             }

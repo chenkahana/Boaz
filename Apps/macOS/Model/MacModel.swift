@@ -162,7 +162,9 @@ final class MacModel {
                     let live = Set(snapshot.profiles.map(\.dataStoreID))
                     removeSiteData((UserDefaults.standard.stringArray(forKey: Self.pendingSiteDataKey) ?? [])
                         .compactMap(UUID.init).filter { !live.contains($0) })
+                    #if !BOAZ_CHROMIUM
                     Extensions.shared.loadInstalled()
+                    #endif
                     // A launch without a main window (a link to a Quick Window) has nothing to restore.
                     Task {
                         try? await Task.sleep(for: .seconds(10))
@@ -865,7 +867,9 @@ final class MacModel {
             browser.unloadPagesWithoutTabs()
             if let peek = browser.peek, peek.profileID.map(profileIDs.contains) ?? false { browser.peek = nil }
         }
+        #if !BOAZ_CHROMIUM
         Extensions.shared.forget(profileIDs: profileIDs)
+        #endif
     }
 
     /// A deleted profile's WebKit data on this Mac (logins, cookies, caches), deleted here or on another device.

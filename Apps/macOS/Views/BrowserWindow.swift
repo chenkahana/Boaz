@@ -96,13 +96,14 @@ struct BrowserWindow: View {
         .sheet(item: $browser.ai) { MacAISheet(request: $0).environment(model).environment(browser) }
         .sheet(item: $browser.popup) { PopupSheet(popup: $0) }
         .devToolsSheets(browser)
+        #if !BOAZ_CHROMIUM
         .sheet(item: $browser.extensionSheet) { sheet in
             Group {
                 switch sheet {
                 case .manage: ExtensionsManagerView()
                 case .confirm(let pending): ConfirmExtensionView(pending: pending)
                 case .webStore(let text):
-                    #if DIRECT_DISTRIBUTION && !BOAZ_CHROMIUM
+                    #if DIRECT_DISTRIBUTION
                     WebStoreInstallView(text: text)
                     #else
                     let _ = text
@@ -111,6 +112,7 @@ struct BrowserWindow: View {
             }
             .environment(browser)
         }
+        #endif
         .confirmationDialog("Delete \"\(browser.spaceToDelete?.title ?? "")\"?",
                             isPresented: Binding { browser.spaceToDelete != nil } set: { if !$0 { browser.spaceToDelete = nil } },
                             titleVisibility: .visible, presenting: browser.spaceToDelete) { space in

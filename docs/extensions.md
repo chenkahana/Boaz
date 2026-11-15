@@ -53,6 +53,45 @@ WebPage (SwiftUI) doesn't expose its `WKWebView`, which WebKit needs to match a 
 (`scripting.executeScript`, `tabs.sendMessage`). `backingWebView(of:)` finds it by reflection. If a WebKit update
 renames the property, tabs still list and switch, but scripts can't target them; check this after major macOS updates.
 
+## Chromium DMG
+
+The Chromium DMG runs Chromium's own extension system; none of the WebKit code above is compiled into it
+(`#if !BOAZ_CHROMIUM`). Boaz draws the toolbar, popups and prompts natively, but Chromium decides what they do, so an
+extension behaves as it does in Chrome. The host side is in [`Tools/chromium/host`](../Tools/chromium/host):
+
+- **Toolbar.** `extension_actions.mm` registers Chromium's `ExtensionsToolbarViewModel` as the window's
+  `ExtensionsContainer`, as Chrome's Android toolbar does. Pins and their order are Chromium's (`ToolbarActionsModel`,
+  the profile's `extensions.pinned_extensions` pref); Boaz's older `chromiumPinnedExtensions` setting is moved into it
+  once. Icons are Chromium's toolbar icons with the badge (text and background color) drawn in, at 2x. Right-click
+  shows Chromium's action menu (pin, site access, options, remove, inspect popup). The request-access button
+  ("Allow", with the extensions' icons) appears when an extension with withheld site access asks for the current
+  site (`permissions.addHostAccessRequest`), and Chromium's reload prompt follows a grant.
+- **Popups.** `action.openPopup()`, `_execute_action` and clicks open the popup at the action's button, or at the
+  extensions button when it isn't pinned. It closes as Chrome's does: on a click back in the window, a tab switch, or
+  the window closing; not when it opens a dialog or DevTools.
+- **Commands.** Manifest `commands` (`_execute_action` and custom ones) run from the window and its popups; edits in
+  `chrome://extensions/shortcuts` apply at once. Global (system-wide) shortcuts go through Chromium's own Mac
+  listener; they haven't been checked in Boaz.
+- **Side panel.** `sidePanel.open()`, `openPanelOnActionClick` and the action menu's **Open side panel** show the
+  extension's panel at the window's trailing edge; drag its edge to resize it, close it with its × button
+  (`sidePanel.onClosed` fires). Tab-specific panels follow the active tab.
+- **Windows.** `windows.create({type: "popup"})` and `window.open` with window features open a bare window with one
+  page, as Chrome does. Extensions can move, highlight and group tabs (`tabs.move`, `tabs.group`).
+- **Install feedback.** Chromium's post-install bubble, install errors, and the "disabled because it needs new
+  permissions" prompt use Chromium's text and buttons, drawn as a popover or sheet.
+- **Private windows.** An extension runs in a private window only when **Allow in Incognito** is on in
+  `chrome://extensions`, as in Chrome. Pins can't change there, as in Chrome.
+
+`Tools/chromium/fixtures/parity-extension` is an unpacked MV3 extension that exercises each of these; load it with
+`--load-extension=<path>` in an isolated profile.
+
+### Chrome Web Store and Arc
+
+The store page says **Add to Chrome** and shows a "Switch to Chrome?" card in Boaz. Arc's store page doesn't show
+the banner. Inspecting Arc's app found no generic store mechanism to copy; the difference comes from how Arc
+identifies itself to Google's sites (it presents as Chrome). Boaz doesn't spoof Chrome's identity. Installing works either way: the store's own button installs through Chromium's
+`chrome.webstorePrivate` with Boaz's native prompt.
+
 ## App Store
 
 Downloading extension code from the Chrome Web Store risks rejection under App Review Guideline 2.5.2 (apps may not
