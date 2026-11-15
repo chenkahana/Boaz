@@ -843,6 +843,17 @@
           "after": "2a9b356def3f28c67787d538ec84c919bec2ffb85f370b19a31a421cf042743f"
         }
       ]
+    },
+    {
+      "file": "patches/boaz-incognito-windows.patch",
+      "sha256": "b50ca9654a463e90b0d95dbb97c909b86d6aa3383c3b35956b4c4e2ab8b80028",
+      "files": [
+        {
+          "path": "chrome/browser/profiles/profile.cc",
+          "before": "13a9b5ac3be17740b30ad4925c697328c58096a014cf23452fe86e1e4d669ab4",
+          "after": "26b4197d599f6c06de4845ef021fe1d4ba7ae9cc2891d7de152f1b34ac7ac184"
+        }
+      ]
     }
   ]
 }
