@@ -2,8 +2,8 @@ import AppKit
 import XCTest
 
 /// Every screen the Mac app can show, each opened the way a user opens it, checked with `assertScreenIntact`, and
-/// closed again. The standard fixture's pages are `data:` URLs; Playground's peek link points at a port WebKit refuses
-/// to connect to (127.0.0.1:9), so nothing here touches the network.
+/// closed again. The standard fixture's pages are `data:` URLs; Playground's peek link goes to a closed port on this
+/// Mac's loopback address (127.0.0.1:47), so nothing here touches the network.
 final class ScreenTests: BoazUITestCase {
     // MARK: Windows
 
@@ -12,7 +12,7 @@ final class ScreenTests: BoazUITestCase {
 
     private func runMainWindow(_ appearance: Appearance) {
         launch(appearance: appearance)
-        XCTAssertTrue(sidebar.staticTexts["Work"].waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForSpace("Work"))
         assertScreenIntact(element("screen.browser"), name: "browser-empty")
         openSidebarTab("Today Tab")
         assertScreenIntact(element("screen.browser"), name: "browser-page")
@@ -43,7 +43,7 @@ final class ScreenTests: BoazUITestCase {
 
     func testQuickWindow() {
         launch()
-        app.typeKey("n", modifierFlags: [.command, .option])
+        menu("File", "New Quick Window")
         let quick = element("screen.quickWindow")
         XCTAssertTrue(quick.waitForExistence(timeout: 5), "No Quick Window")
         assertScreenIntact(quick, name: "quick-window")
@@ -210,7 +210,7 @@ final class ScreenTests: BoazUITestCase {
 
     func testCustomizeSpaceEditor() {
         launch()
-        XCTAssertTrue(sidebar.staticTexts["Work"].waitForExistence(timeout: 10))
+        XCTAssertTrue(waitForSpace("Work"))
         menu("View", "Customize Space…")
         let editor = element("screen.spaceEditor")
         XCTAssertTrue(editor.waitForExistence(timeout: 5), "View › Customize Space… didn't open the editor")
@@ -269,13 +269,11 @@ final class ScreenTests: BoazUITestCase {
     func testAISheet() throws {
         launch()
         openSidebarTab("Today Tab")
-        app.menuBars.menuBarItems["View"].click()
-        let summarize = app.menuItems["Summarize Page"].firstMatch
-        guard summarize.waitForExistence(timeout: 2), summarize.isEnabled else {
-            app.typeKey(.escape, modifierFlags: [])
+        let summarize = app.menuBars.menuBarItems["View"].menuItems["Summarize Page"]
+        guard summarize.waitForExistence(timeout: 2) else {
             throw XCTSkip("Apple Intelligence isn't available on this Mac, so Boaz hides its AI entry points")
         }
-        summarize.click()
+        menu("View", "Summarize Page")
         let sheet = element("screen.ai")
         XCTAssertTrue(sheet.waitForExistence(timeout: 5), "Summarize Page didn't open the AI sheet")
         assertScreenIntact(sheet, name: "ai-summary")
@@ -352,7 +350,7 @@ final class ScreenTests: BoazUITestCase {
         launch()
         spaceMenu("Work", "Delete Space…")
         assertConfirmationThenCancel(in: mainWindow, name: "delete-space", destructive: "Delete Space")
-        XCTAssertTrue(sidebar.staticTexts["Work"].exists, "Cancel deleted the space")
+        XCTAssertTrue(waitForSpace("Work", timeout: 2), "Cancel deleted the space")
     }
 
     /// A middle-click on a pinned tab with nothing loaded removes it from Pinned, after a warning.
@@ -366,7 +364,9 @@ final class ScreenTests: BoazUITestCase {
     }
 
     func testResetShortcutsConfirmation() {
-        launch()
+        // Reset is offered only with an override in place: ⌘T for New Tab, Arc's default, stored as Boaz stores it.
+        let override = Data(#"{"newTab":{"key":"t","modifiers":1048576}}"#.utf8)
+        launch(arguments: ["-keyBindingOverrides", "<" + override.map { String(format: "%02x", $0) }.joined() + ">"])
         let pane = openSettings(tab: "Shortcuts")
         pane.buttons["Reset to Defaults"].firstMatch.click()
         let window = app.windows.containing(.any, identifier: "screen.settings.shortcuts").firstMatch
@@ -409,9 +409,8 @@ final class ScreenTests: BoazUITestCase {
 
     /// Right-clicks the space's title in the sidebar and chooses `item` from its menu.
     private func spaceMenu(_ space: String, _ item: String, file: StaticString = #filePath, line: UInt = #line) {
-        let title = sidebar.staticTexts[space].firstMatch
-        XCTAssertTrue(title.waitForExistence(timeout: 10), "No \(space) space in the sidebar", file: file, line: line)
-        title.rightClick()
+        XCTAssertTrue(waitForSpace(space), "No \(space) space in the sidebar", file: file, line: line)
+        spaceHeader.rightClick()
         let menuItem = app.menuItems[item].firstMatch
         XCTAssertTrue(menuItem.waitForExistence(timeout: 3), "No \(item) in the space menu", file: file, line: line)
         menuItem.click()
@@ -429,15 +428,30 @@ final class ScreenTests: BoazUITestCase {
         XCTAssertTrue(waitForDisappearance(dialog), "Cancel didn't close the \(name) confirmation", file: file, line: line)
     }
 
-    /// XCUITest has no middle-click, so this posts one to the app's own process (not to the system), at `element`.
+    /// XCUITest has no middle-click, so this posts one to the app's own process (not to the system), at `element`,
+    /// addressed to the window under it as the window server would.
     private func middleClick(_ element: XCUIElement) throws {
         guard let pid = NSRunningApplication.runningApplications(withBundleIdentifier: Self.appBundleID).first?.processIdentifier
         else { throw XCTSkip("Couldn't find the app's process to send it a middle-click") }
         let point = CGPoint(x: element.frame.midX, y: element.frame.midY)
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+        let window = windows.first { info in
+            guard info[kCGWindowOwnerPID as String] as? pid_t == pid, info[kCGWindowLayer as String] as? Int == 0,
+                  let bounds = info[kCGWindowBounds as String] as? NSDictionary,
+                  let rect = CGRect(dictionaryRepresentation: bounds) else { return false }
+            return rect.contains(point)
+        }
+        guard let number = window?[kCGWindowNumber as String] as? Int else {
+            throw XCTSkip("Couldn't find the window under the row to send it a middle-click")
+        }
         element.hover()
         for type in [CGEventType.otherMouseDown, .otherMouseUp] {
-            let event = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .center)
-            event?.postToPid(pid)
+            guard let event = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .center)
+            else { continue }
+            event.setIntegerValueField(.mouseEventButtonNumber, value: 2)
+            event.setIntegerValueField(.mouseEventWindowUnderMousePointer, value: Int64(number))
+            event.setIntegerValueField(.mouseEventWindowUnderMousePointerThatCanHandleThisEvent, value: Int64(number))
+            event.postToPid(pid)
         }
     }
 

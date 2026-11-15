@@ -35,14 +35,14 @@ struct ArchiveListView: View {
                 Section(dayTitle(day)) {
                     ForEach(entries) { item in
                         HStack(spacing: 10) {
-                            SiteMonogram(url: item.url, tint: Theme.brand, size: 20)
+                            SiteMonogram(url: item.url, tint: Theme.brand, size: 20).accessibilityHidden(true)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(item.title ?? item.url.host() ?? item.url.absoluteString).lineLimit(1)
                                 Text(item.url.host() ?? "").font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
                             Text(item.archivedAt.formatted(date: .omitted, time: .shortened))
-                                .font(.caption).foregroundStyle(.tertiary)
+                                .font(.caption).foregroundStyle(.secondary)
                             Button("Restore") { restore(item) }.buttonStyle(.borderless)
                         }
                         .padding(.vertical, 2)
@@ -59,6 +59,7 @@ struct ArchiveListView: View {
                 }
             }
         }
+        .accessibilityLabel("Archived tabs")
         .contextMenu(forSelectionType: ArchiveItem.ID.self) { _ in } primaryAction: { ids in
             for id in ids { if let item = filtered.first(where: { $0.id == id }) { restore(item) } }
         }
@@ -147,14 +148,14 @@ struct HistoryWindow: View {
                 Section(dayTitle(day)) {
                     ForEach(entries) { visit in
                         HStack(spacing: 10) {
-                            SiteMonogram(url: visit.url, tint: Theme.brand, size: 20)
+                            SiteMonogram(url: visit.url, tint: Theme.brand, size: 20).accessibilityHidden(true)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(visit.title ?? visit.url.host() ?? visit.url.absoluteString).lineLimit(1)
                                 Text(visit.url.host() ?? "").font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
                             Text(visit.visitedAt.formatted(date: .omitted, time: .shortened))
-                                .font(.caption).foregroundStyle(.tertiary)
+                                .font(.caption).foregroundStyle(.secondary)
                         }
                         .padding(.vertical, 2)
                         .tag(visit.id)
@@ -169,6 +170,7 @@ struct HistoryWindow: View {
                 }
             }
         }
+        .accessibilityLabel("History")
         .contextMenu(forSelectionType: HistoryVisit.ID.self) { _ in } primaryAction: { ids in
             for id in ids { if let visit = visits.first(where: { $0.id == id }) { model.openInMainWindow(visit.url, title: visit.title) } }
         }
@@ -419,6 +421,7 @@ private struct SiteRulesSettings: View {
             Section {
                 HStack {
                     TextField("Host, e.g. github.com", text: $newHost)
+                        .accessibilityLabel("Host")
                     Picker("Space", selection: $newSpaceID) {
                         Text("Choose a space").tag(String?.none)
                         ForEach(model.sidebar.spaces) { space in Text(space.title).tag(String?.some(space.id)) }

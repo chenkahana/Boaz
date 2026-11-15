@@ -37,6 +37,7 @@ struct CommandBar: View {
             VStack(spacing: 0) {
                 HStack(spacing: 12) {
                     Image(systemName: icon).font(.system(size: 17, weight: .medium)).foregroundStyle(tint)
+                        .accessibilityHidden(true)
                     #if BOAZ_CHROMIUM
                     if let field = browser.chromiumAddressField {
                         ChromiumAddressField(field: field, text: $text, placeholder: placeholder,

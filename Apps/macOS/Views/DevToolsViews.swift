@@ -129,7 +129,7 @@ struct ResponsiveBar: View {
             }
             .fixedSize()
             dimension(size.width, label: "Width") { CGSize(width: $0, height: size.height) }
-            Text("×").foregroundStyle(.secondary)
+            Text("×").foregroundStyle(.secondary).accessibilityHidden(true)
             dimension(size.height, label: "Height") { CGSize(width: size.width, height: $0) }
             HoverIconButton(symbol: "rectangle.portrait.rotate", help: "Rotate", size: 24) {
                 browser.setViewport(.init(size: CGSize(width: size.height, height: size.width), userAgent: viewport.userAgent),
@@ -459,6 +459,7 @@ private struct StorageSheet: View {
             Group {
                 if section == .cookies { cookieTable } else { entryTable }
             }
+            .accessibilityLabel(section.rawValue)
             .contextMenu(forSelectionType: String.self) { ids in
                 Button("Copy Value") { copy(ids) }
                 Button("Delete") { Task { await delete(ids) } }

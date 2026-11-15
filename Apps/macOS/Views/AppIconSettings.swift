@@ -71,6 +71,8 @@ struct AppIconSettings: View {
                     }
                 }
                 .padding(6)
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("App icons")
             }
             .frame(height: 430)
         }

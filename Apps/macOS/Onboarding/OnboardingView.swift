@@ -270,7 +270,8 @@ private struct BrowserImportRow: View {
                     }
                 }
                 .font(.callout)
-                .foregroundStyle(.secondary)
+                // On the hero gradient the system's secondary label falls below 4.5:1.
+                .foregroundStyle(.white.opacity(0.9))
                 .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 12)
@@ -494,7 +495,7 @@ private struct DefaultBrowserPanel: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(current.isBoaz ? "Boaz is your default browser" : "Links open in \(current.name)").font(.headline)
                 Text(message ?? (current.isBoaz ? "You're good to go." : "macOS will ask you to confirm."))
-                    .font(.callout).foregroundStyle(.secondary)
+                    .font(.callout).foregroundStyle(.white.opacity(0.9))
             }
             Spacer(minLength: 12)
             if current.isBoaz {

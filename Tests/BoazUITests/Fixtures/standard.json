@@ -6,7 +6,7 @@
       "icon": "💼",
       "pinned": [
         { "id": "pinned-docs", "title": "Docs", "url": "data:text/html,<title>Docs</title><h1>Docs</h1>" },
-        { "id": "pinned-playground", "title": "Playground", "url": "data:text/html,<title>Playground</title><h1>Playground</h1><p><a target=_blank href=http://127.0.0.1:9/>Peek link</a></p><p><button onclick=window.open('about:blank','popup','width=500,height=600')>Open popup</button></p>" }
+        { "id": "pinned-playground", "title": "Playground", "url": "data:text/html,<title>Playground</title><h1>Playground</h1><p><a target=_blank href=http://127.0.0.1:47/>Peek link</a></p><p><button onclick=window.open('about:blank','popup','width=500,height=600')>Open popup</button></p>" }
       ],
       "folders": [
         {

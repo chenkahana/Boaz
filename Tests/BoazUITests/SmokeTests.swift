@@ -6,7 +6,7 @@ final class SmokeTests: BoazUITestCase {
     func testMainWindowIntact() {
         launch(fixture: "standard")
         // The fixture must reach the sidebar: an empty library would otherwise pass as an "intact" window.
-        XCTAssertTrue(mainWindow.staticTexts["Work"].waitForExistence(timeout: 10), "The standard fixture never seeded")
+        XCTAssertTrue(waitForSpace("Work"), "The standard fixture never seeded")
         assertScreenIntact(mainWindow, name: "browser")
     }
 
@@ -14,7 +14,7 @@ final class SmokeTests: BoazUITestCase {
     /// archive a tab and bring it back from the Archive, then switch spaces.
     func testEverydayFlow() {
         launch(fixture: "standard")
-        XCTAssertTrue(sidebar.staticTexts["Work"].waitForExistence(timeout: 10), "The standard fixture never seeded")
+        XCTAssertTrue(waitForSpace("Work"), "The standard fixture never seeded")
 
         // New tab from the command bar, with a data: URL.
         openCommandBar()
@@ -31,7 +31,7 @@ final class SmokeTests: BoazUITestCase {
         app.typeKey(.escape, modifierFlags: [])
 
         // A folder, renamed.
-        sidebar.staticTexts["Work"].firstMatch.rightClick()
+        spaceHeader.rightClick()
         app.menuItems["New Folder"].firstMatch.click()
         let newFolder = sidebar.buttons["sidebar.folder.New Folder"]
         XCTAssertTrue(newFolder.waitForExistence(timeout: 5), "New Folder didn't add a folder")
@@ -61,7 +61,7 @@ final class SmokeTests: BoazUITestCase {
 
         // Switch spaces from the sidebar's space dots.
         sidebar.buttons["Personal"].firstMatch.click()
-        XCTAssertTrue(sidebar.staticTexts["Personal"].waitForExistence(timeout: 5), "Didn't switch to Personal")
+        XCTAssertTrue(waitForSpace("Personal", timeout: 5), "Didn't switch to Personal")
         XCTAssertFalse(sidebar.buttons["Smoke Folder"].exists, "Work's folder is still showing")
         assertScreenIntact(mainWindow, name: "everyday-flow-personal")
     }

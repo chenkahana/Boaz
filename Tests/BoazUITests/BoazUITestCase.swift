@@ -47,9 +47,8 @@ class BoazUITestCase: XCTestCase {
         // whatever this bundle id's windows looked like when IT last quit (a separate mechanism from our own
         // `MacModel.SavedWindow`, which `UITestMode.resetDefaultsIfNeeded()` clears instead).
         var launchArguments = ["-BoazUITest", "YES", "-ApplePersistenceIgnoreState", "YES"]
-        // Set either way: AppKit reads anything but "Dark" as Light, and a Mac set to Dark would otherwise run the
-        // Light tests dark.
-        launchArguments += ["-AppleInterfaceStyle", appearance == .dark ? "Dark" : "Light"]
+        // `UITestMode.applyAppearanceIfNeeded()`: either appearance on any Mac, a Dark one included.
+        launchArguments += ["-BoazUITestAppearance", appearance.rawValue]
         launchArguments += arguments
 
         var launchEnvironment = environment
@@ -82,29 +81,43 @@ class BoazUITestCase: XCTestCase {
 
         // A scroll view's own content routinely extends past its visible viewport (that's the point of scrolling);
         // XCUITest still reports that off-screen content as `isHittable`, so a row below the fold isn't a real
-        // layout bug the way the same frame would be outside a non-scrolling screen. Only requiring these controls
-        // to be labeled, not fully on screen, keeps the check meaningful for scrollable content. `XCUIElement`
-        // isn't usefully `Hashable`, so membership is keyed by label/identifier/frame instead of the element itself.
-        func scrollKey(_ control: XCUIElement) -> String { "\(control.label)|\(control.identifier)|\(control.frame)" }
-        let scrolledControls = Set(element.descendants(matching: .scrollView).allElementsBoundByIndex
-            .flatMap { scrollView in [XCUIElement.ElementType.button, .staticText, .textField].flatMap { scrollView.descendants(matching: $0).allElementsBoundByIndex } }
-            .map(scrollKey))
+        // layout bug the way the same frame would be outside a non-scrolling screen. Such controls must be labeled,
+        // not on screen, and only their visible part counts for overlap. `XCUIElement` isn't usefully `Hashable`,
+        // so membership is keyed by type and frame instead of the element itself.
+        func key(_ control: XCUIElement) -> String { "\(control.elementType.rawValue)|\(control.frame)" }
+        var scrollViewFrames: [String: CGRect] = [:]
+        for scrollView in element.descendants(matching: .scrollView).allElementsBoundByIndex where scrollView.exists {
+            let viewport = scrollView.frame
+            for kind in [XCUIElement.ElementType.button, .staticText, .textField] {
+                for control in scrollView.descendants(matching: kind).allElementsBoundByIndex {
+                    scrollViewFrames[key(control)] = viewport
+                }
+            }
+        }
+        // A page's own content is the site's, not Boaz's UI: it's left out of these checks and the audit.
+        let webContent = Set(app.windows.webViews.allElementsBoundByIndex.flatMap { webView in
+            [webView] + webView.descendants(matching: .any).allElementsBoundByIndex
+        }.map(key))
 
-        var hittableButtons: [XCUIElement] = []
+        var hittableButtons: [(label: String, frame: CGRect)] = []
         for kind in [XCUIElement.ElementType.button, .staticText, .textField] {
             for control in element.descendants(matching: kind).allElementsBoundByIndex where control.exists && control.isHittable {
+                let controlKey = key(control)
+                guard !webContent.contains(controlKey) else { continue }
                 // SwiftUI's `Text` reaches AppKit accessibility as a static text whose words are its value, not its
                 // label; a text field without a label still speaks its placeholder.
                 let spoken = [control.label, control.identifier, control.value as? String ?? "", control.placeholderValue ?? ""]
                 XCTAssertTrue(spoken.contains { !$0.isEmpty },
                              "A \(Self.typeName(kind)) under \(name) at \(control.frame) has no label, value or identifier",
                              file: file, line: line)
-                if !scrolledControls.contains(scrollKey(control)) {
+                let viewport = scrollViewFrames[controlKey]
+                if viewport == nil {
                     XCTAssertTrue(windowFrame.contains(control.frame),
-                                 "A \(kind.rawValue) under \(name) (\(control.label)) falls outside its window",
+                                 "A \(Self.typeName(kind)) under \(name) (\(control.label)) falls outside its window",
                                  file: file, line: line)
                 }
-                if kind == .button { hittableButtons.append(control) }
+                let visible = viewport.map { control.frame.intersection($0) } ?? control.frame
+                if kind == .button, !visible.isEmpty { hittableButtons.append((control.label, visible)) }
             }
         }
         for i in 0..<hittableButtons.count {
@@ -128,17 +141,22 @@ class BoazUITestCase: XCTestCase {
         // behind a sheet or the Settings window is checked by its own test, not by every test that opens something.
         let issues = IssueLog()
         let screenFrame = frame
-        let containerFrames = (app.windows.allElementsBoundByIndex + app.popovers.allElementsBoundByIndex
-            + app.sheets.allElementsBoundByIndex).filter(\.exists).map(\.frame)
+        let context = AuditContext(
+            containerFrames: (app.windows.allElementsBoundByIndex + app.popovers.allElementsBoundByIndex
+                + app.sheets.allElementsBoundByIndex).filter { $0.exists }.map { $0.frame },
+            listFrames: app.windows.outlines.allElementsBoundByIndex.filter { $0.exists }.map { $0.frame })
         do {
             try app.performAccessibilityAudit(
                 // `.textClipped`, `.dynamicType` and `.trait` are iOS/tvOS/watchOS-only; macOS adds `.action`
                 // and `.parentChild` in their place.
                 for: [.elementDetection, .hitRegion, .contrast, .sufficientElementDescription, .action, .parentChild]
             ) { issue in
-                if let issueFrame = issue.element?.frame, !issueFrame.isEmpty,
-                   !screenFrame.insetBy(dx: -1, dy: -1).intersects(issueFrame) { return true }
-                if Self.auditIssueIsAllowed(issue, containerFrames: containerFrames) { return true }
+                if let element = issue.element {
+                    let issueFrame = element.frame
+                    if !issueFrame.isEmpty, !screenFrame.insetBy(dx: -1, dy: -1).intersects(issueFrame) { return true }
+                    if element.elementType == .webView || webContent.contains(key(element)) { return true }
+                }
+                if Self.auditIssueIsAllowed(issue, context) { return true }
                 issues.lines.append(Self.describe(issue))
                 return true
             }
@@ -182,8 +200,32 @@ class BoazUITestCase: XCTestCase {
     /// Known system-control accessibility-audit false positives. Keep tight; justify every entry here. Confirmed
     /// by inspecting each flagged element's identifier/label/elementType/frame (`XCUIAccessibilityAuditIssue`)
     /// before writing the condition below, not by guessing.
-    private static func auditIssueIsAllowed(_ issue: XCUIAccessibilityAuditIssue, containerFrames: [CGRect]) -> Bool {
-        guard let element = issue.element else { return false }
+    private struct AuditContext {
+        /// Every window, popover and sheet.
+        let containerFrames: [CGRect]
+        /// Every SwiftUI `List` (an outline).
+        let listFrames: [CGRect]
+    }
+
+    private static func auditIssueIsAllowed(_ issue: XCUIAccessibilityAuditIssue, _ context: AuditContext) -> Bool {
+        // A parent/child mismatch the audit can't attach to any element: AppKit's shared field editor, which sits in
+        // whichever text field is being edited (the command bar, the find bar, a sheet's field), not one of our views.
+        guard let element = issue.element else { return issue.auditType == .parentChild }
+        let containerFrames = context.containerFrames
+        // AppKit's own views (`_NS:` identifiers): an NSAlert's title in a confirmation dialog, the text finder's bar.
+        if element.identifier.hasPrefix("_NS:"),
+           [.contrast, .sufficientElementDescription].contains(issue.auditType) {
+            return true
+        }
+        // A SwiftUI `List` section header is bridged as an unlabeled row group around the header's own (labeled)
+        // text, whose parent doesn't list it as a child; no modifier on the header reaches that group.
+        if [.parentChild, .sufficientElementDescription].contains(issue.auditType), element.elementType == .group,
+           element.identifier.isEmpty, element.label.isEmpty, element.frame.height <= 32,
+           context.listFrames.contains(where: { $0.insetBy(dx: -1, dy: -1).contains(element.frame) }) {
+            return true
+        }
+        // A `Picker` is an NSPopUpButton, whose action is AXShowMenu (XCUITest opens it with a click), not AXPress.
+        if issue.auditType == .action, element.elementType == .popUpButton { return true }
         // Every window, sheet and popover's root SwiftUI hosting view, and the popover itself, are bridged as an
         // unlabeled element exactly the size of that window: they sit above our own `screen.*`-identified root view,
         // so no modifier we put on our own views can label them. Matched by frame, so an unlabeled group of our own
@@ -202,17 +244,11 @@ class BoazUITestCase: XCTestCase {
            element.frame.width <= 20, element.frame.height <= 20 {
             return true
         }
-        // The sidebar's "New" menu (Sidebar.swift, `Menu` + `.menuStyle(.button)`) carries an explicit
-        // `.accessibilityLabel("New")` and an identifier in source, but on this macOS/Xcode version
-        // `.menuStyle(.button)` doesn't bridge the identifier (it inherits its container's) or the missing-action
-        // check to AppKit's audited AX node — confirmed by trying the label on the Menu itself, on its label
-        // view, and `.accessibilityElement(children: .ignore)` with `.accessibilityAddTraits(.isButton)`, none of
-        // which changed what the audit sees. Matched by its (working) label since its identifier isn't its own.
-        // The same holds for every `.menuStyle(.button)` menu (the Library's Filter as well as "New"): a menu button's
-        // action is AXShowMenu, which it has, and XCUITest itself opens them with a click.
-        if issue.auditType == .action, element.elementType == .menuButton, !element.label.isEmpty {
-            return true
-        }
+        // A `Menu` with `.menuStyle(.button)` (the sidebar's New, the Library's Filter, Responsive Design's device
+        // menu) is a menu button whose action is AXShowMenu, which it has; the audit asks for AXPress. Tried on "New":
+        // a label on the Menu or its label view, and `.accessibilityElement(children: .ignore)` with `.isButton`,
+        // none of which changed what the audit sees.
+        if issue.auditType == .action, element.elementType == .menuButton { return true }
         return false
     }
 
@@ -246,7 +282,19 @@ class BoazUITestCase: XCTestCase {
                                           "Sites": "sites", "Shortcuts": "shortcuts"]
 
     /// The first element anywhere in the app with accessibility identifier `id` (the `screen.*` convention).
-    func element(_ id: String) -> XCUIElement { app.descendants(matching: .any)[id].firstMatch }
+    /// Searches the windows (sheets and popovers are in them), not the menu bar, which is most of the app's tree.
+    func element(_ id: String) -> XCUIElement { app.windows.descendants(matching: .any)[id].firstMatch }
+
+    /// The current space's title row in the sidebar; its label is the space's name.
+    var spaceHeader: XCUIElement { sidebar.descendants(matching: .any)["sidebar.spaceHeader"].firstMatch }
+
+    /// Waits until the sidebar shows the space named `title`.
+    @discardableResult
+    func waitForSpace(_ title: String, timeout: TimeInterval = 10) -> Bool {
+        let shown = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == true AND label == %@", title),
+                                              object: spaceHeader)
+        return XCTWaiter().wait(for: [shown], timeout: timeout) == .completed
+    }
 
     /// The main window's sidebar (`sidebar.root`).
     var sidebar: XCUIElement { mainWindow.descendants(matching: .any)["sidebar.root"].firstMatch }
@@ -258,14 +306,15 @@ class BoazUITestCase: XCTestCase {
         return XCTWaiter().wait(for: [gone], timeout: timeout) == .completed
     }
 
-    /// Clicks a path of menu bar items, e.g. `menu("Tabs", "Pin Tab")`.
+    /// Clicks a path of menu bar items, e.g. `menu("Tabs", "Pin Tab")`. Each item is looked up in the one before
+    /// it, so a title another menu also has ("New Folder", "Restore") can't send the click elsewhere.
     func menu(_ path: String...) {
         guard let first = path.first else { return }
         var element = app.menuBars.menuBarItems[first]
         _ = element.waitForExistence(timeout: 5)
         element.click()
         for item in path.dropFirst() {
-            element = app.menuItems[item]
+            element = element.menuItems[item].firstMatch
             element.click()
         }
     }

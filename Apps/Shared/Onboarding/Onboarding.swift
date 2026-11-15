@@ -84,6 +84,7 @@ struct OnboardingDots: View {
         .animation(Onboarding.spring, value: index)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Step \(index + 1) of \(count)")
+        .accessibilityAddTraits(.isStaticText)
     }
 }
 
@@ -99,7 +100,6 @@ struct OnboardingHeading: View {
                 .accessibilityAddTraits(.isHeader)
             Text(message)
                 .font(.title3)
-                .foregroundStyle(.white.opacity(0.85))
                 .fixedSize(horizontal: false, vertical: true)
         }
         .multilineTextAlignment(.center)

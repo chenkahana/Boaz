@@ -388,9 +388,10 @@ private struct SpaceHeader: View {
         .onHover { hovering = $0 }
         .animation(SidebarStyle.motion, value: hovering)
         .contextMenu { SpaceMenu(space: space) }
-        // A container of its own, so the title keeps its own frame rather than taking the whole row's.
+        // A container of its own, named for the space: alone, the title takes the whole row's frame.
         .accessibilityElement(children: .contain)
         .accessibilityLabel(space.title)
+        .accessibilityIdentifier("sidebar.spaceHeader")
     }
 }
 

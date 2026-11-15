@@ -158,7 +158,8 @@ struct PasswordsSettings: View {
         .fileImporter(isPresented: $importing, allowedContentTypes: [.commaSeparatedText, .plainText]) { result in
             Task { await importFile(result) }
         }
-        .task { await unlock() }
+        // Not under UI tests (`-BoazUITest YES`): a system authentication prompt would wait for whoever is at the Mac.
+        .task { if !UserDefaults.standard.bool(forKey: "BoazUITest") { await unlock() } }
         .onDisappear {
             unlocked = false
             revealed = nil

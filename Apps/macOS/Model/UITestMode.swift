@@ -1,4 +1,4 @@
-import Foundation
+import AppKit
 
 /// Launch contract for the BoazUITests suite. Inactive unless the app is launched with `-BoazUITest YES`.
 enum UITestMode {
@@ -14,6 +14,17 @@ enum UITestMode {
         // Only the ad hoc test build (`make uitest`), never a real install launched with the flag by mistake.
         guard isActive, let bundleID = Bundle.main.bundleIdentifier, bundleID.hasSuffix(".uitest") else { return }
         UserDefaults.standard.removePersistentDomain(forName: bundleID)
+    }
+
+    /// `-BoazUITestAppearance light|dark` pins the app's appearance whatever the Mac is set to: `-AppleInterfaceStyle`
+    /// can turn a Light Mac dark, but nothing in it turns a Dark Mac light.
+    static func applyAppearanceIfNeeded() {
+        guard isActive else { return }
+        switch UserDefaults.standard.string(forKey: "BoazUITestAppearance") {
+        case "light": NSApp.appearance = NSAppearance(named: .aqua)
+        case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)
+        default: break
+        }
     }
 
     private static func path(_ key: String) -> URL? {
