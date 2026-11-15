@@ -170,15 +170,17 @@ class BoazUITestCase: XCTestCase {
     func openSettings(tab: String) {
         menu("Boaz", "Settings…")
         let settingsWindow = app.windows["Settings"]
-        _ = settingsWindow.waitForExistence(timeout: 5)
+        XCTAssertTrue(settingsWindow.waitForExistence(timeout: 10), "Settings never opened")
         let tabButton = settingsWindow.buttons[tab].firstMatch
-        if tabButton.waitForExistence(timeout: 3) { tabButton.click() }
+        XCTAssertTrue(tabButton.waitForExistence(timeout: 5), "No \(tab) tab in Settings")
+        tabButton.click()
     }
 
     /// Clicks a path of menu bar items, e.g. `menu("Tabs", "Pin Tab")`.
     func menu(_ path: String...) {
         guard let first = path.first else { return }
         var element = app.menuBars.menuBarItems[first]
+        _ = element.waitForExistence(timeout: 5)
         element.click()
         for item in path.dropFirst() {
             element = app.menuItems[item]
