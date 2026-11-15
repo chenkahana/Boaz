@@ -6,6 +6,15 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-11-15
+
+### Added
+
+- Mac (DMG): the right-click menu has more of Chrome's items: Save As…, Print…, View Page Source, Open Link in New
+  Window, Save Link As…, Copy Link to Highlight, Copy and Save Video Frame, Speech and Writing Direction. Items have
+  icons, and the edit items show their shortcuts.
+- Mac (DMG): Edit › Paste and Match Style (⌥⇧⌘V).
+
 ## [0.4.4] - 2026-11-15
 
 ### Added
@@ -284,7 +293,8 @@ First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone
 - Share extension, search widget, App Shortcuts, the `boaz://` URL scheme and alternate app icons.
 - Privacy manifest, privacy policy and an About section with third-party notices.
 
-[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.4...HEAD
+[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.5...HEAD
+[0.4.5]: https://github.com/chenkahana/Boaz/compare/v0.4.4...v0.4.5
 [0.4.4]: https://github.com/chenkahana/Boaz/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/chenkahana/Boaz/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/chenkahana/Boaz/compare/v0.4.1...v0.4.2
