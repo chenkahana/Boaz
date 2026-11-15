@@ -86,7 +86,7 @@ func dmgBackground(scale: Int, confetti: [CGImage]) -> CGImage {
                   shadow: 0.16)
     }
     // A dotted, slightly bouncy arrow from the app to Applications (y up: icon centres sit at 400 - 190).
-    let y: CGFloat = 400 - 182
+    let y: CGFloat = 400 - 194
     let arrow = CGMutablePath()
     arrow.move(to: CGPoint(x: 258, y: y))
     arrow.addCurve(to: CGPoint(x: 398, y: y), control1: CGPoint(x: 300, y: y + 34), control2: CGPoint(x: 356, y: y + 34))
