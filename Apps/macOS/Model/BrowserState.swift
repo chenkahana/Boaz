@@ -1260,6 +1260,16 @@ final class BrowserState {
     /// ⌘⇧R: forgets the site's cookies and stored data in the tab's profile, then reloads from the server. Only that
     /// site goes: WebKit keeps website data by registrable domain, so `www.example.com` clears `example.com`'s.
     func hardReload() {
+        #if BOAZ_CHROMIUM
+        // As in Chrome: Chromium tabs reload bypassing the cache and keep cookies.
+        if let engine = activeEnginePage, engine.kind == .chromium {
+            navigateEngine { page in
+                guard let adapter = page.adapter as? ChromiumEnginePageAdapter else { throw EnginePageError.unavailable }
+                try adapter.reloadFromOrigin()
+            }
+            return
+        }
+        #endif
         guard let tab = activeTab, let page = activePage else { return }
         let tabURL = loadFailures[tab.id]?.url ?? tab.url
         let host = activeURL?.host()?.lowercased()
