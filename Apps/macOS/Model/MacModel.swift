@@ -494,17 +494,36 @@ final class MacModel {
 
     // MARK: Tabs
 
-    /// New Today tab at the top of the list, as in Arc, or right below `source` when that's a Today tab.
+    /// New Today tab at the top of the list, as in Arc, or right below `source` when that's a Today tab. It is this
+    /// Mac's, or `device`'s, whose Today lists it.
     @discardableResult
-    func newTab(_ url: URL, title: String? = nil, in spaceID: String?, below source: SidebarItem? = nil) -> SidebarItem? {
+    func newTab(_ url: URL, title: String? = nil, in spaceID: String?, below source: SidebarItem? = nil,
+                onDevice device: String? = nil) -> SidebarItem? {
         guard let space = space(spaceID) ?? sidebar.spaces.first,
               let box = sidebar.container(.unpinned, in: space.id) else { return nil }
         let tab = SidebarItem(id: UUID().uuidString, spaceID: space.id, profileID: space.profileID, parentID: box.id,
                               kind: .tab, title: title ?? url.host(), url: url,
                               position: newTabPosition(in: box.id, below: source), lastActiveAt: .now,
-                              deviceID: deviceID)
+                              deviceID: device ?? deviceID)
         commit(tab)
         return tab
+    }
+
+    /// The user's iPhones, iPads and other Macs, for Send to Your Devices.
+    var otherDevices: [Device] { sidebar.devices.filter { $0.id != deviceID } }
+
+    /// Send to Your Devices: the page opens on top of an iPhone's or iPad's tabs, or in another Mac's Today, in
+    /// `spaceID`'s space, once sync brings it there.
+    func send(_ url: URL, title: String?, in spaceID: String?, to device: Device) {
+        let title = title?.isEmpty == false ? title : nil
+        switch device.platform {
+        case .iOS:
+            guard let space = space(spaceID) ?? sidebar.spaces.first else { return }
+            commit(.mobileTab(url: url, title: title, profileID: space.profileID, deviceID: device.id))
+        case .macOS:
+            guard newTab(url, title: title, in: spaceID, onDevice: device.id) != nil else { return }
+        }
+        showToast("Sent to \(device.name)")
     }
 
     /// Where a new tab goes in `boxID`: right below `source` when it's there, otherwise at the top.

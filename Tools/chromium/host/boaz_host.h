@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 52u
+#define BOAZ_HOST_ABI_VERSION 53u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT,
@@ -19,11 +19,15 @@ typedef enum BoazHostWindowRole {
 } BoazHostWindowRole;
 /* Context-menu commands Boaz runs itself instead of Chromium (menu_command). */
 typedef enum BoazHostMenuCommand {
-  BOAZ_MENU_OPEN_INCOGNITO, BOAZ_MENU_OPEN_SPLIT, BOAZ_MENU_QR_CODE
+  BOAZ_MENU_OPEN_INCOGNITO, BOAZ_MENU_OPEN_SPLIT, BOAZ_MENU_QR_CODE,
+  /* Share… for the page or link at url, or for the image at url. */
+  BOAZ_MENU_SHARE, BOAZ_MENU_SHARE_IMAGE,
+  BOAZ_MENU_SEND_TO_DEVICES
 } BoazHostMenuCommand;
 /* BoazHostWindowOptions.menu_features: the window's pages offer these menu commands. */
 typedef enum BoazHostMenuFeature {
-  BOAZ_MENU_FEATURE_SPLIT = 1u << 0, BOAZ_MENU_FEATURE_INCOGNITO = 1u << 1
+  BOAZ_MENU_FEATURE_SPLIT = 1u << 0, BOAZ_MENU_FEATURE_INCOGNITO = 1u << 1,
+  BOAZ_MENU_FEATURE_SEND_TO_DEVICES = 1u << 2
 } BoazHostMenuFeature;
 /* Rebindable shortcuts the context menu shows next to Chromium's own items. */
 typedef enum BoazHostMenuShortcutCommand {

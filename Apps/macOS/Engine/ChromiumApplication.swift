@@ -455,18 +455,25 @@ private final class ChromiumApplication: NSObject {
         guard update(engine.name, keyword, template) == BOAZ_HOST_OK else { return }
         appliedSearchEngine = engine
     }
-    /// Context-menu commands Boaz runs instead of Chromium, whose Incognito and split view aren't Boaz's.
+    /// Context-menu commands Boaz runs instead of Chromium, whose Incognito and split view aren't Boaz's, and Boaz's
+    /// own Share… and Send to Your Devices.
     private func runMenuCommand(_ command: BoazHostMenuCommand, page: BoazHostPage, url: URL, title: String) {
         let owner = windows.first { $0.browser.showsChromiumPage(page) }
+        let window = owner?.window ?? quickWindows.first(where: { $0.chromiumPageHandle == page })?.window
         switch command {
         case BOAZ_MENU_OPEN_INCOGNITO:
             Task { @MainActor in await openScene("incognito", url: url) }
         case BOAZ_MENU_OPEN_SPLIT:
             owner?.browser.openLinkInSplit(url, from: page)
         case BOAZ_MENU_QR_CODE:
-            guard let window = owner?.window ?? quickWindows.first(where: { $0.chromiumPageHandle == page })?.window
-            else { return }
+            guard let window else { return }
             QRCodeSheet.present(url, title: title, on: window)
+        case BOAZ_MENU_SHARE, BOAZ_MENU_SHARE_IMAGE:
+            guard let window else { return }
+            PageSharing.share(url, image: command == BOAZ_MENU_SHARE_IMAGE, in: window)
+        case BOAZ_MENU_SEND_TO_DEVICES:
+            guard let owner else { return }
+            PageSharing.sendToDevices(url, title: title, in: owner.browser.spaceID, window: owner.window, model: model)
         default:
             break
         }

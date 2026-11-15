@@ -17,8 +17,13 @@ void ReportNativePasswordSubmission(content::WebContents*, std::string origin, s
 void ReportProtectedMediaRequest(content::RenderFrameHost* frame, const std::string& key);
 bool PageAssistantEnabled(content::WebContents* contents);
 void AskAboutPage(content::WebContents* contents, const std::u16string& selection);
-// Chromium context-menu commands that Boaz runs itself on the native host: Open Link in Incognito, Open Link in
-// Split View and Create QR Code. Run returns false when Chromium should run the command.
+// Boaz's own context-menu items that Boaz runs itself (RunContextMenuCommand): Share… for a page or link, Share… for
+// an image, and Send to Your Devices. Free ids in the content range.
+inline constexpr int kShareCommandId = 50903;
+inline constexpr int kShareImageCommandId = 50904;
+inline constexpr int kSendToDevicesCommandId = 50905;
+// Context-menu commands that Boaz runs itself on the native host: Chromium's Open Link in Incognito, Open Link in
+// Split View and Create QR Code, and Boaz's items above. Run returns false when Chromium should run the command.
 bool ContextMenuCommandAvailable(content::WebContents* contents, int command);
 bool RunContextMenuCommand(content::WebContents* contents, int command, const GURL& url, const std::u16string& text);
 // The context menu's Google Lens items: Google Lens results for an image or the visible page in a new tab, whatever

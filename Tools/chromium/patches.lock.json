@@ -875,6 +875,17 @@
           "after": "1cc2477ab8d4d2af34753420323e88a8d2d011f4053e0b5dbe5d0e7613482df1"
         }
       ]
+    },
+    {
+      "file": "patches/native-context-menu-share.patch",
+      "sha256": "9ef3f7e021875df0bec5d6f80598bbf7dd888b7e34384169f3a782c945efd12f",
+      "files": [
+        {
+          "path": "chrome/browser/renderer_context_menu/render_view_context_menu.cc",
+          "before": "d59f5bd7285691017a8c82565d16e12fba883bf65555483798f8f89dc09af876",
+          "after": "4f81c8b6b324185bcf8a7e7375e509487a3dfe4d33c75633025ffbedc6cdb113"
+        }
+      ]
     }
   ]
 }

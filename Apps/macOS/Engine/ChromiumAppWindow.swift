@@ -179,6 +179,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
             }
         }
         options.menu_features = BOAZ_MENU_FEATURE_SPLIT.rawValue | BOAZ_MENU_FEATURE_INCOGNITO.rawValue
+            | (browser.isIncognito ? 0 : BOAZ_MENU_FEATURE_SEND_TO_DEVICES.rawValue)
         return options
     }
 

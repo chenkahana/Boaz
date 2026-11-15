@@ -1,0 +1,104 @@
+--- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
++++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
+@@ -1154,15 +1154,33 @@
+   return entry ? entry->GetURL() : GURL();
+ }
+ 
+-// Inserts a Boaz item right after the first of `anchors` in the menu, or nowhere without one.
+-void InsertBoazItemAfter(ui::SimpleMenuModel& menu, std::initializer_list<int> anchors, int id,
++// The address Share… and Send to Your Devices use: the link's, else the image's or the page's.
++GURL BoazShareURL(const content::ContextMenuParams& params, WebContents* contents) {
++  return params.link_url.is_empty() ? BoazQRCodeURL(params, contents) : params.link_url;
++}
++
++// Inserts a Boaz item right after the first of `anchors` in the menu. False, with nothing inserted, without one.
++bool InsertBoazItemAfter(ui::SimpleMenuModel& menu, std::initializer_list<int> anchors, int id,
+                          const std::u16string& label) {
+   for (const int anchor : anchors) {
+     if (const std::optional<size_t> index = menu.GetIndexOfCommandId(anchor)) {
+       menu.InsertItemAt(*index + 1, id, label);
+-      return;
++      return true;
++    }
++  }
++  return false;
++}
++
++// Inserts a Boaz item right before the first of `anchors` in the menu. False, with nothing inserted, without one.
++bool InsertBoazItemBefore(ui::SimpleMenuModel& menu, std::initializer_list<int> anchors, int id,
++                          const std::u16string& label) {
++  for (const int anchor : anchors) {
++    if (const std::optional<size_t> index = menu.GetIndexOfCommandId(anchor)) {
++      menu.InsertItemAt(*index, id, label);
++      return true;
+     }
+   }
++  return false;
+ }
+ #endif
+ 
+@@ -1739,7 +1757,30 @@
+     } else if (content_type_->SupportsGroup(ContextMenuContentType::ITEM_GROUP_PAGE)) {
+       InsertBoazItemAfter(menu_model_, {IDC_PRINT, IDC_SAVE_PAGE}, kBoazLensPageCommandId,
+                           u"Search Page with Google Lens");
++    }
++  }
++  if (boaz::NativeHostEnabled()) {
++    // Boaz's sharing items, where Chrome has Send to Your Devices, next to Create QR Code: for the link, else the
++    // image (Share… only) or the page.
++    const bool link = !params_.link_url.is_empty();
++    const bool page = content_type_->SupportsGroup(ContextMenuContentType::ITEM_GROUP_PAGE);
++    const bool image = !link && params_.media_type == ContextMenuDataMediaType::kImage;
++    if ((link || page) && boaz::ContextMenuCommandAvailable(source_web_contents_, boaz::kSendToDevicesCommandId) &&
++        !InsertBoazItemBefore(menu_model_, {IDC_CONTENT_CONTEXT_GENERATE_QR_CODE, IDC_CONTENT_CONTEXT_SAVELINKAS},
++                              boaz::kSendToDevicesCommandId, u"Send to Your Devices")) {
++      InsertBoazItemAfter(menu_model_, {kBoazLensPageCommandId, IDC_PRINT, IDC_SAVE_PAGE},
++                          boaz::kSendToDevicesCommandId, u"Send to Your Devices");
+     }
++    const int share = image ? boaz::kShareImageCommandId : boaz::kShareCommandId;
++    if ((link || page || image) && boaz::ContextMenuCommandAvailable(source_web_contents_, share) &&
++        !InsertBoazItemAfter(menu_model_, {IDC_CONTENT_CONTEXT_GENERATE_QR_CODE, boaz::kSendToDevicesCommandId},
++                             share, u"Share\u2026") &&
++        !InsertBoazItemBefore(menu_model_, {IDC_CONTENT_CONTEXT_SAVELINKAS}, share, u"Share\u2026")) {
++      InsertBoazItemAfter(menu_model_,
++                          {kBoazLensImageCommandId, IDC_CONTENT_CONTEXT_COPYIMAGELOCATION, kBoazLensPageCommandId,
++                           IDC_PRINT, IDC_SAVE_PAGE},
++                          share, u"Share\u2026");
++    }
+   }
+   if (boaz::PageAssistantEnabled(source_web_contents_)) {
+     if (menu_model_.GetItemCount()) {
+@@ -1821,7 +1862,8 @@
+ void RenderViewContextMenu::RecordUsedItem(int id) {
+ #if BUILDFLAG(IS_MAC)
+   // Boaz's own items have no histogram bucket.
+-  if (id == kBoazAskCommandId || id == kBoazLensImageCommandId || id == kBoazLensPageCommandId) {
++  if (id == kBoazAskCommandId || id == kBoazLensImageCommandId || id == kBoazLensPageCommandId ||
++      id == boaz::kShareCommandId || id == boaz::kShareImageCommandId || id == boaz::kSendToDevicesCommandId) {
+     return;
+   }
+ #endif
+@@ -3577,6 +3619,11 @@
+     if (id == IDC_CONTENT_CONTEXT_GENERATE_QR_CODE) {
+       return IsQRCodeGeneratorEnabled() &&
+              BoazQRCodeURL(params_, embedder_web_contents_).spec().size() <= kBoazMaxQRCodeURLLength;
++    }
++    // A data: image can be shared too: Boaz shares the image itself.
++    if (id == boaz::kShareCommandId || id == boaz::kShareImageCommandId || id == boaz::kSendToDevicesCommandId) {
++      const GURL url = BoazShareURL(params_, embedder_web_contents_);
++      return url.SchemeIsHTTPOrHTTPS() || (id == boaz::kShareImageCommandId && url.SchemeIs(url::kDataScheme));
+     }
+   }
+ #endif
+@@ -4032,6 +4079,11 @@
+   }
+   if (id == kBoazLensPageCommandId) {
+     boaz::SearchPageWithGoogleLens(embedder_web_contents_);
++    return;
++  }
++  if (id == boaz::kShareCommandId || id == boaz::kShareImageCommandId || id == boaz::kSendToDevicesCommandId) {
++    boaz::RunContextMenuCommand(source_web_contents_, id, BoazShareURL(params_, embedder_web_contents_),
++                                params_.link_url.is_empty() ? embedder_web_contents_->GetTitle() : params_.link_text);
+     return;
+   }
+   if (id == IDC_CONTENT_CONTEXT_OPENLINKOFFTHERECORD &&

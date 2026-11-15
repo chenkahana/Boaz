@@ -1364,6 +1364,9 @@ std::optional<BoazHostMenuCommand> MenuCommandFor(int command) {
     case IDC_CONTENT_CONTEXT_OPENLINKOFFTHERECORD: return BOAZ_MENU_OPEN_INCOGNITO;
     case IDC_CONTENT_CONTEXT_OPENLINKSPLITVIEW: return BOAZ_MENU_OPEN_SPLIT;
     case IDC_CONTENT_CONTEXT_GENERATE_QR_CODE: return BOAZ_MENU_QR_CODE;
+    case kShareCommandId: return BOAZ_MENU_SHARE;
+    case kShareImageCommandId: return BOAZ_MENU_SHARE_IMAGE;
+    case kSendToDevicesCommandId: return BOAZ_MENU_SEND_TO_DEVICES;
     default: return std::nullopt;
   }
 }
@@ -1374,10 +1377,15 @@ bool ContextMenuCommandAvailable(content::WebContents* contents, int command) {
   if (!menu || !NativeHostEnabled()) return true;
   if (!state || state->exit_requested || !state->callbacks.menu_command || !state->tabs ||
       !state->tabs->PageFor(contents)) return false;
-  if (*menu == BOAZ_MENU_QR_CODE) return true;
+  uint32_t feature;
+  switch (*menu) {
+    case BOAZ_MENU_OPEN_SPLIT: feature = BOAZ_MENU_FEATURE_SPLIT; break;
+    case BOAZ_MENU_OPEN_INCOGNITO: feature = BOAZ_MENU_FEATURE_INCOGNITO; break;
+    case BOAZ_MENU_SEND_TO_DEVICES: feature = BOAZ_MENU_FEATURE_SEND_TO_DEVICES; break;
+    default: return true;  // QR codes and Share… work in every window.
+  }
   auto* tab = tabs::TabInterface::MaybeGetFromContents(contents);
   auto* browser = tab ? tab->GetBrowserWindowInterface() : nullptr;
-  const uint32_t feature = *menu == BOAZ_MENU_OPEN_SPLIT ? BOAZ_MENU_FEATURE_SPLIT : BOAZ_MENU_FEATURE_INCOGNITO;
   for (const auto& [id, window] : state->windows)
     if (browser && window.browser.get() == browser) return (window.options.menu_features & feature) != 0;
   return false;

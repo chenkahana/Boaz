@@ -9,6 +9,7 @@
 #include "base/containers/span.h"
 #include "base/no_destructor.h"
 #include "boaz_host.h"
+#include "bootstrap.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/base/models/image_model.h"
@@ -82,6 +83,9 @@ constexpr Style kStyles[] = {
     {IDC_CONTENT_CONTEXT_SEARCHWEBFOR, "magnifyingglass"},
     {kLensImageCommandId, "camera.viewfinder"},
     {kLensPageCommandId, "camera.viewfinder"},
+    {kSendToDevicesCommandId, "laptopcomputer.and.iphone"},
+    {kShareCommandId, "square.and.arrow.up"},
+    {kShareImageCommandId, "square.and.arrow.up"},
     {IDC_CONTENT_CONTEXT_LOOK_UP, "character.book.closed"},
     {IDC_SPELLCHECK_ADD_TO_DICTIONARY, "text.book.closed"},
     {ui::TextServicesContextMenu::kSpeechMenu, "speaker.wave.2"},
