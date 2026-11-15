@@ -156,7 +156,7 @@ final class Extensions: NSObject {
         return String(id)
     }
 
-    #if DIRECT_DISTRIBUTION
+    #if DIRECT_DISTRIBUTION && !BOAZ_CHROMIUM
     /// Downloads a Chrome Web Store extension through Google's public update service, as Chrome fetches one.
     func prepare(webStoreID id: String, profileID: String) async throws -> PendingInstall {
         var components = URLComponents(string: "https://clients2.google.com/service/update2/crx")!

@@ -5,6 +5,7 @@ import SwiftUI
 
 @MainActor @Observable
 final class ChromiumExtensionActionsModel {
+    static let installedExtensionsChanged = Notification.Name("BoazChromiumInstalledExtensionsChanged")
     struct Action: Identifiable { let id: String; let name: String; var title = ""; var badge = ""; var icon: NSImage? }
     private(set) var actions: [Action] = []
     var failure: String?
@@ -145,7 +146,7 @@ struct ChromiumExtensionActionsBar: View {
         }
         .onAppear { model.refresh() }
         .onChange(of: model.activeHandle) { model.refresh() }
-        .onReceive(NotificationCenter.default.publisher(for: ChromiumExtensionManagement.installedExtensionsChanged)) { notification in
+        .onReceive(NotificationCenter.default.publisher(for: ChromiumExtensionActionsModel.installedExtensionsChanged)) { notification in
             model.refresh(for: notification)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in

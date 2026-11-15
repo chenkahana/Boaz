@@ -210,7 +210,7 @@ struct BoazCommands: Commands {
         CommandMenu("Extensions") {
             Button("Manage Extensions…") { browser?.extensionSheet = .manage }.disabled(browser == nil || browser?.isIncognito == true)
             Divider()
-            #if DIRECT_DISTRIBUTION
+            #if DIRECT_DISTRIBUTION && !BOAZ_CHROMIUM
             Button("Install from Chrome Web Store…") { browser?.extensionSheet = .webStore() }
                 .disabled(browser == nil || browser?.isIncognito == true)
             #endif

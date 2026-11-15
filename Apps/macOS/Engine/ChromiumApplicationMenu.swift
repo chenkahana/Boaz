@@ -49,12 +49,6 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         }
 #endif
         add(app, "Settings…", enabled: { _ in true }, perform: { [weak self] _ in self?.openScene("settings") }, key: ",")
-        add(app, "Load Developer Extension…", enabled: {
-            $0?.isIncognito == false && $0?.loadChromiumDeveloperExtension != nil
-        }) { $0?.loadChromiumDeveloperExtension?() }
-        add(app, "Install Extension…", enabled: {
-            $0?.isIncognito == false && $0?.installChromiumExtension != nil
-        }) { $0?.installChromiumExtension?() }
         add(app, "Manage Extensions…", enabled: {
             $0?.isIncognito == false && $0?.manageChromiumExtensions != nil
         }) { $0?.manageChromiumExtensions?() }

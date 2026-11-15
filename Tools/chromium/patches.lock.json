@@ -886,6 +886,22 @@
           "after": "4f81c8b6b324185bcf8a7e7375e509487a3dfe4d33c75633025ffbedc6cdb113"
         }
       ]
+    },
+    {
+      "file": "patches/native-extension-uninstall-dialog.patch",
+      "sha256": "d5b08ee7095625965c7b5c920187bdcf96cb6572aabc79de8b776718118103f1",
+      "files": [
+        {
+          "path": "chrome/browser/ui/extensions/extension_uninstall_dialog_impl.cc",
+          "before": "2e7ac67f38c708490ecfac8206cfd0deafacff183a76b817fa730c111e295a9e",
+          "after": "6249f6e079f88b276ba37311c4d058aca2dfda7c650bde89ae38e9305d28da7f"
+        },
+        {
+          "path": "chrome/browser/ui/extensions/BUILD.gn",
+          "before": "3d66e11345416e04bfcbe95e27c7ad0f3c0b778bdda071778ed92b7e28978957",
+          "after": "1da2861465d68a4a4665a299967d3feeb2b80ec03c40c375d003b15711491261"
+        }
+      ]
     }
   ]
 }

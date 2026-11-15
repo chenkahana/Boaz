@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 53u
+#define BOAZ_HOST_ABI_VERSION 54u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT,
@@ -276,16 +276,6 @@ typedef void (*BoazHostHistoryVisitor)(void* context, int32_t entry_id,
  * Handles are never reused during a process. Callbacks must not reenter the API.
  * PAGE_CLOSING and PAGE_VIEW_WILL_CHANGE are synchronous and permit only
  * native-view detachment. Other events wait until model mutation unwinds. */
-/* Borrowed installed-extension metadata; copy before returning, no API reentry. */
-typedef void (*BoazHostManagedExtensionVisitor)(void* context, const char* id,
-    const char* name, const char* version, uint8_t enabled, uint8_t can_disable, uint8_t can_enable, uint8_t can_uninstall, uint8_t needs_permission_review);
-
-typedef enum BoazHostExtensionInstallResult {
-  BOAZ_EXTENSION_INSTALLED, BOAZ_EXTENSION_INSTALL_CANCELLED, BOAZ_EXTENSION_INSTALL_FAILED
-} BoazHostExtensionInstallResult;
-typedef void (*BoazHostExtensionInstallCompletion)(void* context, BoazHostWindow window,
-    uint64_t request, BoazHostExtensionInstallResult result);
-
 typedef void (*BoazHostExtensionMetadataVisitor)(void* context, const char* title, const char* badge,
     const uint8_t* png, size_t png_size);
 
@@ -409,19 +399,8 @@ typedef struct BoazHostAPI {
   BoazHostResult (*clone_document)(BoazHostPage page, BoazHostDocument document, BoazHostDocument* clone);
   BoazHostResult (*set_devtools_dock_preferences)(BoazHostWindow window,
       int32_t current, int32_t last);
-  BoazHostResult (*enumerate_managed_extensions)(BoazHostProfile profile,
-      BoazHostManagedExtensionVisitor visitor, void* context);
-  BoazHostResult (*disable_extension)(BoazHostProfile profile, const char* id);
-  BoazHostResult (*enable_extension)(BoazHostProfile profile, const char* id);
-  BoazHostResult (*install_extension)(BoazHostWindow window, const char* path, uint64_t request,
-      BoazHostExtensionInstallCompletion completion, void* context);
-  BoazHostResult (*install_unpacked_extension)(BoazHostWindow window, const char* path, uint64_t request,
-      BoazHostExtensionInstallCompletion completion, void* context);
-  BoazHostResult (*uninstall_extension)(BoazHostProfile profile, const char* id);
   BoazHostResult (*extension_metadata)(BoazHostWindow window, BoazHostPage page,
       const char* id, BoazHostExtensionMetadataVisitor visitor, void* context);
-  BoazHostResult (*review_extension_permissions)(BoazHostWindow window, const char* id, uint64_t request,
-      BoazHostExtensionInstallCompletion completion, void* context);
   BoazHostResult (*toggle_picture_in_picture)(BoazHostPage page);
   BoazHostResult (*enumerate_site_permissions)(BoazHostPage page, uint64_t navigation,
       BoazHostSitePermissionVisitor visitor, void* context);

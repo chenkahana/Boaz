@@ -11,8 +11,6 @@ final class BrowserState {
     var devToolsLastDockSide: String = "right"
     @ObservationIgnored var restoreChromiumDockPreferences: ((String, String) -> Void)?
 
-    var loadChromiumDeveloperExtension: (() -> Void)?
-    var installChromiumExtension: (() -> Void)?
     var manageChromiumExtensions: (() -> Void)?
     var reviewPreviousChromiumExtensions: (() -> Void)?
     enum CommandMode: Equatable { case newTab, currentTab, split }

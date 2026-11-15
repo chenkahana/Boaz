@@ -17,7 +17,7 @@ buildflag_header("buildflags") {
 }
 
 source_set("headers") {
-  public = [ "adblock_popup.h", "adblock_popup_host.h", "adblock_navigation.h", "adblock_browser_client.h", "native_http_warning.h", "extension_optional_permissions.h", "native_extension_store_dialogs.h", "native_extension_prompt.h", "native_password_submission.h", "native_devtools.h", "bootstrap.h", "context_menu_style.h", "native_permission_prompt.h", "protected_media.h" ]
+  public = [ "adblock_popup.h", "adblock_popup_host.h", "adblock_navigation.h", "adblock_browser_client.h", "native_http_warning.h", "extension_optional_permissions.h", "native_extension_store_dialogs.h", "native_extension_uninstall_dialog.h", "native_extension_prompt.h", "native_password_submission.h", "native_devtools.h", "bootstrap.h", "context_menu_style.h", "native_permission_prompt.h", "protected_media.h" ]
   public_deps = [
     "//base",
     "//extensions/browser",
@@ -67,18 +67,12 @@ source_set("host") {
     "native_password_submission.cc",
     "native_extension_store_dialogs.h",
     "native_extension_store_dialogs.mm",
+    "native_extension_uninstall_dialog.h",
+    "native_extension_uninstall_dialog.mm",
     "native_extension_prompt.h",
     "native_extension_prompt.mm",
-    "extension_unpacked_install.h",
-    "extension_unpacked_install.mm",
-    "extension_install.h",
-    "extension_install.mm",
-    "extension_permission_review.h",
-    "extension_permission_review.mm",
     "extension_optional_permissions.h",
     "extension_optional_permissions.mm",
-    "extension_management.h",
-    "extension_management.cc",
     "extension_actions.h",
     "extension_actions.mm",
     "extension_popup.h",
