@@ -75,8 +75,6 @@ struct AppIconSettings: View {
             .frame(height: 430)
         }
         .padding(20)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("screen.settings.appIcon")
     }
 }
 
@@ -124,8 +122,6 @@ private struct AppIconTile: View {
         .buttonStyle(.plain)
         .onHover { inside in withAnimation(.spring(response: 0.28, dampingFraction: 0.62)) { hovering = inside } }
         .help(choice.caption)
-        .accessibilityElement(children: .ignore)
-        .accessibilityAddTraits(.isButton)
         .accessibilityLabel(choice.title)
         .accessibilityValue(choice.caption)
         .accessibilityAddTraits(selected ? .isSelected : [])

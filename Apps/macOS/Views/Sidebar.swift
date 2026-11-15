@@ -243,6 +243,8 @@ private struct FavoritesGrid: View {
             }
         }
         .animation(SidebarStyle.motion, value: favorites.map(\.id))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Favorites")
         .dropDestination(for: String.self) { payloads, _ in
             guard let container else { return false }
             return dropItems(payloads, into: container.id, before: nil, model: model, browser: browser)
