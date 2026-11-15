@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Boaz Parity Fixture",
+  "version": "1.0",
+  "description": "Exercises the extension features Boaz must handle as Chrome does.",
+  "permissions": ["storage", "contextMenus", "sidePanel"],
+  "optional_host_permissions": ["https://example.org/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_title": "Parity Fixture" },
+  "side_panel": { "default_path": "panel.html" },
+  "content_scripts": [{ "matches": ["https://example.com/*"], "js": ["content.js"], "run_at": "document_idle" }],
+  "commands": {
+    "_execute_action": { "suggested_key": { "default": "Ctrl+Shift+Y", "mac": "Command+Shift+Y" } },
+    "open-panel": { "suggested_key": { "default": "Ctrl+Shift+U", "mac": "Command+Shift+U" }, "description": "Open the side panel" }
+  }
+}
