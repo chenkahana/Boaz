@@ -72,7 +72,7 @@ class BoazUITestCase: XCTestCase {
         // Popovers (the Library panel, the icon picker) are windows of their own that may extend past the main
         // window; measure against whichever popover or window holds the element.
         let center = CGPoint(x: frame.midX, y: frame.midY)
-        let holder = (app.popovers.allElementsBoundByIndex + app.windows.allElementsBoundByIndex)
+        let holder = (app.popovers.allElementsBoundByIndex + app.sheets.allElementsBoundByIndex + app.windows.allElementsBoundByIndex)
             .first { $0.exists && $0.frame.contains(center) && $0.frame.contains(frame.insetBy(dx: 1, dy: 1)) }
         let containerFrame = (holder ?? mainWindow).frame
         let windowFrame = containerFrame.insetBy(dx: -1, dy: -1)
@@ -92,8 +92,11 @@ class BoazUITestCase: XCTestCase {
         var hittableButtons: [XCUIElement] = []
         for kind in [XCUIElement.ElementType.button, .staticText, .textField] {
             for control in element.descendants(matching: kind).allElementsBoundByIndex where control.exists && control.isHittable {
-                let hasLabel = !control.label.isEmpty || !control.identifier.isEmpty
-                XCTAssertTrue(hasLabel, "A \(kind.rawValue) under \(name) has no label or identifier",
+                // SwiftUI's `Text` reaches AppKit accessibility as a static text whose words are its value, not its
+                // label; a text field without a label still speaks its placeholder.
+                let spoken = [control.label, control.identifier, control.value as? String ?? "", control.placeholderValue ?? ""]
+                XCTAssertTrue(spoken.contains { !$0.isEmpty },
+                             "A \(Self.typeName(kind)) under \(name) at \(control.frame) has no label, value or identifier",
                              file: file, line: line)
                 if !scrolledControls.contains(scrollKey(control)) {
                     XCTAssertTrue(windowFrame.contains(control.frame),
@@ -118,15 +121,23 @@ class BoazUITestCase: XCTestCase {
             }
         }
 
+        // Every issue the audit raises is reported with the element it's about (type, identifier, label, value,
+        // frame): XCTest's own failure only says "Element has no description" with a screenshot.
+        let issues = IssueLog()
         do {
             try app.performAccessibilityAudit(
                 // `.textClipped`, `.dynamicType` and `.trait` are iOS/tvOS/watchOS-only; macOS adds `.action`
                 // and `.parentChild` in their place.
                 for: [.elementDetection, .hitRegion, .contrast, .sufficientElementDescription, .action, .parentChild]
-            ) { issue in Self.auditIssueIsAllowed(issue) }
+            ) { issue in
+                if Self.auditIssueIsAllowed(issue) { return true }
+                issues.lines.append(Self.describe(issue))
+                return true
+            }
         } catch {
             XCTFail("Accessibility audit failed for \(name): \(error)", file: file, line: line)
         }
+        for issue in issues.lines { XCTFail("Accessibility audit, \(name): \(issue)", file: file, line: line) }
 
         // `element`'s own screenshot, not `app.screenshot()`: on macOS the latter captures the whole physical
         // display (every other window on the machine) rather than just this app, which is both the wrong
@@ -135,6 +146,29 @@ class BoazUITestCase: XCTestCase {
         screenshot.name = "\(name)-\(appearance.rawValue)"
         screenshot.lifetime = .keepAlways
         add(screenshot)
+    }
+
+    private static func typeName(_ type: XCUIElement.ElementType) -> String {
+        switch type {
+        case .button: "button"
+        case .staticText: "static text"
+        case .textField: "text field"
+        case .group: "group"
+        case .image: "image"
+        case .other: "other"
+        case .menuButton: "menu button"
+        default: "element type \(type.rawValue)"
+        }
+    }
+
+    private static func describe(_ issue: XCUIAccessibilityAuditIssue) -> String {
+        var text = issue.compactDescription
+        if let element = issue.element {
+            text += " — \(typeName(element.elementType)) id '\(element.identifier)' label '\(element.label)'"
+            if let value = element.value as? String, !value.isEmpty { text += " value '\(value.prefix(60))'" }
+            text += " at \(element.frame)"
+        }
+        return text
     }
 
     /// Known system-control accessibility-audit false positives. Keep tight; justify every entry here. Confirmed
@@ -171,15 +205,39 @@ class BoazUITestCase: XCTestCase {
         return false
     }
 
-    /// Opens Boaz ▸ Settings… and selects the pane titled `tab` ("General", "Privacy", "Sync", "Passwords",
-    /// "Sites" or "Shortcuts").
-    func openSettings(tab: String) {
+    /// Opens Boaz ▸ Settings… and selects the pane titled `tab` ("General", "App Icon", "Privacy", "Sync",
+    /// "Passwords", "Accounts", "Sites" or "Shortcuts"), returning that pane (`screen.settings.<pane>`).
+    ///
+    /// The Settings window is found by its toolbar, not its title: a tabbed Settings scene titles its window after
+    /// the selected pane ("General"), never "Settings".
+    @discardableResult
+    func openSettings(tab: String, file: StaticString = #filePath, line: UInt = #line) -> XCUIElement {
         menu("Boaz", "Settings…")
-        let settingsWindow = app.windows["Settings"]
-        XCTAssertTrue(settingsWindow.waitForExistence(timeout: 10), "Settings never opened")
-        let tabButton = settingsWindow.buttons[tab].firstMatch
-        XCTAssertTrue(tabButton.waitForExistence(timeout: 5), "No \(tab) tab in Settings")
+        let tabButton = app.toolbars.buttons[tab].firstMatch
+        XCTAssertTrue(tabButton.waitForExistence(timeout: 10), "Settings never opened, or has no \(tab) pane",
+                      file: file, line: line)
         tabButton.click()
+        let id = Self.settingsPaneIDs[tab] ?? tab
+        let pane = element("screen.settings.\(id)")
+        XCTAssertTrue(pane.waitForExistence(timeout: 5), "The \(tab) pane never appeared", file: file, line: line)
+        return pane
+    }
+
+    private static let settingsPaneIDs = ["General": "general", "App Icon": "appIcon", "Privacy": "privacy",
+                                          "Sync": "sync", "Passwords": "passwords", "Accounts": "accounts",
+                                          "Sites": "sites", "Shortcuts": "shortcuts"]
+
+    /// The first element anywhere in the app with accessibility identifier `id` (the `screen.*` convention).
+    func element(_ id: String) -> XCUIElement { app.descendants(matching: .any)[id].firstMatch }
+
+    /// The main window's sidebar (`sidebar.root`).
+    var sidebar: XCUIElement { mainWindow.descendants(matching: .any)["sidebar.root"].firstMatch }
+
+    /// Waits for `element` to go away.
+    @discardableResult
+    func waitForDisappearance(_ element: XCUIElement, timeout: TimeInterval = 5) -> Bool {
+        let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: element)
+        return XCTWaiter().wait(for: [gone], timeout: timeout) == .completed
     }
 
     /// Clicks a path of menu bar items, e.g. `menu("Tabs", "Pin Tab")`.
@@ -198,4 +256,9 @@ class BoazUITestCase: XCTestCase {
     func openCommandBar() {
         app.typeKey("t", modifierFlags: .command)
     }
+}
+
+/// Collects audit issues from the audit's handler, which XCTest calls synchronously during the audit.
+private final class IssueLog: @unchecked Sendable {
+    var lines: [String] = []
 }

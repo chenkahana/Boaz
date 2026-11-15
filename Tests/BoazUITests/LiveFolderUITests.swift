@@ -14,9 +14,10 @@ final class LiveFolderUITests: BoazUITestCase {
         launch(fixture: "standard", environment: environment)
     }
 
-    /// The space's menu (right-click its title, "Work" in the standard fixture) ▸ New Live Folder ▸ GitHub Pull Requests.
+    /// The space's menu (right-click its title in the sidebar, "Work" in the standard fixture) ▸ New Live Folder ▸
+    /// GitHub Pull Requests. Scoped to the sidebar: an empty window also shows the space's name, big, in the content area.
     private func newPullRequestsFolder() {
-        let workSpace = mainWindow.staticTexts["Work"].firstMatch
+        let workSpace = sidebar.staticTexts["Work"].firstMatch
         XCTAssertTrue(workSpace.waitForExistence(timeout: 10), "The Work space never appeared in the sidebar")
         workSpace.rightClick()
         app.menuItems["New Live Folder"].firstMatch.hover()
@@ -97,9 +98,8 @@ final class LiveFolderUITests: BoazUITestCase {
 
     func testAccountsSettingsShowsTheAccount() {
         launchSignedIn()
-        openSettings(tab: "Accounts")
-        let pane = app.descendants(matching: .any)["screen.settings.accounts"].firstMatch
-        XCTAssertTrue(pane.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Sign Out"].firstMatch.waitForExistence(timeout: 5))
+        let pane = openSettings(tab: "Accounts")
+        XCTAssertTrue(pane.buttons["Sign Out"].firstMatch.waitForExistence(timeout: 5))
+        assertScreenIntact(pane, name: "settings-accounts")
     }
 }
