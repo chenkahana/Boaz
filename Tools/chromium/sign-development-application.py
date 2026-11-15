@@ -55,6 +55,7 @@ def main():
     cli = app / 'Contents/MacOS/boaz'
     if cli.is_file():
         targets.append(cli)
+    targets += sorted((app / 'Contents/PlugIns').glob('*.docktileplugin'))
     with (output / 'sign.log').open('x') as log:
         for target in targets:
             subprocess.run(['/usr/bin/codesign', '--force', '--sign', args.identity, '--timestamp',
