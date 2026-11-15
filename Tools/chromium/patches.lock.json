@@ -854,6 +854,27 @@
           "after": "26b4197d599f6c06de4845ef021fe1d4ba7ae9cc2891d7de152f1b34ac7ac184"
         }
       ]
+    },
+    {
+      "file": "patches/native-context-menu-search.patch",
+      "sha256": "ad0d528794317448ed9c6602f48866e6c35d22ba84bda9f12cefb1ce70271011",
+      "files": [
+        {
+          "path": "chrome/browser/renderer_context_menu/render_view_context_menu.cc",
+          "before": "1818a0551defb6a30237b6f87c684923a1103230cd5e28393bdcb2a423aebc11",
+          "after": "d59f5bd7285691017a8c82565d16e12fba883bf65555483798f8f89dc09af876"
+        },
+        {
+          "path": "chrome/browser/ui/tab_contents/core_tab_helper.h",
+          "before": "787fcf4c934b74e2fdc140b4305bfcdedad9fd260a3a8ac2fbf629fb69888714",
+          "after": "bdd125d1383456bd28cefe3b3258b35feb50c55bb1a3dd5b4a8cfe197544dcdc"
+        },
+        {
+          "path": "chrome/browser/ui/tab_contents/core_tab_helper.cc",
+          "before": "47a73ac225995f254345f420f99537a415fc2ad61958a7a46d4b7270c1b665d4",
+          "after": "1cc2477ab8d4d2af34753420323e88a8d2d011f4053e0b5dbe5d0e7613482df1"
+        }
+      ]
     }
   ]
 }

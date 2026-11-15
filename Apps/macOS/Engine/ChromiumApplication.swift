@@ -1,5 +1,6 @@
 #if BOAZ_CHROMIUM
 import AppKit
+import BoazKit
 import SwiftUI
 
 @MainActor private var chromiumApplication: ChromiumApplication?
@@ -22,6 +23,7 @@ private final class ChromiumApplication: NSObject {
     private var appliedAutomaticPiP: Bool?
     private var appliedPageAssistant: Bool?
     private var appliedMenuShortcuts: [KeyboardShortcut?]?
+    private var appliedSearchEngine: SearchEngine?
     private var applicationMenu: ChromiumApplicationMenu?
 
     init(runtime: ChromiumRuntime) {
@@ -198,6 +200,7 @@ private final class ChromiumApplication: NSObject {
         try applyAutomaticPiPPreference()
         applyPageAssistantPreference()
         applyMenuShortcuts()
+        applySearchEngine()
         defaultsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
             object: UserDefaults.standard, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.defaultsChanged() }
@@ -440,6 +443,18 @@ private final class ChromiumApplication: NSObject {
         guard shortcuts.withUnsafeBufferPointer({ update($0.baseAddress, $0.count) }) == BOAZ_HOST_OK else { return }
         appliedMenuShortcuts = bindings
     }
+    /// The context menu's "Search <engine> for …" follows Boaz's search engine, made every profile's default search
+    /// provider. Changing it in Settings saves user defaults, which calls this again.
+    private func applySearchEngine() {
+        let engine = Preferences.searchEngine
+        guard appliedSearchEngine != engine, let update = runtime.api.set_default_search_provider,
+              let host = URL(string: engine.template)?.host() else { return }
+        // Chromium's keyword for the engine: duckduckgo.com, google.com, search.brave.com, ...
+        let keyword = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+        let template = engine.template.replacingOccurrences(of: "%@", with: "{searchTerms}")
+        guard update(engine.name, keyword, template) == BOAZ_HOST_OK else { return }
+        appliedSearchEngine = engine
+    }
     /// Context-menu commands Boaz runs instead of Chromium, whose Incognito and split view aren't Boaz's.
     private func runMenuCommand(_ command: BoazHostMenuCommand, page: BoazHostPage, url: URL, title: String) {
         let owner = windows.first { $0.browser.showsChromiumPage(page) }
@@ -460,6 +475,7 @@ private final class ChromiumApplication: NSObject {
         guard !finished else { return }
         applyPageAssistantPreference()
         applyMenuShortcuts()
+        applySearchEngine()
         do { try applyAutomaticPiPPreference() }
         catch { model.showToast("The automatic Picture in Picture preference could not be applied.") }
         do { try runtime.applyBlockingPreference(Preferences.blockTrackers) }

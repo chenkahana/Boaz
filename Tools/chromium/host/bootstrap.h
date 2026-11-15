@@ -21,6 +21,10 @@ void AskAboutPage(content::WebContents* contents, const std::u16string& selectio
 // Split View and Create QR Code. Run returns false when Chromium should run the command.
 bool ContextMenuCommandAvailable(content::WebContents* contents, int command);
 bool RunContextMenuCommand(content::WebContents* contents, int command, const GURL& url, const std::u16string& text);
+// The context menu's Google Lens items: Google Lens results for an image or the visible page in a new tab, whatever
+// the default search engine is.
+void SearchImageWithGoogleLens(content::WebContents* contents, content::RenderFrameHost* frame, const GURL& image_url);
+void SearchPageWithGoogleLens(content::WebContents* contents);
 bool NativeHostEnabled();
 bool AutomaticPictureInPictureEnabled();
 bool IsNativeExtensionPromptContext(Profile*, void* native_window);
