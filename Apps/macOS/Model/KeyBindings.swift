@@ -134,6 +134,16 @@ extension KeyboardShortcut {
         return text
     }
 
+    /// The modifiers as an NSMenuItem key equivalent mask.
+    var modifierFlags: NSEvent.ModifierFlags {
+        var flags: NSEvent.ModifierFlags = []
+        if modifiers.contains(.command) { flags.insert(.command) }
+        if modifiers.contains(.option) { flags.insert(.option) }
+        if modifiers.contains(.control) { flags.insert(.control) }
+        if modifiers.contains(.shift) { flags.insert(.shift) }
+        return flags
+    }
+
     /// Whether a key-down event is this shortcut.
     func matches(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)

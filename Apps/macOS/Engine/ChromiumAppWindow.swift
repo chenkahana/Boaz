@@ -178,6 +178,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
                 owner.queue { $0.window.subtitle = copied }
             }
         }
+        options.menu_features = BOAZ_MENU_FEATURE_SPLIT.rawValue | BOAZ_MENU_FEATURE_INCOGNITO.rawValue
         return options
     }
 

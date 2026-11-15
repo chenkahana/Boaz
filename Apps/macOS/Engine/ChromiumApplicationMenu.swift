@@ -303,14 +303,7 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         if let command = entry.command {
             let shortcut = MacModel.shared.keyBindings.shortcut(command)
             item.keyEquivalent = shortcut.map { String($0.key.character) } ?? ""
-            var flags: NSEvent.ModifierFlags = []
-            if let modifiers = shortcut?.modifiers {
-                if modifiers.contains(.command) { flags.insert(.command) }
-                if modifiers.contains(.option) { flags.insert(.option) }
-                if modifiers.contains(.control) { flags.insert(.control) }
-                if modifiers.contains(.shift) { flags.insert(.shift) }
-            }
-            item.keyEquivalentModifierMask = flags
+            item.keyEquivalentModifierMask = shortcut?.modifierFlags ?? []
         }
         return entry.enabled(browser)
     }

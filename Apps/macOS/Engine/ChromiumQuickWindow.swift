@@ -106,6 +106,8 @@ final class ChromiumQuickWindow: NSObject, ObservableObject, NSWindowDelegate {
                 owner.queue { $0.notice = copied }
             }
         }
+        // A Quick Window has no split view.
+        options.menu_features = BOAZ_MENU_FEATURE_INCOGNITO.rawValue
         return options
     }
 

@@ -820,7 +820,7 @@
     },
     {
       "file": "patches/native-context-menu.patch",
-      "sha256": "194013cd2e711d3342c78f67de23220b95c1e66b9e42d637d1cc0d404915be41",
+      "sha256": "399eb4c5ec0b222593e28bdf2c79dea9d81f49147167aa609239a88519d89918",
       "files": [
         {
           "path": "chrome/browser/renderer_context_menu/BUILD.gn",
@@ -830,7 +830,7 @@
         {
           "path": "chrome/browser/renderer_context_menu/render_view_context_menu.cc",
           "before": "bee071786682b77c31aec334d456f3aacd2aa5ad3d16340218ac98943a1e2463",
-          "after": "68e461d2f552addc36a8bb5e31668f9e9583c4d6d39cc8f49dca4587d8a2f93c"
+          "after": "1818a0551defb6a30237b6f87c684923a1103230cd5e28393bdcb2a423aebc11"
         },
         {
           "path": "chrome/browser/ui/cocoa/BUILD.gn",

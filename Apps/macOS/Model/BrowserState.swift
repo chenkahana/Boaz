@@ -1175,6 +1175,18 @@ final class BrowserState {
         }
     }
 
+    /// Whether this window shows the Chromium page, as a tab or its peek.
+    func showsChromiumPage(_ handle: BoazHostPage) -> Bool {
+        (peek?.nativePage?.adapter as? ChromiumEnginePageAdapter)?.handle == handle
+            || enginePages.values.contains { ($0.adapter as? ChromiumEnginePageAdapter)?.handle == handle }
+    }
+
+    /// The page's context menu chose Open Link in Split View. A peek closes first, so the link opens beside its tab.
+    func openLinkInSplit(_ url: URL, from handle: BoazHostPage) {
+        if (peek?.nativePage?.adapter as? ChromiumEnginePageAdapter)?.handle == handle { closePeek() }
+        openInSplit(url)
+    }
+
     /// The page's context menu chose Explain (with a selection) or Ask About This Page.
     func askAboutPage(_ handle: BoazHostPage, selection: String) {
         guard let entry = enginePages.first(where: { ($0.value.adapter as? ChromiumEnginePageAdapter)?.handle == handle }),

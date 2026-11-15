@@ -70,6 +70,9 @@
 #include "components/keep_alive_registry/scoped_keep_alive.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/render_frame_host.h"
+#include "chrome/app/chrome_command_ids.h"
+#include "context_menu_style.h"
+#include "url/gurl.h"
 
 namespace boaz {
 namespace {
@@ -737,6 +740,11 @@ BoazHostResult SetPageAssistantEnabled(uint8_t enabled) {
   state->page_assistant_enabled = enabled != 0;
   return BOAZ_HOST_OK;
 }
+BoazHostResult SetMenuShortcuts(const BoazHostMenuShortcut* shortcuts, size_t count) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  if (count && !shortcuts) return BOAZ_HOST_INVALID_ARGUMENT;
+  return SetContextMenuShortcuts(shortcuts, count) ? BOAZ_HOST_OK : BOAZ_HOST_INVALID_ARGUMENT;
+}
 BoazHostResult TogglePictureInPicture(BoazHostPage page) {
   if (auto r = Check(); r != BOAZ_HOST_OK) return r;
   return state->tabs->TogglePictureInPicture(page);
@@ -1135,7 +1143,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension, InstallExtension, InstallUnpackedExtension, UninstallExtension, ExtensionMetadata, ReviewExtensionPermissions, TogglePictureInPicture, EnumerateSitePermissions, ResetSitePermission, SetAutomaticPictureInPictureEnabled, PrepareBlockingAssets, ConfigureProfileBlocking, ImportCookies, WidevineStatus, SetPageAssistantEnabled};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension, InstallExtension, InstallUnpackedExtension, UninstallExtension, ExtensionMetadata, ReviewExtensionPermissions, TogglePictureInPicture, EnumerateSitePermissions, ResetSitePermission, SetAutomaticPictureInPictureEnabled, PrepareBlockingAssets, ConfigureProfileBlocking, ImportCookies, WidevineStatus, SetPageAssistantEnabled, SetMenuShortcuts};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
@@ -1292,6 +1300,44 @@ void AskAboutPage(content::WebContents* contents, const std::u16string& selectio
         if (!state || state->exit_requested || !state->callbacks.ask_about_page) return;
         Notify([&] { state->callbacks.ask_about_page(state->callbacks.context, page, text.c_str()); });
       }, state->tabs->PageFor(contents), base::UTF16ToUTF8(selection)));
+}
+namespace {
+std::optional<BoazHostMenuCommand> MenuCommandFor(int command) {
+  switch (command) {
+    case IDC_CONTENT_CONTEXT_OPENLINKOFFTHERECORD: return BOAZ_MENU_OPEN_INCOGNITO;
+    case IDC_CONTENT_CONTEXT_OPENLINKSPLITVIEW: return BOAZ_MENU_OPEN_SPLIT;
+    case IDC_CONTENT_CONTEXT_GENERATE_QR_CODE: return BOAZ_MENU_QR_CODE;
+    default: return std::nullopt;
+  }
+}
+}  // namespace
+bool ContextMenuCommandAvailable(content::WebContents* contents, int command) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  const auto menu = MenuCommandFor(command);
+  if (!menu || !NativeHostEnabled()) return true;
+  if (!state || state->exit_requested || !state->callbacks.menu_command || !state->tabs ||
+      !state->tabs->PageFor(contents)) return false;
+  if (*menu == BOAZ_MENU_QR_CODE) return true;
+  auto* tab = tabs::TabInterface::MaybeGetFromContents(contents);
+  auto* browser = tab ? tab->GetBrowserWindowInterface() : nullptr;
+  const uint32_t feature = *menu == BOAZ_MENU_OPEN_SPLIT ? BOAZ_MENU_FEATURE_SPLIT : BOAZ_MENU_FEATURE_INCOGNITO;
+  for (const auto& [id, window] : state->windows)
+    if (browser && window.browser.get() == browser) return (window.options.menu_features & feature) != 0;
+  return false;
+}
+bool RunContextMenuCommand(content::WebContents* contents, int command, const GURL& url,
+    const std::u16string& text) {
+  const auto menu = MenuCommandFor(command);
+  if (!menu || !NativeHostEnabled()) return false;
+  // Never Chromium's: its Incognito window would use an off-the-record profile Boaz doesn't own.
+  if (!ContextMenuCommandAvailable(contents, command) || !url.is_valid()) return true;
+  // Posted: the menu is still running its command, and the receiver may call the API in response.
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
+      base::BindOnce([](BoazHostPage page, BoazHostMenuCommand command, std::string url, std::string text) {
+        if (!state || state->exit_requested || !state->callbacks.menu_command) return;
+        Notify([&] { state->callbacks.menu_command(state->callbacks.context, page, command, url.c_str(), text.c_str()); });
+      }, state->tabs->PageFor(contents), *menu, url.spec(), base::UTF16ToUTF8(text)));
+  return true;
 }
 bool ShouldRetainEmptyBrowser(BrowserWindowInterface* browser) {
   if (!NativeHostEnabled() || !state || state->exit_requested || !browser || browser->IsDeleteScheduled()) return false;
