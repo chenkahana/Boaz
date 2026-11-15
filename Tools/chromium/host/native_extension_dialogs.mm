@@ -96,6 +96,8 @@ class PopoverDialog final : public ui::DialogModelHost, public ui::DialogModelFi
     stack.spacing = 10;
     stack.edgeInsets = NSEdgeInsetsMake(16, 16, 16, 16);
     stack.identifier = @"screen.extensionDialog";
+    // Chrome's bubbles are a fixed width; wrapping labels alone would let the stack collapse to nothing.
+    [stack.widthAnchor constraintEqualToConstant:352].active = YES;
     NSStackView* header = [[NSStackView alloc] init];
     header.spacing = 10;
     const ui::ImageModel& icon = model_->icon(DialogModelHost::GetPassKey());
