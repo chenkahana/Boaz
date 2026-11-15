@@ -43,7 +43,10 @@ class BoazUITestCase: XCTestCase {
             return
         }
 
-        var launchArguments = ["-BoazUITest", "YES"]
+        // `-ApplePersistenceIgnoreState YES`: AppKit's own window-restoration system otherwise tries to reopen
+        // whatever this bundle id's windows looked like when IT last quit (a separate mechanism from our own
+        // `MacModel.SavedWindow`, which `UITestMode.resetDefaultsIfNeeded()` clears instead).
+        var launchArguments = ["-BoazUITest", "YES", "-ApplePersistenceIgnoreState", "YES"]
         // Absence of the key reads as Light; CI runners boot Light by default.
         if appearance == .dark { launchArguments += ["-AppleInterfaceStyle", "Dark"] }
         launchArguments += arguments
