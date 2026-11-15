@@ -320,6 +320,7 @@ private struct ExtensionsPopover: View {
         }
         .padding(8)
         .frame(width: 280)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen.extensions")
     }
 }

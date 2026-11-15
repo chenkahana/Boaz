@@ -67,11 +67,17 @@ class BoazUITestCase: XCTestCase {
         XCTAssertTrue(element.waitForExistence(timeout: 5), "\(name) never appeared", file: file, line: line)
         XCTAssertTrue(element.isHittable, "\(name) is not hittable", file: file, line: line)
 
-        let windowFrame = mainWindow.frame.insetBy(dx: -1, dy: -1)
         let frame = element.frame
         XCTAssertFalse(frame.isEmpty, "\(name) has an empty frame", file: file, line: line)
+        // Popovers (the Library panel, the icon picker) are windows of their own that may extend past the main
+        // window; measure against whichever popover or window holds the element.
+        let center = CGPoint(x: frame.midX, y: frame.midY)
+        let holder = (app.popovers.allElementsBoundByIndex + app.windows.allElementsBoundByIndex)
+            .first { $0.exists && $0.frame.contains(center) && $0.frame.contains(frame.insetBy(dx: 1, dy: 1)) }
+        let containerFrame = (holder ?? mainWindow).frame
+        let windowFrame = containerFrame.insetBy(dx: -1, dy: -1)
         XCTAssertTrue(windowFrame.contains(frame),
-                      "\(name)'s frame \(frame) falls outside its window \(mainWindow.frame)", file: file, line: line)
+                      "\(name)'s frame \(frame) falls outside its window \(containerFrame)", file: file, line: line)
 
         // A scroll view's own content routinely extends past its visible viewport (that's the point of scrolling);
         // XCUITest still reports that off-screen content as `isHittable`, so a row below the fold isn't a real

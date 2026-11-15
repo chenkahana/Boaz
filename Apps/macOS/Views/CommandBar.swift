@@ -94,6 +94,7 @@ struct CommandBar: View {
             .shadow(color: .black.opacity(0.25), radius: 40, y: 20)
             .padding(.top, 110)
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen.commandBar")
         .onAppear {
             if mode == .currentTab { text = browser.activeURL?.absoluteString ?? "" }

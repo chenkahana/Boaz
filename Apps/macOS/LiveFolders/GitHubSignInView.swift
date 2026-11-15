@@ -189,6 +189,7 @@ struct AccountsSettings: View {
         }
         .formStyle(.grouped)
         .frame(minHeight: 200)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen.settings.accounts")
         .task { await auth.loadViewer() }
         .sheet(isPresented: $signingIn) {
