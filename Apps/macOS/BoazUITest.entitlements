@@ -14,6 +14,13 @@
 	<true/>
 	<key>com.apple.security.network.client</key>
 	<true/>
+	<!-- Read-only, test build only: fixtures (BOAZ_UITEST_FIXTURES, BOAZ_UITEST_DOWNLOADS_DIR, BOAZ_GITHUB_FIXTURE)
+	     live in the test runner's bundle and container, which this sandboxed app can't otherwise read. Xcode gives
+	     the runner the same exception. Nothing is writable outside this app's own container. -->
+	<key>com.apple.security.temporary-exception.files.absolute-path.read-only</key>
+	<array>
+		<string>/</string>
+	</array>
 	<key>com.apple.security.get-task-allow</key>
 	<true/>
 </dict>

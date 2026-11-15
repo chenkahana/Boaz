@@ -59,6 +59,7 @@ struct LibraryPanel: View {
         .background(style.background)
         .environment(\.colorScheme, SpaceStyle.colorScheme(of: browser.currentSpace) ?? scheme)
         .onExitCommand { browser.libraryPanelPresented = false }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen.libraryPanel")
     }
 }

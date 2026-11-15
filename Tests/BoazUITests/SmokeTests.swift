@@ -5,6 +5,8 @@ import XCTest
 final class SmokeTests: BoazUITestCase {
     func testMainWindowIntact() {
         launch(fixture: "standard")
+        // The fixture must reach the sidebar: an empty library would otherwise pass as an "intact" window.
+        XCTAssertTrue(mainWindow.staticTexts["Work"].waitForExistence(timeout: 10), "The standard fixture never seeded")
         assertScreenIntact(mainWindow, name: "browser")
     }
 }

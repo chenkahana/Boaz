@@ -61,7 +61,6 @@ struct AppIconSettings: View {
                 Text("Boaz wears it in the Dock. \(AppIconChoice.with(id: selection).caption).")
                     .font(.callout)
                     .foregroundStyle(.secondary)
-                    .contentTransition(.opacity)
             }
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 14) {
@@ -125,6 +124,8 @@ private struct AppIconTile: View {
         .buttonStyle(.plain)
         .onHover { inside in withAnimation(.spring(response: 0.28, dampingFraction: 0.62)) { hovering = inside } }
         .help(choice.caption)
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
         .accessibilityLabel(choice.title)
         .accessibilityValue(choice.caption)
         .accessibilityAddTraits(selected ? .isSelected : [])

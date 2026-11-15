@@ -575,6 +575,7 @@ private struct ToastView: View {
             .padding(.bottom, 22)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .id(toast.id)
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("screen.toast")
         }
     }
@@ -596,6 +597,7 @@ private struct RenameSheet: View {
             }
         }
         .padding(20)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen.renameSheet")
     }
 
@@ -681,6 +683,7 @@ private struct MacSpaceEditor: View {
                 }
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen.spaceEditor")
     }
 }

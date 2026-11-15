@@ -7,7 +7,7 @@ enum UITestFixtures {
     private struct Tab: Decodable {
         var id: String
         var title: String?
-        var url: String
+        var url: String?  // Absent on folders, which reuse this shape for their children.
         var children: [Tab]?
     }
 
@@ -104,7 +104,7 @@ enum UITestFixtures {
                                    now: Date, into items: inout [SidebarItem]) {
         for (index, tab) in tabs.enumerated() {
             items.append(SidebarItem(id: tab.id, spaceID: spaceID, profileID: profileID, parentID: parentID, kind: .tab,
-                                     title: tab.title, url: URL(string: tab.url), position: Double(index),
+                                     title: tab.title, url: tab.url.flatMap(URL.init(string:)), position: Double(index),
                                      createdAt: now, modifiedAt: now, deviceID: deviceID))
         }
     }

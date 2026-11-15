@@ -125,6 +125,8 @@ final class MacModel {
                 }
             }
         } catch {
+            // A broken fixture must fail the run loudly, not show an empty library that still "passes".
+            if UITestMode.isActive { fatalError("UI test store setup failed: \(error)") }
             loadError = String(describing: error)
             return
         }
