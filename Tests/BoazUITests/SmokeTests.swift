@@ -52,9 +52,10 @@ final class SmokeTests: BoazUITestCase {
         app.typeKey("a", modifierFlags: [.command, .option])
         let archive = app.windows["Archive"]
         XCTAssertTrue(archive.waitForExistence(timeout: 5))
-        let restore = archive.cells.containing(.staticText, identifier: "Today Tab").buttons["Restore"].firstMatch
-        XCTAssertTrue(restore.waitForExistence(timeout: 5), "The archived tab isn't in the Archive")
-        restore.click()
+        let archived = archive.staticTexts["Today Tab"].firstMatch
+        XCTAssertTrue(archived.waitForExistence(timeout: 5), "The archived tab isn't in the Archive")
+        archived.rightClick()
+        app.menuItems["Restore"].firstMatch.click()
         XCTAssertTrue(sidebar.buttons["Today Tab"].waitForExistence(timeout: 5), "Restore didn't bring the tab back")
         if archive.exists { archive.typeKey("w", modifierFlags: .command) }
 
