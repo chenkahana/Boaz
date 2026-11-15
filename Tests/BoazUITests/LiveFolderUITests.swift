@@ -16,7 +16,9 @@ final class LiveFolderUITests: BoazUITestCase {
 
     /// The space's menu (right-click its title, "Work" in the standard fixture) ▸ New Live Folder ▸ GitHub Pull Requests.
     private func newPullRequestsFolder() {
-        mainWindow.staticTexts["Work"].firstMatch.rightClick()
+        let workSpace = mainWindow.staticTexts["Work"].firstMatch
+        XCTAssertTrue(workSpace.waitForExistence(timeout: 10), "The Work space never appeared in the sidebar")
+        workSpace.rightClick()
         app.menuItems["New Live Folder"].firstMatch.hover()
         app.menuItems["GitHub Pull Requests"].firstMatch.click()
     }
@@ -59,7 +61,9 @@ final class LiveFolderUITests: BoazUITestCase {
                      "Repositories", "Single Sign-On", "Sign Out of GitHub"] {
             XCTAssertTrue(app.menuItems[item].firstMatch.waitForExistence(timeout: 3), "\(item) is missing from Pull Requests")
         }
-        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        // `mainWindow`'s own screenshot, not `app.screenshot()`: on macOS the latter captures the whole physical
+        // display (every other window on the machine), not just this app.
+        let screenshot = XCTAttachment(screenshot: mainWindow.screenshot())
         screenshot.name = "live-folder-menu"
         screenshot.lifetime = .keepAlways
         add(screenshot)

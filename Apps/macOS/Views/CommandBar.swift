@@ -53,6 +53,7 @@ struct CommandBar: View {
                         .onKeyPress(.downArrow) { selection = min(selection + 1, max(suggestions.count - 1, 0)); return .handled }
                         .onKeyPress(.upArrow) { selection = max(selection - 1, 0); return .handled }
                         .onKeyPress(.escape) { browser.commandMode = nil; return .handled }
+                        .accessibilityIdentifier("control.commandBar.field")
                     }
                     #else
                     TextField(placeholder, text: $text)
@@ -63,6 +64,7 @@ struct CommandBar: View {
                         .onKeyPress(.downArrow) { selection = min(selection + 1, max(suggestions.count - 1, 0)); return .handled }
                         .onKeyPress(.upArrow) { selection = max(selection - 1, 0); return .handled }
                         .onKeyPress(.escape) { browser.commandMode = nil; return .handled }
+                        .accessibilityIdentifier("control.commandBar.field")
                     #endif
                 }
                 .padding(.horizontal, 18).frame(height: 56)
@@ -92,6 +94,7 @@ struct CommandBar: View {
             .shadow(color: .black.opacity(0.25), radius: 40, y: 20)
             .padding(.top, 110)
         }
+        .accessibilityIdentifier("screen.commandBar")
         .onAppear {
             if mode == .currentTab { text = browser.activeURL?.absoluteString ?? "" }
         }

@@ -43,7 +43,10 @@ class BoazUITestCase: XCTestCase {
             return
         }
 
-        var launchArguments = ["-BoazUITest", "YES"]
+        // `-ApplePersistenceIgnoreState YES`: AppKit's own window-restoration system otherwise tries to reopen
+        // whatever this bundle id's windows looked like when IT last quit (a separate mechanism from our own
+        // `MacModel.SavedWindow`, which `UITestMode.resetDefaultsIfNeeded()` clears instead).
+        var launchArguments = ["-BoazUITest", "YES", "-ApplePersistenceIgnoreState", "YES"]
         // Absence of the key reads as Light; CI runners boot Light by default.
         if appearance == .dark { launchArguments += ["-AppleInterfaceStyle", "Dark"] }
         launchArguments += arguments
@@ -70,15 +73,27 @@ class BoazUITestCase: XCTestCase {
         XCTAssertTrue(windowFrame.contains(frame),
                       "\(name)'s frame \(frame) falls outside its window \(mainWindow.frame)", file: file, line: line)
 
+        // A scroll view's own content routinely extends past its visible viewport (that's the point of scrolling);
+        // XCUITest still reports that off-screen content as `isHittable`, so a row below the fold isn't a real
+        // layout bug the way the same frame would be outside a non-scrolling screen. Only requiring these controls
+        // to be labeled, not fully on screen, keeps the check meaningful for scrollable content. `XCUIElement`
+        // isn't usefully `Hashable`, so membership is keyed by label/identifier/frame instead of the element itself.
+        func scrollKey(_ control: XCUIElement) -> String { "\(control.label)|\(control.identifier)|\(control.frame)" }
+        let scrolledControls = Set(element.descendants(matching: .scrollView).allElementsBoundByIndex
+            .flatMap { scrollView in [XCUIElement.ElementType.button, .staticText, .textField].flatMap { scrollView.descendants(matching: $0).allElementsBoundByIndex } }
+            .map(scrollKey))
+
         var hittableButtons: [XCUIElement] = []
         for kind in [XCUIElement.ElementType.button, .staticText, .textField] {
             for control in element.descendants(matching: kind).allElementsBoundByIndex where control.exists && control.isHittable {
                 let hasLabel = !control.label.isEmpty || !control.identifier.isEmpty
                 XCTAssertTrue(hasLabel, "A \(kind.rawValue) under \(name) has no label or identifier",
                              file: file, line: line)
-                XCTAssertTrue(windowFrame.contains(control.frame),
-                             "A \(kind.rawValue) under \(name) (\(control.label)) falls outside its window",
-                             file: file, line: line)
+                if !scrolledControls.contains(scrollKey(control)) {
+                    XCTAssertTrue(windowFrame.contains(control.frame),
+                                 "A \(kind.rawValue) under \(name) (\(control.label)) falls outside its window",
+                                 file: file, line: line)
+                }
                 if kind == .button { hittableButtons.append(control) }
             }
         }
@@ -155,15 +170,17 @@ class BoazUITestCase: XCTestCase {
     func openSettings(tab: String) {
         menu("Boaz", "Settings…")
         let settingsWindow = app.windows["Settings"]
-        _ = settingsWindow.waitForExistence(timeout: 5)
+        XCTAssertTrue(settingsWindow.waitForExistence(timeout: 10), "Settings never opened")
         let tabButton = settingsWindow.buttons[tab].firstMatch
-        if tabButton.waitForExistence(timeout: 3) { tabButton.click() }
+        XCTAssertTrue(tabButton.waitForExistence(timeout: 5), "No \(tab) tab in Settings")
+        tabButton.click()
     }
 
     /// Clicks a path of menu bar items, e.g. `menu("Tabs", "Pin Tab")`.
     func menu(_ path: String...) {
         guard let first = path.first else { return }
         var element = app.menuBars.menuBarItems[first]
+        _ = element.waitForExistence(timeout: 5)
         element.click()
         for item in path.dropFirst() {
             element = app.menuItems[item]
