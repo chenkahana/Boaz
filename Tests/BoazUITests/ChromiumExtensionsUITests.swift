@@ -184,10 +184,12 @@ final class ChromiumExtensionsUITests: BoazUITestCase {
     // MARK: - Helpers
 
     private func launchChromium() {
-        let home = ProcessInfo.processInfo.environment["BOAZ_UITEST_HOME"]
+        // A fresh home (and so a fresh Chromium profile) every launch: Chromium keeps an unpacked extension's
+        // service worker from the last run. The app creates it; the test runner's sandbox may not reach it.
+        let base = ProcessInfo.processInfo.environment["BOAZ_UITEST_HOME"]
             ?? "/Volumes/BoazBuild/cef/direct/profiles/lane-a-uitest-home"
-        try? FileManager.default.createDirectory(atPath: home, withIntermediateDirectories: true)
-        launch(fixture: "empty", environment: ["CFFIXED_USER_HOME": home, "HOME": home],
+        let home = base + "/" + UUID().uuidString
+        launch(fixture: "one-space", environment: ["CFFIXED_USER_HOME": home, "HOME": home],
                arguments: ["--use-mock-keychain", "--load-extension=\(Self.fixturePath)", "-onboardingCompleted", "YES"])
         XCTAssertTrue(app.buttons["control.extensions"].waitForExistence(timeout: 20), app.debugDescription)
     }

@@ -15,9 +15,12 @@ chrome.runtime.onInstalled.addListener(async () => {
 
 chrome.contextMenus.onClicked.addListener((info) => log("menu", { id: info.menuItemId }));
 
-chrome.commands.onCommand.addListener(async (command, tab) => {
-  await log("command", { command });
-  if (command === "open-panel" && tab) await chrome.sidePanel.open({ windowId: tab.windowId });
+chrome.commands.onCommand.addListener((command, tab) => {
+  // sidePanel.open() needs the command's user gesture, so it runs before anything awaits.
+  const opened = command === "open-panel"
+    ? chrome.sidePanel.open({ windowId: tab.windowId }).then(() => "opened", (error) => String(error))
+    : Promise.resolve(undefined);
+  opened.then((panel) => log("command", { command, panel }));
 });
 
 // With site access withheld, ask for the site as Chrome extensions do, so the toolbar shows its request button.

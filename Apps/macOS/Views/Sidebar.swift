@@ -69,6 +69,7 @@ struct SidebarView: View {
             .clipped()
             SidebarBottomBar()
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("sidebar.root")
         .padding(.horizontal, 8)
         .padding(.bottom, 8)
