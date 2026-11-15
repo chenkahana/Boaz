@@ -99,7 +99,7 @@ struct BrowserWindow: View {
                 case .manage: ExtensionsManagerView()
                 case .confirm(let pending): ConfirmExtensionView(pending: pending)
                 case .webStore(let text):
-                    #if DIRECT_DISTRIBUTION
+                    #if DIRECT_DISTRIBUTION && !BOAZ_CHROMIUM
                     WebStoreInstallView(text: text)
                     #else
                     let _ = text
@@ -340,7 +340,7 @@ private struct ContentArea: View {
                     }
                 }
             }
-            #if DIRECT_DISTRIBUTION
+            #if DIRECT_DISTRIBUTION && !BOAZ_CHROMIUM
             WebStoreBanner().frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
             #endif
             if let peek = browser.peek {

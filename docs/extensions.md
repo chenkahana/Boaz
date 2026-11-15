@@ -12,7 +12,8 @@ behind Safari's web extensions. The code is in [`Apps/macOS/Extensions`](../Apps
   - **Install from Chrome Web Store…** takes a store address (`chromewebstore.google.com/detail/<name>/<id>`) or an
     ID. On a store detail page an **Add to Boaz** button appears over the page. Boaz downloads the CRX from Google's
     update service (`clients2.google.com/service/update2/crx`), as Chrome does, and strips the CRX2/CRX3 header to
-    get the ZIP. DMG build only; see below.
+    get the ZIP. WebKit DMG build only; see below. The Chromium DMG has neither: the store page's own Add to Chrome
+    button installs through Chromium's `chrome.webstorePrivate`, with Boaz's install prompt.
   - **Load Unpacked…** takes a folder with a `manifest.json`.
   - **Install from File…** takes a `.crx` or `.zip`.
 
@@ -55,7 +56,7 @@ renames the property, tabs still list and switch, but scripts can't target them;
 
 Downloading extension code from the Chrome Web Store risks rejection under App Review Guideline 2.5.2 (apps may not
 download code that adds or changes features). So **Install from Chrome Web Store…** and the Add to Boaz button exist
-only in the DMG build: `project-dmg.yml` sets the `DIRECT_DISTRIBUTION` compilation condition and the App Store
-build doesn't compile that code. Load Unpacked… and Install from File… remain in both builds: the user picks the
-files, as with any document, but App Review may still question them. If it does, wrap their menu items in
+only in the WebKit DMG build: `project-dmg.yml` sets the `DIRECT_DISTRIBUTION` compilation condition, and the App
+Store and Chromium (`BOAZ_CHROMIUM`) builds don't compile that code. Load Unpacked… and Install from File… remain in
+both builds: the user picks the files, as with any document, but App Review may still question them. If it does, wrap their menu items in
 `#if DIRECT_DISTRIBUTION` as well.

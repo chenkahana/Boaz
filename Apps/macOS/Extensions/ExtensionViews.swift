@@ -79,7 +79,7 @@ struct ConfirmExtensionView: View {
     }
 }
 
-#if DIRECT_DISTRIBUTION
+#if DIRECT_DISTRIBUTION && !BOAZ_CHROMIUM
 /// Install Extension…: a Chrome Web Store address or extension ID.
 struct WebStoreInstallView: View {
     @Environment(BrowserState.self) private var browser
