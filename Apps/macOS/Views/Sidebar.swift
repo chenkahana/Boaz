@@ -69,6 +69,7 @@ struct SidebarView: View {
             .clipped()
             SidebarBottomBar()
         }
+        .accessibilityIdentifier("sidebar.root")
         .padding(.horizontal, 8)
         .padding(.bottom, 8)
         .environment(\.colorScheme, appearance)
@@ -794,6 +795,8 @@ private struct SidebarBottomBar: View {
             .menuStyle(.button)
             .buttonStyle(.plain)
             .menuIndicator(.hidden)
+            .accessibilityLabel("New")
+            .accessibilityIdentifier("control.newSpaceMenu")
             .fixedSize()
         }
         .frame(height: SidebarStyle.rowHeight)

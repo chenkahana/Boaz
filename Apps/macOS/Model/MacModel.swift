@@ -85,39 +85,44 @@ final class MacModel {
         let store: BoazStore
         do {
             #if BOAZ_CHROMIUM
-            store = try BoazStore.onDisk(applicationSupportDirectory: ChromiumLegacyStore.applicationSupportDirectory())
+            store = try BoazStore.onDisk(applicationSupportDirectory: UITestMode.storeDirectory ?? ChromiumLegacyStore.applicationSupportDirectory())
             #else
-            store = try BoazStore.onDisk()
+            store = try BoazStore.onDisk(applicationSupportDirectory: UITestMode.storeDirectory)
             #endif
             self.store = store
-            let sync = LibrarySync(store: store)
-            self.sync = sync
-            // A device joining an existing library gets it from there; a lone device starts with a Personal space.
-            var askedEarly = false
-            if try store.isEmpty() {
-                // Welcome goes up at once; the library (joined or starter) lands behind it.
+            if UITestMode.isActive {
+                // UI tests: a fresh, local-only store seeded from the fixture; no CloudKit sync, no background loops.
+                try await UITestFixtures.seedIfNeeded(store, deviceID: deviceID)
                 needsOnboarding = Onboarding.shouldShow(store)
-                askedEarly = true
-                await sync.start()
-            }
-            try StarterLibrary.seedIfEmpty(store)
-            if !askedEarly { needsOnboarding = Onboarding.shouldShow(store) }
-            Task { await sync.start() }
-            registerDevice()
-            Task { await archiveLoop() }
-            Task { await fetchLoop(sync) }
-            LiveFolderRefresher.shared.start(self)
-            NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil,
-                                                   queue: .main) { _ in
-                MainActor.assumeIsolated {
-                    MacModel.shared.archiveStaleTabs()
-                    MacModel.shared.registerDevice()
-                    Task { await sync.syncNow() }
+            } else {
+                let sync = LibrarySync(store: store)
+                self.sync = sync
+                // A device joining an existing library gets it from there; a lone device starts with a Personal space.
+                var askedEarly = false
+                if try store.isEmpty() {
+                    // Welcome goes up at once; the library (joined or starter) lands behind it.
+                    needsOnboarding = Onboarding.shouldShow(store)
+                    askedEarly = true
+                    await sync.start()
                 }
-            }
-            NotificationCenter.default.addObserver(forName: NSApplication.willResignActiveNotification, object: nil,
-                                                   queue: .main) { _ in
-                MainActor.assumeIsolated { MacModel.shared.openBrowsers.forEach { $0.rememberPagesInView() } }
+                try StarterLibrary.seedIfEmpty(store)
+                if !askedEarly { needsOnboarding = Onboarding.shouldShow(store) }
+                Task { await sync.start() }
+                registerDevice()
+                Task { await archiveLoop() }
+                Task { await fetchLoop(sync) }
+                NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil,
+                                                       queue: .main) { _ in
+                    MainActor.assumeIsolated {
+                        MacModel.shared.archiveStaleTabs()
+                        MacModel.shared.registerDevice()
+                        Task { await sync.syncNow() }
+                    }
+                }
+                NotificationCenter.default.addObserver(forName: NSApplication.willResignActiveNotification, object: nil,
+                                                       queue: .main) { _ in
+                    MainActor.assumeIsolated { MacModel.shared.openBrowsers.forEach { $0.rememberPagesInView() } }
+                }
             }
         } catch {
             loadError = String(describing: error)
@@ -126,8 +131,9 @@ final class MacModel {
         // Not tied to the window whose task started the app: closing that window would stop the sidebar following
         // the library, and a new space wouldn't show until relaunch.
         Task { await observeSidebar(store) }
+        LiveFolderRefresher.shared.start(self)
         #if BOAZ_CHROMIUM
-        Task { await observeEngineRules(store) }
+        if !UITestMode.isActive { Task { await observeEngineRules(store) } }
         #endif
     }
 

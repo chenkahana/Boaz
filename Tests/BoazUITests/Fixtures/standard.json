@@ -1,0 +1,43 @@
+{
+  "spaces": [
+    {
+      "id": "space-work",
+      "name": "Work",
+      "icon": "💼",
+      "pinned": [
+        { "id": "pinned-docs", "title": "Docs", "url": "data:text/html,<title>Docs</title><h1>Docs</h1>" }
+      ],
+      "folders": [
+        {
+          "id": "folder-reading",
+          "title": "Reading List",
+          "children": [
+            { "id": "folder-tab-1", "title": "Article One", "url": "data:text/html,<title>Article One</title><h1>Article One</h1>" },
+            { "id": "folder-tab-2", "title": "Article Two", "url": "data:text/html,<title>Article Two</title><h1>Article Two</h1>" }
+          ]
+        }
+      ],
+      "today": [
+        { "id": "today-tab-1", "title": "Today Tab", "url": "data:text/html,<title>Today Tab</title><h1>Today Tab</h1>" }
+      ]
+    },
+    {
+      "id": "space-personal",
+      "name": "Personal",
+      "icon": "🏡",
+      "pinned": [],
+      "folders": [],
+      "today": []
+    }
+  ],
+  "favorites": [
+    { "id": "fav-1", "title": "Favorite One", "url": "data:text/html,<title>Favorite One</title><h1>Favorite One</h1>" },
+    { "id": "fav-2", "title": "Favorite Two", "url": "data:text/html,<title>Favorite Two</title><h1>Favorite Two</h1>" }
+  ],
+  "archived": [
+    { "id": "arch-1", "title": "Archived Page", "url": "data:text/html,<title>Archived Page</title><h1>Archived Page</h1>", "reason": "closed", "daysAgo": 1 }
+  ],
+  "history": [
+    { "id": "hist-1", "title": "History Page", "url": "data:text/html,<title>History Page</title><h1>History Page</h1>", "daysAgo": 1 }
+  ]
+}
