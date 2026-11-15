@@ -28,11 +28,14 @@ final class ChromiumQuickWindow: NSObject, ObservableObject, NSWindowDelegate {
         self.profile = profile
         self.model = model
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 760, height: 620),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered, defer: false)
         super.init()
         address = url?.absoluteString ?? ""
         window.isReleasedWhenClosed = false
         window.title = "Boaz Quick Window"
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
         window.delegate = self
         window.contentView = contentContainer
         addressField.isHidden = true
@@ -175,26 +178,48 @@ final class ChromiumQuickWindow: NSObject, ObservableObject, NSWindowDelegate {
         var body: some View {
             VStack(spacing: 0) {
                 HStack(spacing: 8) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        if let page = owner.page, page.state.url != nil {
-                            Text(page.state.title.isEmpty ? (page.state.url?.host() ?? "") : page.state.title)
-                                .font(.callout.weight(.medium)).lineLimit(1)
-                        }
-                        ChromiumAddressField(field: owner.addressField, text: $owner.address,
-                            placeholder: "Search or enter address", moveUp: {}, moveDown: {},
-                            submit: owner.submit, cancel: { owner.window.performClose(nil) })
+                    Spacer().frame(width: 64)
+                    Image(systemName: owner.page?.state.url?.scheme == "https" ? "lock.fill" : "globe")
+                        .font(.caption).foregroundStyle(.secondary)
+                    ChromiumAddressField(field: owner.addressField, text: $owner.address,
+                        placeholder: "Search or enter address", moveUp: {}, moveDown: {},
+                        submit: owner.submit, cancel: { owner.window.performClose(nil) }, fontSize: 13)
+                    Button(action: owner.promote) {
+                        Label("Open in Boaz", systemImage: "arrow.up.forward.app")
+                            .font(.callout.weight(.medium))
+                            .padding(.horizontal, 10).padding(.vertical, 4)
+                            .background(.white.opacity(0.35), in: .capsule)
                     }
-                    Button(action: owner.promote) { Label("Open in Boaz", systemImage: "arrow.up.right.square") }
-                        .disabled(owner.page?.state.url == nil)
-                }.padding(10)
-                if !owner.notice.isEmpty { Text(owner.notice).padding(8).accessibilityLabel(owner.notice) }
-                if !owner.failure.isEmpty { Text(owner.failure).padding(8).accessibilityLabel(owner.failure) }
-                if let adapter = owner.page?.adapter as? ChromiumEnginePageAdapter {
-                    ChromiumPageView(adapter: adapter)
-                } else {
-                    ContentUnavailableView("Quick Window", systemImage: "globe", description: Text("Search or enter an address."))
+                    .buttonStyle(.plain)
+                    .disabled(owner.page?.state.url == nil)
                 }
+                .padding(.horizontal, 10)
+                .frame(height: 38)
+                .background(Color.clear.contentShape(Rectangle()).gesture(WindowDragGesture()))
+                if !owner.notice.isEmpty { Text(owner.notice).font(.callout).padding(6).accessibilityLabel(owner.notice) }
+                if !owner.failure.isEmpty { Text(owner.failure).font(.callout).padding(6).accessibilityLabel(owner.failure) }
+                Group {
+                    if let adapter = owner.page?.adapter as? ChromiumEnginePageAdapter {
+                        ChromiumPageView(adapter: adapter)
+                            .overlay {
+                                if adapter.state.loadFailure != nil || adapter.state.lifecycle == .crashed {
+                                    ChromiumLoadFailureView(adapter: adapter)
+                                }
+                            }
+                            .overlay(alignment: .top) {
+                                if adapter.state.isLoading { ProgressView().padding(8) }
+                            }
+                    } else {
+                        Color(nsColor: .textBackgroundColor)
+                    }
+                }
+                .clipShape(.rect(cornerRadius: MacRadius.row, style: .continuous))
+                .shadow(color: .black.opacity(0.15), radius: 4, y: 1)
+                .padding([.horizontal, .bottom], 6)
             }
+            .background(LinearGradient(colors: [Theme.peach.opacity(0.55), Theme.electric.opacity(0.35)],
+                                       startPoint: .topLeading, endPoint: .bottomTrailing))
+            .ignoresSafeArea()
             .frame(minWidth: 420, minHeight: 320)
             .onChange(of: owner.page?.state.url) { _, url in
                 if owner.addressField.currentEditor() == nil { owner.address = url?.absoluteString ?? "" }
