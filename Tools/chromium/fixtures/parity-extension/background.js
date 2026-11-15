@@ -20,6 +20,13 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
   if (command === "open-panel" && tab) await chrome.sidePanel.open({ windowId: tab.windowId });
 });
 
+// With site access withheld, ask for the site as Chrome extensions do, so the toolbar shows its request button.
+chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
+  if (change.status !== "complete" || !tab.url?.startsWith("https://example.com/")) return;
+  if (await chrome.permissions.contains({ origins: ["https://example.com/*"] })) return;
+  await chrome.permissions.addHostAccessRequest?.({ tabId }).catch(() => {});
+});
+
 chrome.sidePanel.onClosed?.addListener((info) => log("panel-closed", { path: info.path }));
 
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
@@ -34,6 +41,11 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       case "panel-on-click":
         await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: message.value });
         break;
+      case "toggle-panel-on-click": {
+        const { openPanelOnActionClick } = await chrome.sidePanel.getPanelBehavior();
+        await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: !openPanelOnActionClick });
+        break;
+      }
       case "popup-window":
         await chrome.windows.create({ url: "popup.html?window", type: "popup", width: 400, height: 300 });
         break;
