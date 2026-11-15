@@ -13,7 +13,8 @@ behind Safari's web extensions. The code is in [`Apps/macOS/Extensions`](../Apps
     ID. On a store detail page an **Add to Boaz** button appears over the page. Boaz downloads the CRX from Google's
     update service (`clients2.google.com/service/update2/crx`), as Chrome does, and strips the CRX2/CRX3 header to
     get the ZIP. WebKit DMG build only; see below. The Chromium DMG has neither: the store page's own Add to Chrome
-    button installs through Chromium's `chrome.webstorePrivate`, with Boaz's install prompt.
+    button installs through Chromium's `chrome.webstorePrivate`, with Boaz's install prompt, and **Manage Extensions…**
+    opens Chromium's own `chrome://extensions` (Load unpacked, details, site access, shortcuts, removal).
   - **Load Unpacked…** takes a folder with a `manifest.json`.
   - **Install from File…** takes a `.crx` or `.zip`.
 

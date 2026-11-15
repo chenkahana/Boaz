@@ -112,7 +112,7 @@ final class ChromiumRuntime {
                     guard let owner else { return }
                     owner.pendingExtensionWindows.remove(window)
                     guard !owner.stopped, !owner.closedWindows.contains(window) else { return }
-                    NotificationCenter.default.post(name: ChromiumExtensionManagement.installedExtensionsChanged,
+                    NotificationCenter.default.post(name: ChromiumExtensionActionsModel.installedExtensionsChanged,
                         object: nil, userInfo: ["window": window])
                 }
             }

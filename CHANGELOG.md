@@ -6,6 +6,10 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Mac (DMG): install extensions through the Chrome Web Store's own button and manage them on Chromium's Extensions page.
+
 ## [0.4.10] - 2026-11-15
 
 ### Added

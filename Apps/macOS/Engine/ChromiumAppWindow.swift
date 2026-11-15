@@ -92,17 +92,13 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         guard !installed else { return }
         self.handle = handle
         installed = true
-        browser.loadChromiumDeveloperExtension = { [weak self] in
-            guard let self, !finished, !profile.identity.isPrivate else { return }
-            ChromiumExtensionManagement.install(api: runtime.api, handle: handle, window: window, unpacked: true)
-        }
-        browser.installChromiumExtension = { [weak self] in
-            guard let self, !finished, !profile.identity.isPrivate else { return }
-            ChromiumExtensionManagement.install(api: runtime.api, handle: handle, window: window)
-        }
         browser.manageChromiumExtensions = { [weak self] in
             guard let self, !finished, !profile.identity.isPrivate else { return }
-            ChromiumExtensionManagement.present(api: runtime.api, profile: profile.handle, handle: handle, window: window)
+            if let open = browser.cycleTabs.first(where: { $0.url?.scheme == "chrome" && $0.url?.host() == "extensions" }) {
+                browser.activate(open)
+            } else if let url = URL(string: "chrome://extensions") {
+                browser.openTab(url, engine: .chromium)
+            }
         }
         browser.reviewPreviousChromiumExtensions = { [weak self] in
             guard let self, !finished, !profile.identity.isPrivate else { return }
@@ -110,9 +106,9 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
                 profiles: model.sidebar.profiles, openStore: { [weak self] url in
                     guard let self, !finished else { return }
                     browser.openTab(url, engine: .chromium)
-                }, loadDeveloper: { [weak self] in
+                }, openExtensions: { [weak self] in
                     guard let self, !finished else { return }
-                    browser.loadChromiumDeveloperExtension?()
+                    browser.manageChromiumExtensions?()
                 })
         }
         browser.restoreChromiumDockPreferences = { [weak self] current, last in

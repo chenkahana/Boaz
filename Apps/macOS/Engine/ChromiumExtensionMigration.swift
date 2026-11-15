@@ -15,7 +15,7 @@ final class ChromiumExtensionMigration: NSObject, NSWindowDelegate {
 
     static func present(window: NSWindow, profileID: String, profiles: [BoazKit.Profile],
                         openStore: @escaping (URL) -> Void,
-                        loadDeveloper: @escaping () -> Void) {
+                        openExtensions: @escaping () -> Void) {
         guard window.attachedSheet == nil, active[ObjectIdentifier(window)] == nil else { return }
         let chooser = NSOpenPanel()
         chooser.title = "Choose Previous Extension List"
@@ -43,7 +43,7 @@ final class ChromiumExtensionMigration: NSObject, NSWindowDelegate {
                 result: result, profileID: profileID,
                 close: { [weak controller] in controller?.finish() },
                 openStore: { [weak controller] url in controller?.finish { openStore(url) } },
-                loadDeveloper: { [weak controller] in controller?.finish(action: loadDeveloper) }))
+                openExtensions: { [weak controller] in controller?.finish(action: openExtensions) }))
             let windowID = ObjectIdentifier(window)
             active[windowID] = controller
             window.beginSheet(controller.panel) { [controller, weak window] _ in
@@ -75,7 +75,7 @@ private struct MigrationView: View {
     let profileID: String
     let close: () -> Void
     let openStore: (URL) -> Void
-    let loadDeveloper: () -> Void
+    let openExtensions: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -107,10 +107,10 @@ private struct MigrationView: View {
                                         }
                                         .accessibilityLabel("Review \(item.name) in Chrome Web Store")
                                     } else {
-                                        Text("The previous ZIP does not prove a verified signature. Choose the original developer folder to review it as a developer extension.")
+                                        Text("The previous ZIP does not prove a verified signature. On the Extensions page, use Load unpacked with the original developer folder.")
                                             .font(.caption).foregroundStyle(.secondary)
-                                        Button("Choose Developer Folder…", action: loadDeveloper)
-                                            .accessibilityLabel("Choose developer folder for \(item.name)")
+                                        Button("Open Extensions Page", action: openExtensions)
+                                            .accessibilityLabel("Open the Extensions page to load \(item.name)")
                                     }
                                     Text("Reinstallation pending").font(.caption).foregroundStyle(.secondary)
                                 }
