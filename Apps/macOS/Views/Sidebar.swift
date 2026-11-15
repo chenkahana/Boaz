@@ -692,6 +692,16 @@ struct TabMenu: View {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(url.absoluteString, forType: .string)
         }
+        if !browser.isPrivate(tab), let url = tab.url {
+            Menu {
+                ForEach(model.otherDevices) { device in
+                    Button(device.name, systemImage: device.symbolName) {
+                        model.send(url, title: tab.title, in: tab.spaceID ?? browser.spaceID, to: device)
+                    }
+                }
+                if model.otherDevices.isEmpty { Button("No Other Devices") {}.disabled(true) }
+            } label: { Label("Send to Your Devices", systemImage: "laptopcomputer.and.iphone") }
+        }
         TabAIMenuItems(tab: tab)
         Divider()
         // Close
