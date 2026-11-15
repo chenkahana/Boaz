@@ -59,7 +59,9 @@ final class LiveFolderUITests: BoazUITestCase {
                      "Repositories", "Single Sign-On", "Sign Out of GitHub"] {
             XCTAssertTrue(app.menuItems[item].firstMatch.waitForExistence(timeout: 3), "\(item) is missing from Pull Requests")
         }
-        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        // `mainWindow`'s own screenshot, not `app.screenshot()`: on macOS the latter captures the whole physical
+        // display (every other window on the machine), not just this app.
+        let screenshot = XCTAttachment(screenshot: mainWindow.screenshot())
         screenshot.name = "live-folder-menu"
         screenshot.lifetime = .keepAlways
         add(screenshot)

@@ -70,15 +70,27 @@ class BoazUITestCase: XCTestCase {
         XCTAssertTrue(windowFrame.contains(frame),
                       "\(name)'s frame \(frame) falls outside its window \(mainWindow.frame)", file: file, line: line)
 
+        // A scroll view's own content routinely extends past its visible viewport (that's the point of scrolling);
+        // XCUITest still reports that off-screen content as `isHittable`, so a row below the fold isn't a real
+        // layout bug the way the same frame would be outside a non-scrolling screen. Only requiring these controls
+        // to be labeled, not fully on screen, keeps the check meaningful for scrollable content. `XCUIElement`
+        // isn't usefully `Hashable`, so membership is keyed by label/identifier/frame instead of the element itself.
+        func scrollKey(_ control: XCUIElement) -> String { "\(control.label)|\(control.identifier)|\(control.frame)" }
+        let scrolledControls = Set(element.descendants(matching: .scrollView).allElementsBoundByIndex
+            .flatMap { scrollView in [XCUIElement.ElementType.button, .staticText, .textField].flatMap { scrollView.descendants(matching: $0).allElementsBoundByIndex } }
+            .map(scrollKey))
+
         var hittableButtons: [XCUIElement] = []
         for kind in [XCUIElement.ElementType.button, .staticText, .textField] {
             for control in element.descendants(matching: kind).allElementsBoundByIndex where control.exists && control.isHittable {
                 let hasLabel = !control.label.isEmpty || !control.identifier.isEmpty
                 XCTAssertTrue(hasLabel, "A \(kind.rawValue) under \(name) has no label or identifier",
                              file: file, line: line)
-                XCTAssertTrue(windowFrame.contains(control.frame),
-                             "A \(kind.rawValue) under \(name) (\(control.label)) falls outside its window",
-                             file: file, line: line)
+                if !scrolledControls.contains(scrollKey(control)) {
+                    XCTAssertTrue(windowFrame.contains(control.frame),
+                                 "A \(kind.rawValue) under \(name) (\(control.label)) falls outside its window",
+                                 file: file, line: line)
+                }
                 if kind == .button { hittableButtons.append(control) }
             }
         }
