@@ -24,6 +24,7 @@
 #include "chrome/browser/ui/browser_window.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_init_state.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_context.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_bubble.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
@@ -128,10 +129,21 @@ class NativeWindow final : public BrowserWindow,
     return IsMaximized() ? ui::mojom::WindowShowState::kMaximized : ui::mojom::WindowShowState::kNormal;
   }
   gfx::Rect GetBounds() const override { Main(); return gfx::ScreenRectFromNSRect(window_.frame); }
-  void Show() override { Main(); [window_ makeKeyAndOrderFront:nil]; }
+  void Show() override { Main(); ApplyRequestedBounds(); [window_ makeKeyAndOrderFront:nil]; }
   void Hide() override { Main(); [window_ orderOut:nil]; }
   bool IsVisible() const override { Main(); return window_.visible; }
-  void ShowInactive() override { Main(); [window_ orderFront:nil]; }
+  void ShowInactive() override { Main(); ApplyRequestedBounds(); [window_ orderFront:nil]; }
+  // The size (and position, when given) the opener asked for, as Chrome's window sizer applies it: window.open
+  // features, chrome.windows.create({width, height, left, top}).
+  void ApplyRequestedBounds() {
+    if (std::exchange(applied_requested_bounds_, true)) return;
+    const auto* init = BrowserInitState::From(browser_);
+    if (!init || !init->bounds_overridden()) return;
+    gfx::Rect bounds = init->override_bounds();
+    if (init->create_params().initial_origin_specified == BrowserWindowCreateParams::ValueSpecified::kUnspecified)
+      bounds.set_origin(gfx::ScreenRectFromNSRect(window_.frame).origin());
+    [window_ setFrame:gfx::ScreenRectToNSRect(bounds) display:NO];
+  }
   void Close() override { Main(); services_.request_close.Run(); }
   void Activate() override { Main(); if (window_.miniaturized) [window_ deminiaturize:nil]; [window_ makeKeyAndOrderFront:nil]; }
   void Deactivate() override {
@@ -374,6 +386,7 @@ class NativeWindow final : public BrowserWindow,
     NotifyPositionRequiresUpdate();
   }
   raw_ptr<BrowserWindowInterface> browser_;
+  bool applied_requested_bounds_ = false;
   NSWindow* __strong window_;
   NSMutableArray* __strong observers_;
   NativeWindowServices services_;
