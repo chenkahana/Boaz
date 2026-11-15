@@ -6,6 +6,19 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.11] - 2026-11-15
+
+### Changed
+
+- Mac (DMG): install extensions with the Chrome Web Store's own Add to Chrome button; the Add to Boaz overlay is gone.
+  Manage Extensions… opens Chromium's Extensions page (on/off, details, site access, shortcuts, Load unpacked),
+  replacing Boaz's own extensions sheet and its Install Extension… and Load Developer Extension… items.
+
+### Fixed
+
+- Mac (DMG): removing an extension, from the Extensions page or the store's Remove from Chrome, asks in a sheet on
+  the Boaz window instead of a dialog half off screen.
+
 ## [0.4.10] - 2026-11-15
 
 ### Added
@@ -347,7 +360,8 @@ First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone
 - Share extension, search widget, App Shortcuts, the `boaz://` URL scheme and alternate app icons.
 - Privacy manifest, privacy policy and an About section with third-party notices.
 
-[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.10...HEAD
+[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.11...HEAD
+[0.4.11]: https://github.com/chenkahana/Boaz/compare/v0.4.10...v0.4.11
 [0.4.10]: https://github.com/chenkahana/Boaz/compare/v0.4.9...v0.4.10
 [0.4.9]: https://github.com/chenkahana/Boaz/compare/v0.4.8...v0.4.9
 [0.4.8]: https://github.com/chenkahana/Boaz/compare/v0.4.7...v0.4.8
