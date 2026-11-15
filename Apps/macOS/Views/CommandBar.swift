@@ -238,7 +238,7 @@ struct CommandBar: View {
 
     private func open(_ url: URL) {
         switch mode {
-        case .newTab: browser.openTab(url)
+        case .newTab: browser.openTab(url, below: browser.newTabAnchor)
         case .currentTab: browser.load(url)
         case .split: browser.openInSplit(url)
         }

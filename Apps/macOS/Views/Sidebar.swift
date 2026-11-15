@@ -624,34 +624,92 @@ struct TabMenu: View {
             Button("Back to Pinned Page") { browser.returnToPinnedPage(tab) }
             Divider()
         }
-        Button("Open in Split View") { browser.openInSplit(tab) }
+        // New
+        Button("New Tab Below", systemImage: "plus") { browser.newTabAnchor = tab; browser.commandMode = .newTab }
+        Button("Open in Split View", systemImage: "rectangle.split.2x1") { browser.openInSplit(tab) }
+        Divider()
+        // Organise
         if let url = tab.url {
-            Button("Duplicate") { browser.openTab(url, title: tab.title) }
-            if !browser.isPrivate(tab) { Button("Open in New Window") { model.openInNewWindow(tab) } }
+            Button("Duplicate", systemImage: "plus.square.on.square") { browser.openTab(url, title: tab.title) }
         }
         if !browser.isPrivate(tab) {
-            Button(model.isPinned(tab) && !model.isFavorite(tab) ? "Unpin Tab" : "Pin Tab") {
-                withAnimation { browser.togglePin(tab) }
-            }
-            if !model.isFavorite(tab) { Button("Add to Favorites") { withAnimation { model.addToFavorites(tab) } } }
-            Button("Rename…") { browser.rename = .init(target: .item(tab), text: tab.title ?? "") }
-            let otherSpaces = model.sidebar.spaces.filter { $0.id != tab.spaceID }
-            if !model.isFavorite(tab), !otherSpaces.isEmpty {
-                Menu("Move to Space") {
-                    ForEach(otherSpaces) { space in
-                        Button(space.title) { withAnimation { model.move(tab, to: space) } }
+            Button("Add to New Folder", systemImage: "folder.badge.plus") {
+                withAnimation {
+                    if let folder = model.addToNewFolder(tab) {
+                        browser.rename = .init(target: .item(folder), text: folder.title ?? "")
                     }
                 }
             }
+            let folders = model.sidebar.children(of: model.container(of: tab)?.id ?? "")
+                .filter { $0.kind == .folder && $0.id != tab.parentID }
+            if !folders.isEmpty {
+                Menu {
+                    ForEach(folders) { folder in
+                        Button(folder.title ?? "Folder") { withAnimation { model.move(tab.id, into: folder.id, before: nil) } }
+                    }
+                } label: { Label("Move to Folder", systemImage: "folder") }
+            }
         }
-        Button("Copy URL") {
+        // Move
+        if !browser.isPrivate(tab) {
+            Divider()
+            Button("Move Tab to New Window", systemImage: "macwindow.badge.plus") { model.openInNewWindow(tab) }
+            let otherSpaces = model.sidebar.spaces.filter { $0.id != tab.spaceID }
+            if !model.isFavorite(tab), !otherSpaces.isEmpty {
+                Menu {
+                    ForEach(otherSpaces) { space in
+                        Button(space.title) { withAnimation { model.move(tab, to: space) } }
+                    }
+                } label: { Label("Move to Space", systemImage: "square.grid.2x2") }
+            }
+        }
+        // Pin + mute
+        if !browser.isPrivate(tab) || mutable {
+            Divider()
+            if !browser.isPrivate(tab) {
+                Button(model.isPinned(tab) && !model.isFavorite(tab) ? "Unpin Tab" : "Pin Tab",
+                       systemImage: model.isPinned(tab) && !model.isFavorite(tab) ? "pin.slash" : "pin") {
+                    withAnimation { browser.togglePin(tab) }
+                }
+            }
+            #if BOAZ_CHROMIUM
+            if let page = browser.cachedChromiumPage(for: tab.id) {
+                Button(page.state.isMuted ? "Unmute Tab" : "Mute Tab",
+                       systemImage: page.state.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill") {
+                    do { try page.setAudioMuted(!page.state.isMuted) }
+                    catch { model.showToast("Couldn't change this tab's audio.") }
+                }
+            }
+            #endif
+        }
+        Divider()
+        if !browser.isPrivate(tab) {
+            if !model.isFavorite(tab) { Button("Add to Favorites", systemImage: "star") { withAnimation { model.addToFavorites(tab) } } }
+            Button("Rename…", systemImage: "pencil") { browser.rename = .init(target: .item(tab), text: tab.title ?? "") }
+        }
+        Button("Copy URL", systemImage: "link") {
             guard let url = tab.url else { return }
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(url.absoluteString, forType: .string)
         }
         TabAIMenuItems(tab: tab)
         Divider()
-        Button(model.isPinned(tab) ? "Unload Tab" : "Archive Tab") { browser.close(tab) }
+        // Close
+        Button(model.isPinned(tab) ? "Unload Tab" : "Archive Tab",
+               systemImage: model.isPinned(tab) ? "minus" : "xmark") { browser.close(tab) }
+        if !model.isPinned(tab) {
+            Button("Close Other Tabs", systemImage: "xmark.square") { browser.closeOthers(tab) }
+            Button("Close Tabs Below", systemImage: "arrow.down.to.line") { browser.closeBelow(tab) }
+        }
+    }
+
+    /// Whether this tab has a muteable Chromium page.
+    private var mutable: Bool {
+        #if BOAZ_CHROMIUM
+        browser.cachedChromiumPage(for: tab.id) != nil
+        #else
+        false
+        #endif
     }
 }
 

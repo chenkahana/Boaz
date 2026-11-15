@@ -77,9 +77,12 @@ final class BrowserState {
     var popup: PagePopup?
     var commandMode: CommandMode? {
         didSet {
-            if commandMode == nil { endTypeAhead() } else if oldValue == nil { beginTypeAhead() }
+            if commandMode == nil { endTypeAhead(); newTabAnchor = nil } else if oldValue == nil { beginTypeAhead() }
         }
     }
+    /// The tab a `.newTab` command bar opened from (the Tab menu's "New Tab Below"); the next tab it commits goes
+    /// right below it. Cleared whenever the bar closes.
+    @ObservationIgnored var newTabAnchor: SidebarItem?
     /// Changes each time the command bar opens, so a bar reopened during its closing animation starts empty.
     private(set) var commandSession = UUID()
     var sidebarVisible = true { didSet { updateTrafficLights() } }
@@ -1048,6 +1051,25 @@ final class BrowserState {
         }
         #endif
         finishClose(tab)
+    }
+
+    /// Archives every other Today tab in this tab's list; pinned tabs and favorites are untouched.
+    func closeOthers(_ tab: SidebarItem) {
+        for other in todayTabs(around: tab) where other.id != tab.id { close(other) }
+    }
+
+    /// Archives the Today tabs below this one in its list.
+    func closeBelow(_ tab: SidebarItem) {
+        let tabs = todayTabs(around: tab)
+        guard let index = tabs.firstIndex(where: { $0.id == tab.id }) else { return }
+        for other in tabs[(index + 1)...] { close(other) }
+    }
+
+    /// The Today list `tab` sits in: this window's incognito tabs, or its space's Today tabs.
+    private func todayTabs(around tab: SidebarItem) -> [SidebarItem] {
+        if isPrivate(tab) { return incognitoTabs }
+        guard let space = model.space(tab.spaceID) ?? currentSpace else { return [] }
+        return model.todayTabs(in: space)
     }
 
     private func finishClose(_ tab: SidebarItem) {
