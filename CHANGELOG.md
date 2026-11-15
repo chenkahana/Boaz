@@ -6,6 +6,14 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.10] - 2026-11-15
+
+### Added
+
+- Mac (DMG): Share… in the right-click menu for pages, links and images opens the macOS share picker (AirDrop,
+  Mail, Notes…); images are shared as files. Send to Your Devices, in the right-click menu and the tab's menu, sends
+  the page to your iPhone, iPad or another Mac.
+
 ## [0.4.9] - 2026-11-15
 
 ### Fixed
@@ -339,7 +347,8 @@ First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone
 - Share extension, search widget, App Shortcuts, the `boaz://` URL scheme and alternate app icons.
 - Privacy manifest, privacy policy and an About section with third-party notices.
 
-[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.9...HEAD
+[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.10...HEAD
+[0.4.10]: https://github.com/chenkahana/Boaz/compare/v0.4.9...v0.4.10
 [0.4.9]: https://github.com/chenkahana/Boaz/compare/v0.4.8...v0.4.9
 [0.4.8]: https://github.com/chenkahana/Boaz/compare/v0.4.7...v0.4.8
 [0.4.7]: https://github.com/chenkahana/Boaz/compare/v0.4.6...v0.4.7
