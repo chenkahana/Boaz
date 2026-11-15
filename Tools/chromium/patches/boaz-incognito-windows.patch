@@ -1,0 +1,13 @@
+--- a/chrome/browser/profiles/profile.cc
++++ b/chrome/browser/profiles/profile.cc
+@@ -127,6 +127,10 @@
+   if (*this == PrimaryID() || IsDevTools() ||
+       base::StartsWith(profile_id_, kMediaRouterOTRProfileIDPrefix,
+                        base::CompareCase::SENSITIVE)) {
++    return true;
++  }
++  // Boaz's Incognito windows each own a unique OTR profile created as "Boaz-<uuid>" (boaz/native_profiles.cc).
++  if (base::StartsWith(profile_id_, "Boaz-", base::CompareCase::SENSITIVE)) {
+     return true;
+   }
+ #if BUILDFLAG(IS_CHROMEOS)
