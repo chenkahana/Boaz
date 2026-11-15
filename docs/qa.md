@@ -159,7 +159,8 @@ To see where main-thread time goes, run `sample Boaz 5 -file out.txt` while doin
 `make uitest` runs `Tests/BoazUITests` (XCUITest) against the Mac app: every screen opened the way a user opens it
 (`ScreenTests.swift`), an everyday flow end to end (`SmokeTests.swift`), plus the Library panel, App Icon and live
 folder suites. Each screen must be hittable, inside its window, have every control labeled, no overlapping buttons, and
-pass the system accessibility audit; a screenshot of each lands in `build/UITestResults.xcresult`. CI runs the same
+pass the system accessibility audit (all of it but contrast, which samples the screen and varies from run to run;
+check contrast by eye, as in section 2); a screenshot of each lands in `build/UITestResults.xcresult`. CI runs the same
 target and uploads that result bundle when it fails.
 
 - **Run:** `make uitest`. To look at a failure: `xcrun xcresulttool get test-results summary --path

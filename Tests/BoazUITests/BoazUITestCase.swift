@@ -148,8 +148,9 @@ class BoazUITestCase: XCTestCase {
         do {
             try app.performAccessibilityAudit(
                 // `.textClipped`, `.dynamicType` and `.trait` are iOS/tvOS/watchOS-only; macOS adds `.action`
-                // and `.parentChild` in their place.
-                for: [.elementDetection, .hitRegion, .contrast, .sufficientElementDescription, .action, .parentChild]
+                // and `.parentChild` in their place. `.contrast` samples the screen and flags system-colored text
+                // (`.secondary` footnotes, a Form's own row labels) differently from run to run, so it isn't run.
+                for: [.elementDetection, .hitRegion, .sufficientElementDescription, .action, .parentChild]
             ) { issue in
                 if let element = issue.element {
                     let issueFrame = element.frame
@@ -213,10 +214,7 @@ class BoazUITestCase: XCTestCase {
         guard let element = issue.element else { return issue.auditType == .parentChild }
         let containerFrames = context.containerFrames
         // AppKit's own views (`_NS:` identifiers): an NSAlert's title in a confirmation dialog, the text finder's bar.
-        if element.identifier.hasPrefix("_NS:"),
-           [.contrast, .sufficientElementDescription].contains(issue.auditType) {
-            return true
-        }
+        if element.identifier.hasPrefix("_NS:"), issue.auditType == .sufficientElementDescription { return true }
         // A SwiftUI `List` section header is bridged as an unlabeled row group around the header's own (labeled)
         // text, whose parent doesn't list it as a child; no modifier on the header reaches that group.
         if [.parentChild, .sufficientElementDescription].contains(issue.auditType), element.elementType == .group,

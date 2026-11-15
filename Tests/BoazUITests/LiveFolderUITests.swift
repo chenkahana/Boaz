@@ -91,8 +91,8 @@ final class LiveFolderUITests: BoazUITestCase {
         XCTAssertTrue(sheet.waitForExistence(timeout: 5), "No sign-in sheet")
         XCTAssertTrue(app.staticTexts["BOAZ-TEST"].waitForExistence(timeout: 5), "The fixture's device code isn't shown")
         assertScreenIntact(sheet, name: "github-sign-in")
-        // The fixture's device flow succeeds by itself (after 6 s) and makes the folder.
-        XCTAssertTrue(folder.waitForExistence(timeout: 15))
+        // The fixture's device flow succeeds by itself (after 15 s) and makes the folder.
+        XCTAssertTrue(folder.waitForExistence(timeout: 25))
     }
 
     func testAccountsSettingsShowsTheAccount() {

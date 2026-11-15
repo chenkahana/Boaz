@@ -186,11 +186,13 @@ final class ScreenTests: BoazUITestCase {
     func testToast() {
         launch()
         openSidebarTab("Today Tab")
-        app.typeKey("d", modifierFlags: .command)
+        // Closing a Today tab archives it and offers Undo for five seconds.
+        app.typeKey("w", modifierFlags: .command)
         let toast = element("screen.toast")
-        XCTAssertTrue(toast.waitForExistence(timeout: 3), "Pinning didn't show a toast")
+        XCTAssertTrue(toast.waitForExistence(timeout: 3), "Closing a Today tab didn't show a toast")
+        XCTAssertTrue(toast.buttons["Undo"].exists, "The archive toast has no Undo")
         assertScreenIntact(toast, name: "toast")
-        XCTAssertTrue(waitForDisappearance(toast, timeout: 6), "The toast never went away")
+        XCTAssertTrue(waitForDisappearance(toast, timeout: 8), "The toast never went away")
     }
 
     // MARK: Sheets
@@ -353,8 +355,13 @@ final class ScreenTests: BoazUITestCase {
         XCTAssertTrue(waitForSpace("Work", timeout: 2), "Cancel deleted the space")
     }
 
-    /// A middle-click on a pinned tab with nothing loaded removes it from Pinned, after a warning.
+    /// A middle-click on a pinned tab with nothing loaded removes it from Pinned, after a warning; nothing else opens
+    /// that warning. XCUITest has no middle-click, and the window server drops a synthesized one unless the test
+    /// runner is trusted for Accessibility (System Settings › Privacy & Security), so without that this skips.
     func testRemovePinnedTabConfirmation() throws {
+        guard AXIsProcessTrusted() else {
+            throw XCTSkip("Needs a middle-click, which the test runner can send only when trusted for Accessibility")
+        }
         launch()
         let docs = sidebar.buttons["Docs"].firstMatch
         XCTAssertTrue(docs.waitForExistence(timeout: 10))
@@ -428,34 +435,18 @@ final class ScreenTests: BoazUITestCase {
         XCTAssertTrue(waitForDisappearance(dialog), "Cancel didn't close the \(name) confirmation", file: file, line: line)
     }
 
-    /// XCUITest has no middle-click, so this posts one to the app's own process (not to the system), at `element`,
-    /// addressed to the window under it as the window server would.
+    /// A middle-click where XCUITest's own hover left the pointer; only while the app is in front with `element`
+    /// hittable, so it can't land on another app. (Posted to the app's process instead, AppKit never delivers it.)
     private func middleClick(_ element: XCUIElement) throws {
-        guard let pid = NSRunningApplication.runningApplications(withBundleIdentifier: Self.appBundleID).first?.processIdentifier
-        else { throw XCTSkip("Couldn't find the app's process to send it a middle-click") }
-        let point = CGPoint(x: element.frame.midX, y: element.frame.midY)
-        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
-        let window = windows.first { info in
-            guard info[kCGWindowOwnerPID as String] as? pid_t == pid, info[kCGWindowLayer as String] as? Int == 0,
-                  let bounds = info[kCGWindowBounds as String] as? NSDictionary,
-                  let rect = CGRect(dictionaryRepresentation: bounds) else { return false }
-            return rect.contains(point)
-        }
-        guard let number = window?[kCGWindowNumber as String] as? Int else {
-            throw XCTSkip("Couldn't find the window under the row to send it a middle-click")
-        }
         element.hover()
-        for type in [CGEventType.otherMouseDown, .otherMouseUp] {
-            guard let event = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .center)
-            else { continue }
-            event.setIntegerValueField(.mouseEventButtonNumber, value: 2)
-            event.setIntegerValueField(.mouseEventWindowUnderMousePointer, value: Int64(number))
-            event.setIntegerValueField(.mouseEventWindowUnderMousePointerThatCanHandleThisEvent, value: Int64(number))
-            event.postToPid(pid)
+        guard app.state == .runningForeground, element.isHittable else {
+            throw XCTSkip("The row isn't in front to middle-click")
         }
-    }
-
-    private static var appBundleID: String {
-        ProcessInfo.processInfo.environment["BOAZ_UITEST_BUNDLE_ID"] ?? "com.chenkahana.boaz.uitest"
+        let point = CGPoint(x: element.frame.midX, y: element.frame.midY)
+        for type in [CGEventType.otherMouseDown, .otherMouseUp] {
+            let event = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: point, mouseButton: .center)
+            event?.setIntegerValueField(.mouseEventButtonNumber, value: 2)
+            event?.post(tap: .cghidEventTap)
+        }
     }
 }

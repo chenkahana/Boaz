@@ -78,8 +78,8 @@ final class GitHubAuth {
         do {
             if UITestMode.isActive, UITestMode.githubFixtureURL != nil {
                 flow = .waiting(code: "BOAZ-TEST", verificationURL: URL(string: "https://github.com/login/device")!)
-                // Long enough for a UI test to find the code: one query of the whole app can take a few seconds.
-                try await Task.sleep(for: .seconds(6))
+                // Long enough for a UI test to find the code and check the sheet, which takes several whole-app queries.
+                try await Task.sleep(for: .seconds(15))
                 try await finish(token: "fixture-token")
                 return
             }

@@ -433,22 +433,33 @@ final class BrowserState {
             MainActor.assumeIsolated { self?.windowVisibilityChanged() }
         }
         model.register(self)
-        watchSidebarShortcut()
+        watchWindowShortcuts()
     }
 
     /// The sidebar's shortcut, taken before the key reaches the focused view or the menu bar, so it folds the
-    /// sidebar wherever the keyboard focus is, a web page included.
-    private func watchSidebarShortcut() {
+    /// sidebar wherever the keyboard focus is, a web page included. Close Tab too (the Chromium window takes its own):
+    /// on the SwiftUI menu bar its key can land on the system's Close item instead, which closes the whole window.
+    private func watchWindowShortcuts() {
         guard sidebarKeyMonitor == nil else { return }
         sidebarKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             // Local monitors run on the main thread.
             nonisolated(unsafe) let event = event
             let handled = MainActor.assumeIsolated {
-                guard let self, let window = self.window, event.window === window, window.attachedSheet == nil,
-                      self.model.keyBindings.shortcut(.toggleSidebar)?.matches(event) == true else { return false }
-                // Held down, it folds once; the repeats are swallowed so the menu doesn't fold it again.
-                if !event.isARepeat { self.toggleSidebar() }
-                return true
+                guard let self, let window = self.window, event.window === window, window.attachedSheet == nil
+                else { return false }
+                let bindings = self.model.keyBindings
+                // Held down, each acts once; the repeats are swallowed so the menu doesn't act again.
+                if bindings.shortcut(.toggleSidebar)?.matches(event) == true {
+                    if !event.isARepeat { self.toggleSidebar() }
+                    return true
+                }
+                #if !BOAZ_CHROMIUM
+                if bindings.shortcut(.closeTab)?.matches(event) == true {
+                    if !event.isARepeat { self.closeActive() }
+                    return true
+                }
+                #endif
+                return false
             }
             return handled ? nil : event
         }
