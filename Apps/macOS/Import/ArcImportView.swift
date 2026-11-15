@@ -62,6 +62,8 @@ struct ArcImportView: View {
         }
         .padding(24)
         .frame(width: 560)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("screen.arcImport")
         .animation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.85), value: phase)
         .onAppear(perform: restoreBookmark)
     }

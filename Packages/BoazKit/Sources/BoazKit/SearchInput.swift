@@ -9,6 +9,11 @@ public enum SearchInput {
         if let url = URL(string: text), let scheme = url.scheme, ["http", "https"].contains(scheme.lowercased()) {
             return url
         }
+        // `about:blank` and `data:` URLs open as typed, as they do in Safari and Chrome, rather than as a search.
+        if !text.contains(where: \.isWhitespace), let url = URL(string: text),
+           let scheme = url.scheme, ["about", "data"].contains(scheme.lowercased()) {
+            return url
+        }
         if !text.contains(" "), text.contains("."), !text.hasSuffix("."), let url = URL(string: "https://" + text) {
             return url
         }

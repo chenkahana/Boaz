@@ -281,6 +281,8 @@ struct MacSettingsPaneView: View {
         // 4.5:1 or better (the system's secondary label is about 4:1 in Light).
         .foregroundStyle(.primary, MacSettingsView.footnote)
         .frame(width: 520)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("screen.settings.\(pane)")
     }
 }
 

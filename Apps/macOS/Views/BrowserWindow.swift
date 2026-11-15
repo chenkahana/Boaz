@@ -492,6 +492,8 @@ private struct PeekOverlay: View {
             .clipShape(.rect(cornerRadius: MacRadius.panel, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: MacRadius.panel, style: .continuous).strokeBorder(.white.opacity(0.3)))
             .shadow(color: .black.opacity(0.35), radius: 30, y: 12)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("screen.peek")
             .padding(.horizontal, 56).padding(.vertical, 32)
         }
     }

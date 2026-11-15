@@ -46,6 +46,8 @@ struct OnboardingView: View {
         .frame(width: 640, height: 600)
         .background(Theme.hero)
         .environment(\.colorScheme, .dark)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("screen.onboarding")
         .onExitCommand { if !isFirstRun { dismiss() } }
     }
 
