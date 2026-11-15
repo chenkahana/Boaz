@@ -6,6 +6,13 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-11-15
+
+### Fixed
+
+- Mac (DMG): a link opened in a new tab (middle-click, ⌘-click or a link that opens one) goes right below the tab
+  you're in, not at the top, and shows its page title and favicon without your switching to it.
+
 ## [0.4.2] - 2026-11-14
 
 ### Added
@@ -262,7 +269,8 @@ First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone
 - Share extension, search widget, App Shortcuts, the `boaz://` URL scheme and alternate app icons.
 - Privacy manifest, privacy policy and an About section with third-party notices.
 
-[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/chenkahana/Boaz/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/chenkahana/Boaz/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/chenkahana/Boaz/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/chenkahana/Boaz/compare/v0.2.6...v0.4.0
