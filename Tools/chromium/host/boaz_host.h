@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 50u
+#define BOAZ_HOST_ABI_VERSION 51u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT,
@@ -17,6 +17,25 @@ typedef enum BoazHostDevToolsAction {
 typedef enum BoazHostWindowRole {
   BOAZ_WINDOW_BROWSING, BOAZ_WINDOW_DEVTOOLS
 } BoazHostWindowRole;
+/* Context-menu commands Boaz runs itself instead of Chromium (menu_command). */
+typedef enum BoazHostMenuCommand {
+  BOAZ_MENU_OPEN_INCOGNITO, BOAZ_MENU_OPEN_SPLIT, BOAZ_MENU_QR_CODE
+} BoazHostMenuCommand;
+/* BoazHostWindowOptions.menu_features: the window's pages offer these menu commands. */
+typedef enum BoazHostMenuFeature {
+  BOAZ_MENU_FEATURE_SPLIT = 1u << 0, BOAZ_MENU_FEATURE_INCOGNITO = 1u << 1
+} BoazHostMenuFeature;
+/* Rebindable shortcuts the context menu shows next to Chromium's own items. */
+typedef enum BoazHostMenuShortcutCommand {
+  BOAZ_MENU_SHORTCUT_BACK, BOAZ_MENU_SHORTCUT_FORWARD, BOAZ_MENU_SHORTCUT_RELOAD,
+  BOAZ_MENU_SHORTCUT_VIEW_SOURCE, BOAZ_MENU_SHORTCUT_PICTURE_IN_PICTURE
+} BoazHostMenuShortcutCommand;
+/* key is an NSMenuItem key equivalent (a character or NS*FunctionKey); modifiers are NSEvent modifier flags. */
+typedef struct BoazHostMenuShortcut {
+  BoazHostMenuShortcutCommand command;
+  uint16_t key;
+  uint64_t modifiers;
+} BoazHostMenuShortcut;
 typedef uint64_t BoazHostWindow;
 typedef uint64_t BoazHostPage;
 typedef uint64_t BoazHostDocument;
@@ -172,6 +191,8 @@ typedef struct BoazHostWindowOptions {
   uint8_t (*handle_key)(void* context, void* native_nsevent);
   void (*exclusive_access_notice)(void* context, const char* text,
                                   uint8_t visible);
+  /* BoazHostMenuFeature bits; commands without their bit stay out of the context menu. */
+  uint32_t menu_features;
 } BoazHostWindowOptions;
 
 typedef enum BoazHostDownloadState {
@@ -233,6 +254,10 @@ typedef struct BoazHostCallbacks {
   void (*reopen_requested)(void* context);
   /* Context menu Explain/Ask About This Page; selection is borrowed UTF-8, empty without one. UI notification; no API reentry. */
   void (*ask_about_page)(void* context, BoazHostPage page, const char* selection);
+  /* Context menu command for a page; url and text (link text or page title, may be empty) are borrowed UTF-8.
+   * Posted after the menu closes. UI notification; no API reentry. */
+  void (*menu_command)(void* context, BoazHostPage page, BoazHostMenuCommand command, const char* url,
+      const char* text);
 } BoazHostCallbacks;
 
 /* Enumeration values are borrowed for the visitor call. Visitors must copy
@@ -412,6 +437,8 @@ typedef struct BoazHostAPI {
   BoazHostResult (*widevine_status)(BoazHostWidevineState* state, char* version, size_t capacity);
   /* Shows the context menu's Explain/Ask About This Page item (ask_about_page). Off until set. */
   BoazHostResult (*set_page_assistant_enabled)(uint8_t enabled);
+  /* Replaces the context menu's rebindable shortcuts; a command left out shows none. Input is copied. */
+  BoazHostResult (*set_menu_shortcuts)(const BoazHostMenuShortcut* shortcuts, size_t count);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

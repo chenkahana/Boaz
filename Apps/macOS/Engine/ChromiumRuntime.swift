@@ -22,6 +22,8 @@ final class ChromiumRuntime {
     var reopenRequested: (() -> Void)?
     /// The context menu's Explain/Ask About This Page; the selection is empty for Ask.
     var askAboutPage: ((BoazHostPage, String) -> Void)?
+    /// A context-menu command Boaz runs itself, with its URL and the link text or page title.
+    var menuCommand: ((BoazHostPage, BoazHostMenuCommand, URL, String) -> Void)?
     var pageActivated: ((BoazHostWindow, BoazHostPage) -> Void)?
     var pageCreated: ((BoazHostWindow, EnginePage, Bool) -> Void)?
     var pageEvent: ((BoazHostPage, BoazHostPageEvent) -> Void)?
@@ -216,6 +218,17 @@ final class ChromiumRuntime {
                 DispatchQueue.main.async { [weak owner] in
                     guard let owner, !owner.stopped, owner.pages[page] != nil else { return }
                     owner.askAboutPage?(page, text)
+                }
+            }
+        }
+        callbacks.menu_command = { context, page, command, url, text in
+            guard let context, let url = url.flatMap({ URL(string: String(cString: $0)) }) else { return }
+            let title = text.map { String(cString: $0) } ?? ""
+            MainActor.assumeIsolated {
+                let owner = Unmanaged<ChromiumRuntime>.fromOpaque(context).takeUnretainedValue()
+                DispatchQueue.main.async { [weak owner] in
+                    guard let owner, !owner.stopped, owner.pages[page] != nil else { return }
+                    owner.menuCommand?(page, command, url, title)
                 }
             }
         }

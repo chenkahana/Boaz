@@ -21,6 +21,7 @@ private final class ChromiumApplication: NSObject {
     private var defaultsObserver: NSObjectProtocol?
     private var appliedAutomaticPiP: Bool?
     private var appliedPageAssistant: Bool?
+    private var appliedMenuShortcuts: [KeyboardShortcut?]?
     private var applicationMenu: ChromiumApplicationMenu?
 
     init(runtime: ChromiumRuntime) {
@@ -185,6 +186,9 @@ private final class ChromiumApplication: NSObject {
         runtime.askAboutPage = { [weak self] page, selection in
             self?.windows.forEach { $0.browser.askAboutPage(page, selection: selection) }
         }
+        runtime.menuCommand = { [weak self] page, command, url, title in
+            self?.runMenuCommand(command, page: page, url: url, title: title)
+        }
         runtime.externalURLs = { [weak self] urls in
             guard let self else { return }
             externalURLBatches.append(urls)
@@ -193,6 +197,7 @@ private final class ChromiumApplication: NSObject {
         try runtime.startCallbacks()
         try applyAutomaticPiPPreference()
         applyPageAssistantPreference()
+        applyMenuShortcuts()
         defaultsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
             object: UserDefaults.standard, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.defaultsChanged() }
@@ -418,9 +423,43 @@ private final class ChromiumApplication: NSObject {
               update(enabled ? 1 : 0) == BOAZ_HOST_OK else { return }
         appliedPageAssistant = enabled
     }
+    /// The context menu shows the rebindable shortcuts for Back, Forward, Reload, View Source and Picture in
+    /// Picture. Key binding changes are saved to user defaults, which calls this again.
+    private func applyMenuShortcuts() {
+        let commands: [(BrowserCommand, BoazHostMenuShortcutCommand)] = [
+            (.goBack, BOAZ_MENU_SHORTCUT_BACK), (.goForward, BOAZ_MENU_SHORTCUT_FORWARD),
+            (.reload, BOAZ_MENU_SHORTCUT_RELOAD), (.viewSource, BOAZ_MENU_SHORTCUT_VIEW_SOURCE),
+            (.pictureInPicture, BOAZ_MENU_SHORTCUT_PICTURE_IN_PICTURE),
+        ]
+        let bindings = commands.map { model.keyBindings.shortcut($0.0) }
+        guard appliedMenuShortcuts != bindings, let update = runtime.api.set_menu_shortcuts else { return }
+        let shortcuts = zip(commands, bindings).compactMap { command, binding -> BoazHostMenuShortcut? in
+            guard let binding, let key = String(binding.key.character).utf16.first else { return nil }
+            return BoazHostMenuShortcut(command: command.1, key: key, modifiers: UInt64(binding.modifierFlags.rawValue))
+        }
+        guard shortcuts.withUnsafeBufferPointer({ update($0.baseAddress, $0.count) }) == BOAZ_HOST_OK else { return }
+        appliedMenuShortcuts = bindings
+    }
+    /// Context-menu commands Boaz runs instead of Chromium, whose Incognito and split view aren't Boaz's.
+    private func runMenuCommand(_ command: BoazHostMenuCommand, page: BoazHostPage, url: URL, title: String) {
+        let owner = windows.first { $0.browser.showsChromiumPage(page) }
+        switch command {
+        case BOAZ_MENU_OPEN_INCOGNITO:
+            Task { @MainActor in await openScene("incognito", url: url) }
+        case BOAZ_MENU_OPEN_SPLIT:
+            owner?.browser.openLinkInSplit(url, from: page)
+        case BOAZ_MENU_QR_CODE:
+            guard let window = owner?.window ?? quickWindows.first(where: { $0.chromiumPageHandle == page })?.window
+            else { return }
+            QRCodeSheet.present(url, title: title, on: window)
+        default:
+            break
+        }
+    }
     private func defaultsChanged() {
         guard !finished else { return }
         applyPageAssistantPreference()
+        applyMenuShortcuts()
         do { try applyAutomaticPiPPreference() }
         catch { model.showToast("The automatic Picture in Picture preference could not be applied.") }
         do { try runtime.applyBlockingPreference(Preferences.blockTrackers) }

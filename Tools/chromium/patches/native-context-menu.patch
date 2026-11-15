@@ -23,13 +23,14 @@
  #include "chrome/browser/renderer_context_menu/context_menu_content_type_factory.h"
  #include "chrome/browser/renderer_context_menu/dictation_menu_observer.h"
  #include "chrome/browser/renderer_context_menu/link_to_text_menu_observer.h"
-@@ -1057,6 +1061,77 @@
+@@ -1057,6 +1061,97 @@
    return nullptr;
  }
  
 +// Boaz keeps a short menu: Chromium builds it and runs every command, and Boaz keeps only these items, the page's
-+// and extensions' own items, and spelling suggestions.
-+void KeepBoazItems(ui::SimpleMenuModel& menu) {
++// and extensions' own items, and spelling suggestions. Boaz runs Incognito, split view and QR codes itself, and drops
++// them from windows without them.
++void KeepBoazItems(ui::SimpleMenuModel& menu, content::WebContents* contents) {
 +  static constexpr int kKept[] = {
 +      IDC_BACK,
 +      IDC_FORWARD,
@@ -41,6 +42,8 @@
 +      IDC_CONTENT_CONTEXT_EXIT_FULLSCREEN,
 +      IDC_CONTENT_CONTEXT_OPENLINKNEWTAB,
 +      IDC_CONTENT_CONTEXT_OPENLINKNEWWINDOW,
++      IDC_CONTENT_CONTEXT_OPENLINKOFFTHERECORD,
++      IDC_CONTENT_CONTEXT_OPENLINKSPLITVIEW,
 +      IDC_CONTENT_CONTEXT_SAVELINKAS,
 +      IDC_CONTENT_CONTEXT_COPYLINKLOCATION,
 +      IDC_CONTENT_CONTEXT_COPYLINKTEXT,
@@ -51,6 +54,7 @@
 +      IDC_CONTENT_CONTEXT_SAVEIMAGEAS,
 +      IDC_CONTENT_CONTEXT_COPYIMAGE,
 +      IDC_CONTENT_CONTEXT_COPYIMAGELOCATION,
++      IDC_CONTENT_CONTEXT_GENERATE_QR_CODE,
 +      IDC_CONTENT_CONTEXT_OPENAVNEWTAB,
 +      IDC_CONTENT_CONTEXT_SAVEAVAS,
 +      IDC_CONTENT_CONTEXT_COPYAVLOCATION,
@@ -77,7 +81,12 @@
 +  };
 +  for (size_t i = menu.GetItemCount(); i-- > 0;) {
 +    const int id = menu.GetCommandIdAt(i);
-+    if (menu.GetTypeAt(i) != ui::MenuModel::TYPE_SEPARATOR && std::ranges::find(kKept, id) == std::ranges::end(kKept) &&
++    if (menu.GetTypeAt(i) != ui::MenuModel::TYPE_SEPARATOR &&
++        (std::ranges::find(kKept, id) == std::ranges::end(kKept)
++#if BUILDFLAG(IS_MAC)
++         || !boaz::ContextMenuCommandAvailable(contents, id)
++#endif
++             ) &&
 +        !(id >= IDC_SPELLCHECK_SUGGESTION_0 && id < IDC_SPELLCHECK_LANGUAGES_FIRST) &&
 +        !RenderViewContextMenuBase::IsContentCustomCommandId(id) &&
 +        !ContextMenuMatcher::IsExtensionsCustomCommandId(id)) {
@@ -96,17 +105,28 @@
 +#if BUILDFLAG(IS_MAC)
 +// Boaz's Apple Intelligence item: Explain the selection, or Ask About This Page. A free id in the content range.
 +constexpr int kBoazAskCommandId = 50900;
++// Longer URLs don't fit in a QR code that a phone camera reads reliably.
++constexpr size_t kBoazMaxQRCodeURLLength = 2048;
++
++// The URL a QR code encodes: the image's, or the page's.
++GURL BoazQRCodeURL(const content::ContextMenuParams& params, WebContents* contents) {
++  if (params.media_type == ContextMenuDataMediaType::kImage) {
++    return params.src_url;
++  }
++  NavigationEntry* entry = contents->GetController().GetLastCommittedEntry();
++  return entry ? entry->GetURL() : GURL();
++}
 +#endif
 +
  }  // namespace
  
  // static
-@@ -1619,6 +1694,20 @@
+@@ -1619,6 +1714,20 @@
        AppendReadAnythingItem();
      }
    }
 +
-+  KeepBoazItems(menu_model_);
++  KeepBoazItems(menu_model_, source_web_contents_);
 +#if BUILDFLAG(IS_MAC)
 +  if (boaz::PageAssistantEnabled(source_web_contents_)) {
 +    if (menu_model_.GetItemCount()) {
@@ -122,7 +142,7 @@
  }
  
  Profile* RenderViewContextMenu::GetProfile() const {
-@@ -1686,6 +1775,12 @@
+@@ -1686,6 +1795,12 @@
  }
  
  void RenderViewContextMenu::RecordUsedItem(int id) {
@@ -135,7 +155,7 @@
    // Log general ID.
  
    int enum_id =
-@@ -3426,6 +3521,11 @@
+@@ -3426,6 +3541,21 @@
  // Menu delegate functions -----------------------------------------------------
  
  bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
@@ -143,25 +163,44 @@
 +  if (id == kBoazAskCommandId) {
 +    return true;
 +  }
++  if (boaz::NativeHostEnabled()) {
++    // Boaz opens a new Incognito window from Incognito windows too.
++    if (id == IDC_CONTENT_CONTEXT_OPENLINKOFFTHERECORD) {
++      return params_.link_url.SchemeIsHTTPOrHTTPS();
++    }
++    if (id == IDC_CONTENT_CONTEXT_GENERATE_QR_CODE) {
++      return IsQRCodeGeneratorEnabled() &&
++             BoazQRCodeURL(params_, embedder_web_contents_).spec().size() <= kBoazMaxQRCodeURLLength;
++    }
++  }
 +#endif
  #if BUILDFLAG(IS_CHROMEOS)
    // Disable context menu in locked fullscreen mode to prevent users from
    // exiting this mode (the menu is not really disabled as the user can still
-@@ -3866,6 +3966,13 @@
-     return;
+@@ -3867,6 +3997,22 @@
    }
    command_executed_ = true;
-+
+ 
 +#if BUILDFLAG(IS_MAC)
 +  if (id == kBoazAskCommandId) {
 +    boaz::AskAboutPage(source_web_contents_, params_.selection_text);
 +    return;
 +  }
++  if (id == IDC_CONTENT_CONTEXT_OPENLINKOFFTHERECORD &&
++      boaz::RunContextMenuCommand(source_web_contents_, id, params_.link_url, params_.link_text)) {
++    return;
++  }
++  if (id == IDC_CONTENT_CONTEXT_GENERATE_QR_CODE &&
++      boaz::RunContextMenuCommand(source_web_contents_, id, BoazQRCodeURL(params_, embedder_web_contents_),
++                                  embedder_web_contents_->GetTitle())) {
++    return;
++  }
 +#endif
- 
++
    // Process extension menu items.
    if (ContextMenuMatcher::IsExtensionsCustomCommandId(id)) {
-@@ -5678,8 +5785,12 @@
+     RenderFrameHost* render_frame_host = GetRenderFrameHost();
+@@ -5678,8 +5824,12 @@
  
  void RenderViewContextMenu::ExecPrint() {
  #if BUILDFLAG(ENABLE_PRINTING)
@@ -175,6 +214,20 @@
    if (params_.media_type != ContextMenuDataMediaType::kNone) {
      RenderFrameHost* rfh = GetRenderFrameHost();
      if (rfh) {
+@@ -6122,6 +6272,13 @@
+ #if !BUILDFLAG(IS_ANDROID)
+ void RenderViewContextMenu::OpenLinkInSplitView(
+     split_tabs::SplitTabLayout layout) {
++#if BUILDFLAG(IS_MAC)
++  // Boaz owns split view; a split made here would be replaced by Boaz's.
++  if (boaz::RunContextMenuCommand(source_web_contents_, IDC_CONTENT_CONTEXT_OPENLINKSPLITVIEW, params_.link_url,
++                                  params_.link_text)) {
++    return;
++  }
++#endif
+   BrowserWindowInterface* const browser = GetBrowser();
+   CHECK(browser);
+   CHECK(browser->GetType() == BrowserWindowInterface::TYPE_NORMAL);
 --- a/chrome/browser/ui/cocoa/BUILD.gn
 +++ b/chrome/browser/ui/cocoa/BUILD.gn
 @@ -214,6 +214,7 @@

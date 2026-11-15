@@ -5,6 +5,7 @@
 #include <vector>
 #include "chrome/browser/ui/browser_window_deleter.h"
 namespace content { class RenderFrameHost; class WebContents; }
+class GURL;
 class Profile;
 class BrowserWindow;
 class BrowserWindowInterface;
@@ -16,6 +17,10 @@ void ReportNativePasswordSubmission(content::WebContents*, std::string origin, s
 void ReportProtectedMediaRequest(content::RenderFrameHost* frame, const std::string& key);
 bool PageAssistantEnabled(content::WebContents* contents);
 void AskAboutPage(content::WebContents* contents, const std::u16string& selection);
+// Chromium context-menu commands that Boaz runs itself on the native host: Open Link in Incognito, Open Link in
+// Split View and Create QR Code. Run returns false when Chromium should run the command.
+bool ContextMenuCommandAvailable(content::WebContents* contents, int command);
+bool RunContextMenuCommand(content::WebContents* contents, int command, const GURL& url, const std::u16string& text);
 bool NativeHostEnabled();
 bool AutomaticPictureInPictureEnabled();
 bool IsNativeExtensionPromptContext(Profile*, void* native_window);

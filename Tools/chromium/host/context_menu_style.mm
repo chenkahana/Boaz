@@ -2,11 +2,18 @@
 #include "context_menu_style.h"
 
 #include <algorithm>
+#include <utility>
 #include "base/check.h"
+#include "base/compiler_specific.h"
+#include "base/containers/flat_map.h"
+#include "base/containers/span.h"
+#include "base/no_destructor.h"
+#include "boaz_host.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/base/models/image_model.h"
 #include "ui/events/event_constants.h"
+#include "ui/events/keycodes/keyboard_code_conversion_mac.h"
 #include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/gfx/image/image.h"
 #include "ui/menus/cocoa/text_services_context_menu.h"
@@ -39,6 +46,8 @@ constexpr Style kStyles[] = {
     {kAskCommandId, "apple.intelligence"},
     {IDC_CONTENT_CONTEXT_OPENLINKNEWTAB, "plus.square.on.square"},
     {IDC_CONTENT_CONTEXT_OPENLINKNEWWINDOW, "macwindow.badge.plus"},
+    {IDC_CONTENT_CONTEXT_OPENLINKOFFTHERECORD, "eyeglasses"},
+    {IDC_CONTENT_CONTEXT_OPENLINKSPLITVIEW, "rectangle.split.2x1"},
     {IDC_CONTENT_CONTEXT_SAVELINKAS, "square.and.arrow.down"},
     {IDC_CONTENT_CONTEXT_COPYLINKLOCATION, "link"},
     {IDC_CONTENT_CONTEXT_COPYLINKTEXT, "textformat"},
@@ -49,6 +58,7 @@ constexpr Style kStyles[] = {
     {IDC_CONTENT_CONTEXT_SAVEIMAGEAS, "square.and.arrow.down"},
     {IDC_CONTENT_CONTEXT_COPYIMAGE, "doc.on.doc"},
     {IDC_CONTENT_CONTEXT_COPYIMAGELOCATION, "link"},
+    {IDC_CONTENT_CONTEXT_GENERATE_QR_CODE, "qrcode"},
     {IDC_CONTENT_CONTEXT_OPENAVNEWTAB, "plus.square.on.square"},
     {IDC_CONTENT_CONTEXT_SAVEAVAS, "square.and.arrow.down"},
     {IDC_CONTENT_CONTEXT_COPYAVLOCATION, "link"},
@@ -72,10 +82,67 @@ constexpr Style kStyles[] = {
     {ui::TextServicesContextMenu::kSpeechMenu, "speaker.wave.2"},
     {ui::TextServicesContextMenu::kWritingDirectionMenu, "arrow.left.arrow.right"},
 };
+
+constexpr std::pair<BoazHostMenuShortcutCommand, int> kRebindable[] = {
+    {BOAZ_MENU_SHORTCUT_BACK, IDC_BACK},
+    {BOAZ_MENU_SHORTCUT_FORWARD, IDC_FORWARD},
+    {BOAZ_MENU_SHORTCUT_RELOAD, IDC_RELOAD},
+    {BOAZ_MENU_SHORTCUT_VIEW_SOURCE, IDC_VIEW_SOURCE},
+    {BOAZ_MENU_SHORTCUT_PICTURE_IN_PICTURE, IDC_CONTENT_CONTEXT_PICTUREINPICTURE},
+};
+
+// The rebindable commands' shortcuts, pushed from Boaz's key bindings.
+base::flat_map<int, ui::Accelerator>& Rebound() {
+  static base::NoDestructor<base::flat_map<int, ui::Accelerator>> shortcuts;
+  return *shortcuts;
+}
+
+ui::KeyboardCode KeyCode(uint16_t key) {
+  switch (key) {
+    case NSLeftArrowFunctionKey: return ui::VKEY_LEFT;
+    case NSRightArrowFunctionKey: return ui::VKEY_RIGHT;
+    case NSUpArrowFunctionKey: return ui::VKEY_UP;
+    case NSDownArrowFunctionKey: return ui::VKEY_DOWN;
+    case '\t': return ui::VKEY_TAB;
+    case '\r': return ui::VKEY_RETURN;
+    case ' ': return ui::VKEY_SPACE;
+    case 0x1B: return ui::VKEY_ESCAPE;
+    case 0x08:
+    case 0x7F: return ui::VKEY_BACK;
+    default: return ui::KeyboardCodeFromCharCode(key);
+  }
+}
 }  // namespace
+
+bool SetContextMenuShortcuts(const BoazHostMenuShortcut* shortcuts, size_t count) {
+  base::flat_map<int, ui::Accelerator> rebound;
+  for (const auto& shortcut : UNSAFE_BUFFERS(base::span(shortcuts, count))) {
+    const auto command =
+        std::ranges::find(kRebindable, shortcut.command, &std::pair<BoazHostMenuShortcutCommand, int>::first);
+    if (command == std::ranges::end(kRebindable)) {
+      return false;
+    }
+    const ui::KeyboardCode key = KeyCode(shortcut.key);
+    if (key == ui::VKEY_UNKNOWN) {
+      continue;  // A key Chromium can't name shows no shortcut.
+    }
+    int modifiers = ui::EF_NONE;
+    if (shortcut.modifiers & NSEventModifierFlagCommand) modifiers |= ui::EF_COMMAND_DOWN;
+    if (shortcut.modifiers & NSEventModifierFlagShift) modifiers |= ui::EF_SHIFT_DOWN;
+    if (shortcut.modifiers & NSEventModifierFlagOption) modifiers |= ui::EF_ALT_DOWN;
+    if (shortcut.modifiers & NSEventModifierFlagControl) modifiers |= ui::EF_CONTROL_DOWN;
+    rebound.insert_or_assign(command->second, ui::Accelerator(key, modifiers));
+  }
+  Rebound() = std::move(rebound);
+  return true;
+}
 
 void StyleContextMenu(ui::SimpleMenuModel* menu) {
   for (size_t i = 0; i < menu->GetItemCount(); ++i) {
+    if (const auto rebound = Rebound().find(menu->GetCommandIdAt(i)); rebound != Rebound().end()) {
+      menu->SetAcceleratorAt(i, rebound->second);
+      menu->SetForceShowAcceleratorForItemAt(i, true);
+    }
     const auto style = std::ranges::find(kStyles, menu->GetCommandIdAt(i), &Style::id);
     if (style == std::ranges::end(kStyles)) {
       continue;
