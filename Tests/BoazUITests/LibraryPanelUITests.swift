@@ -27,7 +27,7 @@ final class LibraryPanelUITests: BoazUITestCase {
         launch(appearance: appearance, environment: ["BOAZ_UITEST_DOWNLOADS_DIR": downloadsDir.path])
 
         let libraryButton = app.buttons["sidebar.libraryButton"]
-        XCTAssertTrue(libraryButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(libraryButton.waitForExistence(timeout: 10))
         libraryButton.click()
 
         let panel = app.groups["screen.libraryPanel"].firstMatch

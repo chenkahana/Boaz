@@ -490,6 +490,7 @@ struct QuickWindow: View {
                                    startPoint: .topLeading, endPoint: .bottomTrailing))
         .ignoresSafeArea()
         .frame(minWidth: 420, minHeight: 320)
+        .accessibilityIdentifier("screen.quickWindow")
         .onAppear {
             guard page == nil else { return }
             if let url { start(url) } else { addressFocused = true }

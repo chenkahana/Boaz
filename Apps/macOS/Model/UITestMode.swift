@@ -4,6 +4,17 @@ import Foundation
 enum UITestMode {
     static let isActive = UserDefaults.standard.bool(forKey: "BoazUITest")
 
+    /// Wipes this bundle id's persisted defaults, not the `-BoazUITest YES` launch argument (a separate domain
+    /// `removePersistentDomain` doesn't touch). Without this, a run inherits whatever the LAST run quit with —
+    /// its window frame, which space/tab it had open (`MacModel.SavedWindow`, UserDefaults key "openWindows"),
+    /// the chosen app icon — because this bundle id's UserDefaults persist across launches the same way the real
+    /// app's would, while the on-disk store is a fresh temp directory every time. Call once, before anything
+    /// reads a persisted default (`applicationDidFinishLaunching`, first thing).
+    static func resetDefaultsIfNeeded() {
+        guard isActive, let bundleID = Bundle.main.bundleIdentifier else { return }
+        UserDefaults.standard.removePersistentDomain(forName: bundleID)
+    }
+
     private static func path(_ key: String) -> URL? {
         guard isActive, let value = ProcessInfo.processInfo.environment[key], !value.isEmpty else { return nil }
         return URL(fileURLWithPath: value)
