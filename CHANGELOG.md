@@ -6,6 +6,13 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-11-15
+
+### Fixed
+
+- iPhone: links to installed apps open those apps, including universal links.
+- iPhone: page errors distinguish connection failures, missing websites, and unsupported links.
+
 ## [0.4.6] - 2026-11-15
 
 ### Added

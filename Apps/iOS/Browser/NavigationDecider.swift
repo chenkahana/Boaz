@@ -1,3 +1,4 @@
+import UIKit
 import WebKit
 
 /// Per-page navigation policy: detects non-renderable responses (routed to `Downloads` instead of
@@ -12,6 +13,7 @@ struct BoazNavigationDecider: WebPage.NavigationDeciding {
     /// its scripts run.
     let hostPopups: @MainActor () -> Void
     let onDownload: @MainActor (URLResponse) -> Void
+    let onExternalLinkFailure: @MainActor () -> Void
 
     @MainActor
     func decidePolicy(for action: WebPage.NavigationAction,
@@ -24,6 +26,18 @@ struct BoazNavigationDecider: WebPage.NavigationDeciding {
         if action.target == nil, action.navigationType == .other,
            PageSettings.settings(for: page()?.url, isPrivate: isPrivate).popups == .block {
             return .cancel
+        }
+        if action.target?.isMainFrame != false, let url = action.request.url,
+           let scheme = url.scheme?.lowercased() {
+            if scheme == "http" || scheme == "https" {
+                if action.navigationType == .linkActivated,
+                   await UIApplication.shared.open(url, options: [.universalLinksOnly: true]) {
+                    return .cancel
+                }
+            } else if !["about", "blob", "data", "file", "javascript"].contains(scheme) {
+                if await UIApplication.shared.open(url) == false { onExternalLinkFailure() }
+                return .cancel
+            }
         }
         // Desktop or mobile site follows the destination, so it's right on a tab's first load and when a link
         // leaves the site.
