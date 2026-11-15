@@ -70,6 +70,12 @@ struct GitHubSignInView: View {
         .frame(width: 440)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen.githubSignIn")
+        // Signed in while the sheet is up: show who, then get out of the way.
+        .task(id: auth.isSignedIn) {
+            guard auth.isSignedIn, request != nil else { return }
+            try? await Task.sleep(for: .seconds(1.5))
+            if !Task.isCancelled { dismiss() }
+        }
         .onAppear {
             guard !auth.isSignedIn else { return }
             if case .waiting = auth.flow {} else if GitHubAuth.hasClientID { auth.beginDeviceFlow() }

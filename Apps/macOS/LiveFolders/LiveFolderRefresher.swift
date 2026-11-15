@@ -111,9 +111,9 @@ final class LiveFolderRefresher {
                 }
             }
             let result = try await client.searchPulls(qualifiers, repositories: source.repositories)
-            // A pull request in several searches is listed once.
+            // A pull request in several searches is listed once: its newest copy, else the first filter's.
             var byURL: [URL: GitHubPull] = [:]
-            for pull in result.pulls.values.joined() where byURL[pull.url].map({ $0.updatedAt < pull.updatedAt }) ?? true {
+            for pull in qualifiers.flatMap({ result.pulls[$0] ?? [] }) where byURL[pull.url].map({ $0.updatedAt < pull.updatedAt }) ?? true {
                 byURL[pull.url] = pull
             }
             let pulls = byURL.values.sorted { ($0.updatedAt, $0.url.absoluteString) > ($1.updatedAt, $1.url.absoluteString) }

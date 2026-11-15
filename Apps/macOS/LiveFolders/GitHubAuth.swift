@@ -17,7 +17,7 @@ final class GitHubAuth {
 
     /// The Boaz OAuth App's client ID (github.com › Settings › Developer settings › OAuth Apps, device flow enabled).
     /// Not a secret: the device flow has none.
-    static let clientID = "BOAZ_GITHUB_CLIENT_ID_PLACEHOLDER"
+    static let clientID = "Ov23liMIq1lh30dIy0ML"
     /// Private repositories' pull requests, and the teams a user is on (Team Review Requests).
     static let scopes = "repo read:org"
     static var hasClientID: Bool { !clientID.hasPrefix("BOAZ_") || UITestMode.githubFixtureURL != nil }
