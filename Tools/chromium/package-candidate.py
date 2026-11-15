@@ -24,6 +24,65 @@ def run(*command):
     return result.stdout, result.stderr
 
 
+# Finder lays out the mounted image: icon view on the pretzel background, the app on the left and Applications on
+# the right, where dmg-background.png's arrow points (Tools/make-icon.swift draws it for these positions).
+DMG_LAYOUT = """
+on run {mountPoint}
+    set theVolume to (POSIX file mountPoint) as alias
+    tell application "Finder"
+        open theVolume
+        set theWindow to container window of item theVolume
+        set current view of theWindow to icon view
+        set toolbar visible of theWindow to false
+        set statusbar visible of theWindow to false
+        set pathbar visible of theWindow to false
+        -- 660 x 400 points of content below the title bar.
+        set bounds of theWindow to {200, 120, 860, 548}
+        set viewOptions to icon view options of theWindow
+        set arrangement of viewOptions to not arranged
+        set icon size of viewOptions to 128
+        set text size of viewOptions to 13
+        set background picture of viewOptions to file ".background:background.tiff" of item theVolume
+        set position of item "Boaz.app" of item theVolume to {165, 190}
+        set position of item "Applications" of item theVolume to {495, 190}
+        -- Out of sight for people who show hidden files.
+        repeat with hiddenName in {".background", ".fseventsd", ".DS_Store"}
+            try
+                set position of item hiddenName of item theVolume to {900, 900}
+            end try
+        end repeat
+        update item theVolume without registering applications
+        delay 1
+        close theWindow
+    end tell
+end run
+"""
+
+
+def styled_dmg(staging, dmg):
+    """A compressed image whose Finder window shows the drag-to-Applications background. If Finder can't be
+    scripted (no Automation permission), the image is still built, just without the layout."""
+    background = staging / '.background'
+    background.mkdir()
+    run('/usr/bin/tiffutil', '-cathidpicheck', str(HERE / 'dmg-background.png'), str(HERE / 'dmg-background@2x.png'),
+        '-out', str(background / 'background.tiff'))
+    writable = dmg.with_name('Boaz-layout.dmg')
+    run('/usr/bin/hdiutil', 'create', '-volname', 'Boaz', '-srcfolder', str(staging), '-fs', 'HFS+',
+        '-format', 'UDRW', str(writable))
+    attached, _ = run('/usr/bin/hdiutil', 'attach', '-readwrite', '-noverify', '-noautoopen', '-plist', str(writable))
+    mount = next(entity['mount-point'] for entity in plistlib.loads(attached)['system-entities'] if 'mount-point' in entity)
+    try:
+        layout = subprocess.run(['/usr/bin/osascript', '-', mount], input=DMG_LAYOUT.encode(), capture_output=True,
+                                timeout=120, check=False)
+        if layout.returncode:
+            print(f'warning: DMG window layout skipped: {layout.stderr.decode().strip()}', file=sys.stderr)
+        subprocess.run(['/bin/sync'], check=False)
+    finally:
+        run('/usr/bin/hdiutil', 'detach', mount)
+    run('/usr/bin/hdiutil', 'convert', str(writable), '-format', 'UDZO', '-o', str(dmg))
+    writable.unlink()
+
+
 def digest(path):
     with path.open('rb') as stream:
         return hashlib.file_digest(stream, 'sha256').hexdigest()
@@ -142,8 +201,7 @@ def package(args):
         raise RuntimeError('Application changed during packaging')
     (staging / 'Applications').symlink_to('/Applications')
     dmg = output / 'Boaz.dmg'
-    run('/usr/bin/hdiutil', 'create', '-volname', 'Boaz', '-srcfolder', str(staging),
-        '-fs', 'HFS+', '-format', 'UDZO', str(dmg))
+    styled_dmg(staging, dmg)
     size = dmg.stat().st_size
     sha = digest(dmg)
     (output / 'Boaz.dmg.sha256').write_text(f'{sha}  Boaz.dmg\n')

@@ -35,10 +35,11 @@ enum Onboarding {
     }
 }
 
-/// The app icon floating on the brand gradient.
+/// The app icon (whichever pretzel is chosen) floating on the brand gradient.
 struct OnboardingHero: View {
     var size: CGFloat = 112
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(AppIconChoice.selectionKey) private var selection = AppIconChoice.classic.id
     @State private var floating = false
 
     var body: some View {
@@ -62,7 +63,7 @@ struct OnboardingHero: View {
         #if os(macOS)
         Image(nsImage: NSApplication.shared.applicationIconImage)
         #else
-        UIImage(named: "AppIcon-Preview").map { Image(uiImage: $0) } ?? Image(systemName: "eyes")
+        UIImage(named: AppIconChoice.with(id: selection).previewName).map { Image(uiImage: $0) } ?? Image(systemName: "eyes")
         #endif
     }
 }

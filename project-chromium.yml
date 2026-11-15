@@ -19,6 +19,8 @@ targets:REPLACE:
     dependencies:
       - target: Boaz-CLI
         link: false
+      - target: Boaz-DockTile
+        link: false
       - package: BoazKit
       - package: Sparkle
     settings:
@@ -47,5 +49,23 @@ targets:REPLACE:
         CODE_SIGNING_ALLOWED: NO
         CODE_SIGNING_REQUIRED: NO
         GENERATE_INFOPLIST_FILE: NO
+        ARCHS: arm64
+        SKIP_INSTALL: YES
+  # Shows the chosen app icon in the Dock while Boaz isn't running (stage-application.py embeds it in PlugIns).
+  Boaz-DockTile:
+    type: bundle
+    platform: macOS
+    deploymentTarget: "26.0"
+    sources:
+      - Apps/DockTile
+    settings:
+      base:
+        PRODUCT_NAME: BoazDockTile
+        PRODUCT_BUNDLE_IDENTIFIER: com.chenkahana.boaz.docktile
+        WRAPPER_EXTENSION: docktileplugin
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_NSPrincipalClass: BoazDockTilePlugIn
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_REQUIRED: NO
         ARCHS: arm64
         SKIP_INSTALL: YES

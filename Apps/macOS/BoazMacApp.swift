@@ -72,6 +72,7 @@ struct BoazMacApp: App {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        MacAppIcon.apply()
         if !UITestMode.isActive { NSApplication.shared.registerForRemoteNotifications() }
         LinkDownloadMenu.install()
     }
