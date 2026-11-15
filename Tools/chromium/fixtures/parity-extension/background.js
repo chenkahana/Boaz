@@ -24,10 +24,12 @@ chrome.commands.onCommand.addListener((command, tab) => {
 });
 
 // With site access withheld, ask for the site as Chrome extensions do, so the toolbar shows its request button.
-chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
-  if (change.status !== "complete" || !tab.url?.startsWith("https://example.com/")) return;
+// Without site access the tab's URL isn't visible, so ask on every load; Chromium keeps only requests for sites
+// whose access is withheld.
+chrome.tabs.onUpdated.addListener(async (tabId, change) => {
+  if (change.status !== "complete") return;
   if (await chrome.permissions.contains({ origins: ["https://example.com/*"] })) return;
-  await chrome.permissions.addHostAccessRequest?.({ tabId }).catch(() => {});
+  await chrome.permissions.addHostAccessRequest?.({ tabId }).catch((error) => log("access-request", { error: String(error) }));
 });
 
 chrome.sidePanel.onClosed?.addListener((info) => log("panel-closed", { path: info.path }));
