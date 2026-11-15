@@ -195,7 +195,7 @@ struct TabBrowser: View {
                 // WebKit draws no error page of its own, so a failed load would otherwise stay blank.
                 if let loadFailure {
                     ContentUnavailableView {
-                        Label("Can't Open This Page", systemImage: "wifi.exclamationmark")
+                        Label("Can't Open This Page", systemImage: "exclamationmark.circle")
                     } description: {
                         Text(loadFailure.message)
                     } actions: {
@@ -403,7 +403,22 @@ private struct LoadFailure {
         if nsError.domain == NSURLErrorDomain, nsError.code == NSURLErrorCancelled { return nil }
         // WebKitErrorFrameLoadInterruptedByPolicyChange: the response became a download.
         if nsError.domain == "WebKitErrorDomain", nsError.code == 102 { return nil }
-        message = nsError.localizedDescription
+        if nsError.domain == NSURLErrorDomain {
+            switch nsError.code {
+            case NSURLErrorNotConnectedToInternet, NSURLErrorDataNotAllowed:
+                message = "You're offline. Check your connection and try again."
+            case NSURLErrorTimedOut, NSURLErrorNetworkConnectionLost:
+                message = "The connection was interrupted. Try again."
+            case NSURLErrorCannotFindHost:
+                message = "This website couldn't be found. Check the address and try again."
+            case NSURLErrorUnsupportedURL:
+                message = "No app is available to open this link."
+            default:
+                message = nsError.localizedDescription
+            }
+        } else {
+            message = nsError.localizedDescription
+        }
         url = nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL
         passes = nsError.domain == NSURLErrorDomain && [
             NSURLErrorNotConnectedToInternet, NSURLErrorNetworkConnectionLost, NSURLErrorTimedOut,

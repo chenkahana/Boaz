@@ -369,6 +369,9 @@ final class AppModel {
             onDownload: { [weak self] response in
                 self?.discardIfDownloadOnly(tab.id)
                 self?.handleDownload(response, dataStore: dataStore)
+            },
+            onExternalLinkFailure: { [weak self] in
+                self?.showToast("No app is available to open this link.")
             })
         let pictureInPicture = PictureInPicture.install(in: &configuration)
         let page = WebPage(configuration: configuration, navigationDecider: decider)
