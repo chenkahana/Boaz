@@ -91,12 +91,13 @@ struct SidebarView: View {
 
 private struct SidebarTopBar: View {
     @Environment(BrowserState.self) private var browser
+    @State private var fullScreen = false
 
     var body: some View {
         let page = browser.activePage
         let keys = browser.model.keyBindings
         HStack(spacing: 2) {
-            Spacer().frame(width: 70) // traffic lights
+            Spacer().frame(width: fullScreen ? 6 : 70) // traffic lights, hidden in full screen
             HoverIconButton(symbol: "sidebar.left", help: "Toggle Sidebar", hint: keys.hint("Toggle Sidebar", .toggleSidebar)) {
                 browser.toggleSidebar()
             }
@@ -127,6 +128,13 @@ private struct SidebarTopBar: View {
         }
         .frame(height: 40)
         .background(Color.clear.contentShape(Rectangle()).gesture(WindowDragGesture()))
+        .onAppear { fullScreen = browser.window?.styleMask.contains(.fullScreen) == true }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.willEnterFullScreenNotification)) { note in
+            if note.object as? NSWindow === browser.window { fullScreen = true }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.willExitFullScreenNotification)) { note in
+            if note.object as? NSWindow === browser.window { fullScreen = false }
+        }
     }
 }
 

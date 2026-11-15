@@ -289,8 +289,13 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
     }
 
     private func handleKey(_ event: NSEvent) -> Bool {
-        guard event.type == .keyDown,
-              event.modifierFlags.intersection([.command, .option, .control, .shift]) == .command else { return false }
+        guard event.type == .keyDown else { return false }
+        let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        if modifiers == [.command, .shift], event.charactersIgnoringModifiers?.lowercased() == "r" {
+            queue { $0.browser.hardReload() }
+            return true
+        }
+        guard modifiers == .command else { return false }
         switch event.charactersIgnoringModifiers?.lowercased() {
         case "l": queue { $0.browser.commandMode = .currentTab }
         case "t": queue { $0.browser.commandMode = .newTab }
