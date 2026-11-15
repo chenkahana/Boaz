@@ -10,7 +10,7 @@ final class AppIconUITests: BoazUITestCase {
         try runAppIconChecks(appearance: .dark)
     }
 
-    private func runAppIconChecks(appearance: XCUIDevice.Appearance) throws {
+    private func runAppIconChecks(appearance: BoazUITestCase.Appearance) throws {
         launch(appearance: appearance)
         XCTAssertTrue(mainWindow.waitForExistence(timeout: 10))
 

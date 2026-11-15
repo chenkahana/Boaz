@@ -23,7 +23,7 @@ final class LibraryPanelUITests: BoazUITestCase {
         try runLibraryPanelChecks(appearance: .dark)
     }
 
-    private func runLibraryPanelChecks(appearance: XCUIDevice.Appearance) throws {
+    private func runLibraryPanelChecks(appearance: BoazUITestCase.Appearance) throws {
         launch(appearance: appearance, environment: ["BOAZ_UITEST_DOWNLOADS_DIR": downloadsDir.path])
 
         let libraryButton = app.buttons["sidebar.libraryButton"]
