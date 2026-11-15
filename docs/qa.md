@@ -85,6 +85,13 @@ and error states look intentional. Check RTL text too (for example ynet.co.il).
 - [ ] **Every menu in the menu bar**: Boaz, File, Edit, View, History, Tabs, Spaces, Window, Help. Every item does
       something, and every shortcut shown works.
 - [ ] **Context menus**: a Today row, a favorite tile, a space dot, the sidebar **+**.
+- [ ] **Page context menus**: right-click a page, a link, an image, an image inside a link, a selection, an empty
+      editable field, a misspelled word, a password field, a video, an audio element, an iframe, and an item from an
+      extension with `contextMenus`, in a normal window, an Incognito window and a Quick Window. Every shown item
+      works, disabled items are disabled, every shown shortcut fires from the menu bar, and there are no doubled or
+      edge separators. Save As, Save Link As and Print open on the right window; View Page Source opens a
+      `view-source:` tab; Open Link in New Window opens a full Boaz window; Copy Link to Highlight copies a
+      `#:~:text=` URL.
 - [ ] **Spaces**: new space, theme editor, switching with ⌃1… and ⌘⌥→, deleting a space.
 - [ ] **Folders**: create, rename, ungroup, drag tabs in and out, drag to reorder.
 - [ ] **Split view**, **Find in page**, **Peek** (a link that opens a new window from a pinned tab), **Summarize

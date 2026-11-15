@@ -820,7 +820,7 @@
     },
     {
       "file": "patches/native-context-menu.patch",
-      "sha256": "3e4f33e0508e065aba299c859053ddb706fb12da25a2834e4a7514b8bafc8026",
+      "sha256": "194013cd2e711d3342c78f67de23220b95c1e66b9e42d637d1cc0d404915be41",
       "files": [
         {
           "path": "chrome/browser/renderer_context_menu/BUILD.gn",
@@ -830,12 +830,17 @@
         {
           "path": "chrome/browser/renderer_context_menu/render_view_context_menu.cc",
           "before": "bee071786682b77c31aec334d456f3aacd2aa5ad3d16340218ac98943a1e2463",
-          "after": "00880056511caaaf1d7284dfa99d77ec564d08bcb65437007620fb4786ac1d2a"
+          "after": "68e461d2f552addc36a8bb5e31668f9e9583c4d6d39cc8f49dca4587d8a2f93c"
+        },
+        {
+          "path": "chrome/browser/ui/cocoa/BUILD.gn",
+          "before": "e5aab3068a1e1ec591883c9ccef7f5c8dd1c53953e50ec1087792de97a5a79ff",
+          "after": "9b88db4e57d7f974f2e5461ed0a3bd8d8877b2ce120bdba8d8b45f1db66af5dc"
         },
         {
           "path": "chrome/browser/ui/cocoa/renderer_context_menu/render_view_context_menu_mac_cocoa.mm",
           "before": "903582053e2ac7de59513ee8f5c4dc06b7e5359bc4873f11b3efaf6634124000",
-          "after": "51b5dff06a0545e366aa394cf7ccf048e82e21c75bfbe2f522cb9640a4ffcc62"
+          "after": "2a9b356def3f28c67787d538ec84c919bec2ffb85f370b19a31a421cf042743f"
         }
       ]
     }

@@ -17,7 +17,7 @@ buildflag_header("buildflags") {
 }
 
 source_set("headers") {
-  public = [ "adblock_popup.h", "adblock_popup_host.h", "adblock_navigation.h", "adblock_browser_client.h", "native_http_warning.h", "extension_optional_permissions.h", "native_extension_store_dialogs.h", "native_extension_prompt.h", "native_password_submission.h", "native_devtools.h", "bootstrap.h", "native_permission_prompt.h", "protected_media.h" ]
+  public = [ "adblock_popup.h", "adblock_popup_host.h", "adblock_navigation.h", "adblock_browser_client.h", "native_http_warning.h", "extension_optional_permissions.h", "native_extension_store_dialogs.h", "native_extension_prompt.h", "native_password_submission.h", "native_devtools.h", "bootstrap.h", "context_menu_style.h", "native_permission_prompt.h", "protected_media.h" ]
   public_deps = [
     "//base",
     "//extensions/browser",
@@ -85,6 +85,8 @@ source_set("host") {
     "extension_popup.mm",
     "bootstrap.h",
     "bootstrap.mm",
+    "context_menu_style.h",
+    "context_menu_style.mm",
     "native_view.mm",
     "native_devtools.h",
     "native_devtools.mm",
@@ -123,6 +125,7 @@ source_set("host") {
     "//base",
     "//crypto",
     "//net",
+    "//chrome/app:command_ids",
     "//chrome/app:generated_resources",
     "//components/strings:components_strings",
     "//chrome/browser",
@@ -163,6 +166,7 @@ source_set("host") {
     "//components/viz/common",
     "//skia",
     "//ui/native_theme",
+    "//ui/menus",
   ]
   assert(boaz_adblock_library != "", "Build the pinned content-blocking library first.")
   libs = [ boaz_adblock_library ]
