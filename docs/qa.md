@@ -154,12 +154,28 @@ To see where main-thread time goes, run `sample Boaz 5 -file out.txt` while doin
 - [ ] Afterwards, check `~/Library/Logs/DiagnosticReports` (Mac) and Settings › Privacy & Security › Analytics &
       Improvements › Analytics Data (iPhone) for new `Boaz` crash reports.
 
-## 5. Automated UI runs (optional)
+## 5. UI tests
 
-XCUITest can drive both apps for the screenshot and timing passes. On the Mac it needs Automation Mode, which macOS
-asks an administrator to approve the first time (or run
-`automationmodetool enable-automationmode-without-authentication` as an admin). Without Automation Mode, do the
-cycle by hand.
+`make uitest` runs `Tests/BoazUITests` (XCUITest) against the Mac app: every screen opened the way a user opens it
+(`ScreenTests.swift`), an everyday flow end to end (`SmokeTests.swift`), plus the Library panel, App Icon and live
+folder suites. Each screen must be hittable, inside its window, have every control labeled, no overlapping buttons, and
+pass the system accessibility audit; a screenshot of each lands in `build/UITestResults.xcresult`. CI runs the same
+target and uploads that result bundle when it fails.
+
+- **Run:** `make uitest`. To look at a failure: `xcrun xcresulttool get test-results summary --path
+  build/UITestResults.xcresult`, and `xcrun xcresulttool export attachments --path build/UITestResults.xcresult
+  --output-path <dir>` for the screenshots and accessibility hierarchy dumps (`manifest.json` maps them to tests).
+- **Chromium build:** set `BOAZ_UITEST_APP=<path to the staged .app>` to run the same suite against it instead of the
+  WebKit app the scheme builds.
+- **Isolation:** the test build is ad hoc signed with its own bundle id, `com.chenkahana.boaz.uitest`, so its sandbox
+  container, defaults and Keychain are never the installed Boaz's. `-BoazUITest YES` (`UITestMode`) gives each launch
+  a fresh store in a temporary folder, seeded from `Tests/BoazUITests/Fixtures/*.json`, wipes the test build's
+  defaults, turns off iCloud sync and onboarding (`-BoazResetOnboarding YES` brings it back), and keeps GitHub on canned
+  answers. Fixture pages are `data:` URLs, so tests don't use the network. The Library panel lists a temporary folder,
+  never `~/Downloads`.
+- **First run on a Mac:** XCUITest needs Automation Mode, which macOS asks an administrator to approve once (or run
+  `sudo automationmodetool enable-automationmode-without-authentication`). Don't use the Mac while the suite runs: it
+  moves the pointer and types.
 
 ## Reporting
 
