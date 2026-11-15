@@ -6,6 +6,21 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-11-15
+
+### Added
+
+- Mac: Settings › Sites sends links to a site to a space. A link to that site from another app opens in the mini
+  window with that space's profile, and Open in Boaz puts it in that space.
+
+### Fixed
+
+- Mac (DMG): the mini window opened from links in other apps has a compact, one-line header.
+- Mac (DMG): Okta FastPass sign-in reaches Okta Verify. Other sites that ask to reach devices on your network now
+  ask you first instead of being blocked.
+- Mac (DMG): ⌘⇧R reloads the page without its cache, as in Chrome.
+- Mac: in full screen, the sidebar's top bar moves left into the space the window buttons leave.
+
 ## [0.4.3] - 2026-11-15
 
 ### Fixed
@@ -269,7 +284,8 @@ First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone
 - Share extension, search widget, App Shortcuts, the `boaz://` URL scheme and alternate app icons.
 - Privacy manifest, privacy policy and an About section with third-party notices.
 
-[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.3...HEAD
+[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.4...HEAD
+[0.4.4]: https://github.com/chenkahana/Boaz/compare/v0.4.3...v0.4.4
 [0.4.3]: https://github.com/chenkahana/Boaz/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/chenkahana/Boaz/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/chenkahana/Boaz/compare/v0.4.0...v0.4.1
