@@ -573,6 +573,7 @@ private struct ToastView: View {
             .padding(.bottom, 22)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .id(toast.id)
+            .accessibilityIdentifier("screen.toast")
         }
     }
 }
@@ -593,6 +594,7 @@ private struct RenameSheet: View {
             }
         }
         .padding(20)
+        .accessibilityIdentifier("screen.renameSheet")
     }
 
     private func save() {
@@ -652,28 +654,31 @@ private struct MacSpaceEditor: View {
     let request: BrowserState.SpaceEditorRequest
 
     var body: some View {
-        if let id = request.spaceID {
-            if let space = model.space(id) {
-                SpaceEditor(mode: .edit(space, canDelete: model.sidebar.spaces.count > 1),
-                            deleteMessage: model.deletionMessage(for: space)) { title, icon, themeJSON in
-                    try? model.store?.updateSpace(space.id, title: title, icon: icon, themeJSON: themeJSON)
-                } onDelete: {
-                    model.deleteSpace(space)
+        Group {
+            if let id = request.spaceID {
+                if let space = model.space(id) {
+                    SpaceEditor(mode: .edit(space, canDelete: model.sidebar.spaces.count > 1),
+                                deleteMessage: model.deletionMessage(for: space)) { title, icon, themeJSON in
+                        try? model.store?.updateSpace(space.id, title: title, icon: icon, themeJSON: themeJSON)
+                    } onDelete: {
+                        model.deleteSpace(space)
+                    }
+                } else {
+                    // The space was deleted while its editor was open, here or on another Mac: there's nothing to edit.
+                    Color.clear.frame(width: 1, height: 1).onAppear { browser.spaceEditor = nil }
                 }
-            } else {
-                // The space was deleted while its editor was open, here or on another Mac: there's nothing to edit.
-                Color.clear.frame(width: 1, height: 1).onAppear { browser.spaceEditor = nil }
-            }
-        } else if let profileID = browser.currentSpace?.profileID ?? model.sidebar.profiles.first(where: \.isDefault)?.id
-                    ?? model.sidebar.profiles.first?.id {
-            SpaceEditor(mode: .create) { title, icon, themeJSON in
-                guard let space = try? model.store?.createSpace(title: title, icon: icon, palette: .defaultPalette,
-                                                                themeJSON: themeJSON, profileID: profileID) else { return }
-                Task { @MainActor in
-                    try? await Task.sleep(for: .milliseconds(150))
-                    browser.switchSpace(to: space.id)
+            } else if let profileID = browser.currentSpace?.profileID ?? model.sidebar.profiles.first(where: \.isDefault)?.id
+                        ?? model.sidebar.profiles.first?.id {
+                SpaceEditor(mode: .create) { title, icon, themeJSON in
+                    guard let space = try? model.store?.createSpace(title: title, icon: icon, palette: .defaultPalette,
+                                                                    themeJSON: themeJSON, profileID: profileID) else { return }
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(150))
+                        browser.switchSpace(to: space.id)
+                    }
                 }
             }
         }
+        .accessibilityIdentifier("screen.spaceEditor")
     }
 }
