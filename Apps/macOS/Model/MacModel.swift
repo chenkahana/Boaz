@@ -106,6 +106,7 @@ final class MacModel {
             registerDevice()
             Task { await archiveLoop() }
             Task { await fetchLoop(sync) }
+            LiveFolderRefresher.shared.start(self)
             NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil,
                                                    queue: .main) { _ in
                 MainActor.assumeIsolated {
@@ -701,6 +702,70 @@ final class MacModel {
                                  parentID: box.id, kind: .folder, title: "New Folder",
                                  position: sidebar.nextPosition(in: box.id))
         commit(folder)
+    }
+
+    /// A Pull Requests live folder at the end of the space's Pinned, listing Created by Me and Review Requests.
+    @discardableResult
+    func newLiveFolder(in space: Space) -> SidebarItem? {
+        guard let box = sidebar.container(.pinned, in: space.id) else { return nil }
+        let folder = SidebarItem(id: UUID().uuidString, spaceID: space.id, profileID: space.profileID,
+                                 parentID: box.id, kind: .folder, title: "Pull Requests",
+                                 position: sidebar.nextPosition(in: box.id),
+                                 liveSource: LiveSource(provider: LiveSource.githubPulls,
+                                                        filters: GitHubPullFilter.defaults.map(\.rawValue)))
+        commit(folder)
+        LiveFolderRefresher.shared.refreshNow()
+        return folder
+    }
+
+    /// Changes what a live folder lists, and refreshes it.
+    func updateLiveSource(_ folder: SidebarItem, _ change: (inout LiveSource) -> Void) {
+        guard var item = item(folder.id), var source = item.liveSource else { return }
+        change(&source)
+        guard source != item.liveSource else { return }
+        item.liveSource = source
+        commit(item)
+        LiveFolderRefresher.shared.refreshNow()
+    }
+
+    /// A folder's emoji or SF Symbol; nil goes back to the folder glyph.
+    func setIcon(_ folder: SidebarItem, to icon: String?) {
+        guard var item = item(folder.id), item.icon != icon else { return }
+        item.icon = icon
+        commit(item)
+    }
+
+    /// Every address in a folder, one per line, on the clipboard.
+    func copyAllLinks(in folder: SidebarItem) {
+        let links = descendants(of: folder.id).compactMap { $0.kind == .tab ? $0.url?.absoluteString : nil }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(links.joined(separator: "\n"), forType: .string)
+        showToast("Copied \(links.count) link\(links.count == 1 ? "" : "s")")
+    }
+
+    /// Deletes a folder with everything in it. A live folder's tabs simply go (the source lists them again); an
+    /// ordinary folder's tabs move to the Archive.
+    func deleteFolder(_ folder: SidebarItem) {
+        guard item(folder.id) != nil, let store else { return }
+        let inside = descendants(of: folder.id)
+        let tabs = inside.filter { $0.kind == .tab }
+        for browser in openBrowsers { tabs.map(\.id).forEach(browser.unload) }
+        let now = Date.now
+        func tombstone(_ item: SidebarItem) -> SidebarItem { var item = item; item.deletedAt = now; item.modifiedAt = now; return item }
+        let folders = ([folder] + inside.filter { $0.kind == .folder }).map(tombstone)
+        if folder.liveSource != nil {
+            commit(folders + tabs.map(tombstone))
+            return
+        }
+        do {
+            try store.archive(tabs, reason: "closed", saving: folders, at: now)
+        } catch {
+            showToast("Couldn't delete folder: \(error.localizedDescription)")
+            return
+        }
+        var updated = sidebar
+        for item in folders + tabs.map(tombstone) { updated.upsert(item) }
+        sidebar = updated
     }
 
     /// A new folder around `tab`, in the tab's own container (Today or Pinned); the tab moves inside.

@@ -280,6 +280,21 @@ public final class BoazStore: Sendable {
             }
             try createSyncTriggers(for: .siteEngineRule, in: db)
         }
+        // Live folders (`LiveSource`) and folder icons sync with their item; how each refresh went stays here.
+        migrator.registerMigration("v9-live-folders") { db in
+            try db.alter(table: "sidebarItem") { t in
+                t.add(column: "liveSource", .text)
+                t.add(column: "icon", .text)
+            }
+            try db.create(table: "liveFolderState") { t in
+                t.primaryKey("folderID", .text)
+                t.column("lastRefreshAt", .datetime)
+                t.column("lastError", .text)
+                t.column("items", .text).notNull()
+                t.column("repositories", .text).notNull()
+                t.column("singleSignOn", .text).notNull()
+            }
+        }
         return migrator
     }
 

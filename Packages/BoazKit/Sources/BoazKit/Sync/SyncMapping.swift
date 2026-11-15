@@ -130,6 +130,15 @@ public enum SyncMapping {
     }
 }
 
+extension JSONEncoder {
+    /// Keys in order, so equal values encode to equal text.
+    static var sorted: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        return encoder
+    }
+}
+
 extension CKRecord {
     func required<T>(_ key: String, _ value: T?) throws -> T {
         guard let value else { throw SyncMappingError.missingField(key) }
@@ -226,6 +235,9 @@ extension SidebarItem: SyncableRecord {
         record["modifiedAt"] = modifiedAt
         record["deletedAt"] = deletedAt
         record["deviceID"] = deviceID
+        record.encryptedValues["liveSource"] = liveSource.flatMap { try? JSONEncoder.sorted.encode($0) }
+            .flatMap { String(data: $0, encoding: .utf8) }
+        record.encryptedValues["icon"] = icon
     }
 
     public init(cloudRecord r: CKRecord) throws {
@@ -246,7 +258,9 @@ extension SidebarItem: SyncableRecord {
                   modifiedAt: try r.required("modifiedAt", r.date("modifiedAt")),
                   deletedAt: r.date("deletedAt"),
                   // Absent on records from before devices were recorded: those show on every device.
-                  deviceID: r.string("deviceID"))
+                  deviceID: r.string("deviceID"),
+                  liveSource: r.secretString("liveSource").flatMap { try? JSONDecoder().decode(LiveSource.self, from: Data($0.utf8)) },
+                  icon: r.secretString("icon"))
     }
 
     public var webAddresses: [URL] { url.map { [$0] } ?? [] }
