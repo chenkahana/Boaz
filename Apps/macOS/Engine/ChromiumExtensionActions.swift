@@ -320,6 +320,7 @@ private struct ExtensionsPopover: View {
         }
         .padding(8)
         .frame(width: 280)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen.extensions")
     }
 }
@@ -331,27 +332,31 @@ private struct ExtensionRow: View {
     let togglePin: () -> Void
 
     var body: some View {
-        PopoverRow(action: open) {
-            HStack(spacing: 8) {
-                Group {
-                    if let icon = action.icon { Image(nsImage: icon).resizable() } else { Image(systemName: "puzzlepiece.extension") }
+        // The pin is the row's sibling, not inside its button, so it stays its own control (as in Chrome's menu).
+        HStack(spacing: 0) {
+            PopoverRow(action: open) {
+                HStack(spacing: 8) {
+                    Group {
+                        if let icon = action.icon { Image(nsImage: icon).resizable() } else { Image(systemName: "puzzlepiece.extension") }
+                    }
+                    .frame(width: 16, height: 16)
+                    Text(action.name).lineLimit(1)
+                    Spacer(minLength: 0)
                 }
-                .frame(width: 16, height: 16)
-                Text(action.name).lineLimit(1)
-                Spacer(minLength: 0)
-                Button(action: togglePin) {
-                    Image(systemName: action.pinned ? "pin.fill" : "pin").foregroundStyle(action.pinned ? .primary : .secondary)
-                }
-                .buttonStyle(.plain)
-                .disabled(action.forcePinned)
-                .help(action.pinned ? "Unpin from Address Bar" : "Pin to Address Bar")
-                .accessibilityLabel(action.pinned ? "Unpin \(action.name)" : "Pin \(action.name)")
-                .accessibilityIdentifier("control.extensionPin.\(action.id)")
             }
+            .help(action.title.isEmpty ? action.name : action.title)
+            .accessibilityIdentifier("control.extensionRow.\(action.id)")
+            Button(action: togglePin) {
+                Image(systemName: action.pinned ? "pin.fill" : "pin").foregroundStyle(action.pinned ? .primary : .secondary)
+                    .frame(width: 28, height: 28).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(action.forcePinned)
+            .help(action.pinned ? "Unpin from Address Bar" : "Pin to Address Bar")
+            .accessibilityLabel(action.pinned ? "Unpin \(action.name)" : "Pin \(action.name)")
+            .accessibilityIdentifier("control.extensionPin.\(action.id)")
         }
         .disabled(!active)
-        .help(action.title.isEmpty ? action.name : action.title)
-        .accessibilityIdentifier("control.extensionRow.\(action.id)")
     }
 }
 
