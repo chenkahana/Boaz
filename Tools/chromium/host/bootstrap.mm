@@ -73,6 +73,19 @@
 #include "chrome/app/chrome_command_ids.h"
 #include "context_menu_style.h"
 #include "url/gurl.h"
+#include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/search_engines/template_url_service_factory.h"
+#include "chrome/browser/ui/tab_contents/core_tab_helper.h"
+#include "components/lens/lens_entrypoints.h"
+#include "components/search_engines/template_url.h"
+#include "components/search_engines/template_url_data.h"
+#include "components/search_engines/template_url_data_util.h"
+#include "components/search_engines/template_url_service.h"
+#include "components/viz/common/frame_sinks/copy_output_result.h"
+#include "content/public/browser/render_widget_host_view.h"
+#include "third_party/search_engines_data/resources/definitions/prepopulated_engines.h"
+#include "third_party/skia/include/core/SkBitmap.h"
+#include "ui/gfx/image/image.h"
 
 namespace boaz {
 namespace {
@@ -91,6 +104,12 @@ struct BlockingPreparation {
   uint64_t id;
   BoazHostBlockingCompletion completion;
   raw_ptr<void> context;
+};
+// Boaz's search engine (set_default_search_provider).
+struct SearchProvider {
+  std::u16string name;
+  std::u16string keyword;
+  std::string url;
 };
 struct State {
   raw_ptr<Profile> profile = nullptr;
@@ -114,6 +133,8 @@ struct State {
   uint64_t pending_profiles = 0;
   bool automatic_picture_in_picture_enabled = false;
   bool page_assistant_enabled = false;
+  std::optional<SearchProvider> search_provider;
+  std::vector<base::CallbackListSubscription> search_provider_loads;
   uint64_t pending_extension_installs = 0;
   std::set<Profile*> extension_install_profiles;
   bool exit_started = false;
@@ -140,6 +161,31 @@ BoazHostResult Check() {
 template <typename F> auto Notify(F callback) {
   base::AutoReset<bool> guard(&state->in_callback, true);
   return callback();
+}
+// Makes Boaz's search engine the profile's default search provider. Off-the-record profiles use their original
+// profile's.
+void ApplySearchProvider(Profile* profile) {
+  if (!state || !state->search_provider || !profile) return;
+  auto* service = TemplateURLServiceFactory::GetForProfile(profile);
+  if (!service) return;
+  if (!service->loaded()) {
+    state->search_provider_loads.push_back(
+        service->RegisterOnLoadedCallback(base::BindOnce(&ApplySearchProvider, base::Unretained(profile))));
+    service->Load();
+    return;
+  }
+  const auto& wanted = *state->search_provider;
+  // Chromium's own engine for the keyword (duckduckgo.com, google.com, ...) when it has one.
+  TemplateURL* provider = service->GetTemplateURLForKeyword(wanted.keyword);
+  if (!provider) {
+    TemplateURLData data;
+    data.SetShortName(wanted.name);
+    data.SetKeyword(wanted.keyword);
+    data.SetURL(wanted.url);
+    provider = service->Add(std::make_unique<TemplateURL>(data));
+  }
+  if (provider && provider != service->GetDefaultSearchProvider() && service->CanMakeDefault(provider))
+    service->SetUserSelectedDefaultSearchProvider(provider);
 }
 void DeliverNativeReopen() {
   if (!state || !state->callbacks.reopen_requested) return;
@@ -329,6 +375,7 @@ BoazHostResult PrepareProfile(const char* identifier, uint8_t is_private,
           result = BOAZ_HOST_CLOSING;
           profile = 0;
         }
+        if (result == BOAZ_HOST_OK) ApplySearchProvider(state->profiles->Resolve(profile));
         Notify([&] { completion(context, result, profile); });
         CHECK_GT(state->pending_profiles, 0u);
         --state->pending_profiles;
@@ -745,6 +792,16 @@ BoazHostResult SetMenuShortcuts(const BoazHostMenuShortcut* shortcuts, size_t co
   if (count && !shortcuts) return BOAZ_HOST_INVALID_ARGUMENT;
   return SetContextMenuShortcuts(shortcuts, count) ? BOAZ_HOST_OK : BOAZ_HOST_INVALID_ARGUMENT;
 }
+BoazHostResult SetDefaultSearchProvider(const char* name, const char* keyword, const char* url_template) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  if (!name || !*name || !keyword || !*keyword || !url_template || !GURL(url_template).SchemeIsHTTPOrHTTPS() ||
+      std::string_view(url_template).find("{searchTerms}") == std::string_view::npos)
+    return BOAZ_HOST_INVALID_ARGUMENT;
+  state->search_provider = SearchProvider{base::UTF8ToUTF16(name), base::UTF8ToUTF16(keyword), url_template};
+  if (auto* manager = g_browser_process->profile_manager())
+    for (Profile* profile : manager->GetLoadedProfiles()) ApplySearchProvider(profile);
+  return BOAZ_HOST_OK;
+}
 BoazHostResult TogglePictureInPicture(BoazHostPage page) {
   if (auto r = Check(); r != BOAZ_HOST_OK) return r;
   return state->tabs->TogglePictureInPicture(page);
@@ -1143,7 +1200,7 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension, InstallExtension, InstallUnpackedExtension, UninstallExtension, ExtensionMetadata, ReviewExtensionPermissions, TogglePictureInPicture, EnumerateSitePermissions, ResetSitePermission, SetAutomaticPictureInPictureEnabled, PrepareBlockingAssets, ConfigureProfileBlocking, ImportCookies, WidevineStatus, SetPageAssistantEnabled, SetMenuShortcuts};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, EnumerateManagedExtensions, DisableExtension, EnableExtension, InstallExtension, InstallUnpackedExtension, UninstallExtension, ExtensionMetadata, ReviewExtensionPermissions, TogglePictureInPicture, EnumerateSitePermissions, ResetSitePermission, SetAutomaticPictureInPictureEnabled, PrepareBlockingAssets, ConfigureProfileBlocking, ImportCookies, WidevineStatus, SetPageAssistantEnabled, SetMenuShortcuts, SetDefaultSearchProvider};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
@@ -1338,6 +1395,35 @@ bool RunContextMenuCommand(content::WebContents* contents, int command, const GU
         Notify([&] { state->callbacks.menu_command(state->callbacks.context, page, command, url.c_str(), text.c_str()); });
       }, state->tabs->PageFor(contents), *menu, url.spec(), base::UTF16ToUTF8(text)));
   return true;
+}
+namespace {
+TemplateURLData GoogleLens() {
+  return *TemplateURLDataFromPrepopulatedEngine(TemplateURLPrepopulateData::google);
+}
+}  // namespace
+void SearchImageWithGoogleLens(content::WebContents* contents, content::RenderFrameHost* frame,
+    const GURL& image_url) {
+  auto* helper = contents ? CoreTabHelper::FromWebContents(contents) : nullptr;
+  if (!helper || !frame) return;
+  // The image itself is posted; a data: or blob: address means nothing to Google.
+  helper->SearchWithLens(frame, image_url.SchemeIsHTTPOrHTTPS() ? image_url : GURL(),
+      lens::EntryPoint::CHROME_SEARCH_WITH_GOOGLE_LENS_CONTEXT_MENU_ITEM, GoogleLens());
+}
+void SearchPageWithGoogleLens(content::WebContents* contents) {
+  auto* view = contents ? contents->GetRenderWidgetHostView() : nullptr;
+  if (!view) return;
+  view->CopyFromSurface(gfx::Rect(), gfx::Size(), base::Seconds(4),
+      base::BindOnce([](scoped_refptr<base::SingleThreadTaskRunner> runner,
+                        base::WeakPtr<content::WebContents> contents, const content::CopyFromSurfaceResult& result) {
+        if (!result.has_value() || result->bitmap.drawsNothing()) return;
+        // The copy may finish on another thread.
+        runner->PostTask(FROM_HERE, base::BindOnce([](base::WeakPtr<content::WebContents> contents, SkBitmap bitmap) {
+          auto* helper = contents ? CoreTabHelper::FromWebContents(contents.get()) : nullptr;
+          if (!helper) return;
+          helper->SearchWithLens(gfx::Image::CreateFrom1xBitmap(bitmap),
+              lens::EntryPoint::CHROME_REGION_SEARCH_MENU_ITEM, GoogleLens());
+        }, std::move(contents), result->bitmap));
+      }, base::SingleThreadTaskRunner::GetCurrentDefault(), contents->GetWeakPtr()));
 }
 bool ShouldRetainEmptyBrowser(BrowserWindowInterface* browser) {
   if (!NativeHostEnabled() || !state || state->exit_requested || !browser || browser->IsDeleteScheduled()) return false;

@@ -1,0 +1,339 @@
+--- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
++++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
+@@ -1139,6 +1139,9 @@
+ #if BUILDFLAG(IS_MAC)
+ // Boaz's Apple Intelligence item: Explain the selection, or Ask About This Page. A free id in the content range.
+ constexpr int kBoazAskCommandId = 50900;
++// Boaz's Google Lens items for the image or the visible page. Google Lens whatever the search engine is.
++constexpr int kBoazLensImageCommandId = 50901;
++constexpr int kBoazLensPageCommandId = 50902;
+ // Longer URLs don't fit in a QR code that a phone camera reads reliably.
+ constexpr size_t kBoazMaxQRCodeURLLength = 2048;
+ 
+@@ -1149,6 +1152,17 @@
+   }
+   NavigationEntry* entry = contents->GetController().GetLastCommittedEntry();
+   return entry ? entry->GetURL() : GURL();
++}
++
++// Inserts a Boaz item right after the first of `anchors` in the menu, or nowhere without one.
++void InsertBoazItemAfter(ui::SimpleMenuModel& menu, std::initializer_list<int> anchors, int id,
++                         const std::u16string& label) {
++  for (const int anchor : anchors) {
++    if (const std::optional<size_t> index = menu.GetIndexOfCommandId(anchor)) {
++      menu.InsertItemAt(*index + 1, id, label);
++      return;
++    }
++  }
+ }
+ #endif
+ 
+@@ -1717,6 +1731,16 @@
+ 
+   KeepBoazItems(menu_model_, source_web_contents_);
+ #if BUILDFLAG(IS_MAC)
++  if (boaz::NativeHostEnabled() && IsSearchAllowedByPolicy()) {
++    if (params_.has_image_contents &&
++        content_type_->SupportsGroup(ContextMenuContentType::ITEM_GROUP_MEDIA_IMAGE)) {
++      InsertBoazItemAfter(menu_model_, {IDC_CONTENT_CONTEXT_COPYIMAGELOCATION, IDC_CONTENT_CONTEXT_COPYIMAGE},
++                          kBoazLensImageCommandId, u"Search Image with Google Lens");
++    } else if (content_type_->SupportsGroup(ContextMenuContentType::ITEM_GROUP_PAGE)) {
++      InsertBoazItemAfter(menu_model_, {IDC_PRINT, IDC_SAVE_PAGE}, kBoazLensPageCommandId,
++                          u"Search Page with Google Lens");
++    }
++  }
+   if (boaz::PageAssistantEnabled(source_web_contents_)) {
+     if (menu_model_.GetItemCount()) {
+       menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
+@@ -1796,8 +1820,8 @@
+ 
+ void RenderViewContextMenu::RecordUsedItem(int id) {
+ #if BUILDFLAG(IS_MAC)
+-  // Boaz's own item has no histogram bucket.
+-  if (id == kBoazAskCommandId) {
++  // Boaz's own items have no histogram bucket.
++  if (id == kBoazAskCommandId || id == kBoazLensImageCommandId || id == kBoazLensPageCommandId) {
+     return;
+   }
+ #endif
+@@ -3542,7 +3566,7 @@
+ 
+ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
+ #if BUILDFLAG(IS_MAC)
+-  if (id == kBoazAskCommandId) {
++  if (id == kBoazAskCommandId || id == kBoazLensImageCommandId || id == kBoazLensPageCommandId) {
+     return true;
+   }
+   if (boaz::NativeHostEnabled()) {
+@@ -4002,6 +4026,14 @@
+     boaz::AskAboutPage(source_web_contents_, params_.selection_text);
+     return;
+   }
++  if (id == kBoazLensImageCommandId) {
++    boaz::SearchImageWithGoogleLens(source_web_contents_, GetRenderFrameHost(), params_.src_url);
++    return;
++  }
++  if (id == kBoazLensPageCommandId) {
++    boaz::SearchPageWithGoogleLens(embedder_web_contents_);
++    return;
++  }
+   if (id == IDC_CONTENT_CONTEXT_OPENLINKOFFTHERECORD &&
+       boaz::RunContextMenuCommand(source_web_contents_, id, params_.link_url, params_.link_text)) {
+     return;
+@@ -4694,6 +4726,12 @@
+ }
+ 
+ bool RenderViewContextMenu::ShouldOpenTextQueryInLens() const {
++#if BUILDFLAG(IS_MAC)
++  // Boaz windows have no Lens overlay; the search opens in a new tab.
++  if (boaz::NativeHostEnabled()) {
++    return false;
++  }
++#endif
+   BrowserWindowInterface* browser = GetBrowser();
+   return lens::features::
+              IsLensOverlayTextSelectionContextMenuEntrypointEnabled() &&
+--- a/chrome/browser/ui/tab_contents/core_tab_helper.h
++++ b/chrome/browser/ui/tab_contents/core_tab_helper.h
+@@ -5,6 +5,7 @@
+ #ifndef CHROME_BROWSER_UI_TAB_CONTENTS_CORE_TAB_HELPER_H_
+ #define CHROME_BROWSER_UI_TAB_CONTENTS_CORE_TAB_HELPER_H_
+ 
++#include <optional>
+ #include <string>
+ #include <vector>
+ 
+@@ -79,16 +80,21 @@
+   // Opens the Lens standalone experience for the image that triggered the
+   // context menu. If the google lens supports opening requests in side panel,
+   // then the request will open in the side panel instead of new tab, unless
+-  // force_open_in_new_tab is set.
++  // force_open_in_new_tab is set. Boaz: a given `provider` replaces the default
++  // search provider.
+   void SearchWithLens(content::RenderFrameHost* render_frame_host,
+                       const GURL& src_url,
+-                      lens::EntryPoint entry_point);
++                      lens::EntryPoint entry_point,
++                      std::optional<TemplateURLData> provider = std::nullopt);
+ 
+   // Opens the Lens experience for an `image`, which will be resized if needed.
+   // If the search engine supports opening requests in side panel, then the
+   // request will open in the side panel instead of a new tab, unless
+-  // force_open_in_new_tab is set.
+-  void SearchWithLens(const gfx::Image& image, lens::EntryPoint entry_point);
++  // force_open_in_new_tab is set. Boaz: a given `provider` replaces the default
++  // search provider.
++  void SearchWithLens(const gfx::Image& image,
++                      lens::EntryPoint entry_point,
++                      std::optional<TemplateURLData> provider = std::nullopt);
+ 
+   // Performs an image search for the image that triggered the context menu. The
+   // `src_url` is passed to the search request and is not used directly to fetch
+@@ -121,6 +127,7 @@
+           chrome_render_frame,
+       const GURL& src_url,
+       const std::string& additional_query_params,
++      std::optional<TemplateURLData> provider,
+       int thumbnail_min_area,
+       int thumbnail_max_width,
+       int thumbnail_max_height,
+@@ -128,6 +135,7 @@
+ 
+   void DoSearchByImage(const GURL& src_url,
+                        const std::string& additional_query_params,
++                       std::optional<TemplateURLData> provider,
+                        const std::vector<unsigned char>& thumbnail_data,
+                        const std::string& content_type,
+                        const gfx::Size& original_size,
+@@ -157,11 +165,13 @@
+                          int thumbnail_min_area,
+                          int thumbnail_max_width,
+                          int thumbnail_max_height,
+-                         const std::string& additional_query_params);
++                         const std::string& additional_query_params,
++                         std::optional<TemplateURLData> provider);
+ 
+   // Searches the `original_image`, which will be downscaled if needed.
+   void SearchByImageImpl(const gfx::Image& original_image,
+-                         const std::string& additional_query_params);
++                         const std::string& additional_query_params,
++                         std::optional<TemplateURLData> provider);
+ 
+   // Content restrictions, used to disable print/copy etc based on content's
+   // (full-page plugins for now only) permissions.
+--- a/chrome/browser/ui/tab_contents/core_tab_helper.cc
++++ b/chrome/browser/ui/tab_contents/core_tab_helper.cc
+@@ -4,6 +4,7 @@
+ 
+ #include "chrome/browser/ui/tab_contents/core_tab_helper.h"
+ 
++#include <optional>
+ #include <string>
+ #include <utility>
+ #include <vector>
+@@ -84,6 +85,18 @@
+       lens::kMaxAreaForImageSearch);
+ }
+ 
++// Boaz: the search provider an image search goes to, `provider` when given,
++// otherwise the default search provider. `storage` keeps a given one alive.
++const TemplateURL* ImageSearchProvider(
++    TemplateURLService* template_url_service,
++    const std::optional<TemplateURLData>& provider,
++    std::optional<TemplateURL>& storage) {
++  if (!provider) {
++    return template_url_service->GetDefaultSearchProvider();
++  }
++  return &storage.emplace(*provider);
++}
++
+ }  // namespace
+ 
+ DEFINE_USER_DATA(CoreTabHelper);
+@@ -248,35 +261,40 @@
+ 
+ void CoreTabHelper::SearchWithLens(content::RenderFrameHost* render_frame_host,
+                                    const GURL& src_url,
+-                                   lens::EntryPoint entry_point) {
++                                   lens::EntryPoint entry_point,
++                                   std::optional<TemplateURLData> provider) {
+   SearchByImageImpl(render_frame_host, src_url, kImageSearchThumbnailMinSize,
+                     lens::kMaxPixelsForImageSearch,
+                     lens::kMaxPixelsForImageSearch,
+-                    lens::GetQueryParametersForLensRequest(entry_point));
++                    lens::GetQueryParametersForLensRequest(entry_point),
++                    std::move(provider));
+ }
+ 
+ void CoreTabHelper::SearchWithLens(const gfx::Image& image,
+-                                   lens::EntryPoint entry_point) {
++                                   lens::EntryPoint entry_point,
++                                   std::optional<TemplateURLData> provider) {
+   auto lens_query_params = lens::GetQueryParametersForLensRequest(entry_point);
+ 
+-  SearchByImageImpl(image, lens_query_params);
++  SearchByImageImpl(image, lens_query_params, std::move(provider));
+ }
+ 
+ void CoreTabHelper::SearchByImage(content::RenderFrameHost* render_frame_host,
+                                   const GURL& src_url) {
+   SearchByImageImpl(render_frame_host, src_url, kImageSearchThumbnailMinSize,
+                     kImageSearchThumbnailMaxWidth,
+-                    kImageSearchThumbnailMaxHeight, std::string());
++                    kImageSearchThumbnailMaxHeight, std::string(),
++                    std::nullopt);
+ }
+ 
+ void CoreTabHelper::SearchByImage(const gfx::Image& image) {
+   SearchByImageImpl(image,
+-                    /*additional_query_params=*/std::string());
++                    /*additional_query_params=*/std::string(), std::nullopt);
+ }
+ 
+ void CoreTabHelper::SearchByImageImpl(
+     const gfx::Image& original_image,
+-    const std::string& additional_query_params) {
++    const std::string& additional_query_params,
++    std::optional<TemplateURLData> provider) {
+   std::vector<lens::mojom::LatencyLogPtr> log_data;
+   log_data.push_back(lens::mojom::LatencyLog::New(
+       lens::mojom::Phase::OVERALL_START, gfx::Size(), gfx::Size(),
+@@ -300,8 +318,9 @@
+   }
+ 
+   TemplateURLService* template_url_service = GetTemplateURLService();
++  std::optional<TemplateURL> explicit_provider;
+   const TemplateURL* const default_provider =
+-      template_url_service->GetDefaultSearchProvider();
++      ImageSearchProvider(template_url_service, provider, explicit_provider);
+   DCHECK(default_provider);
+   TemplateURLRef::SearchTermsArgs search_args =
+       TemplateURLRef::SearchTermsArgs(std::u16string());
+@@ -323,12 +342,14 @@
+ 
+   std::string additional_query_params_modified = additional_query_params;
+   if (base::FeatureList::IsEnabled(lens::features::kLensStandalone) &&
+-      search::DefaultSearchProviderIsGoogle(template_url_service)) {
++      search::TemplateURLIsGoogle(default_provider,
++                                  template_url_service->search_terms_data())) {
+     lens::AppendLogsQueryParam(&additional_query_params_modified,
+                                std::move(log_data));
+   }
+ 
+-  if (search::DefaultSearchProviderIsGoogle(template_url_service)) {
++  if (search::TemplateURLIsGoogle(default_provider,
++                                  template_url_service->search_terms_data())) {
+     search_args.processed_image_dimensions =
+         base::NumberToString(image.Size().width()) + "," +
+         base::NumberToString(image.Size().height());
+@@ -348,7 +369,8 @@
+     int thumbnail_min_area,
+     int thumbnail_max_width,
+     int thumbnail_max_height,
+-    const std::string& additional_query_params) {
++    const std::string& additional_query_params,
++    std::optional<TemplateURLData> provider) {
+   mojo::AssociatedRemote<chrome::mojom::ChromeRenderFrame> chrome_render_frame;
+   render_frame_host->GetRemoteAssociatedInterfaces()->GetInterface(
+       &chrome_render_frame);
+@@ -358,7 +380,8 @@
+   thumbnail_capturer_proxy->RequestBitmapForContextNode(base::BindOnce(
+       &CoreTabHelper::DoSearchByImageWithBitmap, weak_factory_.GetWeakPtr(),
+       std::move(chrome_render_frame), src_url, additional_query_params,
+-      thumbnail_min_area, thumbnail_max_width, thumbnail_max_height));
++      std::move(provider), thumbnail_min_area, thumbnail_max_width,
++      thumbnail_max_height));
+ }
+ 
+ // static
+@@ -497,6 +520,7 @@
+         chrome_render_frame,
+     const GURL& src_url,
+     const std::string& additional_query_params,
++    std::optional<TemplateURLData> provider,
+     int thumbnail_min_area,
+     int thumbnail_max_width,
+     int thumbnail_max_height,
+@@ -507,12 +531,14 @@
+       base::BindPostTask(base::SequencedTaskRunner::GetCurrentDefault(),
+                          base::BindOnce(&CoreTabHelper::DoSearchByImage,
+                                         weak_factory_.GetWeakPtr(), src_url,
+-                                        additional_query_params))));
++                                        additional_query_params,
++                                        std::move(provider)))));
+ }
+ 
+ void CoreTabHelper::DoSearchByImage(
+     const GURL& src_url,
+     const std::string& additional_query_params,
++    std::optional<TemplateURLData> provider,
+     const std::vector<unsigned char>& thumbnail_data,
+     const std::string& content_type,
+     const gfx::Size& original_size,
+@@ -523,20 +549,23 @@
+   }
+ 
+   TemplateURLService* template_url_service = GetTemplateURLService();
++  std::optional<TemplateURL> explicit_provider;
+   const TemplateURL* const default_provider =
+-      template_url_service->GetDefaultSearchProvider();
++      ImageSearchProvider(template_url_service, provider, explicit_provider);
+   DCHECK(default_provider);
+ 
+   std::string additional_query_params_modified = additional_query_params;
+   if (base::FeatureList::IsEnabled(lens::features::kLensStandalone) &&
+-      search::DefaultSearchProviderIsGoogle(template_url_service)) {
++      search::TemplateURLIsGoogle(default_provider,
++                                  template_url_service->search_terms_data())) {
+     lens::AppendLogsQueryParam(&additional_query_params_modified,
+                                std::move(log_data));
+   }
+ 
+   TemplateURLRef::SearchTermsArgs search_args =
+       TemplateURLRef::SearchTermsArgs(std::u16string());
+-  if (search::DefaultSearchProviderIsGoogle(template_url_service)) {
++  if (search::TemplateURLIsGoogle(default_provider,
++                                  template_url_service->search_terms_data())) {
+     search_args.processed_image_dimensions =
+         base::NumberToString(downscaled_size.width()) + "," +
+         base::NumberToString(downscaled_size.height());

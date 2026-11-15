@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 51u
+#define BOAZ_HOST_ABI_VERSION 52u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT,
@@ -439,6 +439,9 @@ typedef struct BoazHostAPI {
   BoazHostResult (*set_page_assistant_enabled)(uint8_t enabled);
   /* Replaces the context menu's rebindable shortcuts; a command left out shows none. Input is copied. */
   BoazHostResult (*set_menu_shortcuts)(const BoazHostMenuShortcut* shortcuts, size_t count);
+  /* Makes this engine the default search provider of every prepared profile, now and later, so the context menu's
+   * selection search uses it. url_template is an http(s) URL with {searchTerms} where the query goes. Input is copied. */
+  BoazHostResult (*set_default_search_provider)(const char* name, const char* keyword, const char* url_template);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

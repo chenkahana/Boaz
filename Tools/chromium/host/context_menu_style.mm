@@ -23,6 +23,9 @@ namespace boaz {
 namespace {
 // Explain / Ask About This Page, added by native-context-menu.patch.
 constexpr int kAskCommandId = 50900;
+// Search Image / Search Page with Google Lens, added by native-context-menu-search.patch.
+constexpr int kLensImageCommandId = 50901;
+constexpr int kLensPageCommandId = 50902;
 constexpr int kCommand = ui::EF_COMMAND_DOWN;
 
 struct Style {
@@ -77,6 +80,8 @@ constexpr Style kStyles[] = {
     {IDC_CONTENT_CONTEXT_SELECTALL, "selection.pin.in.out", ui::VKEY_A, kCommand},
     {IDC_CONTENT_CONTEXT_EMOJI, "face.smiling", ui::VKEY_SPACE, kCommand | ui::EF_CONTROL_DOWN},
     {IDC_CONTENT_CONTEXT_SEARCHWEBFOR, "magnifyingglass"},
+    {kLensImageCommandId, "camera.viewfinder"},
+    {kLensPageCommandId, "camera.viewfinder"},
     {IDC_CONTENT_CONTEXT_LOOK_UP, "character.book.closed"},
     {IDC_SPELLCHECK_ADD_TO_DICTIONARY, "text.book.closed"},
     {ui::TextServicesContextMenu::kSpeechMenu, "speaker.wave.2"},
