@@ -751,9 +751,14 @@ private struct SidebarBottomBar: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
+        @Bindable var browser = browser
         HStack(spacing: 4) {
-            HoverIconButton(symbol: "archivebox", help: "Archive", hint: model.keyBindings.hint("Archive", .showArchive)) {
-                openWindow(id: "archive")
+            HoverIconButton(symbol: "tray.full", help: "Library", hint: model.keyBindings.hint("Library", .showArchive)) {
+                browser.libraryPanelPresented = true
+            }
+            .accessibilityIdentifier("sidebar.libraryButton")
+            .popover(isPresented: $browser.libraryPanelPresented, arrowEdge: .trailing) {
+                LibraryPanel().environment(model).environment(browser)
             }
             Spacer(minLength: 4)
             if !browser.isIncognito {

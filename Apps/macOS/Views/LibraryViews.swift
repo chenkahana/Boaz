@@ -3,15 +3,26 @@ import BoazKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Archive window (⌥⌘A): closed and auto-archived tabs by day; double-click or Restore reopens one.
-struct ArchiveWindow: View {
+/// Closed and auto-archived tabs by day, searchable; double-click or Restore reopens one. Embeddable: shared by
+/// the standalone `ArchiveWindow` (⌥⌘A) and the Library panel's Archived Tabs pane.
+struct ArchiveListView: View {
     @Environment(MacModel.self) private var model
+    @Binding var query: String
+    /// Kept in sync with `items` so a host (the Archive window's toolbar) can disable "Clear Archive" without
+    /// reaching into this view's own state.
+    @Binding var isEmpty: Bool
     @State private var items: [ArchiveItem] = []
     /// The search's results, from the whole archive: `items` holds only the newest entries.
     @State private var matches: (query: String, items: [ArchiveItem])?
-    @State private var query = ""
     @State private var selection: ArchiveItem.ID?
-    @State private var confirmClear = false
+    /// Called after a restore, e.g. so a popover host can dismiss itself.
+    var onRestore: ((ArchiveItem) -> Void)?
+
+    init(query: Binding<String>, isEmpty: Binding<Bool>, onRestore: ((ArchiveItem) -> Void)? = nil) {
+        _query = query
+        _isEmpty = isEmpty
+        self.onRestore = onRestore
+    }
 
     var body: some View {
         // Until the search for the current text lands, the newest entries that match it.
@@ -57,21 +68,6 @@ struct ArchiveWindow: View {
                                        description: Text("Closed and auto-archived tabs appear here."))
             }
         }
-        .searchable(text: $query, prompt: "Search archive")
-        .toolbar {
-            Button("Clear Archive", systemImage: "trash") { confirmClear = true }
-                .disabled(items.isEmpty)
-                .confirmationDialog("Clear the Archive?", isPresented: $confirmClear, titleVisibility: .visible) {
-                    Button("Clear Archive", role: .destructive) {
-                        try? model.store?.clearArchive()
-                        matches = nil
-                        reload()
-                    }
-                } message: {
-                    Text("This can't be undone.")
-                }
-        }
-        .navigationTitle("Archive")
         .task(id: model.sidebar) {
             reload()
             await search()
@@ -82,7 +78,10 @@ struct ArchiveWindow: View {
         }
     }
 
-    private func reload() { items = (try? model.store?.archivedItems()) ?? [] }
+    private func reload() {
+        items = (try? model.store?.archivedItems()) ?? []
+        isEmpty = items.isEmpty
+    }
 
     /// Searches the whole archive in the database, off the main thread.
     private func search() async {
@@ -101,6 +100,33 @@ struct ArchiveWindow: View {
             browser.window?.makeKeyAndOrderFront(nil)
         }
         reload()
+        onRestore?(item)
+    }
+}
+
+/// Archive window (⌥⌘A): `ArchiveListView` with the window's own search field and "Clear Archive" toolbar button.
+struct ArchiveWindow: View {
+    @Environment(MacModel.self) private var model
+    @State private var query = ""
+    @State private var isEmpty = true
+    @State private var confirmClear = false
+
+    var body: some View {
+        ArchiveListView(query: $query, isEmpty: $isEmpty)
+            .searchable(text: $query, prompt: "Search archive")
+            .toolbar {
+                Button("Clear Archive", systemImage: "trash") { confirmClear = true }
+                    .disabled(isEmpty)
+                    .confirmationDialog("Clear the Archive?", isPresented: $confirmClear, titleVisibility: .visible) {
+                        Button("Clear Archive", role: .destructive) {
+                            try? model.store?.clearArchive()
+                            isEmpty = true
+                        }
+                    } message: {
+                        Text("This can't be undone.")
+                    }
+            }
+            .navigationTitle("Archive")
     }
 }
 
