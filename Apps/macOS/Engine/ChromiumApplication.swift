@@ -34,8 +34,14 @@ private final class ChromiumApplication: NSObject {
     func start() throws {
         runtime.prepareWindow = { [weak self] profile, role in
             guard let self, !finished else { return nil }
-            if role == BOAZ_WINDOW_DEVTOOLS {
+            // Chrome's popup windows (windows.create({type: "popup"}), window.open with features) are bare, as
+            // DevTools' window is: one page, no sidebar or address row.
+            if role == BOAZ_WINDOW_DEVTOOLS || role == BOAZ_WINDOW_POPUP {
                 let window = ChromiumDevToolsWindow(runtime: runtime, profile: profile)
+                if role == BOAZ_WINDOW_POPUP {
+                    window.window.title = ""
+                    window.window.identifier = NSUserInterfaceItemIdentifier("screen.popupWindow")
+                }
                 let options = window.makeOptions()
                 guard let context = options.context else { return nil }
                 pendingDevToolsWindows[UInt(bitPattern: context)] = window

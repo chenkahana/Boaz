@@ -3,13 +3,16 @@ import AppKit
 import SwiftUI
 
 @MainActor
-final class ChromiumAppWindow: NSObject, NSWindowDelegate {
+final class ChromiumAppWindow: NSObject, NSWindowDelegate, NSSplitViewDelegate {
     let runtime: ChromiumRuntime
     let profile: ChromiumProfile
     let browser: BrowserState
     let window: NSWindow
     let contentContainer = NSView()
     let addressField = NSTextField()
+    /// The browser beside Chromium's extension side panel at the trailing edge, as Chrome lays it out.
+    private let split = NSSplitView()
+    private let sidePanel = ChromiumExtensionSidePanel()
     private(set) var handle: BoazHostWindow = 0
     var onClosed: (() -> Void)?
     private let model: MacModel
@@ -122,9 +125,21 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
             })
         let hosting = NSHostingView(rootView: BrowserWindow(browser: browser, nativeRestoration: restoration, initialTabID: initialTabID)
             .environment(model).task { await self.model.start() })
-        hosting.frame = contentContainer.bounds
-        hosting.autoresizingMask = [.width, .height]
-        contentContainer.addSubview(hosting)
+        split.isVertical = true
+        split.dividerStyle = .thin
+        split.delegate = self
+        split.frame = contentContainer.bounds
+        split.autoresizingMask = [.width, .height]
+        split.addArrangedSubview(hosting)
+        split.addArrangedSubview(sidePanel)
+        split.setHoldingPriority(.defaultLow, forSubviewAt: 0)
+        split.setHoldingPriority(.defaultHigh, forSubviewAt: 1)
+        sidePanel.isHidden = true
+        sidePanel.close = { [weak self] in
+            guard let self, !finished, handle != 0, let close = runtime.api.close_extension_side_panel else { return }
+            _ = close(handle)
+        }
+        contentContainer.addSubview(split)
         window.center()
         window.makeKeyAndOrderFront(nil)
     }
@@ -174,9 +189,49 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
                 owner.queue { $0.window.subtitle = copied }
             }
         }
+        options.extension_anchor = { context, id, view, bounds in
+            MainActor.assumeIsolated {
+                guard let context, let view, let bounds else { return 0 }
+                let owner = Unmanaged<ChromiumAppWindow>.fromOpaque(context).takeUnretainedValue()
+                guard !owner.finished, let anchor = owner.browser.chromiumExtensions?.anchor(for: id.map { String(cString: $0) })
+                else { return 0 }
+                view.pointee = Unmanaged.passUnretained(anchor).toOpaque()
+                let rect = anchor.bounds
+                bounds[0] = rect.minX; bounds[1] = rect.minY; bounds[2] = rect.width; bounds[3] = rect.height
+                return 1
+            }
+        }
+        options.extension_side_panel = { context, view, title in
+            MainActor.assumeIsolated {
+                guard let context else { return }
+                let owner = Unmanaged<ChromiumAppWindow>.fromOpaque(context).takeUnretainedValue()
+                guard !owner.finished else { return }
+                owner.showSidePanel(view.map { Unmanaged<NSView>.fromOpaque($0).takeUnretainedValue() },
+                                    title: title.map { String(cString: $0) } ?? "")
+            }
+        }
         options.menu_features = BOAZ_MENU_FEATURE_SPLIT.rawValue | BOAZ_MENU_FEATURE_INCOGNITO.rawValue
             | (browser.isIncognito ? 0 : BOAZ_MENU_FEATURE_SEND_TO_DEVICES.rawValue)
         return options
+    }
+
+    private func showSidePanel(_ view: NSView?, title: String) {
+        let wasHidden = sidePanel.isHidden
+        sidePanel.show(view, title: title)
+        guard let view, wasHidden else { return }
+        split.layoutSubtreeIfNeeded()
+        split.setPosition(max(split.bounds.width - sidePanel.preferredWidth, split.bounds.width / 2), ofDividerAt: 0)
+        window.makeFirstResponder(view)
+    }
+
+    func splitView(_ splitView: NSSplitView, constrainMinCoordinate proposed: CGFloat, ofSubviewAt index: Int) -> CGFloat {
+        max(proposed, splitView.bounds.width / 3)
+    }
+    func splitView(_ splitView: NSSplitView, constrainMaxCoordinate proposed: CGFloat, ofSubviewAt index: Int) -> CGFloat {
+        min(proposed, splitView.bounds.width - ChromiumExtensionSidePanel.minimumWidth)
+    }
+    func splitViewDidResizeSubviews(_ notification: Notification) {
+        if !sidePanel.isHidden, sidePanel.frame.width > 0 { sidePanel.preferredWidth = sidePanel.frame.width }
     }
 
     private func queueLayout() {
@@ -337,6 +392,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         finished = true
         if let restoration { model.finishNativeRestoration(restoration, succeeded: false) }
         browser.chromiumExtensions = nil
+        sidePanel.show(nil, title: "")
         browser.createChromiumPeekPage = nil
         browser.createChromiumPage = nil
         browser.activateChromiumPage = nil
@@ -348,5 +404,70 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         window.close()
         onClosed?()
     }
+}
+
+/// Chromium's extension side panel: the extension's page under its name and a close button.
+@MainActor
+final class ChromiumExtensionSidePanel: NSView {
+    static let minimumWidth: CGFloat = 320
+    var preferredWidth: CGFloat = 360
+    var close: (() -> Void)?
+    private let header = NSStackView()
+    private let titleLabel = NSTextField(labelWithString: "")
+    private let body = NSView()
+    private weak var content: NSView?
+
+    init() {
+        super.init(frame: .zero)
+        identifier = NSUserInterfaceItemIdentifier("screen.extensionSidePanel")
+        setAccessibilityElement(true)
+        setAccessibilityRole(.group)
+        titleLabel.font = .systemFont(ofSize: 12, weight: .semibold)
+        titleLabel.lineBreakMode = .byTruncatingTail
+        titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        let closeButton = NSButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close Side Panel")!,
+                                   target: self, action: #selector(closeClicked))
+        closeButton.isBordered = false
+        closeButton.setAccessibilityIdentifier("control.extensionSidePanel.close")
+        closeButton.toolTip = "Close Side Panel"
+        header.orientation = .horizontal
+        header.edgeInsets = NSEdgeInsets(top: 0, left: 12, bottom: 0, right: 8)
+        header.addArrangedSubview(titleLabel)
+        header.addArrangedSubview(NSView())
+        header.addArrangedSubview(closeButton)
+        for view in [header, body] {
+            view.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(view)
+        }
+        NSLayoutConstraint.activate([
+            header.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor),
+            header.leadingAnchor.constraint(equalTo: leadingAnchor),
+            header.trailingAnchor.constraint(equalTo: trailingAnchor),
+            header.heightAnchor.constraint(equalToConstant: 32),
+            body.topAnchor.constraint(equalTo: header.bottomAnchor),
+            body.leadingAnchor.constraint(equalTo: leadingAnchor),
+            body.trailingAnchor.constraint(equalTo: trailingAnchor),
+            body.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    /// Shows the extension's page, or hides the panel when `view` is nil.
+    func show(_ view: NSView?, title: String) {
+        if content !== view {
+            content?.removeFromSuperview()
+            if let view {
+                view.frame = body.bounds
+                view.autoresizingMask = [.width, .height]
+                body.addSubview(view)
+            }
+            content = view
+        }
+        titleLabel.stringValue = title
+        setAccessibilityLabel(title)
+        isHidden = view == nil
+    }
+
+    @objc private func closeClicked() { close?() }
 }
 #endif

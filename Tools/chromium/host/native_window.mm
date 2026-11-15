@@ -201,11 +201,13 @@ class NativeWindow final : public BrowserWindow,
   void TabDraggingStatusChanged(bool) override {}
   void LinkOpeningFromGesture(WindowOpenDisposition) override {}
   void FocusAppMenu() override { Unsupported("app menu focus"); }
-  bool IsTabStripEditable() const override { return false; }
+  // Boaz's tab list accepts moves, highlights and grouping from extensions as Chrome's tab strip does.
+  bool IsTabStripEditable() const override { return true; }
   void DisableTabStripEditingForTesting() override {}
-  bool IsToolbarVisible() const override { return false; }
-  bool IsToolbarShowing() const override { return false; }
-  bool IsLocationBarVisible() const override { return false; }
+  // A normal window shows Boaz's address field and extension buttons: Chrome's toolbar, for chrome.action.openPopup.
+  bool IsToolbarVisible() const override { return browser_->GetType() == BrowserWindowInterface::TYPE_NORMAL; }
+  bool IsToolbarShowing() const override { return IsToolbarVisible(); }
+  bool IsLocationBarVisible() const override { return IsToolbarVisible(); }
   void ShowUpdateChromeDialog() override { Unsupported("Chrome updater UI"); }
   void ShowIntentPickerBubble(std::vector<apps::IntentPickerAppInfo>, bool, bool,
       apps::IntentPickerBubbleType, const std::optional<url::Origin>&,

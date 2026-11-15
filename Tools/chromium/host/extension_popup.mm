@@ -10,6 +10,7 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
+#include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/extensions/extension_view.h"
 #include "chrome/browser/extensions/extension_view_host.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -27,6 +28,14 @@
 #include "extensions/browser/extension_registry_observer.h"
 #include "extensions/common/extension.h"
 #include "ui/base/base_window.h"
+
+// Chrome's popup is a borderless bubble that takes the focus.
+@interface BoazExtensionPopupPanel : NSPanel
+@end
+@implementation BoazExtensionPopupPanel
+- (BOOL)canBecomeKeyWindow { return YES; }
+- (BOOL)canBecomeMainWindow { return NO; }
+@end
 
 namespace boaz {
 namespace {
@@ -46,43 +55,39 @@ class NativeExtensionPopup::Impl final
       public extensions::ExtensionRegistryObserver,
       public extensions::SecurityDialogTracker::Observer {
  public:
-  class PageObserver final : public content::WebContentsObserver {
-   public:
-    PageObserver(content::WebContents* page, base::WeakPtr<Impl> popup)
-        : content::WebContentsObserver(page), popup_(popup) {}
-    void DidStartNavigation(content::NavigationHandle* navigation) override {
-      if (navigation->IsInPrimaryMainFrame() && popup_) popup_->Close();
-    }
-    void WebContentsDestroyed() override { if (popup_) popup_->Close(); }
-   private:
-    base::WeakPtr<Impl> popup_;
-  };
-
   Impl(std::unique_ptr<extensions::ExtensionViewHost> host,
        BrowserWindowInterface* browser, NSView* anchor, gfx::Rect rect,
-       ShowPopupCallback callback)
+       PopupShowAction action, ShowPopupCallback callback)
       : content::WebContentsObserver(host->host_contents()),
         host_(std::move(host)), browser_(browser->GetWeakPtr()),
-        callback_(std::move(callback)), extension_id_(host_->extension()->id()) {
+        callback_(std::move(callback)), extension_id_(host_->extension()->id()),
+        inspect_(action == PopupShowAction::kShowAndInspect) {
     parent_ = anchor.window;
-    NSRect local = NSMakeRect(rect.x(), rect.y(), rect.width(), rect.height());
-    anchor_screen_ = [parent_ convertRectToScreen:[anchor convertRect:local toView:nil]];
-    panel_ = [[NSPanel alloc] initWithContentRect:NSMakeRect(0, 0, 25, 25)
-        styleMask:NSWindowStyleMaskTitled backing:NSBackingStoreBuffered defer:NO];
+    anchor_ = anchor;
+    anchor_rect_ = NSMakeRect(rect.x(), rect.y(), rect.width(), rect.height());
+    UpdateAnchor();
+    panel_ = [[BoazExtensionPopupPanel alloc] initWithContentRect:NSMakeRect(0, 0, 25, 25)
+        styleMask:NSWindowStyleMaskBorderless backing:NSBackingStoreBuffered defer:NO];
     panel_.releasedWhenClosed = NO;
     NSString* extension_name = base::SysUTF8ToNSString(host_->extension()->name());
     panel_.title = extension_name.length ? extension_name : @"Extension";
     panel_.accessibilityLabel = panel_.title;
+    panel_.identifier = @"screen.extensionPopup";
     panel_.hidesOnDeactivate = NO;
+    panel_.hasShadow = YES;
+    panel_.opaque = NO;
+    panel_.backgroundColor = NSColor.clearColor;
     panel_.animationBehavior = NSWindowAnimationBehaviorNone;
+    panel_.contentView.wantsLayer = YES;
+    panel_.contentView.layer.cornerRadius = 10;
+    panel_.contentView.layer.masksToBounds = YES;
+    panel_.contentView.layer.backgroundColor = NSColor.windowBackgroundColor.CGColor;
     NSView* native = host_->host_contents()->GetNativeView().GetNativeNSView();
     [panel_.contentView addSubview:native];
     native.frame = panel_.contentView.bounds;
     native.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     host_->set_view(this);
     auto weak = weak_.GetWeakPtr();
-    page_ = std::make_unique<PageObserver>(
-        browser->GetTabStripModel()->GetActiveWebContents(), weak);
     active_changed_ = browser->RegisterActiveTabDidChange(base::BindRepeating(
         [](base::WeakPtr<Impl> popup, BrowserWindowInterface*) {
           if (popup) popup->Close();
@@ -94,20 +99,22 @@ class NativeExtensionPopup::Impl final
     registry_.Observe(extensions::ExtensionRegistry::Get(host_->browser_context()));
     security_.Observe(extensions::SecurityDialogTracker::GetInstance());
     notifications_ = [[NSMutableArray alloc] init];
-    auto observe = [&](NSNotificationName name, id object) {
+    auto observe = [&](NSNotificationName name, id object, void (^block)(void)) {
       id token = [[NSNotificationCenter defaultCenter] addObserverForName:name
           object:object queue:[NSOperationQueue mainQueue]
-          usingBlock:^(NSNotification*) { if (weak) weak->Close(); }];
+          usingBlock:^(NSNotification*) { block(); }];
       [notifications_ addObject:token];
     };
-    observe(NSWindowWillCloseNotification, parent_);
-    observe(NSWindowWillMoveNotification, parent_);
-    observe(NSWindowDidResizeNotification, parent_);
-    observe(NSWindowWillMiniaturizeNotification, parent_);
-    observe(NSWindowWillBeginSheetNotification, parent_);
-    observe(NSWindowWillBeginSheetNotification, panel_);
-    observe(NSWindowDidResignKeyNotification, panel_);
-    observe(NSApplicationDidResignActiveNotification, NSApp);
+    auto close = ^{ if (weak) weak->Close(); };
+    // As Chrome's: the popup stays up while the user works in another app or window, and closes when its own
+    // browser window is activated again (a click outside it), unless DevTools is inspecting it.
+    observe(NSWindowWillCloseNotification, parent_, close);
+    observe(NSWindowWillMiniaturizeNotification, parent_, close);
+    observe(NSWindowWillBeginSheetNotification, parent_, close);
+    observe(NSWindowWillBeginSheetNotification, panel_, close);
+    observe(NSWindowDidBecomeKeyNotification, panel_, ^{ if (weak) weak->was_key_ = true; });
+    observe(NSWindowDidBecomeKeyNotification, parent_, ^{ if (weak) weak->CloseUnlessInspected(); });
+    observe(NSWindowDidResizeNotification, parent_, ^{ if (weak) weak->Reposition(); });
     host_->SetCloseHandler(base::BindOnce([](base::WeakPtr<Impl> popup,
                                            extensions::ExtensionHost*) {
       if (popup) popup->Close();
@@ -150,7 +157,6 @@ class NativeExtensionPopup::Impl final
     browser_closed_ = {};
     registry_.Reset();
     security_.Reset();
-    page_.reset();
     Observe(nullptr);
     if (host_) {
       host_->host_contents()->WasHidden();
@@ -168,6 +174,24 @@ class NativeExtensionPopup::Impl final
   bool IsShowing() const { return showing_ && !closed_; }
   gfx::NativeView GetNativeView() override {
     return host_ ? host_->host_contents()->GetNativeView() : gfx::NativeView();
+  }
+  void UpdateAnchor() {
+    NSView* anchor = anchor_;
+    if (anchor && anchor.window == parent_)
+      anchor_screen_ = [parent_ convertRectToScreen:[anchor convertRect:anchor_rect_ toView:nil]];
+  }
+  // A child window moves with its parent; a resize can move the anchor.
+  void Reposition() {
+    if (closed_) return;
+    UpdateAnchor();
+    ResizeDueToAutoResize(nullptr, gfx::Size(panel_.contentView.bounds.size.width,
+                                            panel_.contentView.bounds.size.height));
+  }
+  void CloseUnlessInspected() {
+    if (closed_ || !showing_ || !was_key_ || !host_) return;
+    if (javascript_dialogs::AppModalDialogQueue::GetInstance()->HasActiveDialog() ||
+        DevToolsWindow::GetInstanceForInspectedWebContents(host_->host_contents())) return;
+    Close();
   }
   void ResizeDueToAutoResize(content::WebContents*, const gfx::Size& size) override {
     if (closed_) return;
@@ -198,9 +222,6 @@ class NativeExtensionPopup::Impl final
   // Experimental host rejects JS dialogs; native dialog parity remains gated.
   // Requires the root-owned ExtensionView/ExtensionViewHost suppression patch.
   bool ShouldSuppressDialogs() const override { return true; }
-  void DidStartNavigation(content::NavigationHandle* navigation) override {
-    if (showing_ && navigation->IsInPrimaryMainFrame()) Close();
-  }
   bool CanPresent() {
     if (closed_) return false;
     if (!host_ || !browser_ || !parent_) { Close(); return false; }
@@ -227,6 +248,11 @@ class NativeExtensionPopup::Impl final
     if (!weak || !CanPresent()) return;
     host_->host_contents()->Focus();
     if (!weak || !CanPresent()) return;
+    if (inspect_) {
+      DevToolsWindow::OpenDevToolsWindow(host_->host_contents(), DevToolsToggleAction::ShowConsolePanel(),
+                                         DevToolsOpenedByAction::kContextMenuInspect);
+      if (!weak || !CanPresent()) return;
+    }
     Complete();
   }
   void PrimaryMainFrameRenderProcessGone(base::TerminationStatus) override { Close(); }
@@ -245,13 +271,16 @@ class NativeExtensionPopup::Impl final
   base::WeakPtr<BrowserWindowInterface> browser_;
   ShowPopupCallback callback_;
   std::string extension_id_;
+  const bool inspect_;
+  bool was_key_ = false;
   NSPanel* __strong panel_;
   NSWindow* __weak parent_;
+  NSView* __weak anchor_;
+  NSRect anchor_rect_;
   NSMutableArray* __strong notifications_;
   NSRect anchor_screen_;
   bool closed_ = false;
   bool showing_ = false;
-  std::unique_ptr<PageObserver> page_;
   base::CallbackListSubscription active_changed_;
   base::CallbackListSubscription browser_closed_;
   base::ScopedObservation<extensions::ExtensionRegistry, extensions::ExtensionRegistryObserver> registry_{this};
@@ -269,14 +298,14 @@ std::unique_ptr<NativeExtensionPopup> NativeExtensionPopup::Create(
   if (!host || !browser || !anchor || ![anchor isKindOfClass:[NSView class]] ||
       !browser->GetWindow() || !browser->GetTabStripModel()->GetActiveWebContents() ||
       anchor.window != browser->GetWindow()->GetNativeWindow().GetNativeNSWindow() ||
-      !anchor.window || rect.IsEmpty() || action != PopupShowAction::kShow ||
+      !anchor.window || rect.IsEmpty() ||
       anchor.window.attachedSheet || NSApp.modalWindow ||
       javascript_dialogs::AppModalDialogQueue::GetInstance()->HasActiveDialog() ||
       extensions::SecurityDialogTracker::GetInstance()->BrowserHasVisibleSecurityDialogs(browser)) {
     Fail(std::move(callback));
     return nullptr;
   }
-  auto impl = std::make_unique<Impl>(std::move(host), browser, anchor, rect, std::move(callback));
+  auto impl = std::make_unique<Impl>(std::move(host), browser, anchor, rect, action, std::move(callback));
   auto result = std::unique_ptr<NativeExtensionPopup>(new NativeExtensionPopup(std::move(impl)));
   result->impl_->Start();
   return result;
