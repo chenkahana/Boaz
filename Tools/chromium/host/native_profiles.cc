@@ -1,5 +1,6 @@
 #include "adblock_profile_state.h"
 #include "native_profiles.h"
+#include "native_site_permissions.h"
 #include <limits>
 #include <map>
 #include <utility>
@@ -77,6 +78,7 @@ class NativeProfiles::Impl {
     static uint64_t next = 1;
     CHECK_NE(next, std::numeric_limits<uint64_t>::max());
     auto id = next++;
+    AllowOktaLocalNetwork(profile);
     auto downloads = std::make_unique<NativeDownloads>(profile);
     downloads->SetObserver(base::BindRepeating(&Impl::DownloadChanged, weak_.GetWeakPtr(), id));
     entries_.emplace(id, Entry{profile, std::move(keep_alive), std::move(identifier),

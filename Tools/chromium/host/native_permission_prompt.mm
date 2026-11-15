@@ -123,6 +123,8 @@ class NativePermissionPrompt final : public permissions::PermissionPrompt {
           (type != permissions::RequestType::kCameraStream &&
            type != permissions::RequestType::kMicStream &&
            type != permissions::RequestType::kNotifications &&
+           type != permissions::RequestType::kLocalNetwork &&
+           type != permissions::RequestType::kLoopbackNetwork &&
            !(type == permissions::RequestType::kGeolocation && geolocation))) {
         LOG(WARNING) << "Boaz native permission unsupported request type: "
                      << permissions::PermissionKeyForRequestType(type);

@@ -21,5 +21,7 @@ std::vector<PermissionState> ReadSitePermissions(Profile*, const url::Origin& re
 // Resetting a saved permission may require reload to end an active media stream.
 BoazHostResult ResetSitePermission(Profile*, const url::Origin& requesting,
                                   const url::Origin& embedding, SitePermissionKind);
+// Okta Verify (FastPass) answers sign-in pages on localhost; let Okta's domains reach it.
+void AllowOktaLocalNetwork(Profile*);
 }
 #endif

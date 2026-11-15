@@ -105,4 +105,18 @@ BoazHostResult ResetSitePermission(Profile* profile, const url::Origin& requesti
   // Global defaults and device restrictions can still produce Allow or Block.
   return after && !after->embargoed ? BOAZ_HOST_OK : BOAZ_HOST_UNAVAILABLE;
 }
+void AllowOktaLocalNetwork(Profile* profile) {
+  CHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  auto* map = profile ? HostContentSettingsMapFactory::GetForProfile(profile) : nullptr;
+  if (!map) return;
+  for (const char* domain : {"https://[*.]okta.com", "https://[*.]oktapreview.com",
+                             "https://[*.]okta-emea.com", "https://[*.]okta-gov.com"}) {
+    // Chromium is migrating LOCAL_NETWORK_ACCESS to the split LOCAL_NETWORK and LOOPBACK_NETWORK settings.
+    for (auto type : {ContentSettingsType::LOCAL_NETWORK_ACCESS, ContentSettingsType::LOCAL_NETWORK,
+                      ContentSettingsType::LOOPBACK_NETWORK}) {
+      map->SetContentSettingCustomScope(ContentSettingsPattern::FromString(domain),
+                                        ContentSettingsPattern::Wildcard(), type, CONTENT_SETTING_ALLOW);
+    }
+  }
+}
 }
