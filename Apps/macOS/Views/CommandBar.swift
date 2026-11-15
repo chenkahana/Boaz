@@ -203,7 +203,7 @@ struct CommandBar: View {
         let query = text.trimmingCharacters(in: .whitespaces)
         var result: [Suggestion] = []
         let engine = Preferences.searchEngine
-        if let url = SearchInput.url(for: query, searchTemplate: engine.template) {
+        if let url = SearchInput.url(for: query, searchTemplate: engine.template, schemes: SearchInput.typedSchemes) {
             let isSearch = url.absoluteString.hasPrefix(engine.template.replacingOccurrences(of: "%@", with: ""))
             result.append(.go(url, label: isSearch ? "Search \(engine.name) for “\(query)”" : url.absoluteString,
                               isSearch: isSearch))

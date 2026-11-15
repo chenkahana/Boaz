@@ -520,7 +520,8 @@ struct QuickWindow: View {
     }
 
     private func go() {
-        guard let url = SearchInput.url(for: address, searchTemplate: Preferences.searchEngine.template) else { return }
+        guard let url = SearchInput.url(for: address, searchTemplate: Preferences.searchEngine.template,
+                                       schemes: SearchInput.typedSchemes) else { return }
         start(url)
     }
 

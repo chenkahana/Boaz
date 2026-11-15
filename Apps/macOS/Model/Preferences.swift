@@ -43,3 +43,12 @@ enum Preferences {
         SearchEngine(rawValue: UserDefaults.standard.string(forKey: searchEngineKey) ?? "") ?? .duckDuckGo
     }
 }
+
+extension SearchInput {
+    /// Schemes the address field opens as typed. Chromium also opens its own pages (chrome://extensions, ...).
+    #if BOAZ_CHROMIUM
+    static let typedSchemes: Set<String> = ["http", "https", "chrome", "chrome-extension", "about"]
+    #else
+    static let typedSchemes: Set<String> = ["http", "https"]
+    #endif
+}

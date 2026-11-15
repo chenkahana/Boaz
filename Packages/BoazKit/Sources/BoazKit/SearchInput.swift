@@ -2,11 +2,13 @@ import Foundation
 
 /// Turns what the user typed into a URL: a full URL, a bare domain, or a search.
 public enum SearchInput {
+    /// `schemes`: what a typed URL may use besides a search, e.g. `chrome` for Chromium's own pages.
     public static func url(for input: String,
-                           searchTemplate: String = "https://duckduckgo.com/?q=%@") -> URL? {
+                           searchTemplate: String = "https://duckduckgo.com/?q=%@",
+                           schemes: Set<String> = ["http", "https"]) -> URL? {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return nil }
-        if let url = URL(string: text), let scheme = url.scheme, ["http", "https"].contains(scheme.lowercased()) {
+        if let url = URL(string: text), let scheme = url.scheme, schemes.contains(scheme.lowercased()) {
             return url
         }
         if !text.contains(" "), text.contains("."), !text.hasSuffix("."), let url = URL(string: "https://" + text) {
