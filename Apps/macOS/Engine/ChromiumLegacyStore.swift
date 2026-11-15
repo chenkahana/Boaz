@@ -138,6 +138,12 @@ enum ChromiumLegacyStore {
     }
 
     static func applicationSupportDirectory() throws -> URL? {
+        // Development builds keep their own library, so running one never adds a second library beside production's.
+        if Bundle.main.object(forInfoDictionaryKey: "BoazDistributionChannel") as? String == "development" {
+            return try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                                               appropriateFor: nil, create: true)
+                .appendingPathComponent(Bundle.main.bundleIdentifier ?? "com.chenkahana.boaz.chromium.dev", isDirectory: true)
+        }
         guard Bundle.main.bundleIdentifier == "com.chenkahana.boaz",
               Bundle.main.object(forInfoDictionaryKey: "BoazDistributionChannel") as? String == "production" else {
             return nil
