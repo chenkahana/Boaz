@@ -12,17 +12,18 @@
    if (is_chromeos) {
 --- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 +++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
-@@ -96,6 +96,9 @@
+@@ -96,6 +96,10 @@
  #include "chrome/browser/profiles/profile_window.h"
  #include "chrome/browser/reading_list/reading_list_model_factory.h"
  #include "chrome/browser/renderer_context_menu/accessibility_labels_menu_observer.h"
 +#if BUILDFLAG(IS_MAC)
 +#include "boaz/bootstrap.h"
++#include "ui/menus/cocoa/text_services_context_menu.h"
 +#endif
  #include "chrome/browser/renderer_context_menu/context_menu_content_type_factory.h"
  #include "chrome/browser/renderer_context_menu/dictation_menu_observer.h"
  #include "chrome/browser/renderer_context_menu/link_to_text_menu_observer.h"
-@@ -1057,6 +1060,60 @@
+@@ -1057,6 +1061,77 @@
    return nullptr;
  }
  
@@ -33,8 +34,19 @@
 +      IDC_BACK,
 +      IDC_FORWARD,
 +      IDC_RELOAD,
++      IDC_SAVE_PAGE,
++      IDC_PRINT,
++      IDC_VIEW_SOURCE,
++      IDC_CONTENT_CONTEXT_VIEWFRAMESOURCE,
++      IDC_CONTENT_CONTEXT_EXIT_FULLSCREEN,
 +      IDC_CONTENT_CONTEXT_OPENLINKNEWTAB,
++      IDC_CONTENT_CONTEXT_OPENLINKNEWWINDOW,
++      IDC_CONTENT_CONTEXT_SAVELINKAS,
 +      IDC_CONTENT_CONTEXT_COPYLINKLOCATION,
++      IDC_CONTENT_CONTEXT_COPYLINKTEXT,
++      IDC_CONTENT_CONTEXT_COPYLINKTOTEXT,
++      IDC_CONTENT_CONTEXT_RESHARELINKTOTEXT,
++      IDC_CONTENT_CONTEXT_REMOVELINKTOTEXT,
 +      IDC_CONTENT_CONTEXT_OPENIMAGENEWTAB,
 +      IDC_CONTENT_CONTEXT_SAVEIMAGEAS,
 +      IDC_CONTENT_CONTEXT_COPYIMAGE,
@@ -45,6 +57,8 @@
 +      IDC_CONTENT_CONTEXT_LOOP,
 +      IDC_CONTENT_CONTEXT_CONTROLS,
 +      IDC_CONTENT_CONTEXT_PICTUREINPICTURE,
++      IDC_CONTENT_CONTEXT_COPYVIDEOFRAME,
++      IDC_CONTENT_CONTEXT_SAVEVIDEOFRAMEAS,
 +      IDC_CONTENT_CONTEXT_UNDO,
 +      IDC_CONTENT_CONTEXT_REDO,
 +      IDC_CONTENT_CONTEXT_CUT,
@@ -56,6 +70,10 @@
 +      IDC_CONTENT_CONTEXT_SEARCHWEBFOR,
 +      IDC_SPELLCHECK_ADD_TO_DICTIONARY,
 +      IDC_CONTENT_CONTEXT_INSPECTELEMENT,
++#if BUILDFLAG(IS_MAC)
++      ui::TextServicesContextMenu::kSpeechMenu,
++      ui::TextServicesContextMenu::kWritingDirectionMenu,
++#endif
 +  };
 +  for (size_t i = menu.GetItemCount(); i-- > 0;) {
 +    const int id = menu.GetCommandIdAt(i);
@@ -83,30 +101,28 @@
  }  // namespace
  
  // static
-@@ -1617,8 +1674,22 @@
-     if (!use_simplified_menu_for_text_selection &&
-         !took_simplified_page_items_path) {
+@@ -1619,6 +1694,20 @@
        AppendReadAnythingItem();
-+    }
-+  }
+     }
+   }
 +
 +  KeepBoazItems(menu_model_);
 +#if BUILDFLAG(IS_MAC)
 +  if (boaz::PageAssistantEnabled(source_web_contents_)) {
 +    if (menu_model_.GetItemCount()) {
 +      menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
-     }
++    }
 +    menu_model_.AddItem(kBoazAskCommandId,
 +                        params_.selection_text.empty()
 +                            ? u"Ask About This Page\u2026"
 +                            : u"Explain \u201c" + GetElidedSelectionText(kMaxSelectionTextLength, gfx::WORD_BREAK) +
 +                                  u"\u201d");
-   }
++  }
 +#endif
  }
  
  Profile* RenderViewContextMenu::GetProfile() const {
-@@ -1686,6 +1757,12 @@
+@@ -1686,6 +1775,12 @@
  }
  
  void RenderViewContextMenu::RecordUsedItem(int id) {
@@ -119,7 +135,7 @@
    // Log general ID.
  
    int enum_id =
-@@ -3426,6 +3503,11 @@
+@@ -3426,6 +3521,11 @@
  // Menu delegate functions -----------------------------------------------------
  
  bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
@@ -131,7 +147,7 @@
  #if BUILDFLAG(IS_CHROMEOS)
    // Disable context menu in locked fullscreen mode to prevent users from
    // exiting this mode (the menu is not really disabled as the user can still
-@@ -3866,6 +3948,13 @@
+@@ -3866,6 +3966,13 @@
      return;
    }
    command_executed_ = true;
@@ -145,9 +161,41 @@
  
    // Process extension menu items.
    if (ContextMenuMatcher::IsExtensionsCustomCommandId(id)) {
+@@ -5678,8 +5785,12 @@
+ 
+ void RenderViewContextMenu::ExecPrint() {
+ #if BUILDFLAG(ENABLE_PRINTING)
+-  const bool print_preview_disabled =
++  bool print_preview_disabled =
+       GetPrefs(browser_context_)->GetBoolean(prefs::kPrintPreviewDisabled);
++#if BUILDFLAG(IS_MAC)
++  // Boaz windows have no print preview; use the system print dialog, as File > Print does.
++  print_preview_disabled |= boaz::NativeHostEnabled();
++#endif
+   if (params_.media_type != ContextMenuDataMediaType::kNone) {
+     RenderFrameHost* rfh = GetRenderFrameHost();
+     if (rfh) {
+--- a/chrome/browser/ui/cocoa/BUILD.gn
++++ b/chrome/browser/ui/cocoa/BUILD.gn
+@@ -214,6 +214,7 @@
+   if (is_mac) {
+     # tab_group_menu_bridge.mm includes chrome/browser/ui/chrome_pages.h.
+     deps += [ "//chrome/browser/ui:chrome_pages" ]
++    deps += [ "//boaz:headers" ]
+   }
+ }
+ 
 --- a/chrome/browser/ui/cocoa/renderer_context_menu/render_view_context_menu_mac_cocoa.mm
 +++ b/chrome/browser/ui/cocoa/renderer_context_menu/render_view_context_menu_mac_cocoa.mm
-@@ -78,12 +78,14 @@
+@@ -13,6 +13,7 @@
+ #import "base/message_loop/message_pump_apple.h"
+ #include "base/strings/sys_string_conversions.h"
+ #include "base/task/current_thread.h"
++#include "boaz/context_menu_style.h"
+ #include "chrome/browser/headless/headless_mode_util.h"
+ #import "components/remote_cocoa/app_shim/menu_controller_cocoa_delegate_impl.h"
+ #include "content/public/browser/web_contents.h"
+@@ -78,12 +79,18 @@
    views::Widget* widget = views::Widget::GetTopLevelWidgetForNativeView(
        source_web_contents_->GetNativeView());
  
@@ -156,6 +204,10 @@
 +  if ((!widget && ![parent_view_ window]) || headless::IsHeadlessMode()) {
      return;
    }
++  if (!widget) {
++    // After InitToolkitMenu, so Look Up and Speech get icons too.
++    boaz::StyleContextMenu(&menu_model_);
++  }
  
    menu_controller_delegate_ = [[MenuControllerCocoaDelegateImpl alloc]
 -      initWithParams:MenuControllerParamsForWidget(widget)];
@@ -164,7 +216,7 @@
    menu_controller_ =
        [[MenuControllerCocoa alloc] initWithModel:&menu_model_
                                     isContextMenu:YES
-@@ -97,7 +99,8 @@
+@@ -97,7 +104,8 @@
  
    ui::ShowContextMenu(menu_controller_.menu, clickEvent, parent_view_,
                        /*allow_nested_tasks=*/true,

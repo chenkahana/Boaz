@@ -121,6 +121,8 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         responder(edit, "Cut", #selector(NSText.cut(_:)), key: "x")
         responder(edit, "Copy", #selector(NSText.copy(_:)), key: "c")
         responder(edit, "Paste", #selector(NSText.paste(_:)), key: "v")
+        responder(edit, "Paste and Match Style", Selector(("pasteAndMatchStyle:")), key: "v",
+                  modifiers: [.command, .option, .shift])
         responder(edit, "Select All", #selector(NSText.selectAll(_:)), key: "a")
         edit.addItem(.separator())
         add(edit, "Copy URL", command: .copyURL, enabled: { $0?.activeURL != nil }) { $0?.copyActiveURL() }
