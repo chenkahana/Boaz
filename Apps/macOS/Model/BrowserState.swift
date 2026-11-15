@@ -93,6 +93,10 @@ final class BrowserState {
     var spaceToDelete: Space?
     /// The unloaded pinned tab a middle-click asked to remove, waiting for confirmation.
     var pinnedTabToRemove: SidebarItem?
+    /// GitHub sign-in for live folders (`GitHubSignInView`).
+    var githubSignIn: GitHubSignInRequest?
+    /// The folder whose deletion is waiting for confirmation.
+    var folderToDelete: SidebarItem?
     var extensionSheet: ExtensionSheet?
     /// Summarize/Ask or a tidy preview (`MacAISheet`).
     var ai: AIRequest?
@@ -635,6 +639,11 @@ final class BrowserState {
     }
 
     func existingPage(for tabID: String) -> WebPage? { pages[tabID] }
+
+    /// Whether this window shows the tab or keeps its page loaded.
+    func hasOpenPage(_ tabID: String) -> Bool {
+        pages[tabID] != nil || enginePages[tabID] != nil || activeTabID == tabID || split?.contains(tabID) == true
+    }
 
     func enginePage(for tab: SidebarItem) throws -> EnginePage {
         #if BOAZ_CHROMIUM
