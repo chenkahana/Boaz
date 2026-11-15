@@ -684,6 +684,18 @@ final class MacModel {
         commit(folder)
     }
 
+    /// A new folder around `tab`, in the tab's own container (Today or Pinned); the tab moves inside.
+    @discardableResult
+    func addToNewFolder(_ tab: SidebarItem) -> SidebarItem? {
+        guard let parent = container(of: tab) else { return nil }
+        let folder = SidebarItem(id: UUID().uuidString, spaceID: tab.spaceID, profileID: tab.profileID,
+                                 parentID: parent.id, kind: .folder, title: "New Folder",
+                                 position: sidebar.nextPosition(in: parent.id))
+        commit(folder)
+        move(tab.id, into: folder.id, before: nil)
+        return folder
+    }
+
     /// Moves an item under `parentID`, before `beforeID` (or last). Keeps folders out of favorites and out of
     /// their own subtree, and carries the space across for whole folders.
     func move(_ id: String, into parentID: String, before beforeID: String?) {
