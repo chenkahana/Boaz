@@ -52,6 +52,11 @@ public struct RecordState: Codable, Hashable, Sendable {
         try JSONDecoder().decode([String: JSONValue].self, from: JSONEncoder().encode(value))
     }
 
+    /// Every field this build's `R` has, nil ones included (the JSON leaves those out).
+    public static func keys<R: SyncableRecord>(of value: R) -> Set<String> {
+        Set(Mirror(reflecting: value).children.compactMap(\.label))
+    }
+
     public func value<R: SyncableRecord>(_: R.Type) throws -> R {
         try JSONDecoder().decode(R.self, from: JSONEncoder().encode(fields.filter { $0.value != .null }))
     }
@@ -69,7 +74,13 @@ public struct RecordState: Codable, Hashable, Sendable {
     }
 
     /// The state after a local write produced `fields`. Changed units get a stamp newer than anything seen.
-    public static func stamped(_ fields: [String: JSONValue], over previous: RecordState?, groups: [[String]]) -> RecordState {
+    /// Fields outside `known` (ones a newer build added, which this build can't write) keep their previous value.
+    public static func stamped(_ fields: [String: JSONValue], over previous: RecordState?, groups: [[String]],
+                               known: Set<String>? = nil) -> RecordState {
+        var fields = fields
+        if let previous, let known {
+            for (key, value) in previous.fields where fields[key] == nil && !known.contains(key) { fields[key] = value }
+        }
         let modifiedAt = fields["modifiedAt"]?.number ?? Date.now.timeIntervalSinceReferenceDate
         var keys = Set(fields.keys)
         if let previous { keys.formUnion(previous.fields.keys); keys.formUnion(previous.stamps.keys) }
@@ -78,7 +89,6 @@ public struct RecordState: Codable, Hashable, Sendable {
             return RecordState(fields: fields, stamps: Dictionary(uniqueKeysWithValues: units.map { ($0[0], modifiedAt) }))
         }
         let stamp = max(modifiedAt, (previous.stamps.values.max() ?? -.infinity) + 0.001)
-        var fields = fields
         // `modifiedAt` only grows, as in `merge`, so a device behind on its clock doesn't pull it backwards.
         if let seen = previous.fields["modifiedAt"]?.number, seen > modifiedAt { fields["modifiedAt"] = .number(seen) }
         var stamps = previous.stamps
