@@ -6,6 +6,12 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.17] - 2026-11-16
+
+### Added
+
+- Mac: zooming with ⌘+, ⌘− or ⌘0 shows the new zoom level in a small tag at the window's top right for a moment.
+
 ## [0.4.16] - 2026-11-16
 
 ### Added
@@ -428,7 +434,8 @@ First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone
 - Share extension, search widget, App Shortcuts, the `boaz://` URL scheme and alternate app icons.
 - Privacy manifest, privacy policy and an About section with third-party notices.
 
-[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.16...HEAD
+[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.17...HEAD
+[0.4.17]: https://github.com/chenkahana/Boaz/compare/v0.4.16...v0.4.17
 [0.4.16]: https://github.com/chenkahana/Boaz/compare/v0.4.15...v0.4.16
 [0.4.15]: https://github.com/chenkahana/Boaz/compare/v0.4.14...v0.4.15
 [0.4.14]: https://github.com/chenkahana/Boaz/compare/v0.4.13...v0.4.14
