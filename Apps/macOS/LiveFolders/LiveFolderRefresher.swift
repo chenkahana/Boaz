@@ -107,7 +107,7 @@ final class LiveFolderRefresher {
                 case .assignedToMe: qualifiers.append("assignee:@me")
                 case .mentioned: qualifiers.append("mentions:@me")
                 case .teamReviewRequests:
-                    qualifiers += try await teamNames(client, login: login).prefix(20).map { "team-review-requested:\($0)" }
+                    qualifiers += await teamNames(client, login: login).prefix(20).map { "team-review-requested:\($0)" }
                 }
             }
             let result = try await client.searchPulls(qualifiers, repositories: source.repositories)
@@ -118,14 +118,20 @@ final class LiveFolderRefresher {
             }
             let pulls = byURL.values.sorted { ($0.updatedAt, $0.url.absoluteString) > ($1.updatedAt, $1.url.absoluteString) }
             guard let model, let current = model.item(folder.id), current.liveSource != nil else { return }
-            apply(pulls, to: current, in: model)
             let previous = states[folder.id]
+            let withheld = Set(result.singleSignOn.map { $0.organization.lowercased() })
+            // Only tabs this Mac listed last time leave: another Mac's token can see different pull requests, and
+            // an organization's results held back for single sign-on say nothing about its pull requests.
+            let kept = apply(pulls, to: current, in: model) { tab in
+                previous?.items[tab.id] != nil && !withheld.contains(tab.url?.pathComponents.dropFirst().first?.lowercased() ?? "")
+            }
+            var items = Dictionary(pulls.map { (SidebarItem.liveChildID(folderID: folder.id, url: $0.url), $0.status) },
+                                   uniquingKeysWith: { a, _ in a })
+            for id in kept { items[id] = previous?.items[id] }
             let repositories = Set(previous?.repositories ?? []).union(pulls.map(\.repository.nameWithOwner))
                 .union(source.repositories)
             save(LiveFolderState(
-                folderID: folder.id, lastRefreshAt: .now, lastError: nil,
-                items: Dictionary(pulls.map { (SidebarItem.liveChildID(folderID: folder.id, url: $0.url), $0.status) },
-                                  uniquingKeysWith: { a, _ in a }),
+                folderID: folder.id, lastRefreshAt: .now, lastError: nil, items: items,
                 repositories: repositories.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending },
                 singleSignOn: result.singleSignOn))
         } catch is CancellationError {
@@ -134,8 +140,10 @@ final class LiveFolderRefresher {
         }
     }
 
-    /// The folder's tabs, made to list `pulls` (newest first). Writes only rows that change.
-    private func apply(_ pulls: [GitHubPull], to folder: SidebarItem, in model: MacModel) {
+    /// The folder's tabs, made to list `pulls` (newest first); unlisted ones go if `mayRemove`. Writes only rows that
+    /// change. Returns the unlisted tabs that stay.
+    private func apply(_ pulls: [GitHubPull], to folder: SidebarItem, in model: MacModel,
+                       mayRemove: (SidebarItem) -> Bool) -> Set<String> {
         let existing = model.sidebar.children(of: folder.id)
         var changes: [SidebarItem] = []
         var listed = Set<String>()
@@ -155,21 +163,27 @@ final class LiveFolderRefresher {
             }
         }
         let now = Date.now
-        for var tab in existing where tab.isLiveChild(of: folder) && !listed.contains(tab.id) && !isOpen(tab.id, in: model) {
+        var kept = Set<String>()
+        for var tab in existing where tab.isLiveChild(of: folder) && !listed.contains(tab.id) {
+            guard mayRemove(tab), !isOpen(tab.id, in: model) else { kept.insert(tab.id); continue }
             tab.deletedAt = now
             changes.append(tab)
         }
         if !changes.isEmpty { model.commit(changes) }
+        return kept
     }
 
     private func isOpen(_ tabID: String, in model: MacModel) -> Bool {
         model.openBrowsers.contains { $0.hasOpenPage(tabID) }
     }
 
-    private func teamNames(_ client: GitHubClient, login: String?) async throws -> [String] {
+    private func teamNames(_ client: GitHubClient, login: String?) async -> [String] {
         guard let login else { return [] }
-        if let teams, teams.login == login, teams.fetchedAt.timeIntervalSinceNow > -3600 { return teams.names }
-        let names = try await client.teams(login: login)
+        let cached = teams?.login == login ? teams : nil
+        if let cached, cached.fetchedAt.timeIntervalSinceNow > -3600 { return cached.names }
+        // A token without `read:org` (a fine-grained one, say) can't list teams: the other filters still refresh,
+        // with the teams last listed, and the lookup is retried in an hour.
+        let names = (try? await client.teams(login: login)) ?? cached?.names ?? []
         teams = (login, names, .now)
         return names
     }

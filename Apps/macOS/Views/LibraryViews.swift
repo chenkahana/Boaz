@@ -110,9 +110,12 @@ struct ArchiveWindow: View {
     @State private var query = ""
     @State private var isEmpty = true
     @State private var confirmClear = false
+    /// Bumped by Clear Archive, so the list starts over from the (now empty) archive.
+    @State private var clears = 0
 
     var body: some View {
         ArchiveListView(query: $query, isEmpty: $isEmpty)
+            .id(clears)
             .searchable(text: $query, prompt: "Search archive")
             .toolbar {
                 Button("Clear Archive", systemImage: "trash") { confirmClear = true }
@@ -120,7 +123,7 @@ struct ArchiveWindow: View {
                     .confirmationDialog("Clear the Archive?", isPresented: $confirmClear, titleVisibility: .visible) {
                         Button("Clear Archive", role: .destructive) {
                             try? model.store?.clearArchive()
-                            isEmpty = true
+                            clears += 1
                         }
                     } message: {
                         Text("This can't be undone.")

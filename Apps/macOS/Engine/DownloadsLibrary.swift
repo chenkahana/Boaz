@@ -67,21 +67,35 @@ enum DownloadsFilter: String, CaseIterable, Identifiable {
 @MainActor @Observable
 final class DownloadsLibraryModel {
     private(set) var items: [LibraryDownloadItem] = []
+    /// Whether the first scan has landed, so the panes don't flash their empty state before it.
+    private(set) var loaded = false
+    @ObservationIgnored private var started = false
     @ObservationIgnored private var watcher: DispatchSourceFileSystemObject?
     @ObservationIgnored private var reloadTask: Task<Void, Never>?
 
     var directory: URL? { UITestMode.downloadsDirectory ?? (try? Downloads.directory()) }
 
-    init() {
+    deinit { watcher?.cancel() }
+
+    /// The first scan and the folder watch. Called from the panel's `.task`, not `init`: SwiftUI makes (and throws
+    /// away) a new `@State` model every time the panel's parent re-renders.
+    func start() {
+        guard !started else { return }
+        started = true
         reload()
         startWatching()
     }
 
-    deinit { watcher?.cancel() }
-
+    /// Rescans off the main thread: the folder can hold thousands of files, each with an extended attribute to read.
     func reload() {
-        guard let directory else { items = []; return }
-        items = Self.scan(directory)
+        guard let directory else { items = []; loaded = true; return }
+        reloadTask?.cancel()
+        reloadTask = Task { [weak self] in
+            let items = await Task.detached(priority: .userInitiated) { Self.scan(directory) }.value
+            guard !Task.isCancelled, let self else { return }
+            self.items = items
+            self.loaded = true
+        }
     }
 
     private func startWatching() {
@@ -107,7 +121,7 @@ final class DownloadsLibraryModel {
         }
     }
 
-    private static func scan(_ directory: URL) -> [LibraryDownloadItem] {
+    nonisolated private static func scan(_ directory: URL) -> [LibraryDownloadItem] {
         let keys: Set<URLResourceKey> = [.fileSizeKey, .contentModificationDateKey, .addedToDirectoryDateKey,
                                          .contentTypeKey, .isDirectoryKey, .isHiddenKey]
         let urls = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: Array(keys),
@@ -126,7 +140,7 @@ final class DownloadsLibraryModel {
 
     /// The first `kMDItemWhereFroms` URL's host, from the `com.apple.metadata:kMDItemWhereFroms` extended
     /// attribute WebKit and Chromium both write (a binary-plist array of strings: usually `[sourceURL, referrer]`).
-    private static func whereFromHost(_ url: URL) -> String? {
+    nonisolated private static func whereFromHost(_ url: URL) -> String? {
         guard let data = try? url.extendedAttribute(named: "com.apple.metadata:kMDItemWhereFroms"),
               let values = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String]
         else { return nil }
@@ -139,7 +153,7 @@ final class DownloadsLibraryModel {
 
 extension URL {
     /// Reads an extended attribute (e.g. `com.apple.metadata:kMDItemWhereFroms`) by name.
-    func extendedAttribute(named name: String) throws -> Data {
+    nonisolated func extendedAttribute(named name: String) throws -> Data {
         let length = withUnsafeFileSystemRepresentation { getxattr($0, name, nil, 0, 0, 0) }
         guard length >= 0 else { throw CocoaError(.fileReadUnknown) }
         var data = Data(count: length)

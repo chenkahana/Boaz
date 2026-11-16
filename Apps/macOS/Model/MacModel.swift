@@ -753,8 +753,8 @@ final class MacModel {
         showToast("Copied \(links.count) link\(links.count == 1 ? "" : "s")")
     }
 
-    /// Deletes a folder with everything in it. A live folder's tabs simply go (the source lists them again); an
-    /// ordinary folder's tabs move to the Archive.
+    /// Deletes a folder with everything in it. A live folder's own tabs simply go (the source lists them again); the
+    /// rest move to the Archive.
     func deleteFolder(_ folder: SidebarItem) {
         guard item(folder.id) != nil, let store else { return }
         let inside = descendants(of: folder.id)
@@ -763,12 +763,11 @@ final class MacModel {
         let now = Date.now
         func tombstone(_ item: SidebarItem) -> SidebarItem { var item = item; item.deletedAt = now; item.modifiedAt = now; return item }
         let folders = ([folder] + inside.filter { $0.kind == .folder }).map(tombstone)
-        if folder.liveSource != nil {
-            commit(folders + tabs.map(tombstone))
-            return
-        }
+        let isLive = { (tab: SidebarItem) in folder.liveSource != nil && tab.isLiveChild(of: folder) }
+        let live = tabs.filter(isLive)
+        let archived = tabs.filter { !isLive($0) }
         do {
-            try store.archive(tabs, reason: "closed", saving: folders, at: now)
+            try store.archive(archived, reason: "closed", saving: folders + live.map(tombstone), at: now)
         } catch {
             showToast("Couldn't delete folder: \(error.localizedDescription)")
             return
