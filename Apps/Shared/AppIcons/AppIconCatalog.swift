@@ -18,7 +18,9 @@ struct AppIconChoice: Identifiable, Hashable, Sendable {
     static let selectionKey = "appIcon"
 
     static let all: [AppIconChoice] = [
-        AppIconChoice(id: "Classic", title: "Classic", caption: "The original twist: glossy blue on cream"),
+        AppIconChoice(id: "Classic", title: "Classic", caption: "Flat blue knot, light or dark with the system"),
+        AppIconChoice(id: "Dark", title: "Dark", caption: "Flat blue knot on black"),
+        AppIconChoice(id: "Glossy", title: "Glossy", caption: "The knot in 3D: glossy blue on cream"),
         AppIconChoice(id: "Midnight", title: "Midnight Snack", caption: "The classic, up past bedtime"),
         AppIconChoice(id: "Noir", title: "Film Noir", caption: "Black and white, lit through the blinds"),
         AppIconChoice(id: "Neon", title: "Neon Night", caption: "Open late: pink and cyan glass tubes"),

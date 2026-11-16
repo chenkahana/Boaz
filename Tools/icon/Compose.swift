@@ -22,6 +22,8 @@ struct Variant {
     var overlay: Overlay? = nil
     /// The knot's width as a fraction of the icon.
     var scale = 0.8
+    /// Flat icons draw themselves (Flat.swift) instead of rendering `look`.
+    var flat: FlatStyle? = nil
 
     var assetName: String { id == "Classic" ? "AppIcon" : "AppIcon-\(id)" }
 }
@@ -86,6 +88,7 @@ func drawKnot(_ ctx: CGContext, _ v: Variant, _ knot: CGImage, in rect: CGRect, 
 
 /// One icon, full bleed and square (iOS masks the corners). `ground: false` leaves the background transparent.
 func icon(_ v: Variant, px: Int = 1024, ground: Bool = true) -> CGImage {
+    if let flat = v.flat { return flatIcon(ground ? flat : FlatStyle(ground: nil, strand: flat.strand), px: px) }
     let ctx = canvas(px)
     let s = CGFloat(px)
     if ground { v.ground(ctx, s) }
