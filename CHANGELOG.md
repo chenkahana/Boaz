@@ -6,6 +6,13 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.15] - 2026-11-16
+
+### Fixed
+
+- Mac (DMG): ⌘⇧R reloads the page bypassing the cache wherever focus is, not only after clicking into the page, and
+  in little windows too. It is also in View › Reload Ignoring Cache (#129).
+
 ## [0.4.14] - 2026-11-16
 
 ### Fixed
@@ -408,7 +415,8 @@ First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone
 - Share extension, search widget, App Shortcuts, the `boaz://` URL scheme and alternate app icons.
 - Privacy manifest, privacy policy and an About section with third-party notices.
 
-[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.14...HEAD
+[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.15...HEAD
+[0.4.15]: https://github.com/chenkahana/Boaz/compare/v0.4.14...v0.4.15
 [0.4.14]: https://github.com/chenkahana/Boaz/compare/v0.4.13...v0.4.14
 [0.4.13]: https://github.com/chenkahana/Boaz/compare/v0.4.12...v0.4.13
 [0.4.12]: https://github.com/chenkahana/Boaz/compare/v0.4.11...v0.4.12
