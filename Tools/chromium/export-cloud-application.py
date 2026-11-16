@@ -133,6 +133,7 @@ def experiment(args):
         targets += [sparkle, copied_app / 'Contents/Frameworks/libBoazApplicationUI.dylib',
                     copied_app / 'Contents/Frameworks/libboaz_adblock.dylib',
                     copied_app / 'Contents/MacOS/boaz']
+        targets += sorted((copied_app / 'Contents/PlugIns').glob('*.docktileplugin'))
         # Capture before any inner executable is re-signed: a bundle and its
         # executable share their signature, including service entitlements.
         preserved_entitlements = {}
