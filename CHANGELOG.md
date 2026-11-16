@@ -6,6 +6,14 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.14] - 2026-11-16
+
+### Fixed
+
+- Mac (DMG): Boaz no longer refuses to start with "Boaz found libraries in both its previous sandbox and Application
+  Support". It keeps using the library it used before, picking the one with your tabs and history the first time,
+  and leaves the other untouched. Debug builds now keep a library of their own (#127).
+
 ## [0.4.13] - 2026-11-16
 
 ### Added
@@ -400,7 +408,8 @@ First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone
 - Share extension, search widget, App Shortcuts, the `boaz://` URL scheme and alternate app icons.
 - Privacy manifest, privacy policy and an About section with third-party notices.
 
-[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.13...HEAD
+[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.14...HEAD
+[0.4.14]: https://github.com/chenkahana/Boaz/compare/v0.4.13...v0.4.14
 [0.4.13]: https://github.com/chenkahana/Boaz/compare/v0.4.12...v0.4.13
 [0.4.12]: https://github.com/chenkahana/Boaz/compare/v0.4.11...v0.4.12
 [0.4.11]: https://github.com/chenkahana/Boaz/compare/v0.4.10...v0.4.11
