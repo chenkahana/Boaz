@@ -2,6 +2,7 @@
 import Foundation
 import Darwin
 import OSLog
+import SQLite3
 import WebKit
 
 /// Selects the existing library in place; GRDB still owns opening and migration.
@@ -148,17 +149,50 @@ enum ChromiumLegacyStore {
               Bundle.main.object(forInfoDictionaryKey: "BoazDistributionChannel") as? String == "production" else {
             return nil
         }
-        let files = FileManager.default
+        let files = FileManager.default, domain = "com.chenkahana.boaz"
         let legacy = files.homeDirectoryForCurrentUser.appendingPathComponent(
             "Library/Containers/com.chenkahana.boaz/Data/Library/Application Support", isDirectory: true)
         let current = try files.url(for: .applicationSupportDirectory, in: .userDomainMask,
                                     appropriateFor: nil, create: false)
         let legacyExists = try containsLibrary(legacy, files: files)
         let currentExists = try containsLibrary(current, files: files)
-        guard !(legacyExists && currentExists) else {
-            throw failure("Boaz found libraries in both its previous sandbox and Application Support. Neither library was changed. Resolve which library to keep before continuing.")
+        // A second library appears whenever another build with this bundle id runs unsandboxed (an unsigned debug
+        // build, say). Boaz keeps using the library it chose before and leaves the other one untouched; the first
+        // time it sees two, it chooses the one with the user's data in it.
+        let defaults = UserDefaults.standard, key = "BoazLibraryLocation"
+        let useLegacy: Bool
+        switch (legacyExists, currentExists) {
+        case (true, false): useLegacy = true
+        case (false, _): useLegacy = false
+        case (true, true):
+            switch defaults.string(forKey: key) {
+            case "legacy": useLegacy = true
+            case "current": useLegacy = false
+            default:
+                useLegacy = contentCount(legacy) >= contentCount(current)
+                Logger(subsystem: domain, category: "app").notice(
+                    "Two libraries found; using the \(useLegacy ? "sandbox" : "Application Support", privacy: .public) one and leaving the other untouched")
+            }
         }
-        return legacyExists ? legacy : nil
+        if legacyExists || currentExists { defaults.set(useLegacy ? "legacy" : "current", forKey: key) }
+        return useLegacy ? legacy : nil
+    }
+
+    /// Tabs, folders, archive and history rows in a library, read-only; an unreadable library counts as empty.
+    private static func contentCount(_ base: URL) -> Int {
+        var db: OpaquePointer?
+        defer { sqlite3_close(db) }
+        let path = base.appendingPathComponent("Boaz/boaz.sqlite").path
+        guard sqlite3_open_v2(path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { return 0 }
+        var total = 0
+        for table in ["sidebarItem", "archiveItem", "historyVisit"] {
+            var statement: OpaquePointer?
+            defer { sqlite3_finalize(statement) }
+            guard sqlite3_prepare_v2(db, "SELECT count(*) FROM \(table)", -1, &statement, nil) == SQLITE_OK,
+                  sqlite3_step(statement) == SQLITE_ROW else { continue }
+            total += Int(sqlite3_column_int64(statement, 0))
+        }
+        return total
     }
 
     private static func containsLibrary(_ base: URL, files: FileManager) throws -> Bool {
