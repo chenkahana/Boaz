@@ -18,6 +18,16 @@ final class MacModel {
     private static let log = Logger(subsystem: "com.chenkahana.boaz", category: "app")
     /// Data store identifiers of deleted profiles whose site data WebKit hasn't removed yet.
     private static let pendingSiteDataKey = "pendingSiteDataRemovals"
+    /// An unsigned debug build (`make mac`) runs outside the sandbox, where the installed Boaz keeps its library, so it
+    /// keeps its own instead.
+    private static var debugStoreDirectory: URL? {
+        #if DEBUG
+        guard ProcessInfo.processInfo.environment["APP_SANDBOX_CONTAINER_ID"] == nil else { return nil }
+        return URL.applicationSupportDirectory.appending(path: "com.chenkahana.boaz.debug", directoryHint: .isDirectory)
+        #else
+        return nil
+        #endif
+    }
 
     struct Toast: Equatable {
         var id = UUID()
@@ -91,7 +101,7 @@ final class MacModel {
             #if BOAZ_CHROMIUM
             store = try BoazStore.onDisk(applicationSupportDirectory: UITestMode.storeDirectory ?? ChromiumLegacyStore.applicationSupportDirectory())
             #else
-            store = try BoazStore.onDisk(applicationSupportDirectory: UITestMode.storeDirectory)
+            store = try BoazStore.onDisk(applicationSupportDirectory: UITestMode.storeDirectory ?? Self.debugStoreDirectory)
             #endif
             self.store = store
             if UITestMode.isActive {
