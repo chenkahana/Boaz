@@ -16,7 +16,7 @@ All notable changes to Boaz are recorded here. The format follows
 
 ### Fixed
 
-- Mac (DMG): Boaz records the pages you visit again, so they appear in the command bar's suggestions and the
+- Mac (DMG): the Chromium build now records the pages you visit, so they appear in the command bar's suggestions and the
   Library. Private windows still record nothing.
 
 ## [0.4.15] - 2026-11-16
