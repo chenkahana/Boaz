@@ -85,7 +85,7 @@ struct SpaceEditor: View {
             }
             .padding(16)
         }
-        .frame(width: 480, height: 720)
+        .frame(width: 480, height: 680)
         .onChange(of: options) { onPreview?(options.applied(to: base)) }
         .onDisappear { onPreview?(nil) }
         #else

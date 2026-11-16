@@ -93,13 +93,11 @@ struct ThemeColorPicker: View {
                         .overlay { Circle().strokeBorder(.white, lineWidth: 3) }
                         .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
                         .position(x: point.x * size.width, y: point.y * size.height)
-                        .accessibilityElement()
-                        .accessibilityLabel("Color \(index + 1)")
-                        .accessibilityValue(Self.describe(colors[index]))
-                        .accessibilityAdjustableAction { direction in
-                            let step = direction == .increment ? 1.0 / 24 : -1.0 / 24
-                            setColor(index, Self.color(x: (point.x + step + 1).truncatingRemainder(dividingBy: 1), y: point.y))
+                        .accessibilityRepresentation {
+                            Slider(value: Binding(get: { point.x }, set: { setColor(index, Self.color(x: $0, y: point.y)) }),
+                                   in: 0...1, step: 1.0 / 24) { Text("Color \(index + 1)") }
                         }
+                        .accessibilityValue(Self.describe(colors[index]))
                 }
             }
             .contentShape(.rect)
@@ -254,12 +252,8 @@ private struct WavySlider: View {
             })
         }
         .frame(height: 26)
-        .accessibilityElement()
-        .accessibilityLabel("Texture Intensity")
+        .accessibilityRepresentation { Slider(value: $value, in: 0...1, step: 0.1) { Text("Texture Intensity") } }
         .accessibilityValue("\(Int((value * 100).rounded())) percent")
-        .accessibilityAdjustableAction { direction in
-            value = min(max(value + (direction == .increment ? 0.1 : -0.1), 0), 1)
-        }
     }
 }
 
@@ -296,12 +290,8 @@ private struct TranslucencyDial: View {
         }
         .frame(width: 64, height: 64)
         .help("Transparency: how much of the desktop shows through the window")
-        .accessibilityElement()
-        .accessibilityLabel("Transparency")
+        .accessibilityRepresentation { Slider(value: $value, in: 0...1, step: 0.1) { Text("Transparency") } }
         .accessibilityValue("\(Int((value * 100).rounded())) percent")
-        .accessibilityAdjustableAction { direction in
-            value = min(max(value + (direction == .increment ? 0.1 : -0.1), 0), 1)
-        }
     }
 
     /// A fraction of the way round from the top, clockwise.
