@@ -59,6 +59,13 @@ enum UITestMode {
     static var downloadsDirectory: URL? {
         path("BOAZ_UITEST_DOWNLOADS_DIR") ?? storeDirectory?.appendingPathComponent("Downloads", isDirectory: true)
     }
+    /// `-BoazUITestWindowSize 720x460` opens browser windows at that content size: dragging a window's corner
+    /// doesn't resize it on the CI runner.
+    static var windowSize: NSSize? {
+        guard isActive, let parts = UserDefaults.standard.string(forKey: "BoazUITestWindowSize")?.split(separator: "x"),
+              parts.count == 2, let width = Double(parts[0]), let height = Double(parts[1]) else { return nil }
+        return NSSize(width: width, height: height)
+    }
     /// Canned GitHub GraphQL responses for live folders (`BOAZ_GITHUB_FIXTURE`).
     static var githubFixtureURL: URL? { path("BOAZ_GITHUB_FIXTURE") }
 }
