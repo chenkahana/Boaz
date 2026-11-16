@@ -79,11 +79,13 @@ final class LiveFolderRefresher {
         guard let model else { return }
         isRefreshing = true
         defer { isRefreshing = false }
-        let folders = model.sidebar.items.filter { $0.kind == .folder && $0.liveSource?.provider == LiveSource.githubPulls }
-        for id in states.keys where !folders.contains(where: { $0.id == id }) {
+        let allLive = model.sidebar.items.filter { $0.kind == .folder && $0.liveSource?.provider == LiveSource.githubPulls }
+        for id in states.keys where !allLive.contains(where: { $0.id == id }) {
             states[id] = nil
             model.store?.setLiveFolderState(nil, folderID: id)
         }
+        // A disabled profile's live folders keep their last-known state; they just stop reaching GitHub.
+        let folders = allLive.filter { Preferences.liveFoldersEnabled(for: $0.profileID) }
         guard !folders.isEmpty else { return }
         let auth = GitHubAuth.shared
         guard let client = auth.client else {

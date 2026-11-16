@@ -15,6 +15,12 @@ All notable changes to Boaz are recorded here. The format follows
   backdrop a texture (grain, paper, dots or linen) and set its strength on the wave; and turn the dial to let the
   desktop show through the sidebar. The window shows each change as you make it, until you save or cancel.
 
+## [0.4.19] - 2026-11-16
+
+### Changed
+
+- Mac: live folders are now off until you turn them on per profile in Settings › Accounts.
+
 ## [0.4.18] - 2026-11-16
 
 ### Changed
@@ -452,6 +458,7 @@ First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone
 
 [Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.20...HEAD
 [0.4.20]: https://github.com/chenkahana/Boaz/compare/v0.4.19...v0.4.20
+[0.4.19]: https://github.com/chenkahana/Boaz/compare/v0.4.18...v0.4.19
 [0.4.18]: https://github.com/chenkahana/Boaz/compare/v0.4.17...v0.4.18
 [0.4.17]: https://github.com/chenkahana/Boaz/compare/v0.4.16...v0.4.17
 [0.4.16]: https://github.com/chenkahana/Boaz/compare/v0.4.15...v0.4.16

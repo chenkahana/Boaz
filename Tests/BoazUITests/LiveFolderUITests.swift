@@ -11,7 +11,8 @@ final class LiveFolderUITests: BoazUITestCase {
         }
         var environment = ["BOAZ_GITHUB_FIXTURE": fixture.path]
         if signedIn { environment["BOAZ_GITHUB_TOKEN"] = "fixture-token" }
-        launch(fixture: "standard", environment: environment)
+        // Live folders are off per profile until turned on; the fixture's only profile is "fixture-default".
+        launch(fixture: "standard", environment: environment, arguments: ["-liveFoldersEnabled.fixture-default", "YES"])
     }
 
     /// The space's menu (right-click its title in the sidebar, "Work" in the standard fixture) ▸ New Live Folder ▸

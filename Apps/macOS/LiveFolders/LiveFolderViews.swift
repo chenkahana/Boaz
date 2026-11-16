@@ -87,15 +87,24 @@ struct LivePullIcon: View {
     }
 }
 
-/// The sidebar `+` menu's and the space menu's New Live Folder submenu.
+/// The sidebar `+` menu's and the space menu's New Live Folder submenu. Hidden until the space's profile turns Live
+/// Folders on in Settings › Accounts.
 struct NewLiveFolderMenu: View {
     @Environment(MacModel.self) private var model
     @Environment(BrowserState.self) private var browser
     let space: Space
+    @AppStorage private var liveFoldersEnabled: Bool
+
+    init(space: Space) {
+        self.space = space
+        _liveFoldersEnabled = AppStorage(wrappedValue: false, Preferences.liveFoldersEnabledKey(for: space.profileID))
+    }
 
     var body: some View {
-        Menu("New Live Folder") {
-            Button("GitHub Pull Requests") { LiveFolders.newPullRequestsFolder(in: space, model: model, browser: browser) }
+        if liveFoldersEnabled {
+            Menu("New Live Folder") {
+                Button("GitHub Pull Requests") { LiveFolders.newPullRequestsFolder(in: space, model: model, browser: browser) }
+            }
         }
     }
 }

@@ -162,6 +162,7 @@ struct GitHubAvatar: View {
 
 /// Settings › Accounts: the GitHub account live folders use.
 struct AccountsSettings: View {
+    @Environment(MacModel.self) private var model
     @State private var signingIn = false
 
     var body: some View {
@@ -186,6 +187,14 @@ struct AccountsSettings: View {
                 Text("Live folders use this account to list your pull requests. Its token stays in this Mac's Keychain.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            Section {
+                ForEach(model.sidebar.profiles) { profile in ProfileLiveFoldersToggle(profile: profile) }
+            } header: {
+                Text("Live Folders")
+            } footer: {
+                Text("Lists a profile's GitHub pull requests as a sidebar folder, refreshed every minute. Off until you turn it on.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
         .frame(minHeight: 200)
@@ -195,5 +204,19 @@ struct AccountsSettings: View {
                 if let browser = MacModel.shared.lastActiveBrowser { browser.openTab(url) } else { MacModel.shared.newTab(url, in: nil) }
             }
         }
+    }
+}
+
+private struct ProfileLiveFoldersToggle: View {
+    let profile: Profile
+    @AppStorage private var enabled: Bool
+
+    init(profile: Profile) {
+        self.profile = profile
+        _enabled = AppStorage(wrappedValue: false, Preferences.liveFoldersEnabledKey(for: profile.id))
+    }
+
+    var body: some View {
+        Toggle(profile.name, isOn: $enabled)
     }
 }

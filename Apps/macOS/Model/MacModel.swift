@@ -438,7 +438,10 @@ final class MacModel {
     func item(_ id: String?) -> SidebarItem? { id.flatMap { id in sidebar.items.first { $0.id == id } } }
 
     func pinnedItems(in space: Space) -> [SidebarItem] {
-        sidebar.container(.pinned, in: space.id).map { sidebar.children(of: $0.id) } ?? []
+        let items = sidebar.container(.pinned, in: space.id).map { sidebar.children(of: $0.id) } ?? []
+        // Live folders stay off the sidebar (data and tabs intact) until the profile turns them on.
+        guard Preferences.liveFoldersEnabled(for: space.profileID) else { return items.filter { $0.liveSource == nil } }
+        return items
     }
 
     func todayTabs(in space: Space) -> [SidebarItem] { sidebar.todayTabs(in: space.id, onDevice: deviceID) }
