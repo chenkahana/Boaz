@@ -214,7 +214,11 @@ class BoazUITestCase: XCTestCase {
         guard let element = issue.element else { return issue.auditType == .parentChild }
         let containerFrames = context.containerFrames
         // AppKit's own views (`_NS:` identifiers): an NSAlert's title in a confirmation dialog, the text finder's bar.
-        if element.identifier.hasPrefix("_NS:"), issue.auditType == .sufficientElementDescription { return true }
+        // And AppKit's tooltip, up when the pointer happens to rest on a control (`.help`), which it shows unlabeled.
+        if element.identifier.hasPrefix("_NS:") || element.elementType == .helpTag,
+           issue.auditType == .sufficientElementDescription {
+            return true
+        }
         // A SwiftUI `List` section header is bridged as an unlabeled row group around the header's own (labeled)
         // text, whose parent doesn't list it as a child; no modifier on the header reaches that group.
         if [.parentChild, .sufficientElementDescription].contains(issue.auditType), element.elementType == .group,
