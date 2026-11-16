@@ -59,6 +59,7 @@ struct LibraryPanel: View {
         .background(style.background)
         .environment(\.colorScheme, SpaceStyle.colorScheme(of: browser.currentSpace) ?? scheme)
         .onExitCommand { browser.libraryPanelPresented = false }
+        .task { downloads.start() }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen.libraryPanel")
     }
@@ -166,7 +167,7 @@ private struct LibraryDownloadsPane: View {
                 ActiveChromiumDownloadsSection(model: chromiumDownloads, style: style)
             }
             #endif
-            if sections.isEmpty {
+            if downloads.loaded, sections.isEmpty {
                 Spacer()
                 ContentUnavailableView(query.isEmpty ? "No Downloads" : "No Results", systemImage: "arrow.down.circle",
                                        description: Text(query.isEmpty ? "Files you download appear here." : "Try another search."))
@@ -351,7 +352,7 @@ private struct LibraryMediaPane: View {
     var body: some View {
         VStack(spacing: 0) {
             LibrarySearchBar(query: $query, placeholder: "Search Media…", style: style)
-            if items.isEmpty {
+            if downloads.loaded, items.isEmpty {
                 Spacer()
                 ContentUnavailableView("No Media", systemImage: "photo.on.rectangle",
                                        description: Text("Images and videos you download appear here."))
