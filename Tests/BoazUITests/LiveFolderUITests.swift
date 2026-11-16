@@ -1,7 +1,7 @@
 import XCTest
 
-/// Live folders against canned GitHub answers (`Fixtures/github-pulls.json`, read through `BOAZ_GITHUB_FIXTURE`).
-/// `BOAZ_GITHUB_TOKEN` signs the run in without touching the Keychain.
+/// Live folders against canned github.com answers (`Fixtures/github-pulls.json`, read through `BOAZ_GITHUB_FIXTURE`).
+/// `BOAZ_GITHUB_SIGNED_OUT` answers as if no one is signed in to github.com.
 final class LiveFolderUITests: BoazUITestCase {
     private func launchSignedIn(signedIn: Bool = true) {
         guard let fixture = Bundle(for: Self.self).url(forResource: "github-pulls", withExtension: "json", subdirectory: "Fixtures")
@@ -10,7 +10,7 @@ final class LiveFolderUITests: BoazUITestCase {
             return
         }
         var environment = ["BOAZ_GITHUB_FIXTURE": fixture.path]
-        if signedIn { environment["BOAZ_GITHUB_TOKEN"] = "fixture-token" }
+        if !signedIn { environment["BOAZ_GITHUB_SIGNED_OUT"] = "1" }
         // Live folders are off per profile until turned on; the fixture's only profile is "fixture-default".
         launch(fixture: "standard", environment: environment, arguments: ["-liveFoldersEnabled.fixture-default", "YES"])
     }
@@ -59,7 +59,7 @@ final class LiveFolderUITests: BoazUITestCase {
         }
         app.menuItems["Pull Requests"].firstMatch.hover()
         for item in ["Refresh", "Created by Me", "Review Requests", "Team Review Requests", "Assigned to Me", "Mentioned",
-                     "Repositories", "Single Sign-On", "Sign Out of GitHub"] {
+                     "Repositories", "Single Sign-On"] {
             XCTAssertTrue(app.menuItems[item].firstMatch.waitForExistence(timeout: 3), "\(item) is missing from Pull Requests")
         }
         // `mainWindow`'s own screenshot, not `app.screenshot()`: on macOS the latter captures the whole physical
@@ -85,21 +85,20 @@ final class LiveFolderUITests: BoazUITestCase {
         assertScreenIntact(picker, name: "icon-picker")
     }
 
-    func testSignedOutCreationAsksToSignIn() {
+    func testSignedOutFolderAsksToSignIn() {
         launchSignedIn(signedIn: false)
         newPullRequestsFolder()
-        let sheet = app.descendants(matching: .any)["screen.githubSignIn"].firstMatch
-        XCTAssertTrue(sheet.waitForExistence(timeout: 5), "No sign-in sheet")
-        XCTAssertTrue(app.staticTexts["BOAZ-TEST"].waitForExistence(timeout: 5), "The fixture's device code isn't shown")
-        assertScreenIntact(sheet, name: "github-sign-in")
-        // The fixture's device flow succeeds by itself (after 15 s) and makes the folder.
-        XCTAssertTrue(folder.waitForExistence(timeout: 25))
+        XCTAssertTrue(folder.waitForExistence(timeout: 5), "The Pull Requests folder never appeared")
+        folder.rightClick()
+        app.menuItems["Pull Requests"].firstMatch.hover()
+        XCTAssertTrue(app.menuItems["Sign in to GitHub"].firstMatch.waitForExistence(timeout: 10),
+                      "The folder's menu doesn't offer to sign in to GitHub")
     }
 
-    func testAccountsSettingsShowsTheAccount() {
+    func testAccountsSettingsListsProfiles() {
         launchSignedIn()
         let pane = openSettings(tab: "Accounts")
-        XCTAssertTrue(pane.buttons["Sign Out"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(pane.staticTexts["Live Folders"].firstMatch.waitForExistence(timeout: 5))
         assertScreenIntact(pane, name: "settings-accounts")
     }
 }

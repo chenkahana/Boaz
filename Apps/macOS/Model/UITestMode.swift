@@ -66,6 +66,6 @@ enum UITestMode {
               parts.count == 2, let width = Double(parts[0]), let height = Double(parts[1]) else { return nil }
         return NSSize(width: width, height: height)
     }
-    /// Canned GitHub GraphQL responses for live folders (`BOAZ_GITHUB_FIXTURE`).
+    /// Canned github.com answers for live folders (`BOAZ_GITHUB_FIXTURE`, in `GitHubWeb.Answer`'s format).
     static var githubFixtureURL: URL? { path("BOAZ_GITHUB_FIXTURE") }
 }

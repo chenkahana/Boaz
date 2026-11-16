@@ -5,6 +5,16 @@ import SwiftUI
 
 @MainActor private var chromiumApplication: ChromiumApplication?
 
+/// `BackgroundPage`'s window for `profileID`.
+@MainActor func chromiumBackgroundWindow(profileID: String, at url: URL) async throws -> ChromiumBackgroundWindow {
+    guard let chromiumApplication else { throw EnginePageError.unavailable }
+    return try await chromiumApplication.backgroundWindow(profileID: profileID, at: url)
+}
+
+@MainActor func closeChromiumBackgroundWindows(keeping profileIDs: Set<String>) {
+    chromiumApplication?.backgroundWindows.filter { !profileIDs.contains($0.profile.identity.id) }.forEach { $0.close() }
+}
+
 @MainActor
 private final class ChromiumApplication: NSObject {
     let runtime: ChromiumRuntime
@@ -14,6 +24,7 @@ private final class ChromiumApplication: NSObject {
     var devToolsWindows: [ChromiumDevToolsWindow] = []
     private var pendingDevToolsWindows: [UInt: ChromiumDevToolsWindow] = [:]
     var quickWindows: [ChromiumQuickWindow] = []
+    var backgroundWindows: [ChromiumBackgroundWindow] = []
     private var pendingNativeWindows: [UInt: ChromiumAppWindow] = [:]
     var auxiliaryWindows: [NSWindow] = []
     private var settings: ChromiumSettingsWindow?
@@ -93,6 +104,8 @@ private final class ChromiumApplication: NSObject {
                 catch { model.showToast(error.localizedDescription) }
                 return
             }
+            // Nothing shows a background window's pages but its own (an extension's tab, say).
+            if backgroundWindows.contains(where: { $0.handle == window }) { _ = try? page.close(); return }
             guard let owner = windows.first(where: { $0.handle == window }) else { return }
             do { try owner.browser.adoptChromiumPage(page, active: active) }
             catch { model.showToast(error.localizedDescription) }
@@ -114,10 +127,15 @@ private final class ChromiumApplication: NSObject {
                 let window = devToolsWindows.remove(at: index)
                 profile = window.profile
                 window.finishClose()
+            } else if let index = backgroundWindows.firstIndex(where: { $0.handle == handle }) {
+                let window = backgroundWindows.remove(at: index)
+                profile = window.profile
+                window.finishClose()
             } else { return }
             if !windows.contains(where: { $0.profile == profile }),
                !quickWindows.contains(where: { $0.profile == profile }),
                !devToolsWindows.contains(where: { $0.profile == profile }),
+               !backgroundWindows.contains(where: { $0.profile == profile }),
                !pendingDevToolsWindows.values.contains(where: { $0.profile == profile }),
                !pendingNativeWindows.values.contains(where: { $0.profile == profile }) {
                 do { try runtime.releaseProfile(profile) }
@@ -186,6 +204,8 @@ private final class ChromiumApplication: NSObject {
             quickWindows.removeAll()
             devToolsWindows.forEach { $0.finishClose() }
             devToolsWindows.removeAll()
+            backgroundWindows.forEach { $0.finishClose() }
+            backgroundWindows.removeAll()
             pendingDevToolsWindows.values.forEach { $0.finishClose() }
             pendingDevToolsWindows.removeAll()
             pendingNativeWindows.values.forEach { $0.finishClose() }
@@ -229,6 +249,22 @@ private final class ChromiumApplication: NSObject {
         })
         legacyDelegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
         Task { @MainActor in _ = await ensureMainWindow() }
+    }
+
+    /// `profileID`'s `ChromiumBackgroundWindow`, opened at `url` on first use.
+    func backgroundWindow(profileID: String, at url: URL) async throws -> ChromiumBackgroundWindow {
+        func open() -> ChromiumBackgroundWindow? {
+            backgroundWindows.first { $0.profile.identity.id == profileID && !$0.isClosing }
+        }
+        if let window = open() { return window }
+        try await runtime.prepareBlockingAssets()
+        let profile = try await runtime.prepareProfile(.init(id: profileID, isPrivate: false))
+        guard !finished, !model.isQuitting else { throw EnginePageError.unavailable }
+        if let window = open() { return window }
+        let window = try ChromiumBackgroundWindow(runtime: runtime, profile: profile)
+        backgroundWindows.append(window)
+        do { try window.load(url) } catch { window.close(); throw error }
+        return window
     }
 
     private func reopen() async {
