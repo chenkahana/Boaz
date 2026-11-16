@@ -100,6 +100,8 @@ private struct LibraryTabButtonStyle: ButtonStyle {
             .frame(width: 44, height: 44)
             .background(selected ? style.tint.opacity(0.18) : configuration.isPressed ? style.secondary.opacity(0.1) : .clear,
                         in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            // The whole tile takes the click, not just the icon's and the title's pixels.
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
 
@@ -375,16 +377,24 @@ private struct LibraryMediaPane: View {
                                 }
                                 .onDrag { NSItemProvider(contentsOf: item.url) ?? NSItemProvider() }
                                 .accessibilityElement(children: .ignore)
-                                .accessibilityLabel(item.name)
+                                .accessibilityLabel(Self.spokenName(item))
                                 .accessibilityAddTraits(.isImage)
                                 .accessibilityAction { NSWorkspace.shared.open(item.url) }
                                 .accessibilityIdentifier("control.library.download.\(item.name)")
                         }
                     }
                     .padding(12)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityLabel("Media")
                 }
             }
         }
+    }
+
+    /// "screenshot, PNG image" rather than the file name VoiceOver would spell out.
+    private static func spokenName(_ item: LibraryDownloadItem) -> String {
+        let name = (item.name as NSString).deletingPathExtension
+        return item.contentType?.localizedDescription.map { "\(name), \($0)" } ?? name
     }
 }
 
