@@ -58,8 +58,13 @@ def main():
         args = args[1:]
     if not args:
         raise RuntimeError("Usage: python3 Tools/cef/run-build.py -- COMMAND [ARGS...]")
-    subprocess.run([str(Path(__file__).with_name("volume.sh")), "attach"], check=True)
-    capacity()
+    # GitHub-hosted release runners have no external SSD: the release workflow makes /Volumes/BoazBuild a plain
+    # directory on the runner's disk and unpacks the Chromium base there.
+    hosted = os.environ.get("GITHUB_ACTIONS") == "true"
+    measure = (lambda: {}) if hosted else capacity
+    if not hosted:
+        subprocess.run([str(Path(__file__).with_name("volume.sh")), "attach"], check=True)
+    measure()
     root = volume.MOUNT / "cef"
     root.mkdir(exist_ok=True)
     for name in ("logs", "tmp", "cache"):
@@ -85,7 +90,7 @@ def main():
             try:
                 awake = subprocess.Popen(["caffeinate", "-dimsu", "-w", str(process.pid)])
                 while process.poll() is None:
-                    free = capacity()
+                    free = measure()
                     if not initial_free:
                         initial_free = free.copy()
                     for path, amount in free.items():

@@ -83,6 +83,30 @@ def styled_dmg(staging, dmg):
     writable.unlink()
 
 
+# Derives the public half of a `generate_keys -x` key file: a 32-byte seed, or the legacy 64-byte key plus public key.
+SPARKLE_PUBLIC_KEY = """
+import CryptoKit
+import Foundation
+let text = try String(contentsOfFile: CommandLine.arguments[1], encoding: .utf8)
+guard let raw = Data(base64Encoded: text.trimmingCharacters(in: .whitespacesAndNewlines)) else { exit(1) }
+let key = raw.count == 96 ? raw.suffix(32) : try Curve25519.Signing.PrivateKey(rawRepresentation: raw).publicKey.rawRepresentation
+print(key.base64EncodedString())
+"""
+
+
+def sparkle_signing(sparkle):
+    """The Sparkle public key and sign_update options: the login keychain's key, or BOAZ_SPARKLE_KEY_FILE on CI."""
+    key_file = os.environ.get('BOAZ_SPARKLE_KEY_FILE')
+    if not key_file:
+        key, _ = run(str(sparkle / 'generate_keys'), '-p')
+        return key.decode().strip(), []
+    result = subprocess.run(['/usr/bin/xcrun', 'swift', '-', key_file], input=SPARKLE_PUBLIC_KEY.encode(),
+                            capture_output=True, check=False)
+    if result.returncode:
+        raise RuntimeError('Sparkle key file is unreadable')
+    return result.stdout.decode().strip(), ['--ed-key-file', key_file]
+
+
 def digest(path):
     with path.open('rb') as stream:
         return hashlib.file_digest(stream, 'sha256').hexdigest()
@@ -163,8 +187,8 @@ def package(args):
         raise RuntimeError('Debugging entitlement is not permitted')
     run('/usr/bin/xcrun', 'stapler', 'validate', str(app))
     run('/usr/sbin/spctl', '--assess', '--type', 'execute', str(app))
-    key, _ = run(str(sparkle / 'generate_keys'), '-p')
-    if not info.get('SUPublicEDKey') or key.decode().strip() != info['SUPublicEDKey']:
+    public_key, signing = sparkle_signing(sparkle)
+    if not info.get('SUPublicEDKey') or public_key != info['SUPublicEDKey']:
         raise RuntimeError('Application Sparkle public key does not match signing key')
     for path in app.rglob('*'):
         if path.is_symlink() or not path.is_file():
@@ -205,7 +229,7 @@ def package(args):
     size = dmg.stat().st_size
     sha = digest(dmg)
     (output / 'Boaz.dmg.sha256').write_text(f'{sha}  Boaz.dmg\n')
-    signature, _ = run(str(sparkle / 'sign_update'), '-p', str(dmg))
+    signature, _ = run(str(sparkle / 'sign_update'), *signing, '-p', str(dmg))
     namespace = 'http://www.andymatuschak.org/xml-namespaces/sparkle'
     ET.register_namespace('sparkle', namespace)
     rss = ET.Element('rss', version='2.0')
