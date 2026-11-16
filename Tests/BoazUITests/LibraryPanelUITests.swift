@@ -32,6 +32,8 @@ final class LibraryPanelUITests: BoazUITestCase {
 
         let panel = app.groups["screen.libraryPanel"].firstMatch
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
+        // The pane lists Downloads once its scan lands.
+        XCTAssertTrue(element("control.library.download.boardingcard.pdf").waitForExistence(timeout: 5))
         assertScreenIntact(panel, name: "library-downloads-\(appearance)")
 
         // Search narrows the list.
@@ -56,6 +58,9 @@ final class LibraryPanelUITests: BoazUITestCase {
             let tabButton = panel.buttons["control.library.tab.\(tab)"]
             XCTAssertTrue(tabButton.waitForExistence(timeout: 2))
             tabButton.click()
+            if tab == "media" {
+                XCTAssertTrue(element("control.library.download.screenshot.png").waitForExistence(timeout: 5))
+            }
             assertScreenIntact(panel, name: "library-\(tab)-\(appearance)")
         }
 
