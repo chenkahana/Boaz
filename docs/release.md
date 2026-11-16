@@ -45,11 +45,13 @@ kept as a workflow artifact for three days.
 - `SPARKLE_ED_PRIVATE_KEY`: the file written by `generate_keys -x sparkle.key` (in the Sparkle `bin` directory of a
   UI build run, `/Volumes/BoazBuild/cef/direct/app/runs/RUN/SourcePackages/artifacts/sparkle/Sparkle/bin`) on the
   Mac whose login keychain holds the key. It must be the key behind `SUPublicEDKey`; packaging checks.
-- `APPLE_DEVELOPMENT_P12`, `APPLE_DEVELOPMENT_P12_PASSWORD`: an Apple Development certificate with its private key,
-  exported from Keychain Access as `.p12`, then `base64 -i cert.p12 | pbcopy`. `export-cloud-application.py`
-  signs the archive with it before Xcode re-signs it with the cloud Developer ID certificate.
 
-The workflow stops with the list of missing secrets before building.
+The workflow stops with the list of missing secrets before building. `export-cloud-application.py` signs the
+archive with an Apple Development identity before Xcode re-signs it with the cloud Developer ID certificate, so
+each run creates one with the API key (`Tools/chromium/ci-development-identity.py create`) and revokes it in its
+last step, even after a failure. If Apple refuses a new certificate because the limit is reached, the script
+first revokes the Apple Development certificates named "Created via API", which only CI creates; don't create
+Apple Development certificates with an API key for anything else.
 
 **Chromium base.** Hosted runners can't build Chromium, so the workflow downloads it from the prerelease
 `chromium-base-KEY`, where KEY digests the committed Chromium inputs (`Tools/chromium/host`, `patches`, `adblock`,
@@ -62,7 +64,7 @@ uploaded". Then, on the build Mac, in a clean checkout of that commit:
 python3 Tools/chromium/apply-patches.py --apply
 python3 Tools/chromium/install-host.py --install
 python3 Tools/chromium/build.py --build --jobs 10
-Tools/chromium/chromium-base.py pack --upload   # checks the build matches the checkout, then publishes the prerelease
+python3 Tools/chromium/chromium-base.py pack --upload   # checks the build matches the checkout, then publishes the prerelease
 ```
 
 and re-run the failed workflow. `Tools/chromium/chromium-base.py key` prints the tag a checkout needs. A

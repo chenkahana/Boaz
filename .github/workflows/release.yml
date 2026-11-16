@@ -54,12 +54,9 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
           SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
-          APPLE_DEVELOPMENT_P12: ${{ secrets.APPLE_DEVELOPMENT_P12 }}
-          APPLE_DEVELOPMENT_P12_PASSWORD: ${{ secrets.APPLE_DEVELOPMENT_P12_PASSWORD }}
         run: |
           missing=()
-          for name in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 SPARKLE_ED_PRIVATE_KEY APPLE_DEVELOPMENT_P12 \
-              APPLE_DEVELOPMENT_P12_PASSWORD; do
+          for name in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 SPARKLE_ED_PRIVATE_KEY; do
             [ -n "${!name}" ] || missing+=("$name")
           done
           if [ "${#missing[@]}" -gt 0 ]; then
@@ -131,26 +128,29 @@ jobs:
           echo "SPARKLE_BIN=${run}SourcePackages/artifacts/sparkle/Sparkle/bin" >> "$GITHUB_ENV"
 
       - name: Install the signing keys
+        # The archive input needs an Apple Development identity; each run creates one with the API key and the
+        # last step revokes it.
         id: keys
         env:
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
           SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
-          APPLE_DEVELOPMENT_P12: ${{ secrets.APPLE_DEVELOPMENT_P12 }}
-          APPLE_DEVELOPMENT_P12_PASSWORD: ${{ secrets.APPLE_DEVELOPMENT_P12_PASSWORD }}
+          BOAZ_ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          BOAZ_ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
           umask 077
           keys="$RUNNER_TEMP/keys"
           mkdir -p "$keys"
           printf '%s\n' "$ASC_KEY_P8" > "$keys/asc.p8"
           printf '%s\n' "$SPARKLE_ED_PRIVATE_KEY" > "$keys/sparkle.key"
-          printf '%s' "$APPLE_DEVELOPMENT_P12" | base64 --decode > "$keys/development.p12"
+          echo "BOAZ_ASC_KEY_PATH=$keys/asc.p8" >> "$GITHUB_ENV"
           keychain="$RUNNER_TEMP/signing.keychain-db"
+          echo "KEYCHAIN=$keychain" >> "$GITHUB_ENV"
           password=$(uuidgen)
           security create-keychain -p "$password" "$keychain"
           security set-keychain-settings -lut 21600 "$keychain"
           security unlock-keychain -p "$password" "$keychain"
-          security import "$keys/development.p12" -k "$keychain" -P "$APPLE_DEVELOPMENT_P12_PASSWORD" -T /usr/bin/codesign
-          rm "$keys/development.p12"
+          BOAZ_ASC_KEY_PATH="$keys/asc.p8" /opt/homebrew/bin/python3.12 Tools/chromium/ci-development-identity.py create \
+            --state "$RUNNER_TEMP/identity" --keychain "$keychain"
           curl -fsSL -o "$RUNNER_TEMP/AppleWWDRCAG3.cer" https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer
           security import "$RUNNER_TEMP/AppleWWDRCAG3.cer" -k "$keychain" || true
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" > /dev/null
@@ -158,13 +158,9 @@ jobs:
           security list-keychains -d user -s "$keychain" "${searched[@]}"
           identity=$(security find-identity -v -p codesigning "$keychain" \
             | sed -n 's/.*\([0-9A-F]\{40\}\) "Apple Development:.*/\1/p' | head -1)
-          [ -n "$identity" ] || { echo "::error::APPLE_DEVELOPMENT_P12 holds no valid Apple Development identity"; exit 1; }
+          [ -n "$identity" ] || { echo "::error::The new Apple Development certificate is not a valid signing identity"; exit 1; }
           echo "identity=$identity" >> "$GITHUB_OUTPUT"
-          {
-            echo "KEYCHAIN=$keychain"
-            echo "BOAZ_ASC_KEY_PATH=$keys/asc.p8"
-            echo "BOAZ_SPARKLE_KEY_FILE=$keys/sparkle.key"
-          } >> "$GITHUB_ENV"
+          echo "BOAZ_SPARKLE_KEY_FILE=$keys/sparkle.key" >> "$GITHUB_ENV"
 
       - name: Sign, notarize and package
         # Xcode cloud-signs with the team's managed Developer ID certificate and uploads to Apple's notary service;
@@ -282,8 +278,17 @@ jobs:
             echo "::endgroup::"
           done
 
-      - name: Remove the signing keys
+      - name: Revoke the certificate and remove the signing keys
         if: always()
+        env:
+          BOAZ_ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          BOAZ_ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
+          status=0
+          if [ -f "$RUNNER_TEMP/identity/certificate-id" ]; then
+            /opt/homebrew/bin/python3.12 Tools/chromium/ci-development-identity.py revoke --state "$RUNNER_TEMP/identity" \
+              || { echo "::warning::Could not revoke this run's Apple Development certificate; the next run revokes it if the limit is reached"; status=1; }
+          fi
           [ -z "${KEYCHAIN:-}" ] || security delete-keychain "$KEYCHAIN" || true
-          rm -rf "$RUNNER_TEMP/keys"
+          rm -rf "$RUNNER_TEMP/keys" "$RUNNER_TEMP/identity"
+          exit "$status"
