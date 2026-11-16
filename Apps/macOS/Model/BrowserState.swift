@@ -105,8 +105,6 @@ final class BrowserState {
     var spaceToDelete: Space?
     /// The unloaded pinned tab a middle-click asked to remove, waiting for confirmation.
     var pinnedTabToRemove: SidebarItem?
-    /// GitHub sign-in for live folders (`GitHubSignInView`).
-    var githubSignIn: GitHubSignInRequest?
     /// The folder whose deletion is waiting for confirmation.
     var folderToDelete: SidebarItem?
     #if !BOAZ_CHROMIUM

@@ -88,10 +88,10 @@ struct LivePullIcon: View {
 }
 
 /// The sidebar `+` menu's and the space menu's New Live Folder submenu. Hidden until the space's profile turns Live
-/// Folders on in Settings › Accounts.
+/// Folders on in Settings › Accounts. A Pull Requests folder reads github.com as whoever is signed in there in the
+/// space's profile; until someone is, its menu offers to sign in.
 struct NewLiveFolderMenu: View {
     @Environment(MacModel.self) private var model
-    @Environment(BrowserState.self) private var browser
     let space: Space
     @AppStorage private var liveFoldersEnabled: Bool
 
@@ -103,29 +103,12 @@ struct NewLiveFolderMenu: View {
     var body: some View {
         if liveFoldersEnabled {
             Menu("New Live Folder") {
-                Button("GitHub Pull Requests") { LiveFolders.newPullRequestsFolder(in: space, model: model, browser: browser) }
+                Button("GitHub Pull Requests") {
+                    guard let folder = withAnimation(SidebarStyle.motion, { model.newLiveFolder(in: space) }) else { return }
+                    model.showToast("Added \(folder.title ?? "Pull Requests")")
+                }
             }
         }
-    }
-}
-
-@MainActor
-enum LiveFolders {
-    /// Makes a Pull Requests folder in `space`'s Pinned, signing in to GitHub first if needed.
-    static func newPullRequestsFolder(in space: Space, model: MacModel, browser: BrowserState) {
-        let make = {
-            guard let folder = withAnimation(SidebarStyle.motion, { model.newLiveFolder(in: space) }) else { return }
-            if GitHubAuth.shared.isSignedIn { model.showToast("Added \(folder.title ?? "Pull Requests")") }
-        }
-        guard GitHubAuth.shared.isSignedIn else {
-            GitHubAuth.shared.onNextSignIn = {
-                make()
-                model.showToast("Signed in to GitHub\(GitHubAuth.shared.viewer.map { " as @\($0.login)" } ?? "")")
-            }
-            browser.githubSignIn = .init(spaceID: space.id)
-            return
-        }
-        make()
     }
 }
 
@@ -170,7 +153,8 @@ struct FolderMenu: View {
     }
 }
 
-/// The "Pull Requests ▸" submenu: status, Refresh, the filters, Repositories, Single Sign-On and the account.
+/// The "Pull Requests ▸" submenu: status (Sign in to GitHub, when no one is), Refresh, the filters, Repositories and
+/// Single Sign-On.
 private struct PullRequestsMenu: View {
     @Environment(MacModel.self) private var model
     @Environment(BrowserState.self) private var browser
@@ -180,9 +164,13 @@ private struct PullRequestsMenu: View {
         let refresher = LiveFolderRefresher.shared
         let source = folder.liveSource ?? LiveSource(provider: LiveSource.githubPulls)
         let state = refresher.state(of: folder)
-        Button(refresher.statusLine(for: folder)) {}.disabled(true)
+        let status = refresher.statusLine(for: folder)
+        if status == LiveFolderRefresher.signInError {
+            Button(status) { refresher.signIn(at: GitHubWeb.loginURL, in: browser) }
+        } else {
+            Button(status) {}.disabled(true)
+        }
         Button("Refresh") { refresher.refreshNow() }
-            .disabled(!GitHubAuth.shared.isSignedIn)
         Divider()
         ForEach(GitHubPullFilter.allCases, id: \.self) { filter in
             Toggle(filter.title, isOn: Binding {
@@ -215,16 +203,45 @@ private struct PullRequestsMenu: View {
         if let organizations = state?.singleSignOn, !organizations.isEmpty {
             Menu("Single Sign-On") {
                 ForEach(organizations, id: \.self) { sso in
-                    Button("Authorize \(sso.organization)…") { browser.openTab(sso.url) }
+                    Button("Authorize \(sso.organization)…") { refresher.signIn(at: sso.url, in: browser) }
                 }
             }
         }
-        Divider()
-        if GitHubAuth.shared.isSignedIn {
-            Button("Sign Out of GitHub") { GitHubAuth.shared.signOut() }
-        } else {
-            Button("Sign In to GitHub…") { browser.githubSignIn = .init() }
+    }
+}
+
+/// Settings › Accounts: which profiles have live folders.
+struct AccountsSettings: View {
+    @Environment(MacModel.self) private var model
+
+    var body: some View {
+        Form {
+            Section {
+                ForEach(model.sidebar.profiles) { profile in ProfileLiveFoldersToggle(profile: profile) }
+            } header: {
+                Text("Live Folders")
+            } footer: {
+                Text("Lists a profile's GitHub pull requests as a sidebar folder, refreshed every minute, as whoever is "
+                     + "signed in to github.com in that profile. Off until you turn it on.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
         }
+        .formStyle(.grouped)
+        .frame(minHeight: 200)
+    }
+}
+
+private struct ProfileLiveFoldersToggle: View {
+    let profile: Profile
+    @AppStorage private var enabled: Bool
+
+    init(profile: Profile) {
+        self.profile = profile
+        _enabled = AppStorage(wrappedValue: false, Preferences.liveFoldersEnabledKey(for: profile.id))
+    }
+
+    var body: some View {
+        Toggle(profile.name, isOn: $enabled).accessibilityIdentifier("control.liveFolders.profile")
     }
 }
 
@@ -301,17 +318,13 @@ struct FolderIconPicker: View {
     }
 }
 
-/// The sign-in sheet and the folder deletion confirmation, on the sidebar.
+/// The folder deletion confirmation, on the sidebar.
 struct LiveFolderPresentations: ViewModifier {
     @Environment(MacModel.self) private var model
     @Environment(BrowserState.self) private var browser
 
     func body(content: Content) -> some View {
-        @Bindable var browser = browser
         content
-            .sheet(item: $browser.githubSignIn) { request in
-                GitHubSignInView(request: request) { browser.openTab($0) }
-            }
             .confirmationDialog("Delete \"\(browser.folderToDelete?.title ?? "Folder")\"?",
                                 isPresented: Binding { browser.folderToDelete != nil } set: { if !$0 { browser.folderToDelete = nil } },
                                 titleVisibility: .visible, presenting: browser.folderToDelete) { folder in

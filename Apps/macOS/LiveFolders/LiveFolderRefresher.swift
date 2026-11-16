@@ -2,8 +2,9 @@ import AppKit
 import BoazKit
 import Foundation
 
-/// Keeps every live folder's tabs current: each minute (five in Low Power Mode or while the screens sleep), and at
-/// once on wake, sign-in, a filter change or Refresh.
+/// Keeps every live folder's tabs current: each minute (five in Low Power Mode or while the screens sleep), every ten
+/// seconds for a few minutes after the menu opens GitHub's sign-in or single sign-on, and at once on wake, a filter
+/// change or Refresh. Each profile's folders are read with that profile's own github.com session (`GitHubWeb`).
 ///
 /// A refresh writes only what changed: new pull requests become tabs, renamed ones are retitled, and closed or merged
 /// ones leave, except a tab open in a window, which stays until it's closed. Badges and status stay on this Mac
@@ -21,10 +22,13 @@ final class LiveFolderRefresher {
     @ObservationIgnored private var isRefreshing = false
     @ObservationIgnored private var pokedWhileRefreshing = false
     @ObservationIgnored private var screensAsleep = false
-    @ObservationIgnored private var teams: (login: String, names: [String], fetchedAt: Date)?
+    @ObservationIgnored private var signingInUntil = Date.distantPast
+
+    static let signInError = "Sign in to GitHub"
 
     private var interval: Duration {
-        ProcessInfo.processInfo.isLowPowerModeEnabled || screensAsleep ? .seconds(300) : .seconds(60)
+        if signingInUntil > .now { return .seconds(10) }
+        return ProcessInfo.processInfo.isLowPowerModeEnabled || screensAsleep ? .seconds(300) : .seconds(60)
     }
 
     func start(_ model: MacModel) {
@@ -43,12 +47,6 @@ final class LiveFolderRefresher {
                 }
             }
         }
-        NotificationCenter.default.addObserver(forName: .githubAccountDidChange, object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated {
-                LiveFolderRefresher.shared.teams = nil
-                LiveFolderRefresher.shared.refreshNow()
-            }
-        }
         Task {
             states = (try? await model.store?.liveFolderStates()) ?? [:]
             // The library loads after the store opens; the first pass waits for it.
@@ -60,6 +58,13 @@ final class LiveFolderRefresher {
     /// Refreshes every live folder now (or right after the refresh under way).
     func refreshNow() {
         if isRefreshing { pokedWhileRefreshing = true } else { sleeper?.cancel() }
+    }
+
+    /// Opens github.com's sign-in (or an organization's single sign-on) in a tab, and refreshes often until it's done.
+    func signIn(at url: URL, in browser: BrowserState) {
+        browser.openTab(url)
+        signingInUntil = .now.addingTimeInterval(180)
+        refreshNow()
     }
 
     func state(of folder: SidebarItem) -> LiveFolderState? { states[folder.id] }
@@ -86,60 +91,89 @@ final class LiveFolderRefresher {
         }
         // A disabled profile's live folders keep their last-known state; they just stop reaching GitHub.
         let folders = allLive.filter { Preferences.liveFoldersEnabled(for: $0.profileID) }
-        guard !folders.isEmpty else { return }
-        let auth = GitHubAuth.shared
-        guard let client = auth.client else {
-            for folder in folders { record(folder, error: "Not signed in to GitHub") }
-            return
+        let profiles = Dictionary(grouping: folders, by: \.profileID)
+        BackgroundPage.keep(only: Set(profiles.keys))
+        for (profileID, folders) in profiles {
+            // One read per profile, of every search its folders use.
+            let qualifiers = Array(Set(folders.flatMap { Self.qualifiers(for: $0.liveSource) })).sorted()
+            refreshing.formUnion(folders.map(\.id))
+            defer { refreshing.subtract(folders.map(\.id)) }
+            do {
+                let result = try await GitHubWeb.searchPulls(qualifiers, profileID: profileID)
+                for folder in folders {
+                    if result.signedIn { apply(result, to: folder) } else { record(folder, error: Self.signInError) }
+                }
+            } catch is CancellationError {
+            } catch {
+                for folder in folders { record(folder, error: error.localizedDescription) }
+            }
         }
-        await auth.loadViewer()
-        for folder in folders { await refresh(folder, with: client, login: auth.viewer?.login) }
     }
 
-    private func refresh(_ folder: SidebarItem, with client: GitHubClient, login: String?) async {
-        guard let source = folder.liveSource else { return }
-        refreshing.insert(folder.id)
-        defer { refreshing.remove(folder.id) }
-        do {
-            var qualifiers: [String] = []
-            for filter in GitHubPullFilter.allCases where source.has(filter.rawValue) {
-                switch filter {
-                case .createdByMe: qualifiers.append("author:@me")
-                case .reviewRequests: qualifiers.append("review-requested:@me")
-                case .assignedToMe: qualifiers.append("assignee:@me")
-                case .mentioned: qualifiers.append("mentions:@me")
-                case .teamReviewRequests:
-                    qualifiers += await teamNames(client, login: login).prefix(20).map { "team-review-requested:\($0)" }
-                }
+    /// The searches a folder's filters read. Review Requests are the user's own; Team Review Requests are the rest of
+    /// `review-requested:@me` (`pulls(for:in:)`).
+    private static func qualifiers(for source: LiveSource?) -> [String] {
+        guard let source else { return [] }
+        return GitHubPullFilter.allCases.filter { source.has($0.rawValue) }.flatMap { filter -> [String] in
+            switch filter {
+            case .createdByMe: ["author:@me"]
+            case .reviewRequests: ["user-review-requested:@me"]
+            case .teamReviewRequests: ["review-requested:@me", "user-review-requested:@me"]
+            case .assignedToMe: ["assignee:@me"]
+            case .mentioned: ["mentions:@me"]
             }
-            let result = try await client.searchPulls(qualifiers, repositories: source.repositories)
-            // A pull request in several searches is listed once: its newest copy, else the first filter's.
-            var byURL: [URL: GitHubPull] = [:]
-            for pull in qualifiers.flatMap({ result.pulls[$0] ?? [] }) where byURL[pull.url].map({ $0.updatedAt < pull.updatedAt }) ?? true {
-                byURL[pull.url] = pull
-            }
-            let pulls = byURL.values.sorted { ($0.updatedAt, $0.url.absoluteString) > ($1.updatedAt, $1.url.absoluteString) }
-            guard let model, let current = model.item(folder.id), current.liveSource != nil else { return }
-            let previous = states[folder.id]
-            let withheld = Set(result.singleSignOn.map { $0.organization.lowercased() })
-            // Only tabs this Mac listed last time leave: another Mac's token can see different pull requests, and
-            // an organization's results held back for single sign-on say nothing about its pull requests.
-            let kept = apply(pulls, to: current, in: model) { tab in
-                previous?.items[tab.id] != nil && !withheld.contains(tab.url?.pathComponents.dropFirst().first?.lowercased() ?? "")
-            }
-            var items = Dictionary(pulls.map { (SidebarItem.liveChildID(folderID: folder.id, url: $0.url), $0.status) },
-                                   uniquingKeysWith: { a, _ in a })
-            for id in kept { items[id] = previous?.items[id] }
-            let repositories = Set(previous?.repositories ?? []).union(pulls.map(\.repository.nameWithOwner))
-                .union(source.repositories)
-            save(LiveFolderState(
-                folderID: folder.id, lastRefreshAt: .now, lastError: nil, items: items,
-                repositories: repositories.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending },
-                singleSignOn: result.singleSignOn))
-        } catch is CancellationError {
-        } catch {
-            record(folder, error: error.localizedDescription)
         }
+    }
+
+    /// The folder's pull requests (newest first): its filters' searches, in its repositories.
+    private static func pulls(for source: LiveSource, in result: GitHubSearchResult) -> [GitHubPull] {
+        func search(_ qualifier: String) -> [GitHubPull] { result.pulls[qualifier] ?? [] }
+        var found: [GitHubPull] = []
+        for filter in GitHubPullFilter.allCases where source.has(filter.rawValue) {
+            switch filter {
+            case .createdByMe: found += search("author:@me")
+            case .reviewRequests: found += search("user-review-requested:@me")
+            case .teamReviewRequests:
+                let own = Set(search("user-review-requested:@me").map(\.url))
+                found += search("review-requested:@me").filter { !own.contains($0.url) }
+            case .assignedToMe: found += search("assignee:@me")
+            case .mentioned: found += search("mentions:@me")
+            }
+        }
+        let repositories = source.repositories
+        // A pull request in several searches is listed once: its newest copy, else the first filter's.
+        var byURL: [URL: GitHubPull] = [:]
+        for pull in found where repositories.isEmpty
+            || repositories.contains(where: { $0.caseInsensitiveCompare(pull.repository) == .orderedSame }) {
+            if byURL[pull.url].map({ ($0.updatedAt ?? .distantPast) < (pull.updatedAt ?? .distantPast) }) ?? true { byURL[pull.url] = pull }
+        }
+        return byURL.values.sorted {
+            ($0.updatedAt ?? .distantPast, $0.url.absoluteString) > ($1.updatedAt ?? .distantPast, $1.url.absoluteString)
+        }
+    }
+
+    private func apply(_ result: GitHubSearchResult, to folder: SidebarItem) {
+        guard let source = folder.liveSource else { return }
+        let pulls = Self.pulls(for: source, in: result)
+        guard let model, let current = model.item(folder.id), current.liveSource != nil else { return }
+        let previous = states[folder.id]
+        let withheld = Set(result.singleSignOn.map { $0.organization.lowercased() })
+        // Only tabs this Mac listed last time leave: another Mac's session can see different pull requests, and
+        // an organization's results held back for single sign-on say nothing about its pull requests.
+        let kept = apply(pulls, to: current, in: model) { tab in
+            previous?.items[tab.id] != nil && !withheld.contains(tab.url?.pathComponents.dropFirst().first?.lowercased() ?? "")
+        }
+        var items = Dictionary(pulls.map { (SidebarItem.liveChildID(folderID: folder.id, url: $0.url), $0.status) },
+                               uniquingKeysWith: { a, _ in a })
+        for id in kept { items[id] = previous?.items[id] }
+        // Every repository the filters found, not only the chosen ones, so the menu can offer them.
+        let found = Self.pulls(for: LiveSource(provider: source.provider, filters: source.filters), in: result)
+        let repositories = Set(previous?.repositories ?? []).union(found.map(\.repository))
+            .union(source.repositories)
+        save(LiveFolderState(
+            folderID: folder.id, lastRefreshAt: .now, lastError: nil, items: items,
+            repositories: repositories.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending },
+            singleSignOn: result.singleSignOn))
     }
 
     /// The folder's tabs, made to list `pulls` (newest first); unlisted ones go if `mayRemove`. Writes only rows that
@@ -179,17 +213,6 @@ final class LiveFolderRefresher {
         model.openBrowsers.contains { $0.hasOpenPage(tabID) }
     }
 
-    private func teamNames(_ client: GitHubClient, login: String?) async -> [String] {
-        guard let login else { return [] }
-        let cached = teams?.login == login ? teams : nil
-        if let cached, cached.fetchedAt.timeIntervalSinceNow > -3600 { return cached.names }
-        // A token without `read:org` (a fine-grained one, say) can't list teams: the other filters still refresh,
-        // with the teams last listed, and the lookup is retried in an hour.
-        let names = (try? await client.teams(login: login)) ?? cached?.names ?? []
-        teams = (login, names, .now)
-        return names
-    }
-
     private func record(_ folder: SidebarItem, error: String) {
         var state = states[folder.id] ?? LiveFolderState(folderID: folder.id)
         guard state.lastError != error else { return }
@@ -206,7 +229,7 @@ final class LiveFolderRefresher {
     /// "Updated just now", "Updated 3 minutes ago", or "Failed to update", for the folder's menu.
     func statusLine(for folder: SidebarItem) -> String {
         guard let state = states[folder.id] else { return refreshing.contains(folder.id) ? "Updating…" : "Not updated yet" }
-        if let error = state.lastError { return error == "Not signed in to GitHub" ? error : "Failed to update" }
+        if let error = state.lastError { return error == Self.signInError ? error : "Failed to update" }
         guard let date = state.lastRefreshAt else { return "Not updated yet" }
         if date.timeIntervalSinceNow > -60 { return "Updated just now" }
         return "Updated " + date.formatted(.relative(presentation: .named))

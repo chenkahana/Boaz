@@ -6,6 +6,16 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.22] - 2026-11-16
+
+### Changed
+
+- Mac: Pull Requests live folders read github.com with your own GitHub sign-in in Boaz, as Arc does, instead of
+  a GitHub app. Nothing to authorize and no token: every pull request you can see on github.com shows up,
+  including ones in organizations that block third-party apps. The folder's menu offers Sign in to GitHub when
+  the space's profile isn't signed in, and Single Sign-On › Authorize <organization>… when an organization's
+  SAML session has expired.
+
 ## [0.4.20] - 2026-11-16
 
 ### Added
