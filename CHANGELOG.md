@@ -6,6 +6,14 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.12] - 2026-11-16
+
+### Fixed
+
+- Mac (DMG): links that open other apps (Zoom, Teams, Slack…) ask "Open <App>?" in a sheet on the Boaz window, with
+  Always allow for the site, instead of a separate floating dialog. A Zoom join link typed or pasted in the address
+  bar opens Zoom again instead of being silently refused.
+
 ## [0.4.11] - 2026-11-15
 
 ### Changed
@@ -360,7 +368,8 @@ First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone
 - Share extension, search widget, App Shortcuts, the `boaz://` URL scheme and alternate app icons.
 - Privacy manifest, privacy policy and an About section with third-party notices.
 
-[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.11...HEAD
+[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.12...HEAD
+[0.4.12]: https://github.com/chenkahana/Boaz/compare/v0.4.11...v0.4.12
 [0.4.11]: https://github.com/chenkahana/Boaz/compare/v0.4.10...v0.4.11
 [0.4.10]: https://github.com/chenkahana/Boaz/compare/v0.4.9...v0.4.10
 [0.4.9]: https://github.com/chenkahana/Boaz/compare/v0.4.8...v0.4.9
