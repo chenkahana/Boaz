@@ -315,8 +315,16 @@ private struct SpaceColumn: View {
     @Environment(BrowserState.self) private var browser
     let space: Space
     let tint: Color
+    // Unused directly; held only so a Live Folders toggle in Settings redraws this space right away.
+    @AppStorage private var liveFoldersEnabled: Bool
     @State private var pinnedTargeted = false
     @State private var todayTargeted = false
+
+    init(space: Space, tint: Color) {
+        self.space = space
+        self.tint = tint
+        _liveFoldersEnabled = AppStorage(wrappedValue: false, Preferences.liveFoldersEnabledKey(for: space.profileID))
+    }
 
     var body: some View {
         let pinned = model.pinnedItems(in: space)

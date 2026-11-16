@@ -6,6 +6,12 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.19] - 2026-11-16
+
+### Changed
+
+- Mac: live folders are now off until you turn them on per profile in Settings › Accounts.
+
 ## [0.4.18] - 2026-11-16
 
 ### Changed
@@ -441,7 +447,8 @@ First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone
 - Share extension, search widget, App Shortcuts, the `boaz://` URL scheme and alternate app icons.
 - Privacy manifest, privacy policy and an About section with third-party notices.
 
-[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.18...HEAD
+[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.19...HEAD
+[0.4.19]: https://github.com/chenkahana/Boaz/compare/v0.4.18...v0.4.19
 [0.4.18]: https://github.com/chenkahana/Boaz/compare/v0.4.17...v0.4.18
 [0.4.17]: https://github.com/chenkahana/Boaz/compare/v0.4.16...v0.4.17
 [0.4.16]: https://github.com/chenkahana/Boaz/compare/v0.4.15...v0.4.16
