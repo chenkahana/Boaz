@@ -42,6 +42,13 @@ enum Preferences {
     static var searchEngine: SearchEngine {
         SearchEngine(rawValue: UserDefaults.standard.string(forKey: searchEngineKey) ?? "") ?? .duckDuckGo
     }
+
+    /// Live folders (GitHub Pull Requests) are opt-in per profile, off until the user turns them on in
+    /// Settings › Accounts. Stored one Bool per profile ID; nothing to migrate for profiles made before this setting.
+    static func liveFoldersEnabledKey(for profileID: String) -> String { "liveFoldersEnabled.\(profileID)" }
+    static func liveFoldersEnabled(for profileID: String) -> Bool {
+        UserDefaults.standard.bool(forKey: liveFoldersEnabledKey(for: profileID))
+    }
 }
 
 extension SearchInput {
