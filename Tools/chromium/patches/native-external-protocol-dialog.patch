@@ -1,0 +1,41 @@
+--- a/chrome/browser/ui/views/external_protocol_dialog.cc
++++ b/chrome/browser/ui/views/external_protocol_dialog.cc
+@@ -35,6 +35,10 @@
+ #include "ui/views/layout/fill_layout.h"
+ #include "ui/views/widget/widget.h"
+ #include "ui/views/window/dialog_client_view.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/bootstrap.h"
++#include "boaz/native_external_protocol_dialog.h"
++#endif
+ 
+ using content::WebContents;
+ 
+@@ -108,6 +112,15 @@
+     return;
+   }
+ 
++#if BUILDFLAG(IS_MAC)
++  if (boaz::NativeHostEnabled()) {
++    boaz::ShowNativeExternalProtocolDialog(web_contents, url, program_name,
++                                           initiating_origin,
++                                           std::move(initiator_document));
++    return;
++  }
++#endif
++
+   // Windowing system takes ownership.
+   new ExternalProtocolDialog(web_contents, url, program_name, initiating_origin,
+                              std::move(initiator_document));
+--- a/chrome/browser/ui/views/BUILD.gn
++++ b/chrome/browser/ui/views/BUILD.gn
+@@ -857,6 +857,9 @@
+   if (!is_android) {
+     deps += [ "//chrome/browser:shell_integration" ]
+   }
++  if (is_mac) {
++    deps += [ "//boaz:headers" ]
++  }
+ }
+ 
+ source_set("first_run_dialog") {
