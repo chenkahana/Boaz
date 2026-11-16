@@ -99,8 +99,9 @@ extension SearchEngine {
     private func load(_ query: String, engine: SearchEngine) async {
         // Not cancelled means no newer update replaced this request.
         defer { if !Task.isCancelled { request = nil } }
-        // A fast typist's next keystroke usually comes sooner, and would cancel this request right after sending it.
-        try? await Task.sleep(for: .milliseconds(100))
+        // Skips the requests a fast typist's next keystroke would cancel right after sending. Short: a warm
+        // connection answers in about 40–120 ms, so a longer wait would be most of the delay.
+        try? await Task.sleep(for: .milliseconds(50))
         guard !Task.isCancelled, let url = Self.url(engine, query: query),
               let (data, response) = try? await Self.session.data(for: Self.request(url)),
               (response as? HTTPURLResponse)?.statusCode == 200,

@@ -75,9 +75,16 @@ final class BrowserState {
     var popup: PagePopup?
     var commandMode: CommandMode? {
         didSet {
-            if commandMode == nil { endTypeAhead(); newTabAnchor = nil } else if oldValue == nil { beginTypeAhead() }
+            if commandMode == nil {
+                endTypeAhead()
+                newTabAnchor = nil
+                searchSuggestions.clear()
+            } else if oldValue == nil { beginTypeAhead() }
         }
     }
+    /// The command bar's search engine suggestions. Kept across bars so the warm connection and cached answers
+    /// outlive one bar.
+    let searchSuggestions = SearchSuggestions()
     /// The tab a `.newTab` command bar opened from (the Tab menu's "New Tab Below"); the next tab it commits goes
     /// right below it. Cleared whenever the bar closes.
     @ObservationIgnored var newTabAnchor: SidebarItem?
