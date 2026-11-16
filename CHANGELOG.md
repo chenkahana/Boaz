@@ -6,6 +6,15 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.20] - 2026-11-16
+
+### Added
+
+- Mac: Customize Space has Arc's theme color picker. Click or drag on a field of hues to pick up to three colors
+  for the space's gradient, with pages of ready colors below it; choose Automatic, Light or Dark; give the
+  backdrop a texture (grain, paper, dots or linen) and set its strength on the wave; and turn the dial to let the
+  desktop show through the sidebar. The window shows each change as you make it, until you save or cancel.
+
 ## [0.4.19] - 2026-11-16
 
 ### Changed
@@ -447,7 +456,8 @@ First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone
 - Share extension, search widget, App Shortcuts, the `boaz://` URL scheme and alternate app icons.
 - Privacy manifest, privacy policy and an About section with third-party notices.
 
-[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.19...HEAD
+[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.20...HEAD
+[0.4.20]: https://github.com/chenkahana/Boaz/compare/v0.4.19...v0.4.20
 [0.4.19]: https://github.com/chenkahana/Boaz/compare/v0.4.18...v0.4.19
 [0.4.18]: https://github.com/chenkahana/Boaz/compare/v0.4.17...v0.4.18
 [0.4.17]: https://github.com/chenkahana/Boaz/compare/v0.4.16...v0.4.17

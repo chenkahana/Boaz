@@ -98,6 +98,8 @@ final class BrowserState {
     var findVisible = false
     /// The space editor sheet: a new space (nil id) or the space with this id.
     var spaceEditor: SpaceEditorRequest?
+    /// The theme as Customize Space is editing it, shown on that space until it's saved or cancelled.
+    var themePreview: Data?
     var rename: RenameRequest?
     /// The space whose deletion is waiting for confirmation.
     var spaceToDelete: Space?
@@ -496,7 +498,11 @@ final class BrowserState {
     // MARK: Reads
 
     var spaceID: String? { model.space(currentSpaceID)?.id ?? model.sidebar.spaces.first?.id }
-    var currentSpace: Space? { model.space(spaceID) }
+    var currentSpace: Space? {
+        guard var space = model.space(spaceID) else { return nil }
+        if let themePreview, space.id == spaceEditor?.spaceID { space.themeJSON = themePreview }
+        return space
+    }
 
     func tab(_ id: String?) -> SidebarItem? {
         guard let id else { return nil }
