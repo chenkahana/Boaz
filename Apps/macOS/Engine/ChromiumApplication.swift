@@ -34,10 +34,11 @@ private final class ChromiumApplication: NSObject {
     func start() throws {
         runtime.prepareWindow = { [weak self] profile, role in
             guard let self, !finished else { return nil }
-            // Chrome's popup windows (windows.create({type: "popup"}), window.open with features) are bare, as
-            // DevTools' window is: one page, no sidebar or address row.
+            // Chrome's popup windows (windows.create({type: "popup"}), window.open with features) have one page and
+            // no sidebar, with a read-only location field (DevTools' window has none).
             if role == BOAZ_WINDOW_DEVTOOLS || role == BOAZ_WINDOW_POPUP {
-                let window = ChromiumDevToolsWindow(runtime: runtime, profile: profile)
+                let window = ChromiumDevToolsWindow(runtime: runtime, profile: profile,
+                                                    showsLocation: role == BOAZ_WINDOW_POPUP)
                 if role == BOAZ_WINDOW_POPUP {
                     window.window.title = ""
                     window.window.identifier = NSUserInterfaceItemIdentifier("screen.popupWindow")
@@ -368,13 +369,15 @@ private final class ChromiumApplication: NSObject {
             let profileID = candidates.first(where: { candidate in
                 model.sidebar.profiles.contains { $0.id == candidate }
             }) ?? fallback
-            let identity = EngineProfileIdentity(
-                id: isPrivate ? UUID().uuidString : profileID, isPrivate: isPrivate)
+            // A private window is its profile's off-the-record session, shared by that profile's private
+            // windows (as Chrome's incognito), so the profile itself opens first.
+            let identity = EngineProfileIdentity(id: profileID, isPrivate: isPrivate)
             do {
                 try await runtime.prepareBlockingAssets()
                 guard !finished else { return }
+                if isPrivate { _ = try await runtime.prepareProfile(.init(id: profileID, isPrivate: false)) }
                 let profile = try await runtime.prepareProfile(identity)
-                if model.sidebar.profiles.contains(where: { $0.id == profile.identity.id }) {
+                if !isPrivate, model.sidebar.profiles.contains(where: { $0.id == profile.identity.id }) {
                     await ChromiumLegacyStore.importWebKitCookies(runtime: runtime, profile: profile, store: model.dataStore(for: profile.identity.id))
                 }
                 guard !finished else { return }

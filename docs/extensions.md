@@ -75,12 +75,14 @@ extension behaves as it does in Chrome. The host side is in [`Tools/chromium/hos
 - **Side panel.** `sidePanel.open()`, `openPanelOnActionClick` and the action menu's **Open side panel** show the
   extension's panel at the window's trailing edge; drag its edge to resize it, close it with its × button
   (`sidePanel.onClosed` fires). Tab-specific panels follow the active tab.
-- **Windows.** `windows.create({type: "popup"})` and `window.open` with window features open a bare window with one
-  page, as Chrome does. Extensions can move, highlight and group tabs (`tabs.move`, `tabs.group`).
+- **Windows.** `windows.create({type: "popup"})` and `window.open` with window features open a window with one page
+  and a read-only address field, as Chrome does. Extensions can move, highlight and group tabs (`tabs.move`,
+  `tabs.group`).
 - **Install feedback.** Chromium's post-install bubble, install errors, and the "disabled because it needs new
   permissions" prompt use Chromium's text and buttons, drawn as a popover or sheet.
-- **Private windows.** An extension runs in a private window only when **Allow in Incognito** is on in
-  `chrome://extensions`, as in Chrome. Pins can't change there, as in Chrome.
+- **Private windows.** As Chrome's incognito, a profile's private windows share one off-the-record session (its
+  cookies and logins last until the profile's last private window closes) and get that profile's extensions that
+  have **Allow in Incognito** on in `chrome://extensions`. Pins can't change there, as in Chrome.
 
 `Tools/chromium/fixtures/parity-extension` is an unpacked MV3 extension that exercises each of these; load it with
 `--load-extension=<path>` in an isolated profile.
