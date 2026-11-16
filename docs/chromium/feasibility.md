@@ -1,6 +1,6 @@
 # Chromium feasibility evidence
 
-Recorded 2026-11-13 against Boaz `045132d7bd3b7a191730031a018554ad1f0bcfbe`, fetched from `origin/master`. The original `feat/phone-toolbar` checkout was left unchanged. Worktree: `~/.worktrees/Boaz/codex/chromium-migration`.
+Recorded 2026-11-13 against Boaz `045132d7bd3b7a191730031a018554ad1f0bcfbe`, fetched from `origin/master`. The original `feat/phone-toolbar` checkout was left unchanged.
 
 ## Current prerequisite
 
