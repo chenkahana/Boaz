@@ -172,8 +172,8 @@ target and uploads that result bundle when it fails.
   container, defaults and Keychain are never the installed Boaz's. `-BoazUITest YES` (`UITestMode`) gives each launch
   a fresh store in a temporary folder, seeded from `Tests/BoazUITests/Fixtures/*.json`, wipes the test build's
   defaults, turns off iCloud sync and onboarding (`-BoazResetOnboarding YES` brings it back), and keeps GitHub on canned
-  answers. Fixture pages are `data:` URLs, so tests don't use the network. The Library panel lists a temporary folder,
-  never `~/Downloads`.
+  answers. Fixture pages are `data:` URLs, so tests don't use the network. Downloads (and the Library panel's
+  list of them) go to a temporary folder, never `~/Downloads`.
 - **First run on a Mac:** XCUITest needs Automation Mode, which macOS asks an administrator to approve once (or run
   `sudo automationmodetool enable-automationmode-without-authentication`). Don't use the Mac while the suite runs: it
   moves the pointer and types.

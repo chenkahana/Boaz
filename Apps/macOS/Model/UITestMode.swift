@@ -46,8 +46,11 @@ enum UITestMode {
         : nil
     /// JSON describing spaces, pinned tabs and folders to seed (`BOAZ_UITEST_FIXTURES`).
     static var fixturesURL: URL? { path("BOAZ_UITEST_FIXTURES") }
-    /// Folder the Library panel lists instead of ~/Downloads (`BOAZ_UITEST_DOWNLOADS_DIR`).
-    static var downloadsDirectory: URL? { path("BOAZ_UITEST_DOWNLOADS_DIR") }
+    /// Downloads folder instead of ~/Downloads: `BOAZ_UITEST_DOWNLOADS_DIR`, else an empty one beside the run's
+    /// library, so no test reads or writes the user's Downloads.
+    static var downloadsDirectory: URL? {
+        path("BOAZ_UITEST_DOWNLOADS_DIR") ?? storeDirectory?.appendingPathComponent("Downloads", isDirectory: true)
+    }
     /// Canned GitHub GraphQL responses for live folders (`BOAZ_GITHUB_FIXTURE`).
     static var githubFixtureURL: URL? { path("BOAZ_GITHUB_FIXTURE") }
 }
