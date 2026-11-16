@@ -58,8 +58,9 @@ final class LibraryPanelUITests: BoazUITestCase {
             let tabButton = panel.buttons["control.library.tab.\(tab)"]
             XCTAssertTrue(tabButton.waitForExistence(timeout: 2))
             tabButton.click()
-            let selected = NSPredicate(format: "identifier == %@ AND selected == true", "control.library.tab.\(tab)")
-            XCTAssertTrue(panel.buttons.matching(selected).firstMatch.waitForExistence(timeout: 2), "The \(tab) pane didn't open")
+            let selected = panel.buttons.matching(
+                NSPredicate(format: "identifier == %@ AND selected == true", "control.library.tab.\(tab)")).firstMatch
+            XCTAssertTrue(selected.waitForExistence(timeout: 2), "The \(tab) pane didn't open")
             if tab == "media" {
                 XCTAssertTrue(element("control.library.download.screenshot.png").waitForExistence(timeout: 5))
             }
