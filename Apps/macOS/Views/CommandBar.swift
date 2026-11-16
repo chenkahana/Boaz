@@ -14,6 +14,8 @@ struct CommandBar: View {
     /// What was typed. Rows match this, so previewing a row doesn't change them.
     @State private var query = ""
     @State private var selection = 0
+    /// The rows as they were when a preview began; answers landing meanwhile wait until the next edit or row 1.
+    @State private var frozen: [Suggestion]?
     @State private var history: [HistoryVisit] = []
     @FocusState private var focused: Bool
 
@@ -45,7 +47,7 @@ struct CommandBar: View {
 
     var body: some View {
         let tint = SpaceStyle(browser.currentSpace, scheme: scheme).tint
-        let suggestions = self.suggestions
+        let suggestions = frozen ?? self.suggestions
         ZStack(alignment: .top) {
             Color.black.opacity(0.12)
                 .onTapGesture { browser.commandMode = nil }
@@ -187,6 +189,7 @@ struct CommandBar: View {
         text = newText
         query = newText
         selection = 0
+        frozen = nil
         // Neither Incognito typing nor an address is sent to the search engine.
         if browser.isIncognito || SearchSuggestions.looksLikeAddress(newText) {
             browser.searchSuggestions.clear()
@@ -199,6 +202,7 @@ struct CommandBar: View {
     private func select(_ index: Int, in suggestions: [Suggestion]) {
         guard index != selection, suggestions.indices.contains(index) else { return }
         selection = index
+        frozen = index == 0 ? nil : frozen ?? suggestions
         text = suggestions[index].preview(typed: query)
         showTextInField()
     }
