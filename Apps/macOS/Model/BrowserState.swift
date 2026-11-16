@@ -347,6 +347,8 @@ final class BrowserState {
     }
     @ObservationIgnored private var chromiumScrollDocuments: [String: UInt64] = [:]
     @ObservationIgnored private var chromiumFaviconDocuments: [String: String] = [:]
+    /// The document each tab's last history visit was recorded for (`recordChromiumVisit`).
+    @ObservationIgnored private var chromiumVisitDocuments: [String: String] = [:]
     @ObservationIgnored private var chromiumScrollTasks: [String: Task<Void, Never>] = [:]
     @ObservationIgnored private var pendingChromiumCloses: [String: SidebarItem] = [:]
     @ObservationIgnored private var pendingChromiumUnloads: Set<String> = []
@@ -787,6 +789,7 @@ final class BrowserState {
         chromiumScrollTasks.removeValue(forKey: tabID)?.cancel()
         chromiumScrollDocuments[tabID] = nil
         chromiumFaviconDocuments[tabID] = nil
+        chromiumVisitDocuments[tabID] = nil
         pendingRestores[tabID] = nil
         chromiumLayoutChanged?()
         #endif
@@ -1156,12 +1159,27 @@ final class BrowserState {
     private func followChromiumPage(_ id: String, page: ChromiumEnginePageAdapter) {
         let state = page.state
         guard state.lifecycle == .active, !state.isLoading, state.loadFailure == nil else { return }
+        // Recorded first, so the title below names the new visit. Incognito pages leave none.
+        if !page.profile.isPrivate { recordChromiumVisit(id, page: page) }
         didNavigate(id, url: state.url, title: state.title)
         guard !page.profile.isPrivate, let url = state.url else { return }
         let document = "\(state.navigationID):\(url.absoluteString)"
         guard chromiumFaviconDocuments[id] != document else { return }
         chromiumFaviconDocuments[id] = document
         Task { await ChromiumPageServices.learnFavicon(from: page) }
+    }
+
+    /// History as WebKit tabs keep it (`didCommitLoad`, `didChangeURL`): one visit for each new document a page
+    /// settles on, and one for each address a settled document moves to on its own (`pushState`). Chromium's state
+    /// is followed only once a load settles, so a load that fails or is left before it finishes adds none.
+    private func recordChromiumVisit(_ id: String, page: ChromiumEnginePageAdapter) {
+        let document = "\(page.handle):\(page.state.navigationID)"
+        if chromiumVisitDocuments[id] != document {
+            chromiumVisitDocuments[id] = document
+            model.didCommitLoad(id, url: page.state.url)
+        } else {
+            model.didChangeAddress(id, url: page.state.url, title: page.state.title)
+        }
     }
 
     private func prepareChromiumScroll(_ id: String, page: ChromiumEnginePageAdapter) {
