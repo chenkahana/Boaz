@@ -112,7 +112,8 @@ def sign(args):
         packaging = work / 'Chromium Packaging'
         shutil.copytree(ROOT / 'chromium/src/out/BoazDevelopment/Chromium Packaging', packaging,
                         symlinks=True, ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
-        shutil.copy2(profile, packaging / 'Boaz.provisionprofile')
+        # Chromium's signer looks for <basename>.<identity>.provisionprofile when an identity is set.
+        shutil.copy2(profile, packaging / f'Boaz.{args.identity.lower()}.provisionprofile')
         browser_entitlements = packaging / 'app-entitlements.plist'
         with browser_entitlements.open('rb') as stream:
             entitlements = plistlib.load(stream)
