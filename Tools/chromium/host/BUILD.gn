@@ -17,7 +17,7 @@ buildflag_header("buildflags") {
 }
 
 source_set("headers") {
-  public = [ "adblock_popup.h", "adblock_popup_host.h", "adblock_navigation.h", "adblock_browser_client.h", "native_http_warning.h", "extension_optional_permissions.h", "native_extension_store_dialogs.h", "native_extension_uninstall_dialog.h", "native_extension_prompt.h", "native_password_submission.h", "native_devtools.h", "bootstrap.h", "context_menu_style.h", "native_permission_prompt.h", "protected_media.h" ]
+  public = [ "adblock_popup.h", "adblock_popup_host.h", "adblock_navigation.h", "adblock_browser_client.h", "native_http_warning.h", "extension_optional_permissions.h", "native_extension_store_dialogs.h", "native_extension_uninstall_dialog.h", "native_external_protocol_dialog.h", "native_extension_prompt.h", "native_password_submission.h", "native_devtools.h", "bootstrap.h", "context_menu_style.h", "native_permission_prompt.h", "protected_media.h" ]
   public_deps = [
     "//base",
     "//extensions/browser",
@@ -69,6 +69,8 @@ source_set("host") {
     "native_extension_store_dialogs.mm",
     "native_extension_uninstall_dialog.h",
     "native_extension_uninstall_dialog.mm",
+    "native_external_protocol_dialog.h",
+    "native_external_protocol_dialog.mm",
     "native_extension_prompt.h",
     "native_extension_prompt.mm",
     "extension_optional_permissions.h",
@@ -124,6 +126,7 @@ source_set("host") {
     "//components/strings:components_strings",
     "//chrome/browser",
     "//chrome/browser/extensions",
+    "//chrome/browser/external_protocol",
     "//chrome/browser/supervised_user",
     "//chrome/browser/media/webrtc",
     "//chrome/browser/printing",
@@ -143,6 +146,7 @@ source_set("host") {
     "//components/zoom",
     "//components/find_in_page",
     "//components/prefs",
+    "//components/url_formatter",
     "//components/component_updater",
     "//media/cdm:cdm_paths",
     ":buildflags",

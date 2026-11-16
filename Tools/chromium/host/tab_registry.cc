@@ -6,6 +6,7 @@
 #include "base/compiler_specific.h"
 #include "chrome/browser/devtools/devtools_window.h"
 #include "chrome/browser/devtools/devtools_toggle_action.h"
+#include "chrome/browser/external_protocol/external_protocol_handler.h"
 #include "content/public/browser/media_session.h"
 #include "chrome/browser/media/webrtc/media_capture_devices_dispatcher.h"
 #include "chrome/browser/media/webrtc/media_stream_capture_indicator.h"
@@ -592,6 +593,8 @@ BoazHostResult TabRegistry::CreatePage(BoazHostWindow window_id, const char* url
 BoazHostResult TabRegistry::Navigate(BoazHostPage id, const char* url) {
   BOAZ_FIND_PAGE();
   if (!url || !GURL(url).is_valid()) return BOAZ_HOST_INVALID_ARGUMENT;
+  // As Chrome's omnibox and reload button do: the page may open an app next.
+  ExternalProtocolHandler::PermitLaunchUrl();
   page->web_contents()->GetController().LoadURL(GURL(url), content::Referrer(),
       ui::PAGE_TRANSITION_TYPED, std::string());
   return BOAZ_HOST_OK;
@@ -612,6 +615,7 @@ BoazHostResult TabRegistry::GoForward(BoazHostPage id) {
 }
 BoazHostResult TabRegistry::ReloadFromOrigin(BoazHostPage id) {
   BOAZ_FIND_PAGE();
+  ExternalProtocolHandler::PermitLaunchUrl();
   page->web_contents()->GetController().Reload(content::ReloadType::BYPASSING_CACHE, true);
   return BOAZ_HOST_OK;
 }
@@ -628,6 +632,7 @@ bool TabRegistry::IsJavaScriptDisabled(content::WebContents* contents) const {
 }
 BoazHostResult TabRegistry::Reload(BoazHostPage id) {
   BOAZ_FIND_PAGE();
+  ExternalProtocolHandler::PermitLaunchUrl();
   page->web_contents()->GetController().Reload(content::ReloadType::NORMAL, true);
   return BOAZ_HOST_OK;
 }
