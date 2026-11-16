@@ -1,8 +1,15 @@
 import AppKit
 
-/// Launch contract for the BoazUITests suite. Inactive unless the app is launched with `-BoazUITest YES`.
+/// Launch contract for the BoazUITests suite. Inactive unless the app is launched with `-BoazUITest YES`, and only
+/// in a test build: the ad hoc `.uitest` build (`make uitest`) or a development-channel Chromium build. A release
+/// install launched with the flag stays a normal app.
 enum UITestMode {
-    static let isActive = UserDefaults.standard.bool(forKey: "BoazUITest")
+    static let isActive = UserDefaults.standard.bool(forKey: "BoazUITest") && isTestBuild
+
+    private static var isTestBuild: Bool {
+        Bundle.main.bundleIdentifier?.hasSuffix(".uitest") == true
+            || Bundle.main.object(forInfoDictionaryKey: "BoazDistributionChannel") as? String == "development"
+    }
 
     /// Wipes this bundle id's persisted defaults, not the `-BoazUITest YES` launch argument (a separate domain
     /// `removePersistentDomain` doesn't touch). Without this, a run inherits whatever the LAST run quit with —

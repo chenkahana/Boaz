@@ -337,9 +337,18 @@ bool ShowNativeExtensionDialog(gfx::NativeWindow parent, const std::vector<std::
   if (!model || !window || !PopoverDialog::CanShow(*model)) return false;
   void* view = nullptr;
   gfx::Rect bounds;
-  if (!FindNativeExtensionAnchor((__bridge void*)window, extension_ids, &view, &bounds)) return false;
-  new PopoverDialog(std::move(model), (__bridge NSView*)view,
-                    NSMakeRect(bounds.x(), bounds.y(), bounds.width(), bounds.height()));
+  if (FindNativeExtensionAnchor((__bridge void*)window, extension_ids, &view, &bounds)) {
+    new PopoverDialog(std::move(model), (__bridge NSView*)view,
+                      NSMakeRect(bounds.x(), bounds.y(), bounds.width(), bounds.height()));
+    return true;
+  }
+  // No extension button on screen (a popup or DevTools window, a hidden sidebar): point at the window's
+  // top trailing corner, where Chrome's toolbar would be, rather than Chromium's views dialogs.
+  NSView* content = window.contentView;
+  if (!content) return false;
+  const NSRect frame = content.bounds;
+  const CGFloat top = content.isFlipped ? NSMinY(frame) + 12 : NSMaxY(frame) - 12;
+  new PopoverDialog(std::move(model), content, NSMakeRect(NSMaxX(frame) - 40, top, 1, 1));
   return true;
 }
 

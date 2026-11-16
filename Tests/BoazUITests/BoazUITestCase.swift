@@ -53,6 +53,14 @@ class BoazUITestCase: XCTestCase {
 
         var launchEnvironment = environment
         launchEnvironment["BOAZ_UITEST_FIXTURES"] = fixtureURL.path
+        // A Chromium build keeps its browser profile under the home folder; never let a test reach the real one.
+        if let appPath = ProcessInfo.processInfo.environment["BOAZ_UITEST_APP"],
+           FileManager.default.fileExists(atPath: appPath + "/Contents/Frameworks/Chromium Framework.framework"),
+           launchEnvironment["CFFIXED_USER_HOME"] == nil {
+            let home = FileManager.default.temporaryDirectory.appendingPathComponent("BoazUITest-\(UUID().uuidString)").path
+            launchEnvironment["CFFIXED_USER_HOME"] = home
+            launchEnvironment["HOME"] = home
+        }
 
         application.launchArguments = launchArguments
         application.launchEnvironment = launchEnvironment
