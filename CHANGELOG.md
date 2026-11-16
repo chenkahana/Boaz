@@ -6,6 +6,19 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.16] - 2026-11-16
+
+### Added
+
+- Mac: ⌘T, ⌘L and Open in Split View suggest searches from your search engine as you type, below your open tabs.
+  Arrow keys show the selected search in the field, or the tab's or page's address; back on the first row, your
+  own text returns. Not in private windows, and not for addresses.
+
+### Fixed
+
+- Mac (DMG): the Chromium build now records the pages you visit, so they appear in the command bar's suggestions and the
+  Library. Private windows still record nothing.
+
 ## [0.4.15] - 2026-11-16
 
 ### Fixed
@@ -415,7 +428,8 @@ First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone
 - Share extension, search widget, App Shortcuts, the `boaz://` URL scheme and alternate app icons.
 - Privacy manifest, privacy policy and an About section with third-party notices.
 
-[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.15...HEAD
+[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.16...HEAD
+[0.4.16]: https://github.com/chenkahana/Boaz/compare/v0.4.15...v0.4.16
 [0.4.15]: https://github.com/chenkahana/Boaz/compare/v0.4.14...v0.4.15
 [0.4.14]: https://github.com/chenkahana/Boaz/compare/v0.4.13...v0.4.14
 [0.4.13]: https://github.com/chenkahana/Boaz/compare/v0.4.12...v0.4.13
