@@ -61,8 +61,9 @@ def openssl(*args, data=None):
 def install(key, certificate_id, keychain, profile, state):
     """Imports the Developer ID identity into `keychain` and writes this run's provisioning profile to `profile`."""
     certificate = request('GET', 'certificates/' + certificate_id)['data']['attributes']
-    if certificate.get('certificateType') != 'DEVELOPER_ID_APPLICATION':
-        raise RuntimeError(f'Certificate {certificate_id} is not a Developer ID Application certificate')
+    # Certificates issued from the G2 Sub-CA report DEVELOPER_ID_APPLICATION_G2.
+    if certificate.get('certificateType') not in ('DEVELOPER_ID_APPLICATION', 'DEVELOPER_ID_APPLICATION_G2'):
+        raise RuntimeError(f"Certificate {certificate_id} is {certificate.get('certificateType')}, not Developer ID Application")
     pem = openssl('x509', '-inform', 'DER', data=base64.b64decode(certificate['certificateContent']))
     if openssl('x509', '-noout', '-pubkey', data=pem) != openssl('pkey', '-in', str(key), '-pubout'):
         raise RuntimeError(f'DEVELOPER_ID_KEY is not the private key of certificate {certificate_id}')
