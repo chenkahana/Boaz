@@ -241,7 +241,7 @@ private struct ProfileLiveFoldersToggle: View {
     }
 
     var body: some View {
-        Toggle(profile.name, isOn: $enabled)
+        Toggle(profile.name, isOn: $enabled).accessibilityIdentifier("control.liveFolders.profile")
     }
 }
 

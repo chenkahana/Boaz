@@ -98,7 +98,8 @@ final class LiveFolderUITests: BoazUITestCase {
     func testAccountsSettingsListsProfiles() {
         launchSignedIn()
         let pane = openSettings(tab: "Accounts")
-        XCTAssertTrue(pane.staticTexts["Live Folders"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(pane.descendants(matching: .any)["control.liveFolders.profile"].firstMatch.waitForExistence(timeout: 5),
+                      "Settings › Accounts lists no profiles to turn live folders on for")
         assertScreenIntact(pane, name: "settings-accounts")
     }
 }
