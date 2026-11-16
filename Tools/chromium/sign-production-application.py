@@ -32,6 +32,17 @@ def execute(command, log, capture=False):
     return result.stdout, result.stderr
 
 
+def notary_credentials(args):
+    """A stored notarytool profile, or on CI the App Store Connect API key named by BOAZ_ASC_* variables."""
+    if args.notary_profile:
+        return ['--keychain-profile', args.notary_profile]
+    names = ('BOAZ_ASC_KEY_PATH', 'BOAZ_ASC_KEY_ID', 'BOAZ_ASC_ISSUER_ID')
+    values = [os.environ.get(name) for name in names]
+    if not all(values):
+        raise RuntimeError('Notarization needs --notary-profile or all of ' + ', '.join(names))
+    return ['--key', values[0], '--key-id', values[1], '--issuer', values[2]]
+
+
 def sign(args):
     source, output = Path(args.input), Path(args.output)
     for path in (source, output):
@@ -202,8 +213,8 @@ def sign(args):
             raise RuntimeError('Signed browser provisioning profile differs')
         archive = output / 'Boaz-notarization.zip'
         execute(['/usr/bin/ditto', '-c', '-k', '--keepParent', str(signed_app), str(archive)], log)
-        reply, _ = execute(['/usr/bin/xcrun', 'notarytool', 'submit', str(archive),
-                    '--keychain-profile', args.notary_profile, '--wait', '--output-format', 'json'], log, capture=True)
+        reply, _ = execute(['/usr/bin/xcrun', 'notarytool', 'submit', str(archive), *notary_credentials(args),
+                    '--wait', '--output-format', 'json'], log, capture=True)
         notarization = json.loads(reply)
         (output / 'notarization.json').write_text(json.dumps(notarization, indent=2) + '\n')
         if notarization.get('status') != 'Accepted':
@@ -218,8 +229,9 @@ def sign(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ('input', 'output', 'identity', 'notary-profile', 'provisioning-profile'):
+    for name in ('input', 'output', 'identity', 'provisioning-profile'):
         parser.add_argument('--' + name, required=True)
+    parser.add_argument('--notary-profile', help='notarytool keychain profile; omit to use the BOAZ_ASC_* API key')
     parser.add_argument('--guarded', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
     if not args.guarded:

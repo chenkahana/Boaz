@@ -26,18 +26,6 @@ def sha(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
-def apple_account():
-    """xcodebuild sign-in: the Xcode account on the maintainer's Mac, or an App Store Connect API key on CI."""
-    names = ('BOAZ_ASC_KEY_PATH', 'BOAZ_ASC_KEY_ID', 'BOAZ_ASC_ISSUER_ID')
-    values = [os.environ.get(name) for name in names]
-    if not any(values):
-        return []
-    if not all(values):
-        raise RuntimeError('Set all or none of ' + ', '.join(names))
-    return ['-authenticationKeyPath', values[0], '-authenticationKeyID', values[1],
-            '-authenticationKeyIssuerID', values[2]]
-
-
 def execute(command, log, capture=False):
     # Drain all output, retaining at most 8 MiB per command; never print values.
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -202,7 +190,7 @@ def experiment(args):
         receipt_path.write_text(json.dumps(receipt, indent=2))
         execute(['/usr/bin/xcodebuild', '-exportArchive', '-archivePath', str(archive),
                  '-exportPath', str(output / 'export'), '-exportOptionsPlist', str(options),
-                 '-allowProvisioningUpdates', *apple_account()], log)
+                 '-allowProvisioningUpdates'], log)
         receipt['export_succeeded'] = True
         receipt_path.write_text(json.dumps(receipt, indent=2))
     print('Cloud export attempt finished. Output remains unpublished and unverified; no notarization polling or launch performed.')
@@ -226,7 +214,7 @@ def finish(args):
     receipt_path.write_text(json.dumps(receipt, indent=2) + '\n')
     with (output / 'verification.log').open('xb') as log:
         execute(['/usr/bin/xcodebuild', '-exportNotarizedApp', '-archivePath', str(archive),
-                 '-exportPath', str(output / 'export'), '-quiet', *apple_account()], log)
+                 '-exportPath', str(output / 'export'), '-quiet'], log)
         app = output / 'export/Boaz.app'
         execute(['/usr/bin/codesign', '--verify', '--deep', '--strict', str(app)], log)
         _, raw = execute(['/usr/bin/codesign', '-dv', '--verbose=4', str(app)], log, capture=True)

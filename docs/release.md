@@ -28,7 +28,8 @@ Sparkle's existing EdDSA key stays in the login Keychain. The packager verifies 
 
 `.github/workflows/release.yml` publishes a release for every master commit that touches the Mac app (the app and
 shared sources, BoazKit, `Tools/chromium`, the XcodeGen specs). It builds the interface on a GitHub-hosted Mac,
-cloud-signs and notarizes it, packages the DMG, and creates `vX.Y.Z` with `Boaz.dmg`, its checksum and the
+signs it with the team's Developer ID certificate through `release-mac.sh` (the non-cloud path), notarizes it with
+`notarytool` and the API key, packages the DMG, and creates `vX.Y.Z` with `Boaz.dmg`, its checksum and the
 `appcast.xml` that installed copies read from `releases/latest`. Nothing runs on the build Mac except refreshing
 the Chromium base.
 
@@ -40,18 +41,20 @@ kept as a workflow artifact for three days.
 **Secrets** (Settings › Secrets and variables › Actions):
 
 - `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8`: an App Store Connect team API key with the **Admin** role, which
-  cloud-managed Developer ID signing requires. Create it in App Store Connect › Users and Access › Integrations ›
+  creating provisioning profiles requires. Create it in App Store Connect › Users and Access › Integrations ›
   App Store Connect API › Team Keys; `ASC_KEY_P8` is the downloaded `.p8` file's text.
 - `SPARKLE_ED_PRIVATE_KEY`: the file written by `generate_keys -x sparkle.key` (in the Sparkle `bin` directory of a
   UI build run, `/Volumes/BoazBuild/cef/direct/app/runs/RUN/SourcePackages/artifacts/sparkle/Sparkle/bin`) on the
   Mac whose login keychain holds the key. It must be the key behind `SUPublicEDKey`; packaging checks.
+- `DEVELOPER_ID_KEY`: the unencrypted PEM private key (`-----BEGIN PRIVATE KEY-----`) of the Developer ID
+  Application certificate whose App Store Connect ID is `DEVELOPER_ID_CERT_ID` in the workflow.
 
-The workflow stops with the list of missing secrets before building. `export-cloud-application.py` signs the
-archive with an Apple Development identity before Xcode re-signs it with the cloud Developer ID certificate, so
-each run creates one with the API key (`Tools/chromium/ci-development-identity.py create`) and revokes it in its
-last step, even after a failure. If Apple refuses a new certificate because the limit is reached, the script
-first revokes the Apple Development certificates named "Created via API", which only CI creates; don't create
-Apple Development certificates with an API key for anything else.
+The workflow stops with the list of missing secrets before building. `Tools/chromium/ci-signing.py install` fetches
+that certificate with the API key, checks it matches the key, and imports both into the run's keychain. It also
+creates a Developer ID provisioning profile for `com.chenkahana.boaz` (iCloud and push), named
+"Boaz release workflow RUN"; the last step deletes it, even after a failure, and the next run deletes any left
+behind. Cloud-managed Developer ID signing doesn't work with an API key, so CI doesn't use `--cloud-signing`. When
+the certificate is replaced, put the new key in `DEVELOPER_ID_KEY` and its ID in the workflow.
 
 **Chromium base.** Hosted runners can't build Chromium, so the workflow downloads it from the prerelease
 `chromium-base-KEY`, where KEY digests the committed Chromium inputs (`Tools/chromium/host`, `patches`, `adblock`,
