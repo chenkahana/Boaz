@@ -197,7 +197,7 @@ class NativeExtensionActions::Impl final : public ExtensionsToolbarViewModel::De
     icon_subscriptions_.clear();
     Close();
     popup_.reset();
-    menu_ = nil;
+    CancelMenu();
     registry_.reset();
     toolbar_observation_.Reset();
     container_data_.reset();
@@ -227,6 +227,8 @@ class NativeExtensionActions::Impl final : public ExtensionsToolbarViewModel::De
   void OnActionRemoved(const ToolbarActionsModel::ActionId& id) override {
     icon_subscriptions_.erase(id);
     ClosePopupFor(id);
+    // As Chrome closes a removed action's menu (its model goes with the action).
+    if (menu_id_ == id) CancelMenu();
     Changed();
   }
   void OnActionUpdated(const ToolbarActionsModel::ActionId&) override { Changed(); }
@@ -426,6 +428,7 @@ class NativeExtensionActions::Impl final : public ExtensionsToolbarViewModel::De
     MenuControllerCocoa* controller = [[MenuControllerCocoa alloc] initWithModel:menu isContextMenu:YES
                                                                        delegate:nil];
     menu_ = controller;
+    menu_id_ = id;
     controller.menu.identifier = @"control.extensionMenu";
     const NSPoint point = NSMakePoint(bounds.x(), view.isFlipped ? bounds.bottom() : bounds.y());
     auto weak = weak_factory_.GetWeakPtr();
@@ -433,7 +436,13 @@ class NativeExtensionActions::Impl final : public ExtensionsToolbarViewModel::De
       base::CurrentThread::ScopedAllowApplicationTasksInNativeNestedLoop allow;
       [controller.menu popUpMenuPositioningItem:nil atLocation:point inView:view];
     }
-    if (weak) menu_ = nil;
+    if (weak) { menu_ = nil; menu_id_.clear(); }
+  }
+  // Ends an open action menu: its popUpMenu call in RunMenu returns once this task does.
+  void CancelMenu() {
+    [menu_.menu cancelTrackingWithoutAnimation];
+    menu_ = nil;
+    menu_id_.clear();
   }
 
   raw_ptr<BrowserWindowInterface> browser_;
@@ -450,6 +459,7 @@ class NativeExtensionActions::Impl final : public ExtensionsToolbarViewModel::De
   std::unique_ptr<NativeExtensionPopup> popup_;
   std::string popup_id_;
   MenuControllerCocoa* __strong menu_ = nil;
+  std::string menu_id_;
   NSView* __weak invoke_anchor_ = nil;
   gfx::Rect invoke_bounds_;
   bool invoking_ = false;
