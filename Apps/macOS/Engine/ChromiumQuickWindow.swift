@@ -122,8 +122,18 @@ final class ChromiumQuickWindow: NSObject, ObservableObject, NSWindowDelegate {
         addressField.selectText(nil)
     }
     private func handleKey(_ event: NSEvent) -> Bool {
-        guard event.type == .keyDown,
-              event.modifierFlags.intersection([.command, .option, .control, .shift]) == .command else { return false }
+        guard event.type == .keyDown else { return false }
+        let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
+        if modifiers == [.command, .shift], event.charactersIgnoringModifiers?.lowercased() == "r" {
+            queue { owner in
+                do {
+                    guard let page = owner.page?.adapter as? ChromiumEnginePageAdapter else { throw EnginePageError.unavailable }
+                    try page.reloadFromOrigin()
+                } catch { owner.failure = "The page could not reload." }
+            }
+            return true
+        }
+        guard modifiers == .command else { return false }
         switch event.charactersIgnoringModifiers?.lowercased() {
         case "l": queue { $0.focusAddress() }
         case "w": queue { $0.window.performClose(nil) }
