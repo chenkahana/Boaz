@@ -74,12 +74,16 @@ public struct SpaceThemeOptions: Equatable, Sendable {
     public var light: RGBA
     public var dark: RGBA
     public var accent: RGBA
-    /// A gradient's second color; nil paints the background in one color. A theme without a backdrop of its own
-    /// fades toward its accent, so it reads as a gradient to the accent.
-    public var secondColor: RGBA?
+    /// A gradient's colors after the first (at most two); none paints the background in one color. A theme
+    /// without a backdrop of its own fades toward its accent, so it reads as a gradient to the accent.
+    public var gradient: [RGBA]
     public var appearance: Appearance
-    public var grain: Bool
+    public var texture: WindowTheme.Texture
+    /// The texture's strength, 0…1.
+    public var textureIntensity: Double
     public var lightStreak: Bool
+    /// How much of the desktop shows through the backdrop, 0…1.
+    public var translucency: Double
 
     public init(themeJSON: Data?) {
         let theme = themeJSON.flatMap { try? WindowTheme.decode($0) }
@@ -88,13 +92,16 @@ public struct SpaceThemeOptions: Equatable, Sendable {
         dark = theme?.color("background", dark: true) ?? RGBA(fallback.dark)
         accent = theme?.primaryColorPalette?["midTone"] ?? RGBA(fallback.accent)
         if let backdrop = theme?.lightBackdrop {
-            secondColor = backdrop.colors.count > 1 ? backdrop.colors[1] : nil
+            gradient = Array(backdrop.colors.dropFirst().prefix(2))
         } else {
-            secondColor = accent
+            gradient = [accent]
         }
         appearance = Appearance(rawValue: theme?.fixedAppearance ?? "") ?? .system
-        grain = theme?.showsGrain ?? false
+        texture = theme?.texture ?? (theme?.showsGrain == true ? .grain : .none)
+        let noise = theme?.lightBackdrop?.noise ?? 0
+        textureIntensity = theme?.textureIntensity ?? (noise > 0 ? noise : 0.2)
         lightStreak = theme?.showsLightStreak ?? false
+        translucency = theme?.translucency ?? 0
     }
 
     /// `themeJSON` with these options written over what it says.
@@ -105,21 +112,21 @@ public struct SpaceThemeOptions: Equatable, Sendable {
         if light != current.light { root = Self.set(light.json, at: semantic + ["light", "background"], in: root) }
         if dark != current.dark { root = Self.set(dark.json, at: semantic + ["dark", "background"], in: root) }
         if accent != current.accent { root = Self.set(accent.json, at: ["primaryColorPalette", "midTone"], in: root) }
-        if light != current.light || dark != current.dark || secondColor != current.secondColor {
+        if light != current.light || dark != current.dark || gradient != current.gradient {
             // Arc's backdrop per appearance. A gradient's stops after the first are drawn at the blend of that
             // appearance's background, so in Dark mode the second color darkens as the first does.
             // The old backdrop's texture (`modifiers`) and vibrancy stay. Only a `single` backdrop pins an
             // appearance, so a pinned one moves to `windowAppearance`.
-            let colors = [light] + (secondColor.map { [$0] } ?? [])
+            let colors = [light] + gradient
             let old = root["background"] as? [String: Any]
             func spec(_ appearance: String) -> [String: Any] {
                 let previous = ((old?["single"] as? [String: Any])?["_0"]
                     ?? (old?["appearanceBased"] as? [String: Any])?[appearance]) as? [String: Any]
                 let previousStyle = ((previous?["style"] as? [String: Any])?["color"] as? [String: Any])?["_0"] as? [String: Any]
-                var color: [String: Any] = secondColor == nil ? ["color": light.json] : ["baseColors": colors.map(\.json)]
+                var color: [String: Any] = gradient.isEmpty ? ["color": light.json] : ["baseColors": colors.map(\.json)]
                 color["modifiers"] = previousStyle?.values.lazy
                     .compactMap { (($0 as? [String: Any])?["_0"] as? [String: Any])?["modifiers"] }.first
-                var spec: [String: Any] = ["style": ["color": ["_0": [secondColor == nil ? "blendedSingleColor" : "blendedGradient":
+                var spec: [String: Any] = ["style": ["color": ["_0": [gradient.isEmpty ? "blendedSingleColor" : "blendedGradient":
                                                                           ["_0": color]]]]]
                 spec["isVibrant"] = previous?["isVibrant"]
                 return spec
@@ -128,8 +135,13 @@ public struct SpaceThemeOptions: Equatable, Sendable {
             if appearance != .system { root["windowAppearance"] = appearance.rawValue }
         }
         if appearance != current.appearance { root["windowAppearance"] = appearance.rawValue }
-        if grain != current.grain { root["boazGrain"] = grain }
+        if texture != current.texture || textureIntensity != current.textureIntensity {
+            root["boazTexture"] = texture.rawValue
+            root["boazTextureIntensity"] = textureIntensity
+            root["boazGrain"] = texture != .none // What Boaz read before textures.
+        }
         if lightStreak != current.lightStreak { root["boazLightStreak"] = lightStreak }
+        if translucency != current.translucency { root["boazTranslucency"] = translucency }
         return (try? JSONSerialization.data(withJSONObject: root, options: [.sortedKeys])) ?? (themeJSON ?? Data())
     }
 

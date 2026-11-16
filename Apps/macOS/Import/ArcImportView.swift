@@ -331,7 +331,7 @@ private struct SpaceCard: View {
         .background {
             ZStack {
                 style.gradient
-                if style.grain > 0 { GrainOverlay(amount: style.grain) }
+                TextureOverlay(texture: style.texture, amount: style.textureAmount)
             }
             .clipShape(.rect(cornerRadius: 12, style: .continuous))
         }

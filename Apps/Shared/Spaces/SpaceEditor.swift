@@ -2,7 +2,7 @@ import BoazKit
 import SwiftUI
 
 /// Creates or edits a space: name, emoji and color, with a live preview. Shared by the iPhone and Mac apps; on the
-/// Mac it is Customize Space, which also edits the theme's light and dark colors, gradient, appearance and texture.
+/// Mac it is Customize Space, where Arc's theme color picker edits the colors, appearance, texture and transparency.
 struct SpaceEditor: View {
     enum Mode { case create, edit(Space, canDelete: Bool) }
 
@@ -10,6 +10,8 @@ struct SpaceEditor: View {
     /// Saves the space; a nil theme keeps its current one (one imported from Arc, say).
     let onSave: (_ title: String, _ icon: String?, _ themeJSON: Data?) -> Void
     var onDelete: (() -> Void)?
+    /// The theme as edited so far, to show on the space while the editor is open (Mac); nil when it closes.
+    var onPreview: ((Data?) -> Void)?
     /// What deleting takes with it, for the confirmation.
     var deleteMessage = "Its tabs move to the Archive, on all your devices."
 
@@ -31,10 +33,11 @@ struct SpaceEditor: View {
                                  "☕️", "❤️", "⭐️", "✦"]
 
     init(mode: Mode, deleteMessage: String? = nil, onSave: @escaping (String, String?, Data?) -> Void,
-         onDelete: (() -> Void)? = nil) {
+         onDelete: (() -> Void)? = nil, onPreview: ((Data?) -> Void)? = nil) {
         self.mode = mode
         self.onSave = onSave
         self.onDelete = onDelete
+        self.onPreview = onPreview
         if let deleteMessage { self.deleteMessage = deleteMessage }
         switch mode {
         case .create:
@@ -82,7 +85,9 @@ struct SpaceEditor: View {
             }
             .padding(16)
         }
-        .frame(width: 480, height: 680)
+        .frame(width: 480, height: 720)
+        .onChange(of: options) { onPreview?(options.applied(to: base)) }
+        .onDisappear { onPreview?(nil) }
         #else
         NavigationStack {
             form
@@ -138,10 +143,13 @@ struct SpaceEditor: View {
                     .accessibilityLabel("Or type any emoji")
             }
 
+            #if os(macOS)
+            Section("Color") { ThemeColorPicker(options: $options).padding(.vertical, 6) }
+            #else
             Section {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 10)], spacing: 10) {
                     ForEach(SpacePalette.all) { option in
-                        Button { pick(option) } label: { swatch(option) }
+                        Button { palette = option } label: { swatch(option) }
                             .buttonStyle(.plain)
                             .accessibilityLabel(option.name)
                             .accessibilityAddTraits(palette == option ? .isSelected : [])
@@ -150,22 +158,14 @@ struct SpaceEditor: View {
                 .padding(.vertical, 4)
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("Colors")
-                #if os(macOS)
-                ColorPicker("Custom Color", selection: customColor, supportsOpacity: false)
-                #endif
             } header: {
                 Text("Color")
             } footer: {
-                #if os(iOS)
                 if palette == nil, editing != nil {
                     Text("This space keeps its current colors until you pick one.")
                 }
-                #endif
             }
 
-            #if os(macOS)
-            themeSections
-            #else
             if canDelete {
                 Section { deleteButton.frame(maxWidth: .infinity) }
             }
@@ -252,20 +252,6 @@ struct SpaceEditor: View {
         .contentShape(.circle)
     }
 
-    /// A palette is a new theme. On the Mac the gradient choice, appearance and textures carry over to it.
-    private func pick(_ option: SpacePalette) {
-        palette = option
-        #if os(macOS)
-        let kept = options
-        base = option.themeJSON
-        options = SpaceThemeOptions(themeJSON: option.themeJSON)
-        if kept.secondColor == nil { options.secondColor = nil }
-        options.appearance = kept.appearance
-        options.grain = kept.grain
-        options.lightStreak = kept.lightStreak
-        #endif
-    }
-
     private func save() {
         guard !trimmedTitle.isEmpty else { return }
         onSave(trimmedTitle, icon, themeJSON)
@@ -274,68 +260,7 @@ struct SpaceEditor: View {
 }
 
 #if os(macOS)
-private enum GradientFill: Hashable { case one, two }
-
 extension SpaceEditor {
-    fileprivate var themeSections: some View {
-        Group {
-            Section("Background") {
-                ColorPicker("Light Mode", selection: color(\.light), supportsOpacity: false)
-                ColorPicker("Dark Mode", selection: color(\.dark), supportsOpacity: false)
-                Picker("Gradient", selection: Binding<GradientFill> {
-                    options.secondColor == nil ? .one : .two
-                } set: { fill in
-                    options.secondColor = fill == .one ? nil : options.accent
-                }) {
-                    Text("One Color").tag(GradientFill.one)
-                    Text("Two Colors").tag(GradientFill.two)
-                }
-                .pickerStyle(.segmented)
-                if options.secondColor != nil {
-                    ColorPicker("Second Color", selection: Binding {
-                        options.secondColor?.color ?? .clear
-                    } set: { options.secondColor = WindowTheme.RGBA($0) }, supportsOpacity: false)
-                }
-                ColorPicker("Accent", selection: color(\.accent), supportsOpacity: false)
-            }
-            Section {
-                Picker("Appearance", selection: $options.appearance) {
-                    Text("System").tag(SpaceThemeOptions.Appearance.system)
-                    Text("Light").tag(SpaceThemeOptions.Appearance.light)
-                    Text("Dark").tag(SpaceThemeOptions.Appearance.dark)
-                }
-                Toggle("Grain", isOn: $options.grain)
-                Toggle("Light Streak", isOn: $options.lightStreak)
-            } header: {
-                Text("Look")
-            } footer: {
-                Text("A space set to Light or Dark keeps that appearance whatever the system's.")
-            }
-        }
-    }
-
-    /// One of the theme's colors; picking one by hand leaves the palettes.
-    private func color(_ key: WritableKeyPath<SpaceThemeOptions, WindowTheme.RGBA>) -> Binding<Color> {
-        Binding { options[keyPath: key].color } set: {
-            options[keyPath: key] = WindowTheme.RGBA($0)
-            palette = nil
-        }
-    }
-
-    /// One color for the light background, with the dark background and the accent derived from it.
-    fileprivate var customColor: Binding<Color> {
-        Binding { options.light.color } set: { color in
-            let base = NSColor(color).usingColorSpace(.sRGB) ?? .white
-            let r = base.redComponent, g = base.greenComponent, b = base.blueComponent
-            let gradientFollowsAccent = options.secondColor == options.accent
-            options.light = WindowTheme.RGBA(red: r, green: g, blue: b)
-            options.dark = WindowTheme.RGBA(red: r * 0.25, green: g * 0.25, blue: b * 0.3)
-            options.accent = WindowTheme.RGBA(red: r * 0.7, green: g * 0.7, blue: b * 0.9)
-            if gradientFollowsAccent { options.secondColor = options.accent }
-            palette = nil
-        }
-    }
-
     /// A small window in one appearance: the backdrop with its texture, the space's name and a selected row.
     fileprivate func previewCard(scheme: ColorScheme) -> some View {
         let style = previewStyle(scheme: scheme)
@@ -355,23 +280,10 @@ extension SpaceEditor {
         .foregroundStyle(style.foreground)
         .padding(.horizontal, 8)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background {
-            ZStack {
-                style.gradient
-                if style.grain > 0 { GrainOverlay(amount: style.grain) }
-                if style.lightStreak { LightStreak(radius: 220) }
-            }
-        }
+        .background { SpaceBackdrop(style: style, streakRadius: 220) }
         .environment(\.colorScheme, style.dark ? .dark : .light)
         .clipShape(.rect(cornerRadius: MacRadius.card, style: .continuous))
         .overlay { RoundedRectangle(cornerRadius: MacRadius.card, style: .continuous).strokeBorder(.primary.opacity(0.1)) }
-    }
-}
-
-extension WindowTheme.RGBA {
-    init(_ color: Color) {
-        let rgb = NSColor(color).usingColorSpace(.extendedSRGB) ?? .white
-        self.init(red: rgb.redComponent, green: rgb.greenComponent, blue: rgb.blueComponent)
     }
 }
 #endif

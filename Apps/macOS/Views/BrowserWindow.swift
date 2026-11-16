@@ -238,21 +238,37 @@ struct WindowBackdrop: View {
     var blending: NSVisualEffectView.BlendingMode = .behindWindow
 
     var body: some View {
+        let style = SpaceStyle(browser.currentSpace, scheme: scheme)
         Group {
             if browser.isIncognito {
                 LinearGradient(colors: [Color(white: 0.09), Color(red: 0.16, green: 0.12, blue: 0.3)],
                                startPoint: .top, endPoint: .bottom)
             } else {
-                let style = SpaceStyle(browser.currentSpace, scheme: scheme)
-                ZStack {
-                    style.gradient
-                    if style.grain > 0 { GrainOverlay(amount: style.grain) }
-                    if style.lightStreak { LightStreak() }
-                }
+                SpaceBackdrop(style: style, translucent: true)
             }
         }
-        .background(BlurredBackdrop(blending: blending))
+        // A translucent theme lets the desktop's colors through: the lighter blur shows more of them.
+        .background(BlurredBackdrop(blending: blending,
+                                    material: !browser.isIncognito && style.opacity < 1 ? .fullScreenUI : .underWindowBackground))
         .animation(.easeInOut(duration: 0.45), value: browser.currentSpace)
+    }
+}
+
+/// A space's backdrop: its gradient, texture and light streak. In the window it lets as much of the desktop show
+/// through as the theme asks, over the blur.
+struct SpaceBackdrop: View {
+    let style: SpaceStyle
+    var streakRadius: CGFloat = 520
+    var translucent = false
+
+    var body: some View {
+        ZStack {
+            style.gradient
+            TextureOverlay(texture: style.texture, amount: style.textureAmount)
+            if style.lightStreak { LightStreak(radius: streakRadius) }
+        }
+        .compositingGroup()
+        .opacity(translucent ? style.opacity : 1)
     }
 }
 
@@ -649,15 +665,18 @@ struct WindowAccessor: NSViewRepresentable {
 /// text from another window.
 private struct BlurredBackdrop: NSViewRepresentable {
     let blending: NSVisualEffectView.BlendingMode
+    var material = NSVisualEffectView.Material.underWindowBackground
 
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = StillEffectView()
-        view.material = .underWindowBackground
         view.state = .active
         return view
     }
 
-    func updateNSView(_ view: NSVisualEffectView, context: Context) { view.blendingMode = blending }
+    func updateNSView(_ view: NSVisualEffectView, context: Context) {
+        view.blendingMode = blending
+        view.material = material
+    }
 
     /// A drag on empty backdrop doesn't move the window, as it didn't before the blur was there.
     private final class StillEffectView: NSVisualEffectView {
@@ -680,6 +699,8 @@ private struct MacSpaceEditor: View {
                         try? model.store?.updateSpace(space.id, title: title, icon: icon, themeJSON: themeJSON)
                     } onDelete: {
                         model.deleteSpace(space)
+                    } onPreview: {
+                        browser.themePreview = $0
                     }
                 } else {
                     // The space was deleted while its editor was open, here or on another Mac: there's nothing to edit.

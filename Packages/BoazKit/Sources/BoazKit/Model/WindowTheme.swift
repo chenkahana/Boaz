@@ -46,6 +46,17 @@ public struct WindowTheme: Codable, Hashable, Sendable {
     /// show only when a theme turns them on.
     public var showsGrain = false
     public var showsLightStreak = false
+    /// The texture over the backdrop (`boazTexture`) and its strength, 0…1 (`boazTextureIntensity`). Themes from
+    /// before textures have only `boazGrain`.
+    public var texture: Texture?
+    public var textureIntensity: Double?
+    /// How much of the desktop shows through the backdrop, 0…1 (`boazTranslucency`).
+    public var translucency: Double = 0
+
+    public enum Texture: String, CaseIterable, Identifiable, Sendable {
+        case none, grain, paper, dots, linen
+        public var id: Self { self }
+    }
 
     enum CodingKeys: String, CodingKey { case semanticColorPalette, primaryColorPalette }
 
@@ -55,6 +66,9 @@ public struct WindowTheme: Codable, Hashable, Sendable {
             theme.readBackground(root)
             theme.showsGrain = root["boazGrain"] as? Bool ?? false
             theme.showsLightStreak = root["boazLightStreak"] as? Bool ?? false
+            theme.texture = (root["boazTexture"] as? String).flatMap(Texture.init)
+            theme.textureIntensity = root["boazTextureIntensity"] as? Double
+            theme.translucency = root["boazTranslucency"] as? Double ?? 0
         }
         return theme
     }
