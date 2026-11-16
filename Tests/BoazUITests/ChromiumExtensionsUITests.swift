@@ -235,7 +235,7 @@ final class ChromiumExtensionsUITests: BoazUITestCase {
         // Without the extensions button on screen, the post-install bubble points at the window's corner.
         mainWindow.buttons["sidebar.left"].click()
         install(storeID: ublock, path: "ublock-origin-lite", sidebarHidden: true)
-        mainWindow.buttons["sidebar.left"].click()
+        app.typeKey("s", modifierFlags: .command)  // the toggle hides with the sidebar
         // uBlock Origin Lite's popup reports on the current page.
         openPage("https://example.com/")
         openExtensionsMenu()

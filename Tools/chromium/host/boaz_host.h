@@ -353,7 +353,7 @@ typedef struct BoazHostAPI {
   BoazHostResult (*clear_split)(BoazHostWindow window);
   /* Accepted requests complete once asynchronously before shutdown_ready. A private request returns the
    * off-the-record session of the prepared profile `identifier` names, one per profile, as Chrome's incognito;
-   * releasing it ends that session. */
+   * it ends when its last window closes or when it is released. */
   BoazHostResult (*prepare_profile)(const char* identifier, uint8_t is_private,
       BoazHostProfileCompletion completion, void* context);
   BoazHostResult (*create_profile_window)(BoazHostProfile profile,
