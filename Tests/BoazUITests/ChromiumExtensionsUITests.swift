@@ -40,6 +40,46 @@ final class ChromiumExtensionsUITests: BoazUITestCase {
         XCTAssertFalse(app.menuItems["Parity: action item"].waitForExistence(timeout: 1))
     }
 
+    /// The action's menu closes, without a crash, when its extension goes away while the menu is open.
+    func testActionMenuClosesWhenExtensionIsRemoved() throws {
+        launchChromium()
+        openPage("https://example.com/")
+        pinFixture()
+        actionButton().click()
+        let remove = app.buttons["Remove this extension in 3 seconds"]
+        XCTAssertTrue(remove.waitForExistence(timeout: 8), app.debugDescription)
+        remove.click()
+        actionButton().rightClick()
+        let item = app.menuItems["Parity: action item"]
+        XCTAssertTrue(item.waitForExistence(timeout: 3), "The action's menu didn't open")
+        XCTAssertTrue(item.waitForNonExistence(timeout: 10), "The menu stayed open after its extension was removed")
+        XCTAssertTrue(actionButton().waitForNonExistence(timeout: 5))
+        XCTAssertEqual(app.state, .runningForeground, "Boaz quit")
+    }
+
+    /// As Chrome's: web and extension popup windows show their page's address, read-only.
+    func testPopupWindowsShowTheirAddress() throws {
+        launchChromium()
+        openPage("https://example.com/")
+        pinFixture()
+        actionButton().click()
+        let web = app.buttons["Open web popup"]
+        XCTAssertTrue(web.waitForExistence(timeout: 8), app.debugDescription)
+        web.click()
+        let location = app.descendants(matching: .any)["control.popupLocation"]
+        XCTAssertTrue(location.waitForExistence(timeout: 10), "A web popup has no location field: \(app.debugDescription)")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH 'https://example.com'"))
+            .firstMatch.waitForExistence(timeout: 10), "The web popup's location isn't its page's address")
+        app.windows.firstMatch.buttons["_XCUI:CloseWindow"].click()
+
+        actionButton().click()
+        let window = app.buttons["Open popup window"]
+        XCTAssertTrue(window.waitForExistence(timeout: 8))
+        window.click()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value BEGINSWITH 'chrome-extension://'"))
+            .firstMatch.waitForExistence(timeout: 10), "windows.create's popup has no location field")
+    }
+
     /// Item 4: ⇧⌘Y runs `_execute_action` (the popup); a click back in the window closes it, as in Chrome.
     /// ⇧⌘U runs the fixture's own command, which opens its side panel.
     func testCommands() throws {
@@ -152,11 +192,33 @@ final class ChromiumExtensionsUITests: BoazUITestCase {
         let second = app.windows.firstMatch
         openPage("https://example.com/", in: second)
         second.typeKey("y", modifierFlags: [.command, .shift])
-        // Boaz's private windows are each a unique off-the-record session of Chromium's own hidden profile, and
-        // Chromium gives extensions only a profile's primary off-the-record session (Chrome's incognito).
-        XCTExpectFailure("Private windows aren't the profile's incognito session, so its extensions can't run there")
         XCTAssertTrue(app.staticTexts["Parity popup"].waitForExistence(timeout: 8),
                       "The fixture's popup didn't open in the private window")
+    }
+
+    /// As Chrome's incognito: a profile's private windows share one session, which ends with the last of them.
+    func testPrivateWindowsShareOneSession() throws {
+        launchChromium()
+        let cookie = app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'boazprivate'")).firstMatch
+        menu("File", "New Incognito Window")
+        let first = app.windows.firstMatch
+        openPage("https://httpbin.org/cookies/set?boazprivate=1", in: first)
+        XCTAssertTrue(cookie.waitForExistence(timeout: 15), "The first private window didn't get the cookie")
+
+        menu("File", "New Incognito Window")
+        let second = app.windows.firstMatch
+        openPage("https://httpbin.org/cookies", in: second)
+        XCTAssertTrue(cookie.waitForExistence(timeout: 15), "A second private window doesn't share the session")
+
+        second.buttons["_XCUI:CloseWindow"].click()
+        app.windows.firstMatch.buttons["_XCUI:CloseWindow"].click()
+        XCTAssertEqual(app.windows.count, 1, "The private windows didn't close")
+        menu("File", "New Incognito Window")
+        let fresh = app.windows.firstMatch
+        openPage("https://httpbin.org/cookies", in: fresh)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "value CONTAINS 'cookies'")).firstMatch
+            .waitForExistence(timeout: 15), "httpbin didn't answer")
+        XCTAssertFalse(cookie.exists, "A new private session kept the last one's cookie")
     }
 
     /// Item 7 and the store check: installs JSON Formatter and uBlock Origin Lite from the Chrome Web Store with
@@ -170,7 +232,10 @@ final class ChromiumExtensionsUITests: BoazUITestCase {
         XCTAssertTrue(app.descendants(matching: .any).matching(labelContaining: "Parsed").firstMatch
             .waitForExistence(timeout: 15), "JSON Formatter didn't format the page")
 
-        install(storeID: ublock, path: "ublock-origin-lite")
+        // Without the extensions button on screen, the post-install bubble points at the window's corner.
+        mainWindow.buttons["sidebar.left"].click()
+        install(storeID: ublock, path: "ublock-origin-lite", sidebarHidden: true)
+        mainWindow.buttons["sidebar.left"].click()
         // uBlock Origin Lite's popup reports on the current page.
         openPage("https://example.com/")
         openExtensionsMenu()
@@ -244,7 +309,7 @@ final class ChromiumExtensionsUITests: BoazUITestCase {
         if button.exists { button.click() } else { app.typeKey(.escape, modifierFlags: []) }
     }
 
-    private func install(storeID: String, path: String) {
+    private func install(storeID: String, path: String, sidebarHidden: Bool = false) {
         openPage("https://chromewebstore.google.com/detail/\(path)/\(storeID)")
         // The store lays out wider than the test window's page; zoomed out, its button is on screen.
         mainWindow.typeKey("-", modifierFlags: .command)
@@ -261,9 +326,14 @@ final class ChromiumExtensionsUITests: BoazUITestCase {
         let installed = app.popovers.staticTexts.matching(NSPredicate(format: "value CONTAINS[c] 'added'")).firstMatch
         XCTAssertTrue(installed.waitForExistence(timeout: 30), "No post-install confirmation for \(path)")
         XCTAssertGreaterThan(app.popovers.firstMatch.frame.width, 200, "The post-install bubble is squashed")
+        if sidebarHidden {
+            XCTAssertGreaterThan(app.popovers.firstMatch.frame.maxX, mainWindow.frame.midX,
+                                 "Without the extensions button, the bubble isn't at the window's trailing corner")
+        }
         // Like Chrome's, the bubble closes when the window gets a click.
         mainWindow.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.6)).click()
         XCTAssertTrue(app.popovers.firstMatch.waitForNonExistence(timeout: 5), "The post-install bubble stayed open")
+        if sidebarHidden { return }
         openExtensionsMenu()
         XCTAssertTrue(app.descendants(matching: .any)["control.extensionRow.\(storeID)"].waitForExistence(timeout: 5))
         app.typeKey(.escape, modifierFlags: [])

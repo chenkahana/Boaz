@@ -54,6 +54,10 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       case "popup-window":
         await chrome.windows.create({ url: "popup.html?window", type: "popup", width: 400, height: 300 });
         break;
+      case "remove-later":
+        // Removes itself while a test holds its action's menu open.
+        setTimeout(() => chrome.management.uninstallSelf(), 3000);
+        break;
       case "content":
         await log("content", { url: sender.tab?.url });
         break;
