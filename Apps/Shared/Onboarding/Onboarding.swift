@@ -11,6 +11,9 @@ enum Onboarding {
     static func shouldShow(_ store: BoazStore) -> Bool {
         let defaults = UserDefaults.standard
         if defaults.bool(forKey: resetArgument) { return true }
+        // UI test mode (`-BoazUITest YES`, see `UITestMode` in the Mac target) never shows onboarding on its own;
+        // the raw key is read here, rather than the mac-only type, since this file is shared with iOS.
+        guard !defaults.bool(forKey: "BoazUITest") else { return false }
         guard !defaults.bool(forKey: completedKey) else { return false }
         if (try? StarterLibrary.hasUserContent(store)) == true {
             markCompleted()
@@ -32,10 +35,11 @@ enum Onboarding {
     }
 }
 
-/// The app icon floating on the brand gradient.
+/// The app icon (whichever pretzel is chosen) floating on the brand gradient.
 struct OnboardingHero: View {
     var size: CGFloat = 112
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(AppIconChoice.selectionKey) private var selection = AppIconChoice.classic.id
     @State private var floating = false
 
     var body: some View {
@@ -59,7 +63,7 @@ struct OnboardingHero: View {
         #if os(macOS)
         Image(nsImage: NSApplication.shared.applicationIconImage)
         #else
-        UIImage(named: "AppIcon-Preview").map { Image(uiImage: $0) } ?? Image(systemName: "eyes")
+        UIImage(named: AppIconChoice.with(id: selection).previewName).map { Image(uiImage: $0) } ?? Image(systemName: "eyes")
         #endif
     }
 }
@@ -80,6 +84,7 @@ struct OnboardingDots: View {
         .animation(Onboarding.spring, value: index)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Step \(index + 1) of \(count)")
+        .accessibilityAddTraits(.isStaticText)
     }
 }
 
@@ -95,7 +100,6 @@ struct OnboardingHeading: View {
                 .accessibilityAddTraits(.isHeader)
             Text(message)
                 .font(.title3)
-                .foregroundStyle(.white.opacity(0.85))
                 .fixedSize(horizontal: false, vertical: true)
         }
         .multilineTextAlignment(.center)

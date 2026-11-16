@@ -1,7 +1,7 @@
 import Foundation
 import WebKit
 
-/// A downloaded file (iOS: `Documents/Downloads`; macOS: `~/Downloads`).
+/// A downloaded file (iOS: `Documents/Downloads`; macOS: `~/Downloads`, or the UI test run's own folder).
 struct DownloadedFile: Identifiable, Hashable {
     var id: URL { url }
     let url: URL
@@ -18,6 +18,10 @@ enum Downloads {
     @MainActor
     static func directory() throws -> URL {
         #if os(macOS)
+        if let dir = UITestMode.downloadsDirectory {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            return dir
+        }
         return try FileManager.default.url(for: .downloadsDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
         #else
         let docs = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask,

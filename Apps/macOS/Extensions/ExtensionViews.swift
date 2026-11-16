@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+#if !BOAZ_CHROMIUM
 import UniformTypeIdentifiers
 import WebKit
 
@@ -193,6 +194,8 @@ struct ExtensionsManagerView: View {
     }
 }
 
+#endif
+
 /// The enabled extensions' toolbar buttons, beside the address field: icon and badge; a click opens the popup.
 struct ExtensionActionsBar: View {
     @Environment(BrowserState.self) private var browser
@@ -200,14 +203,14 @@ struct ExtensionActionsBar: View {
         #if BOAZ_CHROMIUM
         if let model = browser.chromiumExtensions {
             ChromiumExtensionActionsBar(model: model)
-        } else {
-            WebKitExtensionActionsBar()
         }
         #else
         WebKitExtensionActionsBar()
         #endif
     }
 }
+
+#if !BOAZ_CHROMIUM
 
 private struct WebKitExtensionActionsBar: View {
     @Environment(BrowserState.self) private var browser
@@ -260,3 +263,4 @@ private struct ActionAnchor: NSViewRepresentable {
 
     func updateNSView(_ view: NSView, context: Context) { Extensions.shared.actionAnchors[key] = .init(view: view) }
 }
+#endif

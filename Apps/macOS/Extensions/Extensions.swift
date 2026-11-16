@@ -1,3 +1,5 @@
+// The WebKit builds' extension system. The Chromium build runs Chromium's own extensions instead.
+#if !BOAZ_CHROMIUM
 import AppKit
 import BoazKit
 import WebKit
@@ -420,3 +422,4 @@ extension Extensions: WKWebExtensionControllerDelegate {
         pattern.matchesAllHosts ? "Read and change all websites" : "Read and change \(pattern.string)"
     }
 }
+#endif

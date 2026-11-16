@@ -95,6 +95,8 @@ def assemble(base, receipt, output, native_launch=False, production_version=None
     if not any(item.name == 'Boaz.icns' and item.is_file() for item in resources):
         raise RuntimeError('Build receipt requires the Boaz application icon')
     bundle = next((p for p in resources if p.name == 'BoazResources.bundle'), None)
+    # Receipts from before the Dock tile plug-in existed stage without it.
+    dock_tile = next((p for p in resources if p.suffix == '.docktileplugin'), None)
     sparkle = next((p for p in resources if p.name == 'Sparkle.framework'), None)
     if bundle is None or sparkle is None or not library.is_file():
         raise RuntimeError('Completed UI build must include its library, resources, and Sparkle')
@@ -115,6 +117,8 @@ def assemble(base, receipt, output, native_launch=False, production_version=None
                          'CrProductDirName': 'Boaz Chromium Development'})
         metadata['CFBundleIconFile'] = 'Boaz.icns'
         metadata.pop('CFBundleIconName', None)
+        if dock_tile is not None:
+            metadata['NSDockTilePlugIn'] = dock_tile.name
         if production_version:
             metadata.update({key: value for key, value in distribution.items() if key.startswith('SU')})
             metadata.update({'CFBundleIdentifier': 'com.chenkahana.boaz', 'CFBundleName': 'Boaz',
@@ -149,7 +153,9 @@ def assemble(base, receipt, output, native_launch=False, production_version=None
     for item in [library, blocker, *resources]:
         if item.name == 'Assets.car':
             continue  # The catalog belongs to BoazResources.bundle.
-        parent = frameworks if item.suffix in ('.dylib', '.framework') else destination
+        parent = (frameworks if item.suffix in ('.dylib', '.framework') else
+                  output / 'Contents/PlugIns' if item.suffix == '.docktileplugin' else destination)
+        parent.mkdir(exist_ok=True)
         target = parent / item.name
         if target.exists() or target.is_symlink():
             raise RuntimeError(f'Artifact conflicts with Chromium resource: {target}')

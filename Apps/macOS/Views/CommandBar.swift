@@ -37,6 +37,7 @@ struct CommandBar: View {
             VStack(spacing: 0) {
                 HStack(spacing: 12) {
                     Image(systemName: icon).font(.system(size: 17, weight: .medium)).foregroundStyle(tint)
+                        .accessibilityHidden(true)
                     #if BOAZ_CHROMIUM
                     if let field = browser.chromiumAddressField {
                         ChromiumAddressField(field: field, text: $text, placeholder: placeholder,
@@ -53,6 +54,7 @@ struct CommandBar: View {
                         .onKeyPress(.downArrow) { selection = min(selection + 1, max(suggestions.count - 1, 0)); return .handled }
                         .onKeyPress(.upArrow) { selection = max(selection - 1, 0); return .handled }
                         .onKeyPress(.escape) { browser.commandMode = nil; return .handled }
+                        .accessibilityIdentifier("control.commandBar.field")
                     }
                     #else
                     TextField(placeholder, text: $text)
@@ -63,6 +65,7 @@ struct CommandBar: View {
                         .onKeyPress(.downArrow) { selection = min(selection + 1, max(suggestions.count - 1, 0)); return .handled }
                         .onKeyPress(.upArrow) { selection = max(selection - 1, 0); return .handled }
                         .onKeyPress(.escape) { browser.commandMode = nil; return .handled }
+                        .accessibilityIdentifier("control.commandBar.field")
                     #endif
                 }
                 .padding(.horizontal, 18).frame(height: 56)
@@ -92,6 +95,8 @@ struct CommandBar: View {
             .shadow(color: .black.opacity(0.25), radius: 40, y: 20)
             .padding(.top, 110)
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("screen.commandBar")
         .onAppear {
             if mode == .currentTab { text = browser.activeURL?.absoluteString ?? "" }
         }
@@ -200,7 +205,7 @@ struct CommandBar: View {
         let query = text.trimmingCharacters(in: .whitespaces)
         var result: [Suggestion] = []
         let engine = Preferences.searchEngine
-        if let url = SearchInput.url(for: query, searchTemplate: engine.template) {
+        if let url = SearchInput.url(for: query, searchTemplate: engine.template, schemes: SearchInput.typedSchemes) {
             let isSearch = url.absoluteString.hasPrefix(engine.template.replacingOccurrences(of: "%@", with: ""))
             result.append(.go(url, label: isSearch ? "Search \(engine.name) for “\(query)”" : url.absoluteString,
                               isSearch: isSearch))

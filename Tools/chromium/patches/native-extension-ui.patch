@@ -1,0 +1,155 @@
+--- a/chrome/browser/extensions/extension_install_prompt.cc
++++ b/chrome/browser/extensions/extension_install_prompt.cc
+@@ -7,11 +7,6 @@
+ #include <optional>
+ #include <utility>
+ 
+-#include "build/build_config.h"
+-#if BUILDFLAG(IS_MAC)
+-#include "boaz/bootstrap.h"
+-#endif
+-
+ #include "base/functional/bind.h"
+ #include "base/location.h"
+ #include "base/task/single_thread_task_runner.h"
+@@ -152,17 +147,11 @@
+   extension_ = extension;
+   SetIcon(icon);
+ 
+-#if BUILDFLAG(IS_MAC)
+-  if (boaz::NativeHostEnabled()) return;
+-#endif
+   install_ui_->OnInstallSuccess(extension, &icon_);
+ }
+ 
+ void ExtensionInstallPrompt::OnInstallFailure(
+     const extensions::CrxInstallError& error) {
+-#if BUILDFLAG(IS_MAC)
+-  if (boaz::NativeHostEnabled()) return;
+-#endif
+   install_ui_->OnInstallFailure(error);
+ }
+ 
+--- a/chrome/browser/extensions/chrome_extension_registrar_delegate.cc
++++ b/chrome/browser/extensions/chrome_extension_registrar_delegate.cc
+@@ -7,11 +7,6 @@
+ #include <set>
+ #include <string>
+ #include <utility>
+-
+-#include "build/build_config.h"
+-#if BUILDFLAG(IS_MAC)
+-#include "boaz/bootstrap.h"
+-#endif
+ 
+ #include "base/barrier_closure.h"
+ #include "base/files/file_util.h"
+@@ -311,11 +306,6 @@
+ void ChromeExtensionRegistrarDelegate::ShowExtensionDisabledError(
+     const Extension* extension,
+     bool is_remote_install) {
+-#if BUILDFLAG(IS_MAC)
+-  if (boaz::NativeHostEnabled()) {
+-    return;
+-  }
+-#endif
+   AddExtensionDisabledError(profile_, extension, is_remote_install);
+ }
+ 
+--- a/chrome/browser/ui/extensions/extension_install_ui_desktop.cc
++++ b/chrome/browser/ui/extensions/extension_install_ui_desktop.cc
+@@ -12,6 +12,10 @@
+ #include "base/scoped_observation.h"
+ #include "base/strings/utf_string_conversions.h"
+ #include "build/build_config.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/bootstrap.h"
++#include "boaz/native_extension_dialogs.h"
++#endif
+ #include "chrome/browser/browser_process.h"
+ #include "chrome/browser/infobars/browser_infobar_manager.h"
+ #include "chrome/browser/infobars/infobar_features.h"
+@@ -188,6 +192,13 @@
+     return;
+   }
+ 
++#if BUILDFLAG(IS_MAC)
++  if (boaz::NativeHostEnabled()) {
++    boaz::ShowNativeExtensionInstallError(tab->GetContents(), error.message());
++    return;
++  }
++#endif
++
+   if (infobars::IsInfoBarMigrated(
+           infobars::InfoBarDelegate::INSTALLATION_ERROR_INFOBAR_DELEGATE)) {
+     infobars::InfoBarShowParams params;
+--- a/chrome/browser/ui/global_error/global_error.cc
++++ b/chrome/browser/ui/global_error/global_error.cc
+@@ -9,6 +9,12 @@
+ #include "components/vector_icons/vector_icons.h"
+ #include "ui/base/ui_base_features.h"
+ 
++#include "build/build_config.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/bootstrap.h"
++#include "boaz/native_extension_dialogs.h"
++#endif
++
+ // GlobalError ---------------------------------------------------------------
+ 
+ GlobalError::GlobalError() = default;
+@@ -42,6 +48,12 @@
+ 
+ void GlobalErrorWithStandardBubble::ShowBubbleView(
+     BrowserWindowInterface* browser) {
++#if BUILDFLAG(IS_MAC)
++  if (boaz::NativeHostEnabled()) {
++    has_shown_bubble_view_ = boaz::ShowNativeGlobalErrorBubble(browser, AsWeakPtr());
++    return;
++  }
++#endif
+   has_shown_bubble_view_ = true;
+   bubble_view_ =
+       GlobalErrorBubbleViewBase::ShowStandardBubbleView(browser, AsWeakPtr());
+--- a/chrome/browser/ui/extensions/extension_dialog_utils_views.cc
++++ b/chrome/browser/ui/extensions/extension_dialog_utils_views.cc
+@@ -14,6 +14,12 @@
+ #include "ui/views/bubble/bubble_dialog_model_host.h"
+ #include "ui/views/widget/widget.h"
+ 
++#include "build/build_config.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/bootstrap.h"
++#include "boaz/native_extension_dialogs.h"
++#endif
++
+ namespace {
+ 
+ // Returns the action view corresponding to the extension if a single
+@@ -52,6 +58,12 @@
+ void ShowDialog(gfx::NativeWindow parent,
+                 const std::vector<extensions::ExtensionId>& extension_ids,
+                 std::unique_ptr<ui::DialogModel> dialog_model) {
++#if BUILDFLAG(IS_MAC)
++  if (boaz::NativeHostEnabled() &&
++      boaz::ShowNativeExtensionDialog(parent, extension_ids, dialog_model)) {
++    return;
++  }
++#endif
+   ExtensionsContainerViews* const container =
+       parent ? GetExtensionsContainerViews(parent) : nullptr;
+   if (container && container->IsVisible() &&
+@@ -66,6 +78,13 @@
+ void ShowDialog(content::WebContents* web_contents,
+                 const std::vector<extensions::ExtensionId>& extension_ids,
+                 std::unique_ptr<ui::DialogModel> dialog_model) {
++#if BUILDFLAG(IS_MAC)
++  if (boaz::NativeHostEnabled() && web_contents &&
++      boaz::ShowNativeExtensionDialog(web_contents->GetTopLevelNativeWindow(),
++                                      extension_ids, dialog_model)) {
++    return;
++  }
++#endif
+   ExtensionsContainerViews* const container =
+       GetExtensionsContainerViews(web_contents);
+   if (container && container->IsVisible() &&

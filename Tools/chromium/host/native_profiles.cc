@@ -13,16 +13,20 @@
 #include "crypto/sha2.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/scoped_multi_source_observation.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/time/time.h"
+#include "base/timer/timer.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/profiles/profile_destroyer.h"
 #include "chrome/browser/profiles/profile_manager.h"
+#include "chrome/browser/profiles/profile_observer.h"
 #include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
 #include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
 #include "content/public/browser/browser_thread.h"
 namespace boaz {
-class NativeProfiles::Impl {
+class NativeProfiles::Impl final : public ProfileObserver {
  public:
   using Completion = base::OnceCallback<void(BoazHostResult, BoazHostProfile)>;
   struct Entry {
@@ -41,9 +45,12 @@ class NativeProfiles::Impl {
     CHECK(primary_);
     CHECK(!primary_->IsOffTheRecord());
   }
-  ~Impl() {
+  ~Impl() override {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
     CHECK(pending_.empty());
+    session_observations_.RemoveAllObservations();
+    end_poll_.Stop();
+    for (auto& waiter : waiting_for_end_) Post(std::move(waiter.callback), BOAZ_HOST_UNAVAILABLE);
     weak_.InvalidateWeakPtrs();
     for (auto& [id, entry] : entries_) {
       entry.blocking->Close();
@@ -51,7 +58,7 @@ class NativeProfiles::Impl {
       CHECK(!entry.cache_clearer || !entry.cache_clearer->busy());
       entry.cache_clearer.reset();
       entry.downloads.reset();
-      if (entry.is_private) ProfileDestroyer::DestroyOTRProfileWhenAppropriate(entry.profile);
+      if (entry.is_private && entry.profile) ProfileDestroyer::DestroyOTRProfileWhenAppropriate(entry.profile);
     }
   }
   static void Post(Completion callback, BoazHostResult result, BoazHostProfile handle = 0) {
@@ -83,6 +90,7 @@ class NativeProfiles::Impl {
     downloads->SetObserver(base::BindRepeating(&Impl::DownloadChanged, weak_.GetWeakPtr(), id));
     entries_.emplace(id, Entry{profile, std::move(keep_alive), std::move(identifier),
                               private_session, std::move(downloads), nullptr});
+    if (private_session) session_observations_.AddObservation(profile);
     return id;
   }
   void Acquire(std::string identifier, bool private_session, Completion callback) {
@@ -93,10 +101,28 @@ class NativeProfiles::Impl {
     }
     if (!SafeRoot()) { Post(std::move(callback), BOAZ_HOST_UNAVAILABLE); return; }
     if (private_session) {
-      auto keep_alive = ScopedProfileKeepAlive::TryAcquire(primary_, ProfileKeepAliveOrigin::kOffTheRecordProfile);
-      if (!keep_alive) { Post(std::move(callback), BOAZ_HOST_UNAVAILABLE); return; }
-      auto* profile = primary_->GetOffTheRecordProfile(Profile::OTRProfileID::CreateUnique("Boaz"), true);
+      // As Chrome's incognito: the open profile `identifier` names has one off-the-record session, shared by its
+      // private windows and given its extensions allowed in incognito. Chromium ends it when its last window closes.
+      Profile* parent = nullptr;
+      for (const auto& [id, entry] : entries_) {
+        if (!entry.is_private && !entry.release_requested && entry.identifier == identifier) {
+          parent = entry.profile; break;
+        }
+      }
+      if (!parent) { Post(std::move(callback), BOAZ_HOST_UNAVAILABLE); return; }
+      auto* profile = parent->GetPrimaryOTRProfile(/*create_if_needed=*/true);
       if (!profile) { Post(std::move(callback), BOAZ_HOST_UNAVAILABLE); return; }
+      if (const auto existing = HandleFor(profile)) { Post(std::move(callback), BOAZ_HOST_OK, existing); return; }
+      // The session the last private window ended is still closing; a new one starts once it is gone.
+      if (profile->ShutdownStarted()) {
+        waiting_for_end_.push_back({profile->GetWeakPtr(), std::move(identifier), std::move(callback)});
+        if (!end_poll_.IsRunning())
+          end_poll_.Start(FROM_HERE, base::Milliseconds(100),
+                          base::BindRepeating(&Impl::RetryWaiting, base::Unretained(this)));
+        return;
+      }
+      auto keep_alive = ScopedProfileKeepAlive::TryAcquire(parent, ProfileKeepAliveOrigin::kOffTheRecordProfile);
+      if (!keep_alive) { Post(std::move(callback), BOAZ_HOST_UNAVAILABLE); return; }
       Post(std::move(callback), BOAZ_HOST_OK,
            Insert(profile, std::move(identifier), true, std::move(keep_alive)));
       return;
@@ -167,7 +193,7 @@ class NativeProfiles::Impl {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
     download_observer_ = std::move(observer);
     for (auto& [handle, entry] : entries_)
-      entry.downloads->SetObserver(base::BindRepeating(&Impl::DownloadChanged, weak_.GetWeakPtr(), handle));
+      if (entry.downloads) entry.downloads->SetObserver(base::BindRepeating(&Impl::DownloadChanged, weak_.GetWeakPtr(), handle));
   }
   BoazHostResult ClearCache(BoazHostProfile handle, NativeCacheClearer::Completion completion) {
     DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
@@ -216,8 +242,36 @@ class NativeProfiles::Impl {
     CHECK(!entry.cache_clearer || !entry.cache_clearer->busy());
     entry.cache_clearer.reset();
     entry.downloads.reset();
-    if (entry.is_private) ProfileDestroyer::DestroyOTRProfileWhenAppropriate(entry.profile);
+    if (entry.is_private && entry.profile) {
+      session_observations_.RemoveObservation(entry.profile.get());
+      ProfileDestroyer::DestroyOTRProfileWhenAppropriate(entry.profile);
+    }
     return BOAZ_HOST_OK;
+  }
+  // ProfileObserver: Chromium is ending a private session (its last window closed). The handle stays until
+  // Boaz releases it but no longer resolves to the profile.
+  void OnProfileWillBeDestroyed(Profile* profile) override {
+    DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+    session_observations_.RemoveObservation(profile);
+    for (auto& [handle, entry] : entries_) {
+      if (entry.profile != profile) continue;
+      entry.blocking->Close();
+      entry.downloads.reset();
+      if (!entry.cache_pending) entry.cache_clearer.reset();
+      entry.keep_alive.reset();
+      entry.profile = nullptr;
+      entry.release_requested = true;
+    }
+  }
+  void RetryWaiting() {
+    std::vector<Waiter> ready;
+    for (auto it = waiting_for_end_.begin(); it != waiting_for_end_.end();) {
+      if (it->ending) { ++it; continue; }
+      ready.push_back(std::move(*it));
+      it = waiting_for_end_.erase(it);
+    }
+    if (waiting_for_end_.empty()) end_poll_.Stop();
+    for (auto& waiter : ready) Acquire(std::move(waiter.identifier), true, std::move(waiter.callback));
   }
  private:
   DownloadObserver download_observer_;
@@ -225,6 +279,15 @@ class NativeProfiles::Impl {
   raw_ptr<Profile> primary_;
   std::map<BoazHostProfile, Entry> entries_;
   std::map<std::string, std::vector<Completion>> pending_;
+  base::ScopedMultiSourceObservation<Profile, ProfileObserver> session_observations_{this};
+  // Requests for a private session while the previous one is still closing.
+  struct Waiter {
+    base::WeakPtr<Profile> ending;
+    std::string identifier;
+    Completion callback;
+  };
+  std::vector<Waiter> waiting_for_end_;
+  base::RepeatingTimer end_poll_;
   base::WeakPtrFactory<Impl> weak_{this};
 };
 NativeProfiles::NativeProfiles(base::FilePath root, Profile* primary)

@@ -1,0 +1,52 @@
+{
+  "viewer": { "login": "octocat", "name": "The Octocat" },
+  "teams": ["acme/web"],
+  "searches": {
+    "author:@me": [
+      {
+        "number": 116, "title": "Live folders for GitHub pull requests", "url": "https://github.com/acme/boaz/pull/116",
+        "isDraft": false, "reviewDecision": "REVIEW_REQUIRED", "updatedAt": "2026-11-15T12:00:00Z",
+        "repository": { "nameWithOwner": "acme/boaz" }, "author": { "login": "octocat" },
+        "commits": { "nodes": [{ "commit": { "statusCheckRollup": { "state": "SUCCESS" } } }] }
+      },
+      {
+        "number": 42, "title": "Exclude testKit from the bundle", "url": "https://github.com/acme/web/pull/42",
+        "isDraft": false, "reviewDecision": "CHANGES_REQUESTED", "updatedAt": "2026-11-15T11:00:00Z",
+        "repository": { "nameWithOwner": "acme/web" }, "author": { "login": "octocat" },
+        "commits": { "nodes": [{ "commit": { "statusCheckRollup": { "state": "FAILURE" } } }] }
+      },
+      {
+        "number": 7, "title": "Draft: try a new cache", "url": "https://github.com/octocat/tools/pull/7",
+        "isDraft": true, "reviewDecision": null, "updatedAt": "2026-11-14T09:00:00Z",
+        "repository": { "nameWithOwner": "octocat/tools" }, "author": { "login": "octocat" },
+        "commits": { "nodes": [{ "commit": { "statusCheckRollup": null } }] }
+      }
+    ],
+    "review-requested:@me": [
+      {
+        "number": 118, "title": "Docker: keep pnpm store between builds", "url": "https://github.com/acme/web/pull/118",
+        "isDraft": false, "reviewDecision": "REVIEW_REQUIRED", "updatedAt": "2026-11-15T11:30:00Z",
+        "repository": { "nameWithOwner": "acme/web" }, "author": { "login": "hubot" },
+        "commits": { "nodes": [{ "commit": { "statusCheckRollup": { "state": "PENDING" } } }] }
+      },
+      {
+        "number": 116, "title": "Live folders for GitHub pull requests", "url": "https://github.com/acme/boaz/pull/116",
+        "isDraft": false, "reviewDecision": "REVIEW_REQUIRED", "updatedAt": "2026-11-15T12:00:00Z",
+        "repository": { "nameWithOwner": "acme/boaz" }, "author": { "login": "octocat" },
+        "commits": { "nodes": [{ "commit": { "statusCheckRollup": { "state": "SUCCESS" } } }] }
+      }
+    ],
+    "team-review-requested:acme/web": [
+      {
+        "number": 120, "title": "chore(knip): drop unused exports", "url": "https://github.com/acme/web/pull/120",
+        "isDraft": false, "reviewDecision": "REVIEW_REQUIRED", "updatedAt": "2026-11-15T10:00:00Z",
+        "repository": { "nameWithOwner": "acme/web" }, "author": { "login": "monalisa" },
+        "commits": { "nodes": [{ "commit": { "statusCheckRollup": { "state": "SUCCESS" } } }] }
+      }
+    ],
+    "assignee:@me": [],
+    "mentions:@me": []
+  },
+  "sso": "partial-results; organizations=4242",
+  "organizations": { "4242": "acme-enterprise" }
+}

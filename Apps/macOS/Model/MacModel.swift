@@ -10,7 +10,11 @@ import WebKit
 /// Per-window state (current space, open pages, split, peek) lives in `BrowserState`.
 @Observable
 final class MacModel {
-    static let shared = MacModel()
+    static let shared: MacModel = {
+        // Before the model reads a persisted default (the windows to reopen are read as it's made).
+        UITestMode.resetDefaultsIfNeeded()
+        return MacModel()
+    }()
     private static let log = Logger(subsystem: "com.chenkahana.boaz", category: "app")
     /// Data store identifiers of deleted profiles whose site data WebKit hasn't removed yet.
     private static let pendingSiteDataKey = "pendingSiteDataRemovals"
@@ -85,48 +89,57 @@ final class MacModel {
         let store: BoazStore
         do {
             #if BOAZ_CHROMIUM
-            store = try BoazStore.onDisk(applicationSupportDirectory: ChromiumLegacyStore.applicationSupportDirectory())
+            store = try BoazStore.onDisk(applicationSupportDirectory: UITestMode.storeDirectory ?? ChromiumLegacyStore.applicationSupportDirectory())
             #else
-            store = try BoazStore.onDisk()
+            store = try BoazStore.onDisk(applicationSupportDirectory: UITestMode.storeDirectory)
             #endif
             self.store = store
-            let sync = LibrarySync(store: store)
-            self.sync = sync
-            // A device joining an existing library gets it from there; a lone device starts with a Personal space.
-            var askedEarly = false
-            if try store.isEmpty() {
-                // Welcome goes up at once; the library (joined or starter) lands behind it.
+            if UITestMode.isActive {
+                // UI tests: a fresh, local-only store seeded from the fixture; no CloudKit sync, no background loops.
+                try await UITestFixtures.seedIfNeeded(store, deviceID: deviceID)
                 needsOnboarding = Onboarding.shouldShow(store)
-                askedEarly = true
-                await sync.start()
-            }
-            try StarterLibrary.seedIfEmpty(store)
-            if !askedEarly { needsOnboarding = Onboarding.shouldShow(store) }
-            Task { await sync.start() }
-            registerDevice()
-            Task { await archiveLoop() }
-            Task { await fetchLoop(sync) }
-            NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil,
-                                                   queue: .main) { _ in
-                MainActor.assumeIsolated {
-                    MacModel.shared.archiveStaleTabs()
-                    MacModel.shared.registerDevice()
-                    Task { await sync.syncNow() }
+            } else {
+                let sync = LibrarySync(store: store)
+                self.sync = sync
+                // A device joining an existing library gets it from there; a lone device starts with a Personal space.
+                var askedEarly = false
+                if try store.isEmpty() {
+                    // Welcome goes up at once; the library (joined or starter) lands behind it.
+                    needsOnboarding = Onboarding.shouldShow(store)
+                    askedEarly = true
+                    await sync.start()
+                }
+                try StarterLibrary.seedIfEmpty(store)
+                if !askedEarly { needsOnboarding = Onboarding.shouldShow(store) }
+                Task { await sync.start() }
+                registerDevice()
+                Task { await archiveLoop() }
+                Task { await fetchLoop(sync) }
+                NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil,
+                                                       queue: .main) { _ in
+                    MainActor.assumeIsolated {
+                        MacModel.shared.archiveStaleTabs()
+                        MacModel.shared.registerDevice()
+                        Task { await sync.syncNow() }
+                    }
+                }
+                NotificationCenter.default.addObserver(forName: NSApplication.willResignActiveNotification, object: nil,
+                                                       queue: .main) { _ in
+                    MainActor.assumeIsolated { MacModel.shared.openBrowsers.forEach { $0.rememberPagesInView() } }
                 }
             }
-            NotificationCenter.default.addObserver(forName: NSApplication.willResignActiveNotification, object: nil,
-                                                   queue: .main) { _ in
-                MainActor.assumeIsolated { MacModel.shared.openBrowsers.forEach { $0.rememberPagesInView() } }
-            }
         } catch {
+            // A broken fixture must fail the run loudly, not show an empty library that still "passes".
+            if UITestMode.isActive { fatalError("UI test store setup failed: \(error)") }
             loadError = String(describing: error)
             return
         }
         // Not tied to the window whose task started the app: closing that window would stop the sidebar following
         // the library, and a new space wouldn't show until relaunch.
         Task { await observeSidebar(store) }
+        LiveFolderRefresher.shared.start(self)
         #if BOAZ_CHROMIUM
-        Task { await observeEngineRules(store) }
+        if !UITestMode.isActive { Task { await observeEngineRules(store) } }
         #endif
     }
 
@@ -155,7 +168,9 @@ final class MacModel {
                     let live = Set(snapshot.profiles.map(\.dataStoreID))
                     removeSiteData((UserDefaults.standard.stringArray(forKey: Self.pendingSiteDataKey) ?? [])
                         .compactMap(UUID.init).filter { !live.contains($0) })
+                    #if !BOAZ_CHROMIUM
                     Extensions.shared.loadInstalled()
+                    #endif
                     // A launch without a main window (a link to a Quick Window) has nothing to restore.
                     Task {
                         try? await Task.sleep(for: .seconds(10))
@@ -703,6 +718,69 @@ final class MacModel {
         commit(folder)
     }
 
+    /// A Pull Requests live folder at the end of the space's Pinned, listing Created by Me and Review Requests.
+    @discardableResult
+    func newLiveFolder(in space: Space) -> SidebarItem? {
+        guard let box = sidebar.container(.pinned, in: space.id) else { return nil }
+        let folder = SidebarItem(id: UUID().uuidString, spaceID: space.id, profileID: space.profileID,
+                                 parentID: box.id, kind: .folder, title: "Pull Requests",
+                                 position: sidebar.nextPosition(in: box.id),
+                                 liveSource: LiveSource(provider: LiveSource.githubPulls,
+                                                        filters: GitHubPullFilter.defaults.map(\.rawValue)))
+        commit(folder)
+        LiveFolderRefresher.shared.refreshNow()
+        return folder
+    }
+
+    /// Changes what a live folder lists, and refreshes it.
+    func updateLiveSource(_ folder: SidebarItem, _ change: (inout LiveSource) -> Void) {
+        guard var item = item(folder.id), var source = item.liveSource else { return }
+        change(&source)
+        guard source != item.liveSource else { return }
+        item.liveSource = source
+        commit(item)
+        LiveFolderRefresher.shared.refreshNow()
+    }
+
+    /// A folder's emoji or SF Symbol; nil goes back to the folder glyph.
+    func setIcon(_ folder: SidebarItem, to icon: String?) {
+        guard var item = item(folder.id), item.icon != icon else { return }
+        item.icon = icon
+        commit(item)
+    }
+
+    /// Every address in a folder, one per line, on the clipboard.
+    func copyAllLinks(in folder: SidebarItem) {
+        let links = descendants(of: folder.id).compactMap { $0.kind == .tab ? $0.url?.absoluteString : nil }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(links.joined(separator: "\n"), forType: .string)
+        showToast("Copied \(links.count) link\(links.count == 1 ? "" : "s")")
+    }
+
+    /// Deletes a folder with everything in it. A live folder's own tabs simply go (the source lists them again); the
+    /// rest move to the Archive.
+    func deleteFolder(_ folder: SidebarItem) {
+        guard item(folder.id) != nil, let store else { return }
+        let inside = descendants(of: folder.id)
+        let tabs = inside.filter { $0.kind == .tab }
+        for browser in openBrowsers { tabs.map(\.id).forEach(browser.unload) }
+        let now = Date.now
+        func tombstone(_ item: SidebarItem) -> SidebarItem { var item = item; item.deletedAt = now; item.modifiedAt = now; return item }
+        let folders = ([folder] + inside.filter { $0.kind == .folder }).map(tombstone)
+        let isLive = { (tab: SidebarItem) in folder.liveSource != nil && tab.isLiveChild(of: folder) }
+        let live = tabs.filter(isLive)
+        let archived = tabs.filter { !isLive($0) }
+        do {
+            try store.archive(archived, reason: "closed", saving: folders + live.map(tombstone), at: now)
+        } catch {
+            showToast("Couldn't delete folder: \(error.localizedDescription)")
+            return
+        }
+        var updated = sidebar
+        for item in folders + tabs.map(tombstone) { updated.upsert(item) }
+        sidebar = updated
+    }
+
     /// A new folder around `tab`, in the tab's own container (Today or Pinned); the tab moves inside.
     @discardableResult
     func addToNewFolder(_ tab: SidebarItem) -> SidebarItem? {
@@ -794,7 +872,9 @@ final class MacModel {
             browser.unloadPagesWithoutTabs()
             if let peek = browser.peek, peek.profileID.map(profileIDs.contains) ?? false { browser.peek = nil }
         }
+        #if !BOAZ_CHROMIUM
         Extensions.shared.forget(profileIDs: profileIDs)
+        #endif
     }
 
     /// A deleted profile's WebKit data on this Mac (logins, cookies, caches), deleted here or on another device.

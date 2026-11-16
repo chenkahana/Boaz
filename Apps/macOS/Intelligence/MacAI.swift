@@ -8,6 +8,12 @@ struct MacAISheet: View {
     let request: AIRequest
 
     var body: some View {
+        content
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("screen.ai")
+    }
+
+    @ViewBuilder private var content: some View {
         switch request {
         case .page(let tabID, let mode):
             if let tab = browser.tab(tabID) {

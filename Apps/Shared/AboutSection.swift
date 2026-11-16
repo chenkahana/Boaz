@@ -7,6 +7,15 @@ struct AboutSection: View {
 
     var body: some View {
         Section {
+            HStack(spacing: 14) {
+                CurrentAppIcon(size: 56)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Boaz").font(.headline)
+                    Text("Version \(version) · twisted with care").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .padding(.vertical, 2)
+            .accessibilityElement(children: .combine)
             Link("Privacy Policy", destination: Self.privacyPolicy)
             Link("Support", destination: Self.support)
         } header: {

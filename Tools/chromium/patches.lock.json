@@ -904,6 +904,48 @@
       ]
     },
     {
+      "file": "patches/native-extension-ui.patch",
+      "sha256": "0caed6be77739f7bec36e1ee8d75417722ca535f27d4e68eda72a67599837099",
+      "files": [
+        {
+          "path": "chrome/browser/extensions/extension_install_prompt.cc",
+          "before": "67126ade1a5f7c6d1b918a942978494abd54f147964812f7425380c69e7c8fa3",
+          "after": "0fb04d8bc95c535ef3670214cbf55b16598378f665cf6d0b9bd0a496979a9fe6"
+        },
+        {
+          "path": "chrome/browser/extensions/chrome_extension_registrar_delegate.cc",
+          "before": "a8a1b5d53f4c7f5a60d9923d6131c3b1b0dfe465e98bc6372d78028e9ba1fad0",
+          "after": "876a47835cc2de001acf30a23324b71039c631d95de8384b9b55a9111a28b44d"
+        },
+        {
+          "path": "chrome/browser/ui/extensions/extension_install_ui_desktop.cc",
+          "before": "0ca595092a7ebecf25037a8c5ee141c6a9bc91d5d2894d7294f4971ad439064e",
+          "after": "8d25939b2d0600895dc68ce033c1b6fe333702254a0474c6cf67f1d4d09b7390"
+        },
+        {
+          "path": "chrome/browser/ui/global_error/global_error.cc",
+          "before": "86f811e1af4e25eb269f193d10b00907167cb6ad4c2ff38c8061d5a6f4bb917a",
+          "after": "5700c5e23c50c24e95a3782df8f5ee0181455be389d99ab63c16b8716b6bc699"
+        },
+        {
+          "path": "chrome/browser/ui/extensions/extension_dialog_utils_views.cc",
+          "before": "d58560b6350c483341852b80af3257d5f51d6c63843ccdef6fbef6e5b8e43e94",
+          "after": "7dc64c38d33847c3b5125045f3ecb707b187ccbcdf19d896287cc9ca9e9bc1b4"
+        }
+      ]
+    },
+    {
+      "file": "patches/native-window-creation-profiles.patch",
+      "sha256": "a0a2b98d5c1398b4989cd24c4dd6376091a59bebfad2381082abad14bdb1ad6d",
+      "files": [
+        {
+          "path": "chrome/browser/ui/browser_window/internal/create_browser_window_non_android.cc",
+          "before": "1250b3780382548d83a39a9d135074983d84bb88771b85ec8ab9416b509e6cf0",
+          "after": "498def2be68eca6446c81677794bed9d7872e7cbcce1ae310588702f382649c6"
+        }
+      ]
+    },
+    {
       "file": "patches/native-external-protocol-dialog.patch",
       "sha256": "490a51ca28b82b6439f0dbf4c5c2681d6f1cef3091dca19b510e08de02bc84e5",
       "files": [

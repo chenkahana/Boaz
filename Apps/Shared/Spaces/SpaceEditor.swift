@@ -130,9 +130,12 @@ struct SpaceEditor: View {
                     }
                 }
                 .padding(.vertical, 4)
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("Icons")
                 TextField("Or type any emoji", text: Binding(
                     get: { Self.suggestedIcons.contains(icon) ? "" : icon },
                     set: { if let first = $0.trimmingCharacters(in: .whitespaces).first { icon = String(first) } }))
+                    .accessibilityLabel("Or type any emoji")
             }
 
             Section {
@@ -145,6 +148,8 @@ struct SpaceEditor: View {
                     }
                 }
                 .padding(.vertical, 4)
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("Colors")
                 #if os(macOS)
                 ColorPicker("Custom Color", selection: customColor, supportsOpacity: false)
                 #endif
@@ -197,8 +202,10 @@ struct SpaceEditor: View {
         return HStack(spacing: 10) {
             ForEach(schemes, id: \.self) { previewCard(scheme: $0) }
         }
-        .accessibilityElement(children: .combine)
+        // A picture of the space, not text to read off its gradient.
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("Preview: \(icon) \(trimmedTitle)")
+        .accessibilityAddTraits(.isImage)
         .animation(.smooth, value: options)
         #else
         let style = previewStyle(scheme: scheme)

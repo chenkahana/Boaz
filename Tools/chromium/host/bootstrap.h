@@ -31,6 +31,8 @@ bool RunContextMenuCommand(content::WebContents* contents, int command, const GU
 void SearchImageWithGoogleLens(content::WebContents* contents, content::RenderFrameHost* frame, const GURL& image_url);
 void SearchPageWithGoogleLens(content::WebContents* contents);
 bool NativeHostEnabled();
+// Whether Boaz can show a new browser window for `profile`; Chromium refuses to create one otherwise.
+bool NativeHostCanCreateBrowserWindow(Profile* profile);
 bool AutomaticPictureInPictureEnabled();
 bool IsNativeExtensionPromptContext(Profile*, void* native_window);
 void NativeExtensionPromptsChanged();

@@ -15,9 +15,14 @@ final class ChromiumDevToolsWindow: NSObject, NSWindowDelegate {
     private var closeQueued = false
     private var keyMonitor: Any?
 
-    init(runtime: ChromiumRuntime, profile: ChromiumProfile) {
+    /// A web or extension popup window: like Chrome's, it shows its page's address, read-only, so its origin
+    /// can always be checked.
+    private let showsLocation: Bool
+
+    init(runtime: ChromiumRuntime, profile: ChromiumProfile, showsLocation: Bool = false) {
         self.runtime = runtime
         self.profile = profile
+        self.showsLocation = showsLocation
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1000, height: 760),
             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         super.init()
@@ -48,7 +53,14 @@ final class ChromiumDevToolsWindow: NSObject, NSWindowDelegate {
               let adapter = page.adapter as? ChromiumEnginePageAdapter,
               adapter.profile == profile.identity else { throw EnginePageError.invalidRequest }
         self.page = page
-        let hosting = NSHostingView(rootView: ChromiumPageView(adapter: adapter))
+        let content = showsLocation
+            ? AnyView(VStack(spacing: 0) {
+                PopupLocationBar(adapter: adapter)
+                Divider()
+                ChromiumPageView(adapter: adapter)
+            })
+            : AnyView(ChromiumPageView(adapter: adapter))
+        let hosting = NSHostingView(rootView: content)
         hosting.frame = contentContainer.bounds
         hosting.autoresizingMask = [.width, .height]
         contentContainer.addSubview(hosting)
@@ -145,5 +157,29 @@ final class ChromiumDevToolsWindow: NSObject, NSWindowDelegate {
         window.close()
     }
 
+}
+
+/// A popup's read-only location field, as Chrome's popup windows have.
+private struct PopupLocationBar: View {
+    let adapter: ChromiumEnginePageAdapter
+
+    var body: some View {
+        let url = adapter.state.url
+        HStack(spacing: 6) {
+            Image(systemName: url?.scheme == "https" ? "lock.fill" : "info.circle")
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            Text(url?.absoluteString ?? "")
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .textSelection(.enabled)
+                .accessibilityIdentifier("control.popupLocation")
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: 12))
+        .padding(.horizontal, 10)
+        .frame(height: 28)
+        .background(.bar)
+    }
 }
 #endif

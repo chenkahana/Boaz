@@ -212,7 +212,7 @@ struct PageAssistantView: View {
                         }
                         ForEach(Array((summary.points ?? []).enumerated()), id: \.offset) { _, point in
                             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                Text("•").foregroundStyle(.tint)
+                                Text("•").foregroundStyle(.tint).accessibilityHidden(true)
                                 Text(point)
                             }
                         }
@@ -222,7 +222,9 @@ struct PageAssistantView: View {
                     .padding(16)
                     .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: AIRadius.card))
                     .animation(.smooth, value: summary.points?.count)
+                    // One passage of text: VoiceOver reads the gist and every point, without the bullets.
                     .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(.isStaticText)
                 }
                 if assistant.isSummarizing && assistant.summary?.gist == nil {
                     HStack(spacing: 8) {
