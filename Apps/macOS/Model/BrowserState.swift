@@ -90,6 +90,9 @@ final class BrowserState {
     @ObservationIgnored var newTabAnchor: SidebarItem?
     /// Changes each time the command bar opens, so a bar reopened during its closing animation starts empty.
     private(set) var commandSession = UUID()
+    /// The zoom level the tag at the top right shows, while it shows (`zoom(_:)`).
+    private(set) var zoomTag: Double?
+    @ObservationIgnored private var zoomTagTimer: Task<Void, Never>?
     var sidebarVisible = true { didSet { updateTrafficLights() } }
     var sidebarPeeking = false { didSet { updateTrafficLights() } }
     var findVisible = false
@@ -1395,11 +1398,22 @@ final class BrowserState {
             case .out: .decrease
             case .reset: .reset
             }
-            navigateEngine { try $0.changeZoom(action) }
+            navigateEngine { showZoom(try $0.changeZoom(action)) }
             return
         }
         guard let page = activePage else { return }
         PageZoom.change(change, for: page, isPrivate: isIncognito)
+        showZoom(PageZoom.level(for: page.url, isPrivate: isIncognito))
+    }
+
+    /// Shows the zoom tag at the window's top right for a moment after each zoom change.
+    private func showZoom(_ level: Double) {
+        zoomTag = level
+        zoomTagTimer?.cancel()
+        zoomTagTimer = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1.5))
+            if !Task.isCancelled { self?.zoomTag = nil }
+        }
     }
 
     /// Prints the active page through a PDF of it, split across sheets at the paper's width.

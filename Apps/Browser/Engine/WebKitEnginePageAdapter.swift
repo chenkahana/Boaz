@@ -50,7 +50,7 @@ final class WebKitEnginePageAdapter: EnginePageAdapter {
         page.stopLoading()
     }
 
-    func changeZoom(_ change: EngineZoomChange) throws {
+    func changeZoom(_ change: EngineZoomChange) throws -> Double {
         guard state.lifecycle == .active else { throw EnginePageError.closed }
         let action: PageZoom.Change = switch change {
         case .increase: .in
@@ -58,6 +58,7 @@ final class WebKitEnginePageAdapter: EnginePageAdapter {
         case .reset: .reset
         }
         PageZoom.change(action, for: page, isPrivate: profile.isPrivate)
+        return PageZoom.level(for: page.url, isPrivate: profile.isPrivate)
     }
 
     func close() throws {
