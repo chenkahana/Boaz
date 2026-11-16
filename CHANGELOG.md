@@ -17,8 +17,9 @@ All notable changes to Boaz are recorded here. The format follows
   Pull Requests adds a pinned folder of your pull requests that refreshes every minute, with each one's CI status.
   Choose Created by Me, Review Requests, Team Review Requests, Assigned or Mentioned, and which repositories.
   Folders can also be moved to another space, have their links copied, and get their own icon.
-- A new pretzel app icon, in 19 styles from Classic, Neon and Wood to Gold, Holo Foil and Candy Cane. Pick one in
-  Settings › App Icon on the Mac; the Dock keeps it even while Boaz is closed.
+- A new pretzel app icon: by default a flat blue knot on white, or on black in dark mode, like the system's own
+  icons, with 20 more styles to choose from, among them Glossy (3D), Neon, Wood, Gold, Holo Foil and Candy Cane. Pick
+  one in Settings › App Icon on the Mac; the Dock keeps it even while Boaz is closed.
 
 ### Changed
 
