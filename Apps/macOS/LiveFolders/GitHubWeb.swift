@@ -121,7 +121,8 @@ enum GitHubWeb {
     /// (`script[data-target="react-app.embeddedData"]`) names the signed-in user and the organizations awaiting single
     /// sign-on (`sso_organizations`). The rest ask for JSON, the same data without the page. Pull requests are found
     /// by their URL anywhere in that data rather than at one path, and checks and review state come from
-    /// /pulls/deferred, as the page itself fetches them.
+    /// /pulls/deferred, as the page itself fetches them. If GitHub's markup changes enough that a search comes back
+    /// with no pulls and no evidence it's genuinely empty, the script throws rather than answering a false zero.
     static let script = #"""
         async ({qualifiers}) => {
             const scope = 'is:pr state:open archived:false sort:updated-desc ';
@@ -133,7 +134,7 @@ enum GitHubWeb {
                 if (visit(value) === false) return;
                 for (const child of Array.isArray(value) ? value : Object.values(value)) walk(child, visit, depth + 1);
             };
-            const signedOut = (response) => /^\/(login|session)\b/.test(new URL(response.url).pathname);
+            const signedOut = (response) => /^\/(login|sessions?)\b/.test(new URL(response.url).pathname);
             const read = async (path, html) => {
                 const response = await fetch(path, {credentials: 'include', headers: html ? {} : {Accept: 'application/json'}});
                 if (signedOut(response)) return null;
@@ -155,8 +156,9 @@ enum GitHubWeb {
                     if (Array.isArray(value)) return;
                     const url = [value.permalink, value.url, value.html_url].map(absolute).find((link) => link && pullURL.test(link));
                     if (!url || !text(value.title)) return;
+                    // Only an explicit CLOSED or MERGED state drops a row: draft, open and anything unrecognized stay.
                     const state = text(value.state) ?? text(value.displayState);
-                    if (state && !/^open$/i.test(state)) return false;
+                    if (state && /^(closed|merged)$/i.test(state)) return false;
                     const [, repository, number] = url.match(pullURL);
                     if (!found.has(url)) found.set(url, {
                         url, number: Number(number), title: value.title.trim(),
@@ -175,6 +177,18 @@ enum GitHubWeb {
                 let pages = 1;
                 walk(data, (value) => { if (typeof value.totalPages === 'number') { pages = value.totalPages; return false; } });
                 return pages;
+            };
+            // Whether `data` itself says how many pull requests there are (even zero): a numeric total/totalPages,
+            // pagination info, or an explicit empty-results marker. Without this, zero pulls found could as easily
+            // mean GitHub's markup changed as a genuinely empty search.
+            const hasCountEvidence = (data) => {
+                let found = false;
+                walk(data, (value) => {
+                    if (typeof value.total === 'number' || typeof value.totalCount === 'number'
+                        || typeof value.totalPages === 'number' || 'pageInfo' in value
+                        || value.blankslate === true || value.emptyState === true) { found = true; return false; }
+                });
+                return found;
             };
             const enrich = async (query, page, list) => {
                 const ids = list.map((pull) => pull.id).filter(Boolean);
@@ -202,7 +216,8 @@ enum GitHubWeb {
                 const path = (page) => '/pulls/search?' + new URLSearchParams(page > 1 ? {q: query, page: String(page)} : {q: query});
                 const first = await read(path(1), html);
                 if (!first) return null;
-                const result = {first, list: pulls(first.data)};
+                const result = {first, list: pulls(first.data), parsed: false};
+                result.parsed = result.list.length > 0 || hasCountEvidence(first.data);
                 await enrich(query, 1, result.list);
                 if (totalPages(first.data) > 1) {
                     const second = await read(path(2), false);
@@ -219,6 +234,11 @@ enum GitHubWeb {
             if (!first) return JSON.stringify({signedIn: false});
             const others = await Promise.all(rest.map((qualifier) => search(qualifier, false)));
             if (others.some((result) => !result)) return JSON.stringify({signedIn: false});
+            // A search with no pulls and no sign it's genuinely empty (GitHub's markup changed under us) must not
+            // report a false, folder-emptying zero: fail the whole refresh instead.
+            if ([first, ...others].some((result) => !result.parsed)) {
+                throw new Error("GitHub's page changed; Boaz couldn't read it.");
+            }
             const organizations = new Map();
             walk(first.first.data, (value) => {
                 if (!Array.isArray(value.sso_organizations)) return;

@@ -751,6 +751,12 @@ final class ChromiumRuntime {
         if let firstFailure { throw firstFailure }
     }
 
+    /// Forgets `handle`'s profile mapping without asking the host to close it: for a window whose own close_window
+    /// call failed, so the host will never confirm the close itself (`windowClosed` won't fire for it).
+    func forgetWindowProfile(_ handle: BoazHostWindow) {
+        windowProfiles.removeValue(forKey: handle)
+    }
+
     func releaseProfile(_ profile: ChromiumProfile) throws {
         try requireRunning()
         guard preparedProfiles[profile.handle] == profile else { throw EnginePageError.invalidRequest }
