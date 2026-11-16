@@ -3,34 +3,51 @@ import BoazKit
 import SwiftUI
 
 /// Arc's command bar (⌘T new tab, ⌘L current tab, ⌃⇧= split): a floating field that searches open and pinned
-/// tabs and history, or goes to an address / search.
+/// tabs, the search engine's suggestions and history, or goes to an address / search.
 struct CommandBar: View {
     @Environment(MacModel.self) private var model
     @Environment(BrowserState.self) private var browser
     @Environment(\.colorScheme) private var scheme
     let mode: BrowserState.CommandMode
+    /// What the field shows: `query`, or the selected row's text while the arrow keys preview it.
     @State private var text = ""
+    /// What was typed. Rows match this, so previewing a row doesn't change them.
+    @State private var query = ""
     @State private var selection = 0
+    /// The rows as they were when a preview began; answers landing meanwhile wait until the next edit or row 1.
+    @State private var frozen: [Suggestion]?
     @State private var history: [HistoryVisit] = []
     @FocusState private var focused: Bool
 
     enum Suggestion: Identifiable {
         case go(URL, label: String, isSearch: Bool)
         case tab(SidebarItem)
+        case search(String)
         case history(HistoryVisit)
 
         var id: String {
             switch self {
             case .go(let url, _, _): "go:\(url.absoluteString)"
             case .tab(let tab): "tab:\(tab.id)"
+            case .search(let suggestion): "search:\(suggestion)"
             case .history(let visit): "history:\(visit.id)"
+            }
+        }
+
+        /// What the field shows while this row is selected: what was typed for the first row.
+        func preview(typed: String) -> String {
+            switch self {
+            case .go: typed
+            case .tab(let tab): tab.url?.absoluteString ?? typed
+            case .search(let suggestion): suggestion
+            case .history(let visit): visit.url.absoluteString
             }
         }
     }
 
     var body: some View {
         let tint = SpaceStyle(browser.currentSpace, scheme: scheme).tint
-        let suggestions = self.suggestions
+        let suggestions = frozen ?? self.suggestions
         ZStack(alignment: .top) {
             Color.black.opacity(0.12)
                 .onTapGesture { browser.commandMode = nil }
@@ -40,30 +57,30 @@ struct CommandBar: View {
                         .accessibilityHidden(true)
                     #if BOAZ_CHROMIUM
                     if let field = browser.chromiumAddressField {
-                        ChromiumAddressField(field: field, text: $text, placeholder: placeholder,
-                            moveUp: { selection = max(selection - 1, 0) },
-                            moveDown: { selection = min(selection + 1, max(suggestions.count - 1, 0)) },
+                        ChromiumAddressField(field: field, text: fieldText, placeholder: placeholder,
+                            moveUp: { select(selection - 1, in: suggestions) },
+                            moveDown: { select(selection + 1, in: suggestions) },
                             submit: { run(suggestions.indices.contains(selection) ? suggestions[selection] : nil) },
                             cancel: { browser.commandMode = nil })
                     } else {
-                    TextField(placeholder, text: $text)
+                    TextField(placeholder, text: fieldText)
                         .textFieldStyle(.plain)
                         .font(.system(size: 19))
                         .focused($focused)
                         .onSubmit { run(suggestions.indices.contains(selection) ? suggestions[selection] : nil) }
-                        .onKeyPress(.downArrow) { selection = min(selection + 1, max(suggestions.count - 1, 0)); return .handled }
-                        .onKeyPress(.upArrow) { selection = max(selection - 1, 0); return .handled }
+                        .onKeyPress(.downArrow) { select(selection + 1, in: suggestions); return .handled }
+                        .onKeyPress(.upArrow) { select(selection - 1, in: suggestions); return .handled }
                         .onKeyPress(.escape) { browser.commandMode = nil; return .handled }
                         .accessibilityIdentifier("control.commandBar.field")
                     }
                     #else
-                    TextField(placeholder, text: $text)
+                    TextField(placeholder, text: fieldText)
                         .textFieldStyle(.plain)
                         .font(.system(size: 19))
                         .focused($focused)
                         .onSubmit { run(suggestions.indices.contains(selection) ? suggestions[selection] : nil) }
-                        .onKeyPress(.downArrow) { selection = min(selection + 1, max(suggestions.count - 1, 0)); return .handled }
-                        .onKeyPress(.upArrow) { selection = max(selection - 1, 0); return .handled }
+                        .onKeyPress(.downArrow) { select(selection + 1, in: suggestions); return .handled }
+                        .onKeyPress(.upArrow) { select(selection - 1, in: suggestions); return .handled }
                         .onKeyPress(.escape) { browser.commandMode = nil; return .handled }
                         .accessibilityIdentifier("control.commandBar.field")
                     #endif
@@ -98,7 +115,8 @@ struct CommandBar: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen.commandBar")
         .onAppear {
-            if mode == .currentTab { text = browser.activeURL?.absoluteString ?? "" }
+            if mode == .currentTab { text = browser.activeURL?.absoluteString ?? ""; query = text }
+            if !browser.isIncognito { browser.searchSuggestions.warm(Preferences.searchEngine) }
         }
         // While the web view is first responder, SwiftUI can report the field focused and the keys still go to the
         // page. So the web view gives the keyboard up, and the field is asked until AppKit's first responder is its
@@ -139,10 +157,9 @@ struct CommandBar: View {
                 #endif
             }
         }
-        .onChange(of: text) { selection = 0 }
         // History is looked up once typing pauses, off the main thread.
-        .task(id: text) {
-            let query = text.trimmingCharacters(in: .whitespaces)
+        .task(id: query) {
+            let query = self.query.trimmingCharacters(in: .whitespaces)
             guard !browser.isIncognito, query.count >= 2 else { history = []; return }
             // Until the lookup lands, only rows that still match are offered.
             history.removeAll { !$0.matches(query) }
@@ -156,17 +173,51 @@ struct CommandBar: View {
     private func takeTypeAhead() {
         let (typed, clear, submit) = browser.endTypeAhead()
         // ⌘L's address is selected on focus, so typing (or Delete) replaces it.
-        if mode == .currentTab, clear || !typed.isEmpty { text = typed } else { text += typed }
+        edit(mode == .currentTab && (clear || !typed.isEmpty) ? typed : text + typed)
+        if clear || !typed.isEmpty { showTextInField() }
+        // With nothing typed, Return only means something for ⌘L's address.
+        if submit, !text.isEmpty { run(suggestions.first) }
+    }
+
+    /// Typing in the field: the text becomes the query, matched afresh from the first row.
+    private var fieldText: Binding<String> {
+        Binding(get: { text }, set: { edit($0) })
+    }
+
+    private func edit(_ newText: String) {
+        guard newText != text else { return }
+        text = newText
+        query = newText
+        selection = 0
+        frozen = nil
+        // Neither Incognito typing nor an address is sent to the search engine.
+        if browser.isIncognito || SearchSuggestions.looksLikeAddress(newText) {
+            browser.searchSuggestions.clear()
+        } else {
+            browser.searchSuggestions.update(newText, engine: Preferences.searchEngine)
+        }
+    }
+
+    /// Selects a row and shows its text in the field, as Chrome's address bar does; the rows stay as they are.
+    private func select(_ index: Int, in suggestions: [Suggestion]) {
+        guard index != selection, suggestions.indices.contains(index) else { return }
+        selection = index
+        frozen = index == 0 ? nil : frozen ?? suggestions
+        text = suggestions[index].preview(typed: query)
+        showTextInField()
+    }
+
+    /// Puts `text` in the Chromium field's editor with the caret at the end; the binding alone would keep the old
+    /// caret position.
+    private func showTextInField() {
         #if BOAZ_CHROMIUM
-        if clear || !typed.isEmpty, let field = browser.chromiumAddressField,
+        if let field = browser.chromiumAddressField,
            let editor = field.currentEditor() as? NSTextView, !editor.hasMarkedText() {
             editor.string = text
             field.stringValue = text
             editor.setSelectedRange(NSRange(location: (text as NSString).length, length: 0))
         }
         #endif
-        // With nothing typed, Return only means something for ⌘L's address.
-        if submit, !text.isEmpty { run(suggestions.first) }
     }
 
     /// Whether typing reaches the field: AppKit's first responder is a text field's editor, not the web view, and
@@ -202,7 +253,7 @@ struct CommandBar: View {
     }
 
     private var suggestions: [Suggestion] {
-        let query = text.trimmingCharacters(in: .whitespaces)
+        let query = self.query.trimmingCharacters(in: .whitespaces)
         var result: [Suggestion] = []
         let engine = Preferences.searchEngine
         if let url = SearchInput.url(for: query, searchTemplate: engine.template, schemes: SearchInput.typedSchemes) {
@@ -218,9 +269,12 @@ struct CommandBar: View {
                 || (tab.title ?? "").localizedCaseInsensitiveContains(query)
                 || (tab.url?.absoluteString ?? "").localizedCaseInsensitiveContains(query))
         }
-        result += tabs.prefix(query.isEmpty ? 6 : 5).map(Suggestion.tab)
+        result += tabs.prefix(query.isEmpty ? 6 : 4).map(Suggestion.tab)
+        let typed = query.lowercased()
+        result += browser.searchSuggestions.suggestions.filter { $0.lowercased() != typed }.prefix(4)
+            .map(Suggestion.search)
         let tabURLs = Set(openTabs.compactMap(\.url))
-        result += history.filter { !tabURLs.contains($0.url) }.prefix(5).map(Suggestion.history)
+        result += history.filter { !tabURLs.contains($0.url) }.prefix(3).map(Suggestion.history)
         return result
     }
 
@@ -234,6 +288,11 @@ struct CommandBar: View {
         guard let suggestion else { return }
         switch suggestion {
         case .go(let url, _, _): open(url)
+        case .search(let suggestion):
+            // Like iOS, a suggestion opens as if typed: a suggested address goes to the site.
+            guard let url = SearchInput.url(for: suggestion, searchTemplate: Preferences.searchEngine.template,
+                                            schemes: SearchInput.typedSchemes) else { return }
+            open(url)
         case .history(let visit): open(visit.url)
         case .tab(let tab):
             if mode == .split { browser.openInSplit(tab) } else { browser.activate(tab) }
@@ -268,6 +327,11 @@ private struct SuggestionRow: View {
                 Text(tab.title ?? tab.url?.host() ?? "New Tab").lineLimit(1)
                 Spacer()
                 Text("Switch to Tab").font(.caption).foregroundStyle(.secondary)
+            case .search(let suggestion):
+                Image(systemName: "magnifyingglass").frame(width: 20)
+                Text(suggestion).lineLimit(1)
+                Spacer()
+                Text("Search").font(.caption).foregroundStyle(.secondary)
             case .history(let visit):
                 Image(systemName: "clock").frame(width: 20)
                 Text(visit.title ?? visit.url.absoluteString).lineLimit(1)
