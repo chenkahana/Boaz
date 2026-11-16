@@ -10,7 +10,11 @@ import WebKit
 /// Per-window state (current space, open pages, split, peek) lives in `BrowserState`.
 @Observable
 final class MacModel {
-    static let shared = MacModel()
+    static let shared: MacModel = {
+        // Before the model reads a persisted default (the windows to reopen are read as it's made).
+        UITestMode.resetDefaultsIfNeeded()
+        return MacModel()
+    }()
     private static let log = Logger(subsystem: "com.chenkahana.boaz", category: "app")
     /// Data store identifiers of deleted profiles whose site data WebKit hasn't removed yet.
     private static let pendingSiteDataKey = "pendingSiteDataRemovals"

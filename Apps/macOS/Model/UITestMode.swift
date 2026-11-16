@@ -9,7 +9,8 @@ enum UITestMode {
     /// its window frame, which space/tab it had open (`MacModel.SavedWindow`, UserDefaults key "openWindows"),
     /// the chosen app icon — because this bundle id's UserDefaults persist across launches the same way the real
     /// app's would, while the on-disk store is a fresh temp directory every time. Call once, before anything
-    /// reads a persisted default (`applicationDidFinishLaunching`, first thing).
+    /// reads a persisted default: `MacModel.shared` does, before the model exists, since the app creates it before
+    /// `applicationDidFinishLaunching`.
     static func resetDefaultsIfNeeded() {
         // Only the ad hoc test build (`make uitest`), never a real install launched with the flag by mistake.
         guard isActive, let bundleID = Bundle.main.bundleIdentifier, bundleID.hasSuffix(".uitest") else { return }
