@@ -1419,6 +1419,13 @@ bool AutomaticPictureInPictureEnabled() {
 bool NativeHostEnabled() {
   return base::CommandLine::ForCurrentProcess()->HasSwitch("boaz-native-host");
 }
+bool NativeHostCanCreateBrowserWindow(Profile* profile) {
+  CHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  // Only profiles Boaz opened have a window to show; Chromium's primary profile (and an extension running in it)
+  // gets the API's "not allowed" error, as a profile that can't open windows does in Chrome.
+  return state && !state->exit_requested && !state->finished && state->profiles && profile &&
+      state->profiles->HandleFor(profile) != 0;
+}
 std::unique_ptr<ChromeBrowserMainExtraParts> CreateNativeHostMainParts() {
   CHECK(NativeHostEnabled());
   return std::make_unique<MainParts>();

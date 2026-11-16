@@ -4,6 +4,7 @@
   "version": "1.0",
   "description": "Exercises the extension features Boaz must handle as Chrome does.",
   "permissions": ["storage", "contextMenus", "sidePanel"],
+  "host_permissions": ["https://example.com/*"],
   "optional_host_permissions": ["https://example.org/*"],
   "background": { "service_worker": "background.js" },
   "action": { "default_popup": "popup.html", "default_title": "Parity Fixture" },

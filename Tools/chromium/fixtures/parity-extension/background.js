@@ -15,9 +15,21 @@ chrome.runtime.onInstalled.addListener(async () => {
 
 chrome.contextMenus.onClicked.addListener((info) => log("menu", { id: info.menuItemId }));
 
-chrome.commands.onCommand.addListener(async (command, tab) => {
-  await log("command", { command });
-  if (command === "open-panel" && tab) await chrome.sidePanel.open({ windowId: tab.windowId });
+chrome.commands.onCommand.addListener((command, tab) => {
+  // sidePanel.open() needs the command's user gesture, so it runs before anything awaits.
+  const opened = command === "open-panel"
+    ? chrome.sidePanel.open({ windowId: tab.windowId }).then(() => "opened", (error) => String(error))
+    : Promise.resolve(undefined);
+  opened.then((panel) => log("command", { command, panel }));
+});
+
+// With site access withheld, ask for the site as Chrome extensions do, so the toolbar shows its request button.
+// Without site access the tab's URL isn't visible, so ask on every load; Chromium keeps only requests for sites
+// whose access is withheld.
+chrome.tabs.onUpdated.addListener(async (tabId, change) => {
+  if (change.status !== "complete") return;
+  if (await chrome.permissions.contains({ origins: ["https://example.com/*"] })) return;
+  await chrome.permissions.addHostAccessRequest?.({ tabId }).catch((error) => log("access-request", { error: String(error) }));
 });
 
 chrome.sidePanel.onClosed?.addListener((info) => log("panel-closed", { path: info.path }));
@@ -34,6 +46,11 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       case "panel-on-click":
         await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: message.value });
         break;
+      case "toggle-panel-on-click": {
+        const { openPanelOnActionClick } = await chrome.sidePanel.getPanelBehavior();
+        await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: !openPanelOnActionClick });
+        break;
+      }
       case "popup-window":
         await chrome.windows.create({ url: "popup.html?window", type: "popup", width: 400, height: 300 });
         break;

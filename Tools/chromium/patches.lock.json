@@ -933,6 +933,17 @@
           "after": "7dc64c38d33847c3b5125045f3ecb707b187ccbcdf19d896287cc9ca9e9bc1b4"
         }
       ]
+    },
+    {
+      "file": "patches/native-window-creation-profiles.patch",
+      "sha256": "a0a2b98d5c1398b4989cd24c4dd6376091a59bebfad2381082abad14bdb1ad6d",
+      "files": [
+        {
+          "path": "chrome/browser/ui/browser_window/internal/create_browser_window_non_android.cc",
+          "before": "1250b3780382548d83a39a9d135074983d84bb88771b85ec8ab9416b509e6cf0",
+          "after": "498def2be68eca6446c81677794bed9d7872e7cbcce1ae310588702f382649c6"
+        }
+      ]
     }
   ]
 }

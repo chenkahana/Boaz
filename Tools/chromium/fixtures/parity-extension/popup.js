@@ -11,3 +11,7 @@ document.getElementById("window").onclick = () => chrome.runtime.sendMessage({ t
 document.getElementById("host").onclick = async () => {
   status.textContent = String(await chrome.permissions.request({ origins: ["https://example.org/*"] }));
 };
+document.getElementById("panelclick").onclick = async () => {
+  await chrome.runtime.sendMessage({ type: "toggle-panel-on-click" });
+  window.close();
+};

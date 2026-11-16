@@ -468,7 +468,13 @@ final class ChromiumExtensionSidePanel: NSView {
         needsLayout = true
     }
 
-    // The leading 4 points resize the panel.
+    // The leading 4 points resize the panel, over the page's own leading edge too.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard !isHidden, let superview, frame.contains(point) else { return super.hitTest(point) }
+        return convert(point, from: superview).x <= 4 ? self : super.hitTest(point)
+    }
+    // The edge works on the first click, as the page beside it does.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
     override func resetCursorRects() {
         addCursorRect(NSRect(x: 0, y: 0, width: 4, height: bounds.height), cursor: .resizeLeftRight)
     }

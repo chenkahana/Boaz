@@ -136,7 +136,8 @@ final class ChromiumQuickWindow: NSObject, ObservableObject, NSWindowDelegate {
     }
     private func submit() {
         guard let url = SearchInput.url(for: address.trimmingCharacters(in: .whitespacesAndNewlines),
-                                       searchTemplate: Preferences.searchEngine.template) else { return }
+                                       searchTemplate: Preferences.searchEngine.template,
+                                       schemes: SearchInput.typedSchemes) else { return }
         load(url)
     }
     private func load(_ url: URL) {
