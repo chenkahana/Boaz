@@ -93,7 +93,8 @@ def sign(args):
     for key, expected_value in cloud.items():
         granted = grants.get(key)
         if isinstance(expected_value, list):
-            allowed = isinstance(granted, list) and all(item in granted for item in expected_value)
+            # Developer ID profiles grant iCloud services as the wildcard "*".
+            allowed = granted == '*' or (isinstance(granted, list) and all(item in granted for item in expected_value))
         else:
             allowed = granted == expected_value or (isinstance(granted, list) and expected_value in granted)
         if not allowed:
