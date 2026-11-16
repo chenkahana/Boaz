@@ -1,17 +1,20 @@
 import BoazKit
 import SwiftUI
 
-/// Emoji or SF Symbol space icon.
+/// Emoji or SF Symbol space icon. Decorative: it always sits beside the space's name, which is what's spoken.
 struct SpaceIcon: View {
     let space: Space
     var size: CGFloat = 16
 
     var body: some View {
         let icon = space.icon ?? "✦"
-        if icon.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == ".") }) {
-            Image(systemName: icon).font(.system(size: size * 0.85, weight: .semibold))
-        } else {
-            Text(icon).font(.system(size: size))
+        Group {
+            if icon.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == ".") }) {
+                Image(systemName: icon).font(.system(size: size * 0.85, weight: .semibold))
+            } else {
+                Text(icon).font(.system(size: size))
+            }
         }
+        .accessibilityHidden(true)
     }
 }

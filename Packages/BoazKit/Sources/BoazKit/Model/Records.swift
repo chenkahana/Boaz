@@ -70,6 +70,11 @@ public struct SidebarItem: Codable, Identifiable, Hashable, Sendable, FetchableR
     /// favorite items, and for tabs from before devices were recorded, which show on every device. An iPhone's
     /// tabs are its mobile stack, in no space (`isMobileTab`).
     public var deviceID: String?
+    /// What fills a live folder (`LiveSource`): its children are tabs the Mac rewrites from that source. Nil for an
+    /// ordinary folder and for every other item; a device that doesn't refresh live folders shows it as a folder.
+    public var liveSource: LiveSource?
+    /// A folder's emoji or SF Symbol name, in place of the folder glyph.
+    public var icon: String?
 
     public static let databaseTableName = "sidebarItem"
 
@@ -90,12 +95,12 @@ public struct SidebarItem: Codable, Identifiable, Hashable, Sendable, FetchableR
                 containerKind: ContainerKind? = nil, title: String? = nil, url: URL? = nil,
                 isUnread: Bool = false, isExpanded: Bool = true, position: Double,
                 createdAt: Date = .now, lastActiveAt: Date? = nil, modifiedAt: Date = .now, deletedAt: Date? = nil,
-                deviceID: String? = nil) {
+                deviceID: String? = nil, liveSource: LiveSource? = nil, icon: String? = nil) {
         self.id = id; self.spaceID = spaceID; self.profileID = profileID; self.parentID = parentID
         self.kind = kind; self.containerKind = containerKind; self.title = title; self.url = url
         self.isUnread = isUnread; self.isExpanded = isExpanded; self.position = position
         self.createdAt = createdAt; self.lastActiveAt = lastActiveAt; self.modifiedAt = modifiedAt; self.deletedAt = deletedAt
-        self.deviceID = deviceID
+        self.deviceID = deviceID; self.liveSource = liveSource; self.icon = icon
     }
 }
 

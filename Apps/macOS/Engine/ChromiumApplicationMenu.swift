@@ -148,10 +148,7 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
             title: { $0?.split == nil ? "Add Split View" : "Close Split View" }) { $0?.toggleSplit() }
         responder(view, "Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), key: "f", modifiers: [.command, .control])
         add(view, "Archive", command: .showArchive, enabled: { _ in true }) { [weak self] _ in self?.openScene("archive") }
-        add(view, "Downloads…", enabled: { $0?.chromiumProfileIdentity != nil }) {
-            guard let identity = $0?.chromiumProfileIdentity else { return }
-            ChromiumRuntime.showDownloads(for: identity)
-        }
+        add(view, "Downloads…", enabled: { $0?.chromiumProfileIdentity != nil }) { $0?.libraryPanelPresented = true }
         let history = menu("History")
         add(history, "Show All History", enabled: { _ in true }, perform: { [weak self] _ in self?.openScene("history") }, key: "y")
 

@@ -69,6 +69,8 @@ struct SidebarView: View {
             .clipped()
             SidebarBottomBar()
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("sidebar.root")
         .padding(.horizontal, 8)
         .padding(.bottom, 8)
         .environment(\.colorScheme, appearance)
@@ -84,6 +86,7 @@ struct SidebarView: View {
                 if dx < -70 { browser.shiftSpace(by: 1) } else if dx > 70 { browser.shiftSpace(by: -1) }
             }
         }
+        .modifier(LiveFolderPresentations())
     }
 }
 
@@ -240,6 +243,8 @@ private struct FavoritesGrid: View {
             }
         }
         .animation(SidebarStyle.motion, value: favorites.map(\.id))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Favorites")
         .dropDestination(for: String.self) { payloads, _ in
             guard let container else { return false }
             return dropItems(payloads, into: container.id, before: nil, model: model, browser: browser)
@@ -365,6 +370,7 @@ private struct SpaceHeader: View {
             Text(space.title).font(SidebarStyle.titleFont(size: textSize)).lineLimit(1)
                 .onTapGesture(count: 2) { browser.spaceEditor = .init(spaceID: space.id) }
                 .help("Double-click to customize")
+                .accessibilityAddTraits(.isHeader)
             Spacer()
             Menu {
                 SpaceMenu(space: space)
@@ -382,6 +388,10 @@ private struct SpaceHeader: View {
         .onHover { hovering = $0 }
         .animation(SidebarStyle.motion, value: hovering)
         .contextMenu { SpaceMenu(space: space) }
+        // A container of its own, named for the space: alone, the title takes the whole row's frame.
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(space.title)
+        .accessibilityIdentifier("sidebar.spaceHeader")
     }
 }
 
@@ -394,6 +404,7 @@ struct SpaceMenu: View {
         Button("Customize Space…") { browser.spaceEditor = .init(spaceID: space.id) }
         Button("Rename Space…") { browser.rename = .init(target: .space(space), text: space.title) }
         Button("New Folder") { withAnimation { model.newFolder(in: space) } }
+        NewLiveFolderMenu(space: space)
         SpaceAIMenuItems(space: space)
         if model.sidebar.spaces.count > 1, let index = model.sidebar.spaces.firstIndex(where: { $0.id == space.id }) {
             Divider()
@@ -484,6 +495,13 @@ struct ItemRow: View {
     let tint: Color
     @State private var hovering = false
     @State private var targeted = false
+    @State private var choosingIcon = false
+
+    /// This tab's status in its live folder, if it is one of a live folder's tabs.
+    private var liveStatus: LiveFolderState.ItemStatus?? {
+        guard item.kind == .tab, let parent = model.item(item.parentID), parent.liveSource != nil else { return nil }
+        return .some(LiveFolderRefresher.shared.state(of: parent)?.items[item.id])
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: SidebarStyle.rowSpacing) {
@@ -503,14 +521,19 @@ struct ItemRow: View {
                     Text(title).font(SidebarStyle.rowFont(size: textSize, selected: active)).lineLimit(1)
                     Spacer(minLength: 0)
                 }
+                .opacity(liveStatus??.isDraft == true ? 0.55 : 1)
                 .padding(.leading, 8 + CGFloat(depth) * 14)
                 .frame(maxHeight: .infinity)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(title)
-            .accessibilityValue(item.kind == .folder ? (item.isExpanded ? "Expanded" : "Collapsed") : "")
+            .accessibilityValue(item.kind == .folder ? (item.isExpanded ? "Expanded" : "Collapsed")
+                                : liveStatus.map { LivePullIcon.label($0) } ?? "")
             .accessibilityAddTraits(active ? .isSelected : [])
+            .accessibilityIdentifier(item.kind == .folder ? "sidebar.folder.\(title)"
+                                     : liveStatus.map { LivePullIcon.identifier($0) } ?? "")
+            .help(liveStatus??.detail ?? "")
             if item.kind == .tab, browser.hasWandered(item) {
                 HoverIconButton(symbol: "arrow.uturn.backward", help: "Back to Pinned Page", size: 20) {
                     browser.returnToPinnedPage(item)
@@ -569,13 +592,12 @@ struct ItemRow: View {
         } isTargeted: { targeted = $0 }
         .contextMenu {
             if item.kind == .folder {
-                Button("Rename Folder…") { browser.rename = .init(target: .item(item), text: item.title ?? "") }
-                Button(item.isExpanded ? "Collapse" : "Expand") { model.toggleExpanded(item) }
-                if model.container(of: item)?.containerKind == .unpinned { Button("Ungroup") { model.ungroup(item) } }
+                FolderMenu(folder: item) { choosingIcon = true }
             } else {
                 TabMenu(tab: item)
             }
         }
+        .popover(isPresented: $choosingIcon, arrowEdge: .trailing) { FolderIconPicker(folder: item) }
     }
 
     private func open() {
@@ -590,9 +612,7 @@ struct ItemRow: View {
 
     @ViewBuilder private var leadingIcon: some View {
         if item.kind == .folder {
-            // Filled while open, as on iOS.
-            Image(systemName: item.isExpanded ? "folder.fill" : "folder")
-                .font(.system(size: 13, weight: .medium))
+            FolderGlyph(folder: item)
                 .frame(width: 18)
                 .overlay(alignment: .leading) {
                     Image(systemName: "chevron.right")
@@ -602,6 +622,8 @@ struct ItemRow: View {
                         .offset(x: -12)
                         .opacity(hovering ? 1 : 0)
                 }
+        } else if let status = liveStatus {
+            LivePullIcon(status: status).frame(width: 18)
         } else {
             SiteMonogram(url: item.url, tint: tint, size: 18)
         }
@@ -751,9 +773,14 @@ private struct SidebarBottomBar: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
+        @Bindable var browser = browser
         HStack(spacing: 4) {
-            HoverIconButton(symbol: "archivebox", help: "Archive", hint: model.keyBindings.hint("Archive", .showArchive)) {
-                openWindow(id: "archive")
+            HoverIconButton(symbol: "tray.full", help: "Library", hint: model.keyBindings.hint("Library", .showArchive)) {
+                browser.libraryPanelPresented = true
+            }
+            .accessibilityIdentifier("sidebar.libraryButton")
+            .popover(isPresented: $browser.libraryPanelPresented, arrowEdge: .trailing) {
+                LibraryPanel().environment(model).environment(browser)
             }
             Spacer(minLength: 4)
             if !browser.isIncognito {
@@ -764,7 +791,10 @@ private struct SidebarBottomBar: View {
             Spacer(minLength: 4)
             Menu {
                 Button("New Space") { browser.newSpace() }
-                if let space = browser.currentSpace { Button("New Folder") { model.newFolder(in: space) } }
+                if let space = browser.currentSpace {
+                    Button("New Folder") { model.newFolder(in: space) }
+                    NewLiveFolderMenu(space: space)
+                }
                 Divider()
                 Button("New Incognito Window") { openWindow(id: "incognito") }
                 Button("Import from Arc…") { browser.showImport = true }
@@ -775,6 +805,8 @@ private struct SidebarBottomBar: View {
             .menuStyle(.button)
             .buttonStyle(.plain)
             .menuIndicator(.hidden)
+            .accessibilityLabel("New")
+            .accessibilityIdentifier("control.newSpaceMenu")
             .fixedSize()
         }
         .frame(height: SidebarStyle.rowHeight)

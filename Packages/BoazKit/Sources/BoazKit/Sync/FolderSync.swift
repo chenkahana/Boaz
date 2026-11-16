@@ -104,7 +104,8 @@ extension BoazStore {
             try setFieldState(nil, R.syncType, id, in: db)
             return FolderEntry(type: R.syncType.rawValue, id: id, state: nil)
         }
-        let state = RecordState.stamped(try RecordState.fields(of: row), over: previous, groups: R.mergeGroups)
+        let state = RecordState.stamped(try RecordState.fields(of: row), over: previous, groups: R.mergeGroups,
+                                        known: RecordState.keys(of: row))
         try setFieldState(state, R.syncType, id, in: db)
         let value = try state.value(R.self)
         if value != row { try value.save(db) } // re-queued here, dequeued with the rest of the batch
@@ -155,7 +156,9 @@ extension BoazStore {
         var current = try fieldState(R.syncType, entry.id, in: db)
         if let row {
             let fields = try RecordState.fields(of: row)
-            if fields != current?.fields { current = RecordState.stamped(fields, over: current, groups: R.mergeGroups) }
+            if fields != current?.fields {
+                current = RecordState.stamped(fields, over: current, groups: R.mergeGroups, known: RecordState.keys(of: row))
+            }
         }
         let merged = RecordState.merge(current ?? remote, remote, groups: R.mergeGroups)
         // A peer's record this build can't read is skipped before anything is stored: throwing would fail every

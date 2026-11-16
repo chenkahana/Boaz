@@ -689,9 +689,11 @@ final class ChromiumRuntime {
         }
     }
 
-    static func showDownloads(for identity: EngineProfileIdentity) {
+    /// `identity`'s live downloads, refreshed from the engine; nil if the engine isn't running. The Library
+    /// panel's Downloads pane shows these in-progress downloads at the top (`ActiveChromiumDownloadsSection`).
+    static func activeDownloads(for identity: EngineProfileIdentity) -> ChromiumDownloads? {
         guard let owner = callbackOwner, !owner.stopped,
-              let profile = owner.preparedProfiles.values.first(where: { $0.identity == identity }) else { return }
+              let profile = owner.preparedProfiles.values.first(where: { $0.identity == identity }) else { return nil }
         let model = owner.downloadModel(profile.handle)
         do {
             try owner.requireRunning()
@@ -706,7 +708,7 @@ final class ChromiumRuntime {
             }, context))
             collector.items.forEach { model.update($0) }
         } catch { model.error = "Downloads could not be refreshed. Please try again." }
-        model.show(isPrivate: identity.isPrivate)
+        return model
     }
 
     private func downloadModel(_ profile: BoazHostProfile) -> ChromiumDownloads {

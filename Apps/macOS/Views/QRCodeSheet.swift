@@ -45,6 +45,8 @@ struct QRCodeSheet: View {
         }
         .padding(20)
         .frame(width: 360)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("screen.qrCode")
         .onExitCommand(perform: done)
     }
 

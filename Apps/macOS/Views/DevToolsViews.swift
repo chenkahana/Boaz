@@ -129,7 +129,7 @@ struct ResponsiveBar: View {
             }
             .fixedSize()
             dimension(size.width, label: "Width") { CGSize(width: $0, height: size.height) }
-            Text("×").foregroundStyle(.secondary)
+            Text("×").foregroundStyle(.secondary).accessibilityHidden(true)
             dimension(size.height, label: "Height") { CGSize(width: size.width, height: $0) }
             HoverIconButton(symbol: "rectangle.portrait.rotate", help: "Rotate", size: 24) {
                 browser.setViewport(.init(size: CGSize(width: size.height, height: size.width), userAgent: viewport.userAgent),
@@ -147,6 +147,8 @@ struct ResponsiveBar: View {
         .font(.callout)
         .padding(.horizontal, 10)
         .frame(height: 36)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("screen.responsiveBar")
     }
 
     private func dimension(_ value: CGFloat, label: String, size: @escaping (CGFloat) -> CGSize) -> some View {
@@ -212,6 +214,8 @@ struct ConsolePanel: View {
         }
         .frame(height: 220)
         .background(Color(nsColor: .textBackgroundColor))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("screen.jsConsole")
         .onAppear {
             guard browser.devTools.focusConsole else { return }
             browser.devTools.focusConsole = false
@@ -363,6 +367,8 @@ private struct UserAgentSheet: View {
             }
         }
         .padding(20)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("screen.userAgent")
         .onAppear { text = browser.devTools[tabID].effectiveUserAgent?.string ?? "" }
     }
 
@@ -394,6 +400,8 @@ private struct SourceSheet: View {
             .padding(12)
         }
         .frame(minWidth: 720, idealWidth: 900, minHeight: 480, idealHeight: 640)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("screen.pageSource")
     }
 }
 
@@ -451,6 +459,7 @@ private struct StorageSheet: View {
             Group {
                 if section == .cookies { cookieTable } else { entryTable }
             }
+            .accessibilityLabel(section.rawValue)
             .contextMenu(forSelectionType: String.self) { ids in
                 Button("Copy Value") { copy(ids) }
                 Button("Delete") { Task { await delete(ids) } }
@@ -467,6 +476,8 @@ private struct StorageSheet: View {
             .padding(12)
         }
         .frame(minWidth: 760, idealWidth: 860, minHeight: 440, idealHeight: 520)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("screen.storage")
         .task(id: section) {
             selection = []
             await refresh()

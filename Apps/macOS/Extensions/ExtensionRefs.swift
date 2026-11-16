@@ -1,3 +1,5 @@
+// The WebKit builds' extension system. The Chromium build runs Chromium's own extensions instead.
+#if !BOAZ_CHROMIUM
 import AppKit
 import BoazKit
 import WebKit
@@ -98,3 +100,4 @@ final class ExtensionWindow: NSObject, WKWebExtensionWindow {
         completionHandler(nil)
     }
 }
+#endif

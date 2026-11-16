@@ -3,15 +3,26 @@ import BoazKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Archive window (⌥⌘A): closed and auto-archived tabs by day; double-click or Restore reopens one.
-struct ArchiveWindow: View {
+/// Closed and auto-archived tabs by day, searchable; double-click or Restore reopens one. Embeddable: shared by
+/// the standalone `ArchiveWindow` (⌥⌘A) and the Library panel's Archived Tabs pane.
+struct ArchiveListView: View {
     @Environment(MacModel.self) private var model
+    @Binding var query: String
+    /// Kept in sync with `items` so a host (the Archive window's toolbar) can disable "Clear Archive" without
+    /// reaching into this view's own state.
+    @Binding var isEmpty: Bool
     @State private var items: [ArchiveItem] = []
     /// The search's results, from the whole archive: `items` holds only the newest entries.
     @State private var matches: (query: String, items: [ArchiveItem])?
-    @State private var query = ""
     @State private var selection: ArchiveItem.ID?
-    @State private var confirmClear = false
+    /// Called after a restore, e.g. so a popover host can dismiss itself.
+    var onRestore: ((ArchiveItem) -> Void)?
+
+    init(query: Binding<String>, isEmpty: Binding<Bool>, onRestore: ((ArchiveItem) -> Void)? = nil) {
+        _query = query
+        _isEmpty = isEmpty
+        self.onRestore = onRestore
+    }
 
     var body: some View {
         // Until the search for the current text lands, the newest entries that match it.
@@ -24,14 +35,14 @@ struct ArchiveWindow: View {
                 Section(dayTitle(day)) {
                     ForEach(entries) { item in
                         HStack(spacing: 10) {
-                            SiteMonogram(url: item.url, tint: Theme.brand, size: 20)
+                            SiteMonogram(url: item.url, tint: Theme.brand, size: 20).accessibilityHidden(true)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(item.title ?? item.url.host() ?? item.url.absoluteString).lineLimit(1)
                                 Text(item.url.host() ?? "").font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
                             Text(item.archivedAt.formatted(date: .omitted, time: .shortened))
-                                .font(.caption).foregroundStyle(.tertiary)
+                                .font(.caption).foregroundStyle(.secondary)
                             Button("Restore") { restore(item) }.buttonStyle(.borderless)
                         }
                         .padding(.vertical, 2)
@@ -48,6 +59,7 @@ struct ArchiveWindow: View {
                 }
             }
         }
+        .accessibilityLabel("Archived tabs")
         .contextMenu(forSelectionType: ArchiveItem.ID.self) { _ in } primaryAction: { ids in
             for id in ids { if let item = filtered.first(where: { $0.id == id }) { restore(item) } }
         }
@@ -57,21 +69,6 @@ struct ArchiveWindow: View {
                                        description: Text("Closed and auto-archived tabs appear here."))
             }
         }
-        .searchable(text: $query, prompt: "Search archive")
-        .toolbar {
-            Button("Clear Archive", systemImage: "trash") { confirmClear = true }
-                .disabled(items.isEmpty)
-                .confirmationDialog("Clear the Archive?", isPresented: $confirmClear, titleVisibility: .visible) {
-                    Button("Clear Archive", role: .destructive) {
-                        try? model.store?.clearArchive()
-                        matches = nil
-                        reload()
-                    }
-                } message: {
-                    Text("This can't be undone.")
-                }
-        }
-        .navigationTitle("Archive")
         .task(id: model.sidebar) {
             reload()
             await search()
@@ -82,7 +79,10 @@ struct ArchiveWindow: View {
         }
     }
 
-    private func reload() { items = (try? model.store?.archivedItems()) ?? [] }
+    private func reload() {
+        items = (try? model.store?.archivedItems()) ?? []
+        isEmpty = items.isEmpty
+    }
 
     /// Searches the whole archive in the database, off the main thread.
     private func search() async {
@@ -101,6 +101,36 @@ struct ArchiveWindow: View {
             browser.window?.makeKeyAndOrderFront(nil)
         }
         reload()
+        onRestore?(item)
+    }
+}
+
+/// Archive window (⌥⌘A): `ArchiveListView` with the window's own search field and "Clear Archive" toolbar button.
+struct ArchiveWindow: View {
+    @Environment(MacModel.self) private var model
+    @State private var query = ""
+    @State private var isEmpty = true
+    @State private var confirmClear = false
+    /// Bumped by Clear Archive, so the list starts over from the (now empty) archive.
+    @State private var clears = 0
+
+    var body: some View {
+        ArchiveListView(query: $query, isEmpty: $isEmpty)
+            .id(clears)
+            .searchable(text: $query, prompt: "Search archive")
+            .toolbar {
+                Button("Clear Archive", systemImage: "trash") { confirmClear = true }
+                    .disabled(isEmpty)
+                    .confirmationDialog("Clear the Archive?", isPresented: $confirmClear, titleVisibility: .visible) {
+                        Button("Clear Archive", role: .destructive) {
+                            try? model.store?.clearArchive()
+                            clears += 1
+                        }
+                    } message: {
+                        Text("This can't be undone.")
+                    }
+            }
+            .navigationTitle("Archive")
     }
 }
 
@@ -121,14 +151,14 @@ struct HistoryWindow: View {
                 Section(dayTitle(day)) {
                     ForEach(entries) { visit in
                         HStack(spacing: 10) {
-                            SiteMonogram(url: visit.url, tint: Theme.brand, size: 20)
+                            SiteMonogram(url: visit.url, tint: Theme.brand, size: 20).accessibilityHidden(true)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(visit.title ?? visit.url.host() ?? visit.url.absoluteString).lineLimit(1)
                                 Text(visit.url.host() ?? "").font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
                             Text(visit.visitedAt.formatted(date: .omitted, time: .shortened))
-                                .font(.caption).foregroundStyle(.tertiary)
+                                .font(.caption).foregroundStyle(.secondary)
                         }
                         .padding(.vertical, 2)
                         .tag(visit.id)
@@ -143,6 +173,7 @@ struct HistoryWindow: View {
                 }
             }
         }
+        .accessibilityLabel("History")
         .contextMenu(forSelectionType: HistoryVisit.ID.self) { _ in } primaryAction: { ids in
             for id in ids { if let visit = visits.first(where: { $0.id == id }) { model.openInMainWindow(visit.url, title: visit.title) } }
         }
@@ -192,14 +223,16 @@ private func dayTitle(_ day: Date) -> String {
 /// Boaz ▸ Settings: same preferences as iOS, plus keyboard shortcut overrides. The App Store build shows the panes in
 /// SwiftUI's Settings scene; the DMG shows them in `ChromiumSettingsWindow`.
 enum MacSettingsPane: CaseIterable {
-    case general, privacy, sync, passwords, sites, shortcuts
+    case general, appIcon, privacy, sync, passwords, accounts, sites, shortcuts
 
     var title: String {
         switch self {
         case .general: "General"
+        case .appIcon: "App Icon"
         case .privacy: "Privacy"
         case .sync: "Sync"
         case .passwords: "Passwords"
+        case .accounts: "Accounts"
         case .sites: "Sites"
         case .shortcuts: "Shortcuts"
         }
@@ -208,9 +241,11 @@ enum MacSettingsPane: CaseIterable {
     var symbol: String {
         switch self {
         case .general: "gearshape"
+        case .appIcon: "app.badge.checkmark"
         case .privacy: "hand.raised"
         case .sync: "icloud"
         case .passwords: "key"
+        case .accounts: "person.crop.circle"
         case .sites: "arrow.triangle.branch"
         case .shortcuts: "keyboard"
         }
@@ -238,9 +273,11 @@ struct MacSettingsPaneView: View {
         Group {
             switch pane {
             case .general: GeneralSettings()
+            case .appIcon: AppIconSettings()
             case .privacy: PrivacySettings()
             case .sync: SyncSettings()
             case .passwords: PasswordsSettings().frame(minHeight: 460)
+            case .accounts: AccountsSettings()
             case .sites: SiteRulesSettings()
             case .shortcuts: ShortcutsSettings()
             }
@@ -249,6 +286,8 @@ struct MacSettingsPaneView: View {
         // 4.5:1 or better (the system's secondary label is about 4:1 in Light).
         .foregroundStyle(.primary, MacSettingsView.footnote)
         .frame(width: 520)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("screen.settings.\(pane)")
     }
 }
 
@@ -385,6 +424,7 @@ private struct SiteRulesSettings: View {
             Section {
                 HStack {
                     TextField("Host, e.g. github.com", text: $newHost)
+                        .accessibilityLabel("Host")
                     Picker("Space", selection: $newSpaceID) {
                         Text("Choose a space").tag(String?.none)
                         ForEach(model.sidebar.spaces) { space in Text(space.title).tag(String?.some(space.id)) }

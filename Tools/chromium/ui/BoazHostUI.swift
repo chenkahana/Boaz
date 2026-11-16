@@ -361,7 +361,7 @@ private struct PageUpdate {
         let expectedWindow = handle
         let expectedPage = active
         let snapshot = ExtensionSnapshot()
-        let result = owner.api.enumerate_extensions!(expectedWindow, { context, id, name in
+        let result = owner.api.enumerate_extensions!(expectedWindow, { context, id, name, _ in
             guard let context, let id, let name else { return }
             MainActor.assumeIsolated {
                 let copied = Unmanaged<ExtensionSnapshot>.fromOpaque(context).takeUnretainedValue()

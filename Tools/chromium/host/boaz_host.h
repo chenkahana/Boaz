@@ -8,14 +8,15 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 54u
+#define BOAZ_HOST_ABI_VERSION 55u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT,
   BOAZ_DEVTOOLS_STORAGE, BOAZ_DEVTOOLS_PERFORMANCE, BOAZ_DEVTOOLS_LIGHTHOUSE
 } BoazHostDevToolsAction;
+/* POPUP: a popup-type window (window.open features, chrome.windows.create type "popup"): the page alone. */
 typedef enum BoazHostWindowRole {
-  BOAZ_WINDOW_BROWSING, BOAZ_WINDOW_DEVTOOLS
+  BOAZ_WINDOW_BROWSING, BOAZ_WINDOW_DEVTOOLS, BOAZ_WINDOW_POPUP
 } BoazHostWindowRole;
 /* Context-menu commands Boaz runs itself instead of Chromium (menu_command). */
 typedef enum BoazHostMenuCommand {
@@ -197,6 +198,13 @@ typedef struct BoazHostWindowOptions {
                                   uint8_t visible);
   /* BoazHostMenuFeature bits; commands without their bit stay out of the context menu. */
   uint32_t menu_features;
+  /* Optional. Where an extension's popup or dialog points: the shown button for extension_id, or the extensions
+   * button when extension_id is null or its button isn't shown. Writes a borrowed NSView in this window and its
+   * local bounds (x, y, width, height); returns 0 without one. */
+  uint8_t (*extension_anchor)(void* context, const char* extension_id, void** native_nsview, double* bounds);
+  /* Optional. Shows an extension's side panel (a borrowed NSView, kept until replaced or removed; title is borrowed
+   * UTF-8) at the window's trailing edge, or removes it when native_nsview is null. */
+  void (*extension_side_panel)(void* context, void* native_nsview, const char* title);
 } BoazHostWindowOptions;
 
 typedef enum BoazHostDownloadState {
@@ -264,10 +272,22 @@ typedef struct BoazHostCallbacks {
       const char* text);
 } BoazHostCallbacks;
 
+/* BoazHostExtensionVisitor flags. */
+typedef enum BoazHostExtensionFlag {
+  /* Pinned to the toolbar (Chromium's pinned list, shared with chrome://extensions). */
+  BOAZ_EXTENSION_PINNED = 1u << 0,
+  /* Pinning is set by policy and can't change. */
+  BOAZ_EXTENSION_FORCE_PINNED = 1u << 1,
+  /* Its action runs on the active page; otherwise a click shows its menu. */
+  BOAZ_EXTENSION_ENABLED = 1u << 2,
+  /* Asks for access to the active page's site (the toolbar's access request). */
+  BOAZ_EXTENSION_REQUESTS_ACCESS = 1u << 3
+} BoazHostExtensionFlag;
 /* Enumeration values are borrowed for the visitor call. Visitors must copy
- * strings and must not reenter the API. Only enabled profile actions appear. */
+ * strings and must not reenter the API. The window's toolbar actions: pinned ones first in pinned order, then the
+ * rest by name. */
 typedef void (*BoazHostExtensionVisitor)(void* context, const char* extension_id,
-                                        const char* name);
+                                        const char* name, uint32_t flags);
 
 typedef void (*BoazHostHistoryVisitor)(void* context, int32_t entry_id,
     int32_t offset, const char* url, const char* title);
@@ -276,8 +296,13 @@ typedef void (*BoazHostHistoryVisitor)(void* context, int32_t entry_id,
  * Handles are never reused during a process. Callbacks must not reenter the API.
  * PAGE_CLOSING and PAGE_VIEW_WILL_CHANGE are synchronous and permit only
  * native-view detachment. Other events wait until model mutation unwinds. */
+/* png is Chromium's toolbar icon, badge drawn in, at 2x for a 26-point square. */
 typedef void (*BoazHostExtensionMetadataVisitor)(void* context, const char* title, const char* badge,
     const uint8_t* png, size_t png_size);
+/* The toolbar's access request on the active page: tooltip is Chromium's text, borrowed UTF-8; ids are the
+ * requesting extensions. */
+typedef void (*BoazHostExtensionAccessVisitor)(void* context, const char* tooltip,
+    const char* const* extension_ids, size_t count);
 
 /* Saved top-level site permissions: kind camera/microphone/notifications/location (0..3),
  * setting ask/allow/block/other (0..3). Origin is borrowed during visitor. */
@@ -326,7 +351,9 @@ typedef struct BoazHostAPI {
   BoazHostResult (*set_split)(BoazHostWindow window, BoazHostPage first,
       BoazHostPage second, uint8_t vertical, double first_ratio);
   BoazHostResult (*clear_split)(BoazHostWindow window);
-  /* Accepted requests complete once asynchronously before shutdown_ready. */
+  /* Accepted requests complete once asynchronously before shutdown_ready. A private request returns the
+   * off-the-record session of the prepared profile `identifier` names, one per profile, as Chrome's incognito;
+   * it ends when its last window closes or when it is released. */
   BoazHostResult (*prepare_profile)(const char* identifier, uint8_t is_private,
       BoazHostProfileCompletion completion, void* context);
   BoazHostResult (*create_profile_window)(BoazHostProfile profile,
@@ -425,6 +452,19 @@ typedef struct BoazHostAPI {
   /* Makes this engine the default search provider of every prepared profile, now and later, so the context menu's
    * selection search uses it. url_template is an http(s) URL with {searchTerms} where the query goes. Input is copied. */
   BoazHostResult (*set_default_search_provider)(const char* name, const char* keyword, const char* url_template);
+  /* Chromium's pinned toolbar list; profile-wide, as in chrome://extensions. */
+  BoazHostResult (*set_extension_pinned)(BoazHostWindow window, const char* extension_id, uint8_t pinned);
+  /* Chromium's menu for an extension (Options, site access, Pin, Remove, Inspect popup, Manage extension), shown
+   * after this returns below the anchor (a borrowed NSView in this window; bounds in its local coordinates).
+   * Invoke only from real user activation. */
+  BoazHostResult (*show_extension_menu)(BoazHostWindow window, BoazHostPage page, const char* extension_id,
+      void* anchor_nsview, int32_t x, int32_t y, int32_t width, int32_t height);
+  /* No visitor call when nothing asks. */
+  BoazHostResult (*extension_access_request)(BoazHostWindow window, BoazHostPage page,
+      BoazHostExtensionAccessVisitor visitor, void* context);
+  /* Grants the active page's site to the requesting extensions; Chromium then offers to reload. User activation only. */
+  BoazHostResult (*grant_extension_access_request)(BoazHostWindow window, BoazHostPage page);
+  BoazHostResult (*close_extension_side_panel)(BoazHostWindow window);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

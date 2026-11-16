@@ -183,6 +183,8 @@ struct PopupSheet: View {
         .frame(width: min(max(popup.requestedSize?.width ?? 500, 360), 900),
                height: min(max(popup.requestedSize?.height ?? 640, 400), 800))
         #endif
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("screen.popup")
     }
 }
 

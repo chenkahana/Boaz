@@ -490,6 +490,8 @@ struct QuickWindow: View {
                                    startPoint: .topLeading, endPoint: .bottomTrailing))
         .ignoresSafeArea()
         .frame(minWidth: 420, minHeight: 320)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("screen.quickWindow")
         .onAppear {
             guard page == nil else { return }
             if let url { start(url) } else { addressFocused = true }
@@ -519,7 +521,8 @@ struct QuickWindow: View {
     }
 
     private func go() {
-        guard let url = SearchInput.url(for: address, searchTemplate: Preferences.searchEngine.template) else { return }
+        guard let url = SearchInput.url(for: address, searchTemplate: Preferences.searchEngine.template,
+                                       schemes: SearchInput.typedSchemes) else { return }
         start(url)
     }
 

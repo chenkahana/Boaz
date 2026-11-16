@@ -1,8 +1,10 @@
 #include "native_extension_store_dialogs.h"
 #include "native_extension_prompt.h"
+#include "native_extension_dialogs.h"
 #include "extension_optional_permissions.h"
 #import <AppKit/AppKit.h>
 #include <dlfcn.h>
+#include <algorithm>
 #include <map>
 #include <array>
 #include "base/logging.h"
@@ -91,6 +93,7 @@ struct Window {
   BoazHostWindowOptions options;
   base::CallbackListSubscription cancelled;
   std::unique_ptr<NativeExtensionActions> actions;
+  std::unique_ptr<NativeGlobalErrors> global_errors;
   base::CallbackListSubscription closing;
   uint32_t external_tab_count = 0;
   bool explicit_close = false;
@@ -492,31 +495,85 @@ BoazHostResult NativeView(BoazHostPage p, void** v) {
 }
 FORWARD(ClosePage, (BoazHostPage p), ClosePage(p))
 #undef FORWARD
+// The window's extension toolbar. Normal windows get one when they open: chrome.action.openPopup, commands and
+// install feedback need it before Boaz draws any button.
 void EnsureExtensionActions(BoazHostWindow id, Window& window) {
-  if (window.actions) return;
+  if (window.actions || !window.browser) return;
+  const BoazHostWindowOptions options = window.options;
   window.actions = std::make_unique<NativeExtensionActions>(window.browser.get(), base::BindRepeating([](BoazHostWindow id) {
     if (!state || state->exit_requested || !state->windows.contains(id)) return;
     if (state->callbacks.extensions_changed)
       Notify([&] { state->callbacks.extensions_changed(state->callbacks.context, id); });
-  }, id));
+  }, id), base::BindRepeating([](BoazHostWindowOptions options, const std::string& extension_id, void** view,
+                                 gfx::Rect* bounds) {
+    *view = nullptr;
+    if (!state || state->in_callback || !options.extension_anchor) return false;
+    double rect[4] = {0, 0, 0, 0};
+    void* found = nullptr;
+    const bool ok = Notify([&] { return options.extension_anchor(options.context,
+        extension_id.empty() ? nullptr : extension_id.c_str(), &found, rect) != 0; });
+    NSView* anchor = (__bridge NSView*)found;
+    if (!ok || !anchor || ![anchor isKindOfClass:[NSView class]] ||
+        anchor.window != (__bridge NSWindow*)options.native_nswindow || !(rect[2] > 0) || !(rect[3] > 0))
+      return false;
+    *view = found;
+    *bounds = gfx::Rect(static_cast<int>(rect[0]), static_cast<int>(rect[1]),
+                        std::max(1, static_cast<int>(rect[2])), std::max(1, static_cast<int>(rect[3])));
+    return true;
+  }, options), base::BindRepeating([](BoazHostWindowOptions options, void* view, const std::string& title) {
+    if (!state || !options.extension_side_panel) return;
+    Notify([&] { options.extension_side_panel(options.context, view, title.c_str()); });
+  }, options));
+  if (window.browser->GetType() == BrowserWindowInterface::TYPE_NORMAL)
+    window.global_errors = NativeGlobalErrors::Create(window.browser.get());
+}
+// The window's actions for its active page, which `page` must be.
+NativeExtensionActions* ExtensionActionsFor(BoazHostWindow id, BoazHostPage page, content::WebContents** active,
+                                            BoazHostResult* error) {
+  auto it = state->windows.find(id);
+  if (it == state->windows.end() || !it->second.browser) { *error = BOAZ_HOST_INVALID_HANDLE; return nullptr; }
+  auto* browser = it->second.browser.get();
+  if (browser->IsDeleteScheduled()) { *error = BOAZ_HOST_CLOSING; return nullptr; }
+  auto* tab = browser->GetActiveTabInterface();
+  void* view = nullptr;
+  if (page) {
+    *error = state->tabs->GetNativeView(page, &view);
+    if (*error != BOAZ_HOST_OK) return nullptr;
+    if (!tab || !view || view != NativeViewForContents(tab->GetContents())) {
+      *error = BOAZ_HOST_INVALID_HANDLE;
+      return nullptr;
+    }
+  }
+  if (!tab) { *error = BOAZ_HOST_UNAVAILABLE; return nullptr; }
+  EnsureExtensionActions(id, it->second);
+  *active = tab->GetContents();
+  *error = BOAZ_HOST_OK;
+  return it->second.actions.get();
+}
+BoazHostResult ToHost(NativeExtensionActions::Result result) {
+  switch (result) {
+    case NativeExtensionActions::Result::kOk: return BOAZ_HOST_OK;
+    case NativeExtensionActions::Result::kInvalidTarget: return BOAZ_HOST_INVALID_HANDLE;
+    case NativeExtensionActions::Result::kInvalidAnchor: return BOAZ_HOST_INVALID_ARGUMENT;
+    case NativeExtensionActions::Result::kUnavailable:
+    case NativeExtensionActions::Result::kUnsupported: return BOAZ_HOST_UNAVAILABLE;
+  }
+}
+bool ValidExtensionID(const char* id) {
+  if (!id) return false;
+  const std::string_view value(id);
+  return value.size() == 32 && std::ranges::all_of(value, [](char c) { return c >= 'a' && c <= 'p'; });
 }
 BoazHostResult ExtensionMetadata(BoazHostWindow id, BoazHostPage page,
     const char* extension_id, BoazHostExtensionMetadataVisitor visitor, void* context) {
   if (auto r = Check(); r != BOAZ_HOST_OK) return r;
-  if (!extension_id || strlen(extension_id) != 32 || !visitor) return BOAZ_HOST_INVALID_ARGUMENT;
-  auto it = state->windows.find(id);
-  if (it == state->windows.end() || !it->second.browser) return BOAZ_HOST_INVALID_HANDLE;
-  auto* browser = it->second.browser.get();
-  if (browser->IsDeleteScheduled()) return BOAZ_HOST_CLOSING;
-  auto* active = browser->GetActiveTabInterface();
-  void* view = nullptr;
-  auto result = state->tabs->GetNativeView(page, &view);
-  if (result != BOAZ_HOST_OK) return result;
-  if (!active || !view || view != NativeViewForContents(active->GetContents())) return BOAZ_HOST_INVALID_HANDLE;
-  EnsureExtensionActions(id, it->second);
+  if (!ValidExtensionID(extension_id) || !visitor || !page) return BOAZ_HOST_INVALID_ARGUMENT;
+  content::WebContents* active = nullptr;
+  BoazHostResult result;
+  auto* actions = ExtensionActionsFor(id, page, &active, &result);
+  if (!actions) return result;
   NativeExtensionActions::Metadata metadata;
-  if (it->second.actions->GetMetadata(active->GetContents(), extension_id, &metadata) != NativeExtensionActions::Result::kOk)
-    return BOAZ_HOST_UNAVAILABLE;
+  if (auto r = ToHost(actions->GetMetadata(active, extension_id, &metadata)); r != BOAZ_HOST_OK) return r;
   Notify([&] { visitor(context, metadata.title.c_str(), metadata.badge_text.c_str(),
       metadata.icon_png.data(), metadata.icon_png.size()); });
   return BOAZ_HOST_OK;
@@ -525,48 +582,80 @@ BoazHostResult EnumerateExtensions(BoazHostWindow id,
     BoazHostExtensionVisitor visitor, void* context) {
   if (auto r = Check(); r != BOAZ_HOST_OK) return r;
   if (!visitor) return BOAZ_HOST_INVALID_ARGUMENT;
-  auto it = state->windows.find(id);
-  if (it == state->windows.end() || !it->second.browser)
-    return BOAZ_HOST_INVALID_HANDLE;
-  auto* browser = it->second.browser.get();
-  if (browser->IsDeleteScheduled()) return BOAZ_HOST_CLOSING;
-  auto* registry = extensions::ExtensionRegistry::Get(browser->GetProfile());
-  auto* manager = extensions::ExtensionActionManager::Get(browser->GetProfile());
-  if (!registry || !manager) return BOAZ_HOST_UNAVAILABLE;
-  EnsureExtensionActions(id, it->second);
-  for (const auto& extension : registry->enabled_extensions()) {
-    if (!manager->GetExtensionAction(*extension)) continue;
-    Notify([&] { visitor(context, extension->id().c_str(), extension->name().c_str()); });
-  }
+  content::WebContents* active = nullptr;
+  BoazHostResult result;
+  auto* actions = ExtensionActionsFor(id, 0, &active, &result);
+  // A window without pages has no toolbar actions to show yet.
+  if (!actions) return result == BOAZ_HOST_UNAVAILABLE ? BOAZ_HOST_OK : result;
+  std::vector<NativeExtensionActions::Action> list;
+  if (auto r = ToHost(actions->GetActions(active, &list)); r != BOAZ_HOST_OK) return r;
+  for (const auto& action : list)
+    Notify([&] { visitor(context, action.id.c_str(), action.name.c_str(), action.flags); });
   return BOAZ_HOST_OK;
 }
 BoazHostResult InvokeExtension(BoazHostWindow id, BoazHostPage page,
     const char* extension_id, void* anchor, int32_t x, int32_t y,
     int32_t width, int32_t height) {
   if (auto r = Check(); r != BOAZ_HOST_OK) return r;
-  if (!extension_id || !anchor || width <= 0 || height <= 0)
+  if (!ValidExtensionID(extension_id) || !anchor || !page || width <= 0 || height <= 0)
     return BOAZ_HOST_INVALID_ARGUMENT;
+  content::WebContents* active = nullptr;
+  BoazHostResult result;
+  auto* actions = ExtensionActionsFor(id, page, &active, &result);
+  if (!actions) return result;
+  return ToHost(actions->Invoke(active, extension_id, anchor, gfx::Rect(x, y, width, height)));
+}
+BoazHostResult SetExtensionPinned(BoazHostWindow id, const char* extension_id, uint8_t pinned) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  if (!ValidExtensionID(extension_id) || pinned > 1) return BOAZ_HOST_INVALID_ARGUMENT;
+  content::WebContents* active = nullptr;
+  BoazHostResult result;
+  auto* actions = ExtensionActionsFor(id, 0, &active, &result);
+  if (!actions) return result;
+  return ToHost(actions->SetPinned(extension_id, pinned != 0));
+}
+BoazHostResult ShowExtensionMenu(BoazHostWindow id, BoazHostPage page, const char* extension_id,
+    void* anchor, int32_t x, int32_t y, int32_t width, int32_t height) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  if (!ValidExtensionID(extension_id) || !anchor || !page || width <= 0 || height <= 0)
+    return BOAZ_HOST_INVALID_ARGUMENT;
+  content::WebContents* active = nullptr;
+  BoazHostResult result;
+  auto* actions = ExtensionActionsFor(id, page, &active, &result);
+  if (!actions) return result;
+  return ToHost(actions->ShowMenu(active, extension_id, anchor, gfx::Rect(x, y, width, height)));
+}
+BoazHostResult ExtensionAccessRequest(BoazHostWindow id, BoazHostPage page,
+    BoazHostExtensionAccessVisitor visitor, void* context) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  if (!visitor || !page) return BOAZ_HOST_INVALID_ARGUMENT;
+  content::WebContents* active = nullptr;
+  BoazHostResult result;
+  auto* actions = ExtensionActionsFor(id, page, &active, &result);
+  if (!actions) return result;
+  NativeExtensionActions::AccessRequest request;
+  if (auto r = ToHost(actions->GetAccessRequest(active, &request)); r != BOAZ_HOST_OK) return r;
+  if (request.extension_ids.empty()) return BOAZ_HOST_OK;
+  std::vector<const char*> ids;
+  for (const auto& extension_id : request.extension_ids) ids.push_back(extension_id.c_str());
+  Notify([&] { visitor(context, request.tooltip.c_str(), ids.data(), ids.size()); });
+  return BOAZ_HOST_OK;
+}
+BoazHostResult GrantExtensionAccessRequest(BoazHostWindow id, BoazHostPage page) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  if (!page) return BOAZ_HOST_INVALID_ARGUMENT;
+  content::WebContents* active = nullptr;
+  BoazHostResult result;
+  auto* actions = ExtensionActionsFor(id, page, &active, &result);
+  if (!actions) return result;
+  return ToHost(actions->GrantAccessRequest(active));
+}
+BoazHostResult CloseExtensionSidePanel(BoazHostWindow id) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
   auto it = state->windows.find(id);
-  if (it == state->windows.end() || !it->second.browser)
-    return BOAZ_HOST_INVALID_HANDLE;
-  auto* browser = it->second.browser.get();
-  if (browser->IsDeleteScheduled()) return BOAZ_HOST_CLOSING;
-  auto* active = browser->GetActiveTabInterface();
-  void* expected_view = nullptr;
-  auto result = state->tabs->GetNativeView(page, &expected_view);
-  if (result != BOAZ_HOST_OK) return result;
-  if (!active || !expected_view ||
-      expected_view != NativeViewForContents(active->GetContents()))
-    return BOAZ_HOST_INVALID_HANDLE;
-  EnsureExtensionActions(id, it->second);
-  switch (it->second.actions->Invoke(active->GetContents(), extension_id,
-                                     anchor, gfx::Rect(x, y, width, height))) {
-    case NativeExtensionActions::Result::kOk: return BOAZ_HOST_OK;
-    case NativeExtensionActions::Result::kInvalidTarget: return BOAZ_HOST_INVALID_HANDLE;
-    case NativeExtensionActions::Result::kInvalidAnchor: return BOAZ_HOST_INVALID_ARGUMENT;
-    case NativeExtensionActions::Result::kUnavailable:
-    case NativeExtensionActions::Result::kUnsupported: return BOAZ_HOST_UNAVAILABLE;
-  }
+  if (it == state->windows.end() || !it->second.browser) return BOAZ_HOST_INVALID_HANDLE;
+  if (it->second.actions) it->second.actions->CloseSidePanel();
+  return BOAZ_HOST_OK;
 }
 BoazHostResult CaptureDocument(BoazHostPage page, BoazHostDocument* document) {
   if (document) *document = 0;
@@ -1080,7 +1169,8 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   SetCallbacks, CreateWindow, CreatePage, Navigate, Back, Forward, Reload,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
-  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, ExtensionMetadata, TogglePictureInPicture, EnumerateSitePermissions, ResetSitePermission, SetAutomaticPictureInPictureEnabled, PrepareBlockingAssets, ConfigureProfileBlocking, ImportCookies, WidevineStatus, SetPageAssistantEnabled, SetMenuShortcuts, SetDefaultSearchProvider};
+  WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, ExtensionMetadata, TogglePictureInPicture, EnumerateSitePermissions, ResetSitePermission, SetAutomaticPictureInPictureEnabled, PrepareBlockingAssets, ConfigureProfileBlocking, ImportCookies, WidevineStatus, SetPageAssistantEnabled, SetMenuShortcuts, SetDefaultSearchProvider,
+  SetExtensionPinned, ShowExtensionMenu, ExtensionAccessRequest, GrantExtensionAccessRequest, CloseExtensionSidePanel};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
@@ -1195,7 +1285,7 @@ std::shared_ptr<AdblockProfileState> NativeBlockingState(Profile* profile) {
 }
 bool IsNativeExtensionPromptContext(Profile* profile, void* native_window) {
   if (!state || state->exit_requested || state->finished || !state->profiles || !profile ||
-      profile->IsOffTheRecord() || !state->profiles->Owns(profile)) return false;
+      !state->profiles->Owns(profile)) return false;
   for (const auto& [id, window] : state->windows) {
     if (window.browser && !window.browser->IsDeleteScheduled() &&
         window.browser->GetProfile() == profile && window.options.native_nswindow == native_window) return true;
@@ -1329,6 +1419,13 @@ bool AutomaticPictureInPictureEnabled() {
 bool NativeHostEnabled() {
   return base::CommandLine::ForCurrentProcess()->HasSwitch("boaz-native-host");
 }
+bool NativeHostCanCreateBrowserWindow(Profile* profile) {
+  CHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  // Only profiles Boaz opened have a window to show; Chromium's primary profile (and an extension running in it)
+  // gets the API's "not allowed" error, as a profile that can't open windows does in Chrome.
+  return state && !state->exit_requested && !state->finished && state->profiles && profile &&
+      state->profiles->HandleFor(profile) != 0;
+}
 std::unique_ptr<ChromeBrowserMainExtraParts> CreateNativeHostMainParts() {
   CHECK(NativeHostEnabled());
   return std::make_unique<MainParts>();
@@ -1340,6 +1437,29 @@ bool IsNativeHostBrowser(BrowserWindowInterface* browser) {
   if (!state) return false;
   for (const auto& [id, window] : state->windows)
     if (window.browser.get() == browser) return true;
+  return false;
+}
+namespace {
+BoazHostWindowRole RoleFor(BrowserWindowInterface::Type type) {
+  switch (type) {
+    case BrowserWindowInterface::TYPE_DEVTOOLS: return BOAZ_WINDOW_DEVTOOLS;
+    // Chrome's popup windows: window.open with window features, chrome.windows.create({type: "popup"}).
+    case BrowserWindowInterface::TYPE_POPUP:
+    case BrowserWindowInterface::TYPE_APP_POPUP: return BOAZ_WINDOW_POPUP;
+    default: return BOAZ_WINDOW_BROWSING;
+  }
+}
+}  // namespace
+bool FindNativeExtensionAnchor(void* nswindow, const std::vector<std::string>& extension_ids, void** view,
+                               gfx::Rect* bounds) {
+  CHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  if (!state || state->exit_requested || state->in_callback || !nswindow) return false;
+  for (auto& [id, window] : state->windows) {
+    if (window.options.native_nswindow != nswindow || !window.browser || window.browser->IsDeleteScheduled())
+      continue;
+    EnsureExtensionActions(id, window);
+    return window.actions && window.actions->GetAnchor(extension_ids, view, bounds);
+  }
   return false;
 }
 std::unique_ptr<BrowserWindow, BrowserWindowDeleter>
@@ -1356,8 +1476,7 @@ CreateNativeHostBrowserWindow(BrowserWindowInterface* browser) {
     CHECK(state->callbacks.prepare_window);
     CHECK_EQ(Notify([&] { return state->callbacks.prepare_window(
         state->callbacks.context, state->profiles->HandleFor(browser->GetProfile()),
-        browser->GetType() == BrowserWindowInterface::TYPE_DEVTOOLS
-            ? BOAZ_WINDOW_DEVTOOLS : BOAZ_WINDOW_BROWSING, &options); }), BOAZ_HOST_OK);
+        RoleFor(browser->GetType()), &options); }), BOAZ_HOST_OK);
   }
   CHECK(ValidOptions(&options));
   auto weak = browser->GetWeakPtr();
@@ -1405,13 +1524,16 @@ CreateNativeHostBrowserWindow(BrowserWindowInterface* browser) {
   record.closing = browser->RegisterBrowserDidClose(base::BindRepeating(
       [](BoazHostWindow id, BrowserWindowInterface*) {
         auto it = state->windows.find(id);
-        if (it != state->windows.end()) it->second.actions.reset();
+        if (it == state->windows.end()) return;
+        it->second.global_errors.reset();
+        it->second.actions.reset();
       }, id));
   CHECK(state->windows.emplace(id, std::move(record)).second);
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE,
       base::BindOnce([](BoazHostWindow id) {
         auto it = state->windows.find(id);
         if (it == state->windows.end() || !it->second.browser) return;
+        EnsureExtensionActions(id, it->second);
         Notify([&] { state->callbacks.window_created(state->callbacks.context,
             id, it->second.options.context); });
       }, id));

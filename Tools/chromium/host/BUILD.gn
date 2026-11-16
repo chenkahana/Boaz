@@ -17,7 +17,7 @@ buildflag_header("buildflags") {
 }
 
 source_set("headers") {
-  public = [ "adblock_popup.h", "adblock_popup_host.h", "adblock_navigation.h", "adblock_browser_client.h", "native_http_warning.h", "extension_optional_permissions.h", "native_extension_store_dialogs.h", "native_extension_uninstall_dialog.h", "native_extension_prompt.h", "native_password_submission.h", "native_devtools.h", "bootstrap.h", "context_menu_style.h", "native_permission_prompt.h", "protected_media.h" ]
+  public = [ "adblock_popup.h", "adblock_popup_host.h", "adblock_navigation.h", "adblock_browser_client.h", "native_http_warning.h", "extension_optional_permissions.h", "native_extension_store_dialogs.h", "native_extension_uninstall_dialog.h", "native_extension_prompt.h", "native_extension_dialogs.h", "native_password_submission.h", "native_devtools.h", "bootstrap.h", "context_menu_style.h", "native_permission_prompt.h", "protected_media.h" ]
   public_deps = [
     "//base",
     "//extensions/browser",
@@ -77,6 +77,10 @@ source_set("host") {
     "extension_actions.mm",
     "extension_popup.h",
     "extension_popup.mm",
+    "extension_side_panel.h",
+    "extension_side_panel.mm",
+    "native_extension_dialogs.h",
+    "native_extension_dialogs.mm",
     "bootstrap.h",
     "bootstrap.mm",
     "context_menu_style.h",
@@ -131,6 +135,9 @@ source_set("host") {
     "//components/printing/browser/print_to_pdf",
     "//chrome/browser/ui/extensions",
     "//chrome/browser/ui/extensions:impl",
+    "//chrome/browser/ui/global_error",
+    "//chrome/browser/ui/side_panel",
+    "//chrome/browser/ui/toolbar",
     "//chrome/browser/ui/views/extensions:security_dialog_tracker",
     "//chrome/browser/ui:browser_commands",
     "//chrome/browser/ui:browser_window_header",
@@ -161,6 +168,7 @@ source_set("host") {
     "//skia",
     "//ui/native_theme",
     "//ui/menus",
+    "//ui/events",
   ]
   assert(boaz_adblock_library != "", "Build the pinned content-blocking library first.")
   libs = [ boaz_adblock_library ]
