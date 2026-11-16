@@ -32,6 +32,8 @@ All notable changes to Boaz are recorded here. The format follows
 
 ### Fixed
 
+- Mac (DMG): sign-in pages that VPN and single sign-on apps such as GlobalProtect open in Boaz can send you back to
+  the app every time, not only the first time an app opens in a session.
 - Mac (DMG): pop-up windows show their address again.
 - Mac: ⌘W closes the tab, not the whole window, after a click in the sidebar.
 - Deleting a folder archives the tabs in it; Clear Archive empties the Archive window straight away.
