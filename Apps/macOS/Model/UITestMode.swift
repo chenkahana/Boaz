@@ -22,6 +22,14 @@ enum UITestMode {
         // Only the ad hoc test build (`make uitest`), never a real install launched with the flag by mistake.
         guard isActive, let bundleID = Bundle.main.bundleIdentifier, bundleID.hasSuffix(".uitest") else { return }
         UserDefaults.standard.removePersistentDomain(forName: bundleID)
+        // Earlier runs' libraries, unless that run is still going.
+        let temporary = FileManager.default.temporaryDirectory
+        for name in (try? FileManager.default.contentsOfDirectory(atPath: temporary.path)) ?? []
+        where name.hasPrefix("BoazUITest-") {
+            guard let pid = pid_t(name.dropFirst("BoazUITest-".count)), pid != getpid(),
+                  kill(pid, 0) != 0, errno == ESRCH else { continue }
+            try? FileManager.default.removeItem(at: temporary.appendingPathComponent(name))
+        }
     }
 
     /// `-BoazUITestAppearance light|dark` pins the app's appearance whatever the Mac is set to: `-AppleInterfaceStyle`
