@@ -139,6 +139,7 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         add(view, "Hide Sidebar", command: .toggleSidebar,
             title: { $0?.sidebarVisible == false ? "Show Sidebar" : "Hide Sidebar" }) { $0?.toggleSidebar() }
         add(view, "Reload Page", command: .reload, enabled: { $0?.activeTab != nil }) { $0?.reload() }
+        add(view, "Reload Ignoring Cache", command: .hardReload, enabled: { $0?.activeTab != nil }) { $0?.hardReload() }
         add(view, "Back", command: .goBack, enabled: { $0?.activeTab != nil }) { $0?.goBack() }
         add(view, "Forward", command: .goForward, enabled: { $0?.activeTab != nil }) { $0?.goForward() }
         add(view, "Zoom In", enabled: { $0?.activeTab != nil }, perform: { $0?.zoom(.in) }, key: "+")
