@@ -128,7 +128,9 @@ def sign(args):
             '    @property\n    def product(self): return "Chromium"\n'
             '    @property\n    def provisioning_profile_basename(self): return "Boaz"\n'
             f'    @property\n    def version(self): return {version!r}\n'
-            '    @property\n    def base_bundle_id(self): return "com.chenkahana.boaz"\n')
+            '    @property\n    def base_bundle_id(self): return "com.chenkahana.boaz"\n'
+            # Gatekeeper rejects the app until it is notarized, which happens after this signing pass.
+            '    @property\n    def run_spctl_assess(self): return False\n')
         signer = packaging / 'signing/signing.py'
         original = signer.read_text()
         anchor = """        if config.notarize.should_notarize():
