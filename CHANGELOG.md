@@ -6,6 +6,13 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.18] - 2026-11-16
+
+### Changed
+
+- Mac: the automated UI tests choose the Library's download filter by keyboard and open windows at the minimum size
+  directly, so they pass on CI again. No change to how Boaz works.
+
 ## [0.4.17] - 2026-11-16
 
 ### Added
@@ -434,7 +441,8 @@ First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone
 - Share extension, search widget, App Shortcuts, the `boaz://` URL scheme and alternate app icons.
 - Privacy manifest, privacy policy and an About section with third-party notices.
 
-[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.17...HEAD
+[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.18...HEAD
+[0.4.18]: https://github.com/chenkahana/Boaz/compare/v0.4.17...v0.4.18
 [0.4.17]: https://github.com/chenkahana/Boaz/compare/v0.4.16...v0.4.17
 [0.4.16]: https://github.com/chenkahana/Boaz/compare/v0.4.15...v0.4.16
 [0.4.15]: https://github.com/chenkahana/Boaz/compare/v0.4.14...v0.4.15
