@@ -904,6 +904,22 @@
       ]
     },
     {
+      "file": "patches/native-external-protocol-dialog.patch",
+      "sha256": "490a51ca28b82b6439f0dbf4c5c2681d6f1cef3091dca19b510e08de02bc84e5",
+      "files": [
+        {
+          "path": "chrome/browser/ui/views/external_protocol_dialog.cc",
+          "before": "43b1ad4d5dc056c2cba30fe59b8f6cbd435329960ae8d9342a699f3fc24f6d64",
+          "after": "5ca962c1d52f6a51147f28cefaaac4b6bb0ba6e061556ec62613160d7003138b"
+        },
+        {
+          "path": "chrome/browser/ui/views/BUILD.gn",
+          "before": "d5822990fb42fc4256f0810a747833771d6bb0b5c98c3099d358d267505b3254",
+          "after": "84bfdabc64e6be965789d68f1d4683aab3c309e57795cdea17c57827f7527ee4"
+        }
+      ]
+    },
+    {
       "file": "patches/native-extension-ui.patch",
       "sha256": "0caed6be77739f7bec36e1ee8d75417722ca535f27d4e68eda72a67599837099",
       "files": [
@@ -942,22 +958,6 @@
           "path": "chrome/browser/ui/browser_window/internal/create_browser_window_non_android.cc",
           "before": "1250b3780382548d83a39a9d135074983d84bb88771b85ec8ab9416b509e6cf0",
           "after": "498def2be68eca6446c81677794bed9d7872e7cbcce1ae310588702f382649c6"
-        }
-      ]
-    },
-    {
-      "file": "patches/native-external-protocol-dialog.patch",
-      "sha256": "490a51ca28b82b6439f0dbf4c5c2681d6f1cef3091dca19b510e08de02bc84e5",
-      "files": [
-        {
-          "path": "chrome/browser/ui/views/external_protocol_dialog.cc",
-          "before": "43b1ad4d5dc056c2cba30fe59b8f6cbd435329960ae8d9342a699f3fc24f6d64",
-          "after": "5ca962c1d52f6a51147f28cefaaac4b6bb0ba6e061556ec62613160d7003138b"
-        },
-        {
-          "path": "chrome/browser/ui/views/BUILD.gn",
-          "before": "d5822990fb42fc4256f0810a747833771d6bb0b5c98c3099d358d267505b3254",
-          "after": "84bfdabc64e6be965789d68f1d4683aab3c309e57795cdea17c57827f7527ee4"
         }
       ]
     }
