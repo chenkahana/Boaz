@@ -6,6 +6,35 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.13] - 2026-11-16
+
+### Added
+
+- Library panel: the button at the bottom of the sidebar opens Media, Downloads, Spaces and Archived Tabs. Downloads
+  can be searched and filtered by kind, are grouped by date with thumbnails and where they came from, and open,
+  drag out, show in Finder or move to the Trash. View › Downloads… (⌥⌘L) opens it.
+- Mac: GitHub Pull Requests live folders. Sign in to GitHub in Settings › Accounts, then New Live Folder › GitHub
+  Pull Requests adds a pinned folder of your pull requests that refreshes every minute, with each one's CI status.
+  Choose Created by Me, Review Requests, Team Review Requests, Assigned or Mentioned, and which repositories.
+  Folders can also be moved to another space, have their links copied, and get their own icon.
+- A new pretzel app icon, in 19 styles from Classic, Neon and Wood to Gold, Holo Foil and Candy Cane. Pick one in
+  Settings › App Icon on the Mac; the Dock keeps it even while Boaz is closed.
+
+### Changed
+
+- Mac (DMG): extensions work as in Chrome. The toolbar pins follow Chromium's Extensions page, popups open from
+  keyboard shortcuts and the extension itself, the right-click menu is Chrome's, side panels open beside the page,
+  and extensions can ask for site access from the toolbar. Install, update and permission prompts are back.
+- Mac (DMG): private windows work like Chrome's incognito. A profile's private windows share one session, which
+  ends (with its cookies) when the last one closes, and extensions allowed in incognito run in them.
+- Mac (DMG): typing chrome://, chrome-extension:// or about: addresses opens them instead of searching.
+
+### Fixed
+
+- Mac (DMG): pop-up windows show their address again.
+- Mac: ⌘W closes the tab, not the whole window, after a click in the sidebar.
+- Deleting a folder archives the tabs in it; Clear Archive empties the Archive window straight away.
+
 ## [0.4.12] - 2026-11-16
 
 ### Fixed
@@ -368,7 +397,8 @@ First public beta. The Mac app is a notarized DMG on GitHub Releases; the iPhone
 - Share extension, search widget, App Shortcuts, the `boaz://` URL scheme and alternate app icons.
 - Privacy manifest, privacy policy and an About section with third-party notices.
 
-[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.12...HEAD
+[Unreleased]: https://github.com/chenkahana/Boaz/compare/v0.4.13...HEAD
+[0.4.13]: https://github.com/chenkahana/Boaz/compare/v0.4.12...v0.4.13
 [0.4.12]: https://github.com/chenkahana/Boaz/compare/v0.4.11...v0.4.12
 [0.4.11]: https://github.com/chenkahana/Boaz/compare/v0.4.10...v0.4.11
 [0.4.10]: https://github.com/chenkahana/Boaz/compare/v0.4.9...v0.4.10
