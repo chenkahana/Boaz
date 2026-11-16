@@ -107,7 +107,7 @@ final class LiveFolderRefresher {
                 case .assignedToMe: qualifiers.append("assignee:@me")
                 case .mentioned: qualifiers.append("mentions:@me")
                 case .teamReviewRequests:
-                    qualifiers += try await teamNames(client, login: login).prefix(20).map { "team-review-requested:\($0)" }
+                    qualifiers += await teamNames(client, login: login).prefix(20).map { "team-review-requested:\($0)" }
                 }
             }
             let result = try await client.searchPulls(qualifiers, repositories: source.repositories)
@@ -177,10 +177,13 @@ final class LiveFolderRefresher {
         model.openBrowsers.contains { $0.hasOpenPage(tabID) }
     }
 
-    private func teamNames(_ client: GitHubClient, login: String?) async throws -> [String] {
+    private func teamNames(_ client: GitHubClient, login: String?) async -> [String] {
         guard let login else { return [] }
-        if let teams, teams.login == login, teams.fetchedAt.timeIntervalSinceNow > -3600 { return teams.names }
-        let names = try await client.teams(login: login)
+        let cached = teams?.login == login ? teams : nil
+        if let cached, cached.fetchedAt.timeIntervalSinceNow > -3600 { return cached.names }
+        // A token without `read:org` (a fine-grained one, say) can't list teams: the other filters still refresh,
+        // with the teams last listed, and the lookup is retried in an hour.
+        let names = (try? await client.teams(login: login)) ?? cached?.names ?? []
         teams = (login, names, .now)
         return names
     }
