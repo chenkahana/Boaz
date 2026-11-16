@@ -19,6 +19,7 @@
 #include <cstring>
 #include "launch.h"
 #include "base/path_service.h"
+#include "chrome/browser/external_protocol/external_protocol_handler.h"
 #include "chrome/common/chrome_paths.h"
 #include "boaz_host.h"
 #include "native_window.h"
@@ -1271,7 +1272,13 @@ bool RouteNativeReopen() {
 bool RouteExternalURLs(std::vector<std::string> urls) {
   if (!NativeHostEnabled() ||
       !base::CommandLine::ForCurrentProcess()->HasSwitch("boaz-app-ui")) return false;
-  if (!urls.empty()) PendingExternalURLs().push_back(std::move(urls));
+  if (!urls.empty()) {
+    PendingExternalURLs().push_back(std::move(urls));
+    // Opening a link from another app is a user action, as typing it in the
+    // omnibox is: let the page it loads open an app, e.g. a VPN sign-in's
+    // scripted redirect back to its client.
+    ExternalProtocolHandler::PermitLaunchUrl();
+  }
   if (state && state->callbacks.external_urls) {
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
         FROM_HERE, base::BindOnce(&DeliverExternalURLs));
