@@ -406,6 +406,7 @@ final class BrowserState {
         window.isOpaque = false
         window.backgroundColor = .clear
         window.tabbingMode = .disallowed
+        if let size = UITestMode.windowSize { DispatchQueue.main.async { window.setContentSize(size) } }
         updateTrafficLights()
         if !isIncognito { model.lastActiveBrowser = self }
         #if !BOAZ_CHROMIUM

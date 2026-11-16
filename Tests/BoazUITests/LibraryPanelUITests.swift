@@ -49,12 +49,14 @@ final class LibraryPanelUITests: BoazUITestCase {
         // A SwiftUI `Menu` is a menu button, not a button.
         let filter = panel.menuButtons["control.library.filter"]
         XCTAssertTrue(filter.waitForExistence(timeout: 2))
-        // On a slow machine the first click can land before the menu button is ready: open it again if needed.
-        let pdfs = app.menuItems["PDFs"]
+        // The menu opens, but XCUITest can't find its items while it's up (CI's screen recording shows it open with
+        // "PDFs" in it while app.menuItems["PDFs"] matches nothing), so choose with the keyboard: All, Images, PDFs.
         filter.click()
-        if !pdfs.waitForExistence(timeout: 3) { filter.click() }
-        XCTAssertTrue(pdfs.waitForExistence(timeout: 5), "The Filter menu never opened")
-        pdfs.click()
+        RunLoop.current.run(until: .now + 1)
+        for _ in 0..<3 { app.typeKey(.downArrow, modifierFlags: []) }
+        app.typeKey(.return, modifierFlags: [])
+        XCTAssertTrue(element("control.library.download.boardingcard.pdf").waitForExistence(timeout: 5),
+                      "Filtering by PDFs hid the PDF")
         assertScreenIntact(panel, name: "library-downloads-filtered-\(appearance)")
 
         // Each remaining pane.

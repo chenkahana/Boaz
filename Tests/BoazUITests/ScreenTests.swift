@@ -19,20 +19,13 @@ final class ScreenTests: BoazUITestCase {
     }
 
     func testMainWindowAtMinimumSize() {
-        launch()
+        // The minimum size (720 × 460); dragging the window's corner doesn't resize it on the CI runner.
+        launch(arguments: ["-BoazUITestWindowSize", "720x460"])
         openSidebarTab("Today Tab")
-        // Drag the bottom-right corner past the top-left: the window stops at its minimum size (720 × 460).
-        // Slowly, and once more if the first drag doesn't take: a slow machine can miss a fast one. Its window
-        // frame also updates a moment after the drag ends.
-        for _ in 0..<2 where mainWindow.frame.width >= 800 {
-            let corner = mainWindow.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 1)).withOffset(CGVector(dx: -2, dy: -2))
-            corner.press(forDuration: 0.5, thenDragTo: mainWindow.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0)),
-                         withVelocity: .slow, thenHoldForDuration: 0.3)
-            let deadline = Date.now.addingTimeInterval(3)
-            while mainWindow.frame.width >= 800, Date.now < deadline { RunLoop.current.run(until: .now + 0.2) }
-        }
+        let deadline = Date.now.addingTimeInterval(5)
+        while mainWindow.frame.width >= 800, Date.now < deadline { RunLoop.current.run(until: .now + 0.2) }
         let size = mainWindow.frame.size
-        XCTAssertLessThan(size.width, 800, "The window didn't shrink (\(size))")
+        XCTAssertLessThan(size.width, 800, "The window didn't open at its minimum size (\(size))")
         XCTAssertGreaterThanOrEqual(size.width, 719)
         XCTAssertGreaterThanOrEqual(size.height, 459)
         assertScreenIntact(element("screen.browser"), name: "browser-minimum-size")
