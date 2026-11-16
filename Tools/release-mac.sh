@@ -69,7 +69,8 @@ if "$CLOUD"; then
     [ -z "$NOTARY_PROFILE$PROVISIONING_PROFILE" ] || { echo "Cloud signing uses Xcode provisioning and notarization." >&2; exit 2; }
 else
     [ "${#PASSKEYS[@]}" -eq 0 ] || { echo "--passkeys requires --cloud-signing." >&2; exit 2; }
-    [ -n "$NOTARY_PROFILE" ] && [ -n "$PROVISIONING_PROFILE" ] || { echo "Local signing requires notary and provisioning profiles." >&2; exit 2; }
+    [ -n "$NOTARY_PROFILE" ] || [ -n "${BOAZ_ASC_KEY_PATH:-}" ] || { echo "Local signing requires a notary profile or BOAZ_ASC_* API key." >&2; exit 2; }
+    [ -n "$PROVISIONING_PROFILE" ] || { echo "Local signing requires a provisioning profile." >&2; exit 2; }
 fi
 [ -x "$PYTHON" ] || { echo "Required Python is unavailable: $PYTHON" >&2; exit 1; }
 case "$OUTPUT" in
@@ -91,7 +92,7 @@ if "$CLOUD"; then
 else
     "$PYTHON" "$TOOLS/chromium/sign-production-application.py" \
     --input "$OUTPUT/assembly" --output "$OUTPUT/signing" \
-    --identity "$IDENTITY" --notary-profile "$NOTARY_PROFILE" --provisioning-profile "$PROVISIONING_PROFILE"
+    --identity "$IDENTITY" ${NOTARY_PROFILE:+--notary-profile "$NOTARY_PROFILE"} --provisioning-profile "$PROVISIONING_PROFILE"
     SIGNED_APP="$OUTPUT/signing/signed/stable/Boaz.app"
 fi
 "$PYTHON" "$TOOLS/chromium/package-candidate.py" "$VERSION" \

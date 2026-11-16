@@ -1,0 +1,279 @@
+name: Release
+
+# Every master commit that changes the Mac app becomes a signed, notarized DMG on GitHub Releases, with the appcast
+# Sparkle reads from releases/latest. Chromium itself is prebuilt on the build Mac (docs/release.md).
+on:
+  push:
+    branches: [master]
+    paths:
+      - Apps/macOS/**
+      - Apps/Shared/**
+      - Apps/Browser/**
+      - Apps/DockTile/**
+      - Packages/BoazKit/**
+      - Tools/boaz/**
+      - Tools/chromium/**
+      - project.yml
+      - project-dmg.yml
+      - project-chromium.yml
+      - passkeys.yml
+      - web-browser.yml
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build, sign, notarize and package without publishing
+        type: boolean
+        default: true
+
+# One release at a time, and none cancelled halfway through notarization.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    name: Build, notarize and publish the Mac DMG
+    runs-on: xcode-27
+    timeout-minutes: 180
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ROOT: /Volumes/BoazBuild/cef/direct
+      # The team's Developer ID Application certificate (App Store Connect ID); DEVELOPER_ID_KEY is its private key.
+      DEVELOPER_ID_CERT_ID: 65VA6MN3JW
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Check the signing secrets
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+          DEVELOPER_ID_KEY: ${{ secrets.DEVELOPER_ID_KEY }}
+        run: |
+          missing=()
+          for name in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 SPARKLE_ED_PRIVATE_KEY DEVELOPER_ID_KEY; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "::error::Missing repository secrets: ${missing[*]} (see docs/release.md)"
+            exit 1
+          fi
+
+      - name: Choose the version
+        # CHANGELOG's newest version when it is newer than every v* tag; otherwise the next patch, with the commit
+        # subject as its notes. CI never edits CHANGELOG.md.
+        run: |
+          latest=$(git ls-remote --tags --refs origin 'refs/tags/v*' | sed 's|.*refs/tags/v||' \
+            | { grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true; } | sort -V | tail -1)
+          top=$(grep -m1 -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md | tr -d '#[] ' || true)
+          notes="$RUNNER_TEMP/notes.md"
+          if [ -n "$top" ] && { [ -z "$latest" ] || [ "$(printf '%s\n%s\n' "$latest" "$top" | sort -V | tail -1)" != "$latest" ]; }; then
+            version=$top
+            awk -v heading="## [$top]" 'index($0, heading) == 1 {on = 1; next} on && /^## \[/ {exit} on' CHANGELOG.md \
+              | sed -e '/./,$!d' > "$notes"
+          else
+            IFS=. read -r major minor patch <<< "${latest:-0.0.0}"
+            version="$major.$minor.$((patch + 1))"
+            git log -1 --format=%s > "$notes"
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "NOTES=$notes" >> "$GITHUB_ENV"
+          echo "Releasing $version (latest tag: ${latest:-none})"
+          cat "$notes"
+
+      - name: Select the newest Xcode 27
+        run: |
+          xcode=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$xcode" ]; then sudo xcode-select -s "$xcode"; fi
+          xcodebuild -version
+
+      - name: Install XcodeGen and Python 3.12
+        # The release scripts call /opt/homebrew/bin/xcodegen and /opt/homebrew/bin/python3.12, as on the build Mac.
+        env:
+          VERSION: "2.46.0"
+          SHA256: 4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/xcodegen.zip" "https://github.com/yonaskolb/XcodeGen/releases/download/$VERSION/xcodegen.zip"
+          echo "$SHA256  $RUNNER_TEMP/xcodegen.zip" | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP"
+          rm -f /opt/homebrew/bin/xcodegen
+          printf '#!/bin/sh\nexec "%s/xcodegen/bin/xcodegen" "$@"\n' "$RUNNER_TEMP" > /opt/homebrew/bin/xcodegen
+          chmod +x /opt/homebrew/bin/xcodegen
+          [ -x /opt/homebrew/bin/python3.12 ] || brew install python@3.12
+
+      - name: Download the Chromium base
+        run: |
+          tag=$(/opt/homebrew/bin/python3.12 Tools/chromium/chromium-base.py key)
+          if ! gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/base" --pattern 'chromium-base.tar.gz*'; then
+            echo "::error::Chromium changed — base $tag not uploaded. Build Chromium at this commit on the build Mac, then run Tools/chromium/chromium-base.py pack --upload."
+            exit 1
+          fi
+          (cd "$RUNNER_TEMP/base" && shasum -a 256 -c chromium-base.tar.gz.sha256)
+          # The release scripts only accept artifacts under the build volume's path; here it is a plain directory.
+          sudo mkdir -p "$ROOT"
+          sudo chown -R "$(id -un)" /Volumes/BoazBuild
+          tar -xzf "$RUNNER_TEMP/base/chromium-base.tar.gz" -C "$ROOT"
+          rm -rf "$RUNNER_TEMP/base"
+
+      - name: Build the Mac interface
+        run: |
+          /opt/homebrew/bin/python3.12 Tools/chromium/build-application.py --build --jobs 2
+          run=$(ls -td "$ROOT"/app/runs/*/ | head -1)
+          echo "UI_RECEIPT=${run}artifacts/build.json" >> "$GITHUB_ENV"
+          echo "SPARKLE_BIN=${run}SourcePackages/artifacts/sparkle/Sparkle/bin" >> "$GITHUB_ENV"
+
+      - name: Install the signing keys
+        # The Developer ID key signs with its certificate, fetched with the API key; the API key also notarizes and
+        # makes this run's provisioning profile (Boaz's iCloud and push entitlements), deleted in the last step.
+        id: keys
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+          DEVELOPER_ID_KEY: ${{ secrets.DEVELOPER_ID_KEY }}
+          BOAZ_ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          BOAZ_ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          umask 077
+          keys="$RUNNER_TEMP/keys"
+          mkdir -p "$keys"
+          printf '%s\n' "$ASC_KEY_P8" > "$keys/asc.p8"
+          printf '%s\n' "$SPARKLE_ED_PRIVATE_KEY" > "$keys/sparkle.key"
+          printf '%s\n' "$DEVELOPER_ID_KEY" > "$keys/developer-id.key"
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          {
+            echo "BOAZ_ASC_KEY_PATH=$keys/asc.p8"
+            echo "BOAZ_SPARKLE_KEY_FILE=$keys/sparkle.key"
+            echo "KEYCHAIN=$keychain"
+          } >> "$GITHUB_ENV"
+          password=$(uuidgen)
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          BOAZ_ASC_KEY_PATH="$keys/asc.p8" /opt/homebrew/bin/python3.12 Tools/chromium/ci-signing.py install \
+            --key "$keys/developer-id.key" --certificate-id "$DEVELOPER_ID_CERT_ID" --keychain "$keychain" \
+            --profile "$keys/Boaz.provisionprofile" --state "$RUNNER_TEMP/signing"
+          rm "$keys/developer-id.key"
+          curl -fsSL -o "$RUNNER_TEMP/DeveloperIDG2CA.cer" https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer
+          security import "$RUNNER_TEMP/DeveloperIDG2CA.cer" -k "$keychain"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" > /dev/null
+          read -r -a searched <<< "$(security list-keychains -d user | tr -d '"' | xargs)"
+          security list-keychains -d user -s "$keychain" "${searched[@]}"
+          identity=$(security find-identity -v -p codesigning "$keychain" \
+            | sed -n 's/.*\([0-9A-F]\{40\}\) "Developer ID Application:.*/\1/p' | head -1)
+          [ -n "$identity" ] || { echo "::error::No valid Developer ID Application identity after importing the key"; exit 1; }
+          echo "identity=$identity" >> "$GITHUB_OUTPUT"
+
+      - name: Sign, notarize and package
+        env:
+          BOAZ_ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          BOAZ_ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          IDENTITY: ${{ steps.keys.outputs.identity }}
+        run: |
+          output="$ROOT/artifacts/release-$VERSION"
+          Tools/release-mac.sh "$VERSION" --identity "$IDENTITY" --provisioning-profile "$RUNNER_TEMP/keys/Boaz.provisionprofile" \
+            --base-app "$ROOT/chromium/src/out/BoazDevelopment/Chromium.app" --ui-receipt "$UI_RECEIPT" \
+            --sparkle-bin "$SPARKLE_BIN" --output "$output" --no-publish
+          echo "PACKAGE=$output/package" >> "$GITHUB_ENV"
+
+      - name: Verify the DMG
+        run: |
+          mount=$(mktemp -d)
+          hdiutil attach -nobrowse -readonly -mountpoint "$mount" "$PACKAGE/Boaz.dmg" > /dev/null
+          trap 'hdiutil detach -quiet "$mount"' EXIT
+          app="$mount/Boaz.app"
+          gatekeeper=$(spctl -a -t exec -vv "$app" 2>&1)
+          [[ "$gatekeeper" == *'Notarized Developer ID'* ]] \
+            || { echo "::error::Gatekeeper does not accept Boaz.app as notarized Developer ID: $gatekeeper"; exit 1; }
+          xcrun stapler validate "$app"
+          codesign --verify --deep --strict "$app"
+          shown=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$app/Contents/Info.plist")
+          [ "$shown" = "$VERSION" ] || { echo "::error::Boaz.app is version $shown, not $VERSION"; exit 1; }
+          echo "BUILD=$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$app/Contents/Info.plist")" >> "$GITHUB_ENV"
+          signature=$(/opt/homebrew/bin/python3.12 -c 'import sys, xml.etree.ElementTree as ET
+          enclosure = ET.parse(sys.argv[1]).find("channel/item/enclosure")
+          print(enclosure.get("{http://www.andymatuschak.org/xml-namespaces/sparkle}edSignature"))' "$PACKAGE/candidate-appcast.xml")
+          "$SPARKLE_BIN/sign_update" --verify --ed-key-file "$BOAZ_SPARKLE_KEY_FILE" "$PACKAGE/Boaz.dmg" "$signature"
+          (cd "$PACKAGE" && shasum -a 256 -c Boaz.dmg.sha256)
+          echo "SIGNATURE=$signature" >> "$GITHUB_ENV"
+
+      - name: Write the appcast
+        run: |
+          release="$RUNNER_TEMP/release"
+          mkdir -p "$release"
+          cp "$PACKAGE/Boaz.dmg" "$PACKAGE/Boaz.dmg.sha256" "$release/"
+          minimum=$(grep -m1 -oE 'deploymentTarget: "[0-9.]+"' project-chromium.yml | cut -d'"' -f2)
+          download="https://github.com/$GITHUB_REPOSITORY/releases"
+          cat > "$release/appcast.xml" <<EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+              <channel>
+                  <title>Boaz</title>
+                  <item>
+                      <title>Boaz $VERSION</title>
+                      <pubDate>$(LC_ALL=C date -u '+%a, %d %b %Y %H:%M:%S +0000')</pubDate>
+                      <sparkle:version>$BUILD</sparkle:version>
+                      <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
+                      <sparkle:minimumSystemVersion>$minimum</sparkle:minimumSystemVersion>
+                      <sparkle:releaseNotesLink>$download/tag/v$VERSION</sparkle:releaseNotesLink>
+                      <enclosure url="$download/download/v$VERSION/Boaz.dmg"
+                                 length="$(stat -f%z "$release/Boaz.dmg")" type="application/octet-stream"
+                                 sparkle:edSignature="$SIGNATURE"/>
+                  </item>
+              </channel>
+          </rss>
+          EOF
+          xmllint --noout "$release/appcast.xml"
+          cat "$release/appcast.xml"
+          echo "RELEASE=$release" >> "$GITHUB_ENV"
+
+      - name: Publish
+        if: ${{ !inputs.dry_run && github.ref == 'refs/heads/master' }}
+        run: |
+          cd "$RELEASE"
+          gh release create "v$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --latest \
+            --title "Boaz $VERSION (beta)" --notes-file "$NOTES" Boaz.dmg Boaz.dmg.sha256 appcast.xml
+          sleep 5
+          served=$(curl -fsSL "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/appcast.xml")
+          [[ "$served" == *"<sparkle:shortVersionString>$VERSION<"* ]] \
+            || { echo "::error::releases/latest does not serve the $VERSION appcast"; exit 1; }
+
+      - name: Keep the dry-run DMG
+        if: ${{ inputs.dry_run }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Boaz-${{ env.VERSION }}
+          path: ${{ env.RELEASE }}
+          retention-days: 3
+
+      - name: Show the build logs
+        if: failure()
+        run: |
+          for log in $(ls -t /Volumes/BoazBuild/cef/logs/*.log 2>/dev/null | head -4) \
+              $(find "$ROOT/app/runs" "$ROOT/artifacts" -maxdepth 3 -name '*.log' 2>/dev/null); do
+            echo "::group::$log"
+            tail -n 60 "$log"
+            echo "::endgroup::"
+          done
+
+      - name: Delete the provisioning profile and remove the signing keys
+        if: always()
+        env:
+          BOAZ_ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          BOAZ_ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          status=0
+          if [ -f "$RUNNER_TEMP/signing/profile-id" ]; then
+            /opt/homebrew/bin/python3.12 Tools/chromium/ci-signing.py delete --state "$RUNNER_TEMP/signing" \
+              || { echo "::warning::Could not delete this run's provisioning profile; the next run deletes it"; status=1; }
+          fi
+          [ -z "${KEYCHAIN:-}" ] || security delete-keychain "$KEYCHAIN" || true
+          rm -rf "$RUNNER_TEMP/keys" "$RUNNER_TEMP/signing"
+          exit "$status"
