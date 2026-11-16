@@ -144,7 +144,7 @@ final class ChromiumEnginePageAdapter: EnginePageAdapter {
         try requireOpen()
         try check(api.reload!(handle))
     }
-    func changeZoom(_ change: EngineZoomChange) throws {
+    func changeZoom(_ change: EngineZoomChange) throws -> Double {
         try requireOpen()
         guard let get = api.get_zoom_factor, let set = api.set_zoom_factor else {
             throw EnginePageError.incompatibleBridge
@@ -159,6 +159,7 @@ final class ChromiumEnginePageAdapter: EnginePageAdapter {
         case .reset: 1.0
         }
         try check(set(handle, next))
+        return next
     }
 
     struct HistoryEntry: Identifiable {

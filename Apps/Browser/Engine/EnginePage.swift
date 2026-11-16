@@ -67,7 +67,8 @@ protocol EnginePageAdapter: AnyObject {
     func goForward() throws
     func reload() throws
     func stopLoading() throws
-    func changeZoom(_ change: EngineZoomChange) throws
+    /// Returns the page's zoom level after the change (1 is actual size).
+    @discardableResult func changeZoom(_ change: EngineZoomChange) throws -> Double
     func close() throws
 }
 
@@ -89,7 +90,10 @@ final class EnginePage: Identifiable {
     func goForward() throws { try requireOpen(); try adapter.goForward() }
     func reload() throws { try requireOpen(); try adapter.reload() }
     func stopLoading() throws { try requireOpen(); try adapter.stopLoading() }
-    func changeZoom(_ change: EngineZoomChange) throws { try requireOpen(); try adapter.changeZoom(change) }
+    @discardableResult func changeZoom(_ change: EngineZoomChange) throws -> Double {
+        try requireOpen()
+        return try adapter.changeZoom(change)
+    }
     func close() throws {
         guard state.lifecycle != .closed, state.lifecycle != .closing else { return }
         try adapter.close()
