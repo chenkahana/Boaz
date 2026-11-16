@@ -89,8 +89,18 @@ func sprinkles(_ tube: Tube, _ rng: inout Noise) -> [SCNNode] {
 
 // MARK: The family
 
+/// The primary icon: the knot as a flat blue strand on white, like the system's own icons. Its iOS dark and tinted
+/// appearances are `classicDark` and `classicTinted`.
 let classic = Variant(
-    id: "Classic", title: "Classic", caption: "The original twist: glossy blue on cream",
+    id: "Classic", title: "Classic", caption: "Flat blue knot, light or dark with the system",
+    look: Look(color: classicColor), ground: { _, _ in }, flat: flatLight)
+
+let flatDarkVariant = Variant(
+    id: "Dark", title: "Dark", caption: "Flat blue knot on black",
+    look: Look(color: classicColor), ground: { _, _ in }, flat: flatDark)
+
+let glossy = Variant(
+    id: "Glossy", title: "Glossy", caption: "The knot in 3D: glossy blue on cream",
     look: Look(finish: .satin(0.5), color: classicColor, studio: Studio(intensity: 0.85)),
     ground: { ctx, s in
         linear(ctx, s, [RGB(0xFDF9EF), RGB(0xF8F0DF), RGB(0xF0E5CD)])
@@ -422,14 +432,11 @@ let bubblegum = Variant(
     shadow: RGB(0x6A2A8A), shadowAlpha: 0.32)
 
 /// The whole family, in picker order. The first is the primary icon.
-let variants: [Variant] = [classic, midnight, noir, neon, wood, salted, chocolate, glass, chrome, gold, marble, clay,
+let variants: [Variant] = [classic, flatDarkVariant, glossy, midnight, noir, neon, wood, salted, chocolate, glass, chrome, gold, marble, clay,
                            sunset, ocean, matcha, holo, candy, graphite, bubblegum]
 
-/// iOS dark appearance of the primary icon: the classic knot at night.
-let classicDark = midnight
-/// iOS tinted appearance: grayscale on transparency; the system supplies the tint.
-let classicTinted = Variant(
-    id: "Tinted", title: "Tinted", caption: "",
-    look: Look(finish: .satin(0.4), color: { s in toned(s, RGB(0xFFFFFF), RGB(0xC8C8C8)).mix(RGB(0xE8E8E8), crossing(s) * 0.6) },
-               studio: Studio(top: RGB(0xFFFFFF), horizon: RGB(0xBBBBBB), floor: RGB(0x555555), key: 1)),
-    ground: { _, _ in }, shadowAlpha: 0)
+/// iOS dark appearance of the primary icon: the same flat knot on black.
+let classicDark = flatDarkVariant
+/// iOS tinted appearance: the flat knot in grayscale on transparency; the system supplies the tint.
+let classicTinted = Variant(id: "Tinted", title: "Tinted", caption: "", look: Look(color: classicColor),
+                            ground: { _, _ in }, shadowAlpha: 0, flat: flatTinted)
