@@ -11,7 +11,7 @@ All notable changes to Boaz are recorded here. The format follows
 ### Changed
 
 - Mac: the automated UI tests choose the Library's download filter by keyboard and open windows at the minimum size
-  directly, so they pass on CI again. No change to how Boaz works.
+  directly, fixing two of the three failing tests. No change to how Boaz works.
 
 ## [0.4.17] - 2026-11-16
 
