@@ -6,6 +6,19 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.23] - 2026-11-17
+
+### Added
+
+- Mac: Apple Intelligence names every tab as it joins Pinned, whether you pin it, drag it there or a Pull Requests
+  live folder adds it: "chore(deps): resolve react-dev-utils' immer to 9.0.21 (CVE-2021-23436)" becomes a short
+  title like "Immer CVE Fix". A tab you rename keeps your name, and a live folder retitles a pull request only when
+  its title changes on GitHub.
+
+### Fixed
+
+- Mac: the Pull Requests live folder showed no icon in the DMG; it shows the GitHub mark again.
+
 ## [0.4.22] - 2026-11-16
 
 ### Changed

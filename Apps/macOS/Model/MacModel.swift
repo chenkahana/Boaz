@@ -148,6 +148,7 @@ final class MacModel {
         // the library, and a new space wouldn't show until relaunch.
         Task { await observeSidebar(store) }
         LiveFolderRefresher.shared.start(self)
+        PinnedTabNamer.shared.start(self)
         #if BOAZ_CHROMIUM
         if !UITestMode.isActive { Task { await observeEngineRules(store) } }
         #endif
@@ -480,6 +481,8 @@ final class MacModel {
     }
 
     func isPinned(_ tab: SidebarItem) -> Bool { container(of: tab).map { $0.containerKind != .unpinned } ?? false }
+    /// In Pinned itself or a folder there; favorites don't count.
+    func isInPinned(_ item: SidebarItem) -> Bool { container(of: item)?.containerKind == .pinned }
     func isFavorite(_ tab: SidebarItem) -> Bool { container(of: tab)?.containerKind == .favorites }
 
     /// Ad and tracker blocking for a new page, when it's on.
@@ -932,7 +935,9 @@ final class MacModel {
 
     func commit(_ items: [SidebarItem]) {
         let items = items.map { var item = $0; item.modifiedAt = .now; return item }
+        let wasPinned = Set(items.filter { item($0.id).map(isInPinned) == true }.map(\.id))
         for item in items { sidebar.upsert(item) }
+        PinnedTabNamer.shared.committed(items, wasPinned: wasPinned)
         // Every tab click and navigation lands here, so the write never holds up the main thread.
         store?.saveInBackground(items) { [weak self] error in self?.showToast("Couldn't save: \(error.localizedDescription)") }
     }
