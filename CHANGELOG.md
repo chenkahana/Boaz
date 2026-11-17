@@ -6,6 +6,16 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.24] - 2026-11-17
+
+### Fixed
+
+- Mac: switching to a space of another profile no longer opens its tabs in WebKit, where chrome://extensions
+  was an unsupported address and that profile's extensions were missing. Each profile has its own Chromium
+  window, as in Chrome; picking another profile's space shows that profile's window in the same place, and
+  switching back brings the first window back with its pages as they were.
+- Mac: Apple Intelligence names every tab that joins Pinned; it used to leave some long titles as they were.
+
 ## [0.4.23] - 2026-11-17
 
 ### Added

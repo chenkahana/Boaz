@@ -1,7 +1,7 @@
 import BoazKit
 import Foundation
 
-/// Gives each tab that joins Pinned a short name with the on-device model, as Tidy Titles does, without asking: a tab
+/// Gives each tab that joins Pinned a short name with the on-device model, without asking: a tab
 /// pinned or dragged there, or a pull request a live folder adds. Only a title still the one it arrived with is
 /// replaced, so a tab the user renames meanwhile keeps their name.
 final class PinnedTabNamer {
@@ -69,7 +69,7 @@ final class PinnedTabNamer {
             queued.removeAll { ids.contains($0) }
             guard let model else { return }
             let tabs = ids.compactMap(model.item).filter { $0.deletedAt == nil && model.isInPinned($0) && !($0.title?.isEmpty ?? true) }
-            guard !tabs.isEmpty, let changes = try? await TabTidier.titles(for: tabs) else { continue }
+            guard !tabs.isEmpty, let changes = try? await TabTidier.names(for: tabs) else { continue }
             let asked = Dictionary(tabs.map { ($0.id, $0.title) }, uniquingKeysWith: { a, _ in a })
             let renamed = changes.compactMap { change -> SidebarItem? in
                 guard var tab = model.item(change.tab.id), tab.deletedAt == nil, tab.title == asked[tab.id] else { return nil }

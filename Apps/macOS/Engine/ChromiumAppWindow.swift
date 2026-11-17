@@ -23,18 +23,27 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
     private var closing = false
     private var layoutQueued = false
     private var appliedSplit: (leading: String, trailing: String)?
+    /// Windows that take turns in one place, one per profile: switching to another profile's space shows its window
+    /// here and puts this one away (`isSwappedOut`).
+    var group = UUID()
+    var isSwappedOut = false {
+        didSet { window.isExcludedFromWindowsMenu = isSwappedOut }
+    }
+    private let initialFrame: NSRect?
 
     init(runtime: ChromiumRuntime, profile: ChromiumProfile, model: MacModel,
          preparedForNativeCreation: Bool = false,
-         restoration: MacModel.NativeWindowRestoration? = nil, initialTabID: String? = nil) throws {
+         restoration: MacModel.NativeWindowRestoration? = nil, initialTabID: String? = nil,
+         spaceID: String? = nil, frame: NSRect? = nil) throws {
         self.model = model
         self.initialTabID = initialTabID
+        initialFrame = frame
         self.restoration = restoration
         self.runtime = runtime
         self.profile = profile
         browser = BrowserState(incognito: profile.identity.isPrivate)
         if !profile.identity.isPrivate {
-            let savedSpace = model.space(restoration?.saved?.spaceID)
+            let savedSpace = model.space(spaceID ?? restoration?.saved?.spaceID)
             browser.currentSpaceID = savedSpace?.profileID == profile.identity.id
                 ? savedSpace?.id : model.sidebar.spaces.first(where: { $0.profileID == profile.identity.id })?.id
         }
@@ -137,7 +146,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         }
         sidePanel.resized = { [weak self] in self?.layoutSidePanel() }
         contentContainer.addSubview(sidePanel)
-        window.center()
+        if let initialFrame { window.setFrame(initialFrame, display: false) } else { window.center() }
         window.makeKeyAndOrderFront(nil)
     }
 
