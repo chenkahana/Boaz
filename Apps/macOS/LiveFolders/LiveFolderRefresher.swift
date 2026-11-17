@@ -160,7 +160,7 @@ final class LiveFolderRefresher {
         let withheld = Set(result.singleSignOn.map { $0.organization.lowercased() })
         // Only tabs this Mac listed last time leave: another Mac's session can see different pull requests, and
         // an organization's results held back for single sign-on say nothing about its pull requests.
-        let kept = apply(pulls, to: current, in: model) { tab in
+        let kept = apply(pulls, to: current, in: model, previous: previous) { tab in
             previous?.items[tab.id] != nil && !withheld.contains(tab.url?.pathComponents.dropFirst().first?.lowercased() ?? "")
         }
         var items = Dictionary(pulls.map { (SidebarItem.liveChildID(folderID: folder.id, url: $0.url), $0.status) },
@@ -178,19 +178,25 @@ final class LiveFolderRefresher {
 
     /// The folder's tabs, made to list `pulls` (newest first); unlisted ones go if `mayRemove`. Writes only rows that
     /// change. Returns the unlisted tabs that stay.
-    private func apply(_ pulls: [GitHubPull], to folder: SidebarItem, in model: MacModel,
+    private func apply(_ pulls: [GitHubPull], to folder: SidebarItem, in model: MacModel, previous: LiveFolderState?,
                        mayRemove: (SidebarItem) -> Bool) -> Set<String> {
         let existing = model.sidebar.children(of: folder.id)
         var changes: [SidebarItem] = []
+        var retitled: [String] = []
         var listed = Set<String>()
         for (index, pull) in pulls.enumerated() {
             let id = SidebarItem.liveChildID(folderID: folder.id, url: pull.url)
             listed.insert(id)
             let position = Double(index)
             if var tab = model.item(id) {
+                // GitHub's title replaces the tab's only when GitHub changed it, so the name Boaz gave it stays.
+                let newTitle = previous?.items[id]?.title != pull.title
                 // One the user moved out of the folder is theirs now.
-                guard tab.parentID == folder.id, tab.title != pull.title || tab.position != position else { continue }
-                tab.title = pull.title
+                guard tab.parentID == folder.id, newTitle || tab.position != position else { continue }
+                if newTitle {
+                    tab.title = pull.title
+                    retitled.append(id)
+                }
                 tab.position = position
                 changes.append(tab)
             } else {
@@ -206,6 +212,7 @@ final class LiveFolderRefresher {
             changes.append(tab)
         }
         if !changes.isEmpty { model.commit(changes) }
+        PinnedTabNamer.shared.queue(retitled)
         return kept
     }
 

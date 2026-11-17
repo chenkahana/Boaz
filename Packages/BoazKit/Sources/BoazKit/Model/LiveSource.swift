@@ -101,9 +101,13 @@ public struct LiveFolderState: Codable, Hashable, Sendable, FetchableRecord, Per
         public var isDraft: Bool
         /// "owner/name #123", for the row's tooltip.
         public var detail: String?
+        /// The item's own title at the source, so a refresh retitles its tab only when that changes and the name
+        /// Boaz gave the tab otherwise stays. Nil in states saved before Boaz kept it.
+        public var title: String?
 
-        public init(checks: Checks? = nil, review: String? = nil, isDraft: Bool = false, detail: String? = nil) {
-            self.checks = checks; self.review = review; self.isDraft = isDraft; self.detail = detail
+        public init(checks: Checks? = nil, review: String? = nil, isDraft: Bool = false, detail: String? = nil,
+                    title: String? = nil) {
+            self.checks = checks; self.review = review; self.isDraft = isDraft; self.detail = detail; self.title = title
         }
     }
 

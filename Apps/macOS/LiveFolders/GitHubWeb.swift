@@ -35,7 +35,8 @@ struct GitHubPull: Codable, Hashable, Sendable {
         case "PENDING", "EXPECTED": .pending
         default: nil
         }
-        return .init(checks: checks, review: review, isDraft: isDraft ?? false, detail: "\(repository) #\(number)")
+        return .init(checks: checks, review: review, isDraft: isDraft ?? false, detail: "\(repository) #\(number)",
+                     title: title)
     }
 }
 

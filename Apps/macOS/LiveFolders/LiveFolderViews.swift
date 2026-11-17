@@ -6,8 +6,17 @@ import SwiftUI
 struct GitHubMark: View {
     var size: CGFloat = 16
 
+    /// The DMG keeps its asset catalog in the Boaz resource bundle, not the app's own Resources.
+    static var image: Image {
+        #if BOAZ_CHROMIUM
+        Image("GitHubMark", bundle: BoazRuntimeResources.bundle)
+        #else
+        Image("GitHubMark")
+        #endif
+    }
+
     var body: some View {
-        Image("GitHubMark").renderingMode(.template).resizable().scaledToFit().frame(width: size, height: size)
+        Self.image.renderingMode(.template).resizable().scaledToFit().frame(width: size, height: size)
             .accessibilityHidden(true)
     }
 }
@@ -126,7 +135,7 @@ struct FolderMenu: View {
             Menu {
                 PullRequestsMenu(folder: folder)
             } label: {
-                Label { Text("Pull Requests") } icon: { Image("GitHubMark").renderingMode(.template) }
+                Label { Text("Pull Requests") } icon: { GitHubMark.image.renderingMode(.template) }
             }
             .accessibilityIdentifier("control.liveFolder.menu")
         } else {
