@@ -202,7 +202,8 @@ struct ExtensionActionsBar: View {
     var body: some View {
         #if BOAZ_CHROMIUM
         if let model = browser.chromiumExtensions {
-            ChromiumExtensionActionsBar(model: model)
+            // Each profile has its own toolbar; the current space's shows.
+            ChromiumExtensionActionsBar(model: model).id(ObjectIdentifier(model))
         }
         #else
         WebKitExtensionActionsBar()

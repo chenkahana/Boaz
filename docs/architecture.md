@@ -29,7 +29,10 @@ makes sure only the newest result is applied.
 
 All records are GRDB value types in `Model/Records.swift`:
 
-- **Profile**: a browsing profile, with its own `WKWebsiteDataStore` (cookies and site data).
+- **Profile**: a browsing profile, with its own `WKWebsiteDataStore` (cookies and site data). In the Chromium DMG
+  it is a Chromium profile too: a window (`ChromiumAppWindow`) shows the spaces of every profile and keeps one
+  Chromium browser per profile it has shown, opened the first time one of that profile's spaces shows there. The
+  current space's browser is in front, and the toolbar's extensions, downloads and chrome://extensions are its.
 - **Space**: belongs to a profile; has a name, icon, color theme (`WindowTheme`) and order.
 - **SidebarItem**: a tree per space. Containers (`pinned`, `unpinned` = Today, `favorites`) hold folders and tabs.
   Order is explicit, so every device shows the same sequence. An iPhone's tabs are its **mobile stack**: tabs with

@@ -3,6 +3,7 @@
 #include "boaz_host.h"
 #include "extension_popup.h"
 #include "extension_side_panel.h"
+#include "native_window.h"
 #include <algorithm>
 #include <map>
 #include <optional>
@@ -70,7 +71,7 @@ class KeybindingRegistry final : public extensions::ExtensionKeybindingRegistry 
   KeybindingRegistry(BrowserWindowInterface* browser, ExtensionsToolbarViewModel* toolbar)
       : ExtensionKeybindingRegistry(browser->GetProfile(), TabListInterface::From(browser),
                                     ExtensionKeybindingRegistry::ALL_EXTENSIONS),
-        profile_(browser->GetProfile()), toolbar_(toolbar) {
+        profile_(browser->GetProfile()), toolbar_(toolbar), browser_(browser) {
     window_ = browser->GetWindow()->GetNativeWindow().GetNativeNSWindow();
     Init();
     auto weak = weak_factory_.GetWeakPtr();
@@ -125,6 +126,8 @@ class KeybindingRegistry final : public extensions::ExtensionKeybindingRegistry 
   bool Handle(NSEvent* event) {
     CheckUI();
     if (suspended_ || event.type != NSEventTypeKeyDown || event.ARepeat || !window_) return false;
+    // Another profile's browser is in front in this NSWindow: the keys are its extensions'.
+    if (!IsNativeBrowserWindowInFront(browser_->GetWindow())) return false;
     NSWindow* target = event.window;
     if (target != window_ && target.parentWindow != window_) return false;
     constexpr int kModifiers = ui::EF_SHIFT_DOWN | ui::EF_CONTROL_DOWN | ui::EF_ALT_DOWN | ui::EF_COMMAND_DOWN;
@@ -140,6 +143,7 @@ class KeybindingRegistry final : public extensions::ExtensionKeybindingRegistry 
 
   raw_ptr<Profile> profile_;
   raw_ptr<ExtensionsToolbarViewModel> toolbar_;
+  raw_ptr<BrowserWindowInterface> browser_;
   NSWindow* __weak window_ = nil;
   id monitor_ = nil;
   NSMutableArray* __strong observers_ = nil;

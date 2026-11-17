@@ -319,7 +319,7 @@ class GlobalErrors final : public NativeGlobalErrors, public GlobalErrorObserver
   void ShowPending() {
     if (!browser_ || !observation_.IsObserving() || !browser_->GetWindow()) return;
     NSWindow* window = browser_->GetWindow()->GetNativeWindow().GetNativeNSWindow();
-    if (!window.keyWindow || window.attachedSheet) return;
+    if (!browser_->GetWindow()->IsActive() || window.attachedSheet) return;
     if (auto* error = observation_.GetSource()->GetFirstGlobalErrorWithBubbleView())
       error->ShowBubbleView(browser_.get());
   }

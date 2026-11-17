@@ -117,7 +117,7 @@ class NativeWindow final : public BrowserWindow,
     for (auto& observer : modal_observers_) observer.OnHostDestroying();
   }
   void DeleteBrowserWindow() override { Main(); delete this; }
-  bool IsActive() const override { Main(); return window_.keyWindow; }
+  bool IsActive() const override { Main(); return in_front_ && window_.keyWindow; }
   bool IsMaximized() const override { Main(); return window_.zoomed; }
   bool IsMinimized() const override { Main(); return window_.miniaturized; }
   bool IsFullscreen() const override { Main(); return (window_.styleMask & NSWindowStyleMaskFullScreen) != 0; }
@@ -129,10 +129,10 @@ class NativeWindow final : public BrowserWindow,
     return IsMaximized() ? ui::mojom::WindowShowState::kMaximized : ui::mojom::WindowShowState::kNormal;
   }
   gfx::Rect GetBounds() const override { Main(); return gfx::ScreenRectFromNSRect(window_.frame); }
-  void Show() override { Main(); ApplyRequestedBounds(); [window_ makeKeyAndOrderFront:nil]; }
-  void Hide() override { Main(); [window_ orderOut:nil]; }
-  bool IsVisible() const override { Main(); return window_.visible; }
-  void ShowInactive() override { Main(); ApplyRequestedBounds(); [window_ orderFront:nil]; }
+  void Show() override { Main(); if (!in_front_) return; ApplyRequestedBounds(); [window_ makeKeyAndOrderFront:nil]; }
+  void Hide() override { Main(); if (in_front_) [window_ orderOut:nil]; }
+  bool IsVisible() const override { Main(); return in_front_ && window_.visible; }
+  void ShowInactive() override { Main(); if (!in_front_) return; ApplyRequestedBounds(); [window_ orderFront:nil]; }
   // The size (and position, when given) the opener asked for, as Chrome's window sizer applies it: window.open
   // features, chrome.windows.create({width, height, left, top}).
   void ApplyRequestedBounds() {
@@ -145,9 +145,10 @@ class NativeWindow final : public BrowserWindow,
     [window_ setFrame:gfx::ScreenRectToNSRect(bounds) display:NO];
   }
   void Close() override { Main(); services_.request_close.Run(); }
-  void Activate() override { Main(); if (window_.miniaturized) [window_ deminiaturize:nil]; [window_ makeKeyAndOrderFront:nil]; }
+  void Activate() override { Main(); if (!in_front_) return; if (window_.miniaturized) [window_ deminiaturize:nil]; [window_ makeKeyAndOrderFront:nil]; }
   void Deactivate() override {
     Main();
+    if (!in_front_) return;
     for (NSWindow* candidate in NSApp.orderedWindows) {
       if (candidate != window_ && candidate.visible && candidate.canBecomeKeyWindow) {
         [candidate makeKeyWindow]; return;
@@ -155,15 +156,16 @@ class NativeWindow final : public BrowserWindow,
     }
     [NSApp deactivate];
   }
-  void Maximize() override { Main(); if (!window_.zoomed) [window_ zoom:nil]; }
-  void Minimize() override { Main(); restored_state_ = GetWindowShowState(); [window_ miniaturize:nil]; }
+  void Maximize() override { Main(); if (in_front_ && !window_.zoomed) [window_ zoom:nil]; }
+  void Minimize() override { Main(); if (!in_front_) return; restored_state_ = GetWindowShowState(); [window_ miniaturize:nil]; }
   void Restore() override {
     Main();
+    if (!in_front_) return;
     if (IsFullscreen()) [window_ toggleFullScreen:nil];
     else if (window_.miniaturized) [window_ deminiaturize:nil];
     else if (window_.zoomed) [window_ zoom:nil];
   }
-  void SetBounds(const gfx::Rect& bounds) override { Main(); [window_ setFrame:gfx::ScreenRectToNSRect(bounds) display:YES]; }
+  void SetBounds(const gfx::Rect& bounds) override { Main(); if (in_front_) [window_ setFrame:gfx::ScreenRectToNSRect(bounds) display:YES]; }
   void FlashFrame(bool flash) override {
     Main();
     if (attention_) { [NSApp cancelUserAttentionRequest:attention_]; attention_ = 0; }
@@ -172,7 +174,7 @@ class NativeWindow final : public BrowserWindow,
   ui::ZOrderLevel GetZOrderLevel() const override { Main(); return window_.level > NSNormalWindowLevel ? ui::ZOrderLevel::kFloatingWindow : ui::ZOrderLevel::kNormal; }
   void SetZOrderLevel(ui::ZOrderLevel level) override { Main(); window_.level = level == ui::ZOrderLevel::kNormal ? NSNormalWindowLevel : NSFloatingWindowLevel; }
   bool IsOnCurrentWorkspace() const override { Main(); return window_.onActiveSpace; }
-  bool IsVisibleOnScreen() const override { Main(); return window_.visible && (window_.occlusionState & NSWindowOcclusionStateVisible); }
+  bool IsVisibleOnScreen() const override { Main(); return IsVisible() && (window_.occlusionState & NSWindowOcclusionStateVisible); }
   void SetTopControlsShownRatio(content::WebContents*, float) override {}
   bool DoBrowserControlsShrinkRendererSize(const content::WebContents*) const override { return false; }
   ui::NativeTheme* GetNativeTheme() override { Main(); return ui::NativeTheme::GetInstanceForNativeUi(); }
@@ -183,7 +185,7 @@ class NativeWindow final : public BrowserWindow,
   std::vector<StatusBubble*> GetStatusBubbles() override { return {}; }
   void UpdateTitleBar() override {
     Main(); auto* contents = Active();
-    if (contents) { const auto title = contents->GetTitle(); window_.title = [[NSString alloc] initWithCharacters:reinterpret_cast<const unichar*>(title.data()) length:title.size()]; }
+    if (contents && in_front_) { const auto title = contents->GetTitle(); window_.title = [[NSString alloc] initWithCharacters:reinterpret_cast<const unichar*>(title.data()) length:title.size()]; }
   }
   void UpdateLoadingAnimations(bool) override {}
   void OnActiveTabChanged(content::WebContents*, content::WebContents* contents, int, int) override {
@@ -348,6 +350,13 @@ class NativeWindow final : public BrowserWindow,
   void AddObserver(web_modal::ModalDialogHostObserver* observer) override { Main(); modal_observers_.AddObserver(observer); }
   void RemoveObserver(web_modal::ModalDialogHostObserver* observer) override { Main(); modal_observers_.RemoveObserver(observer); }
   void NotifyPositionRequiresUpdate() override { Main(); for (auto& observer : modal_observers_) observer.OnPositionRequiresUpdate(); }
+  // Of the browser windows sharing `window_`, one per profile, only the one in front speaks and acts for it.
+  bool in_front() const { return in_front_; }
+  void SetInFront(bool in_front) {
+    Main();
+    if (std::exchange(in_front_, in_front) == in_front) return;
+    if (in_front) UpdateTitleBar(); else notice_.reset();
+  }
  private:
   void FinishDownloadPrompt(bool cancel_downloads) {
     Main();
@@ -387,6 +396,7 @@ class NativeWindow final : public BrowserWindow,
   }
   raw_ptr<BrowserWindowInterface> browser_;
   bool applied_requested_bounds_ = false;
+  bool in_front_ = true;
   NSWindow* __strong window_;
   NSMutableArray* __strong observers_;
   NativeWindowServices services_;
@@ -407,5 +417,13 @@ std::unique_ptr<BrowserWindow, BrowserWindowDeleter> CreateNativeBrowserWindow(
   Main();
   return std::unique_ptr<BrowserWindow, BrowserWindowDeleter>(
       new NativeWindow(browser, (__bridge NSWindow*)nswindow, services));
+}
+void SetNativeBrowserWindowInFront(ui::BaseWindow* window, bool in_front) {
+  Main();
+  if (window) static_cast<NativeWindow*>(window)->SetInFront(in_front);
+}
+bool IsNativeBrowserWindowInFront(const ui::BaseWindow* window) {
+  Main();
+  return window && static_cast<const NativeWindow*>(window)->in_front();
 }
 }  // namespace boaz
