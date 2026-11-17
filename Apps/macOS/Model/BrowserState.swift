@@ -209,7 +209,8 @@ final class BrowserState {
             engineRulesRevision = ChromiumEnginePreferences.revision
             cachedEngineRules.removeAll()
         }
-        // A Chromium window is bound to one profile; other profiles' spaces in it use WebKit.
+        // A Chromium window is bound to one profile, and another profile's space opens in that profile's window
+        // (`showInProfileWindow`); only a window without that hand-off would still reach here with one.
         if let window = chromiumProfileIdentity, !window.isPrivate, tab.profileID != window.id { return .webKit }
         if engineRoutingFailures.contains(tab.id) { return .chromium }
         if let choice = engineChoices[tab.id] { return choice }
@@ -302,6 +303,17 @@ final class BrowserState {
     }
 
     var chromiumProfileIdentity: EngineProfileIdentity?
+    /// Shows a space (and a tab in it) of another profile in that profile's own window, in this one's place.
+    @ObservationIgnored var showInProfileWindow: ((_ spaceID: String, _ tabID: String?) -> Void)?
+
+    /// A Chromium window holds one profile, as in Chrome: another profile's space opens in that profile's window
+    /// instead, so every tab runs in Chromium with its own profile's extensions and sign-ins.
+    private func handOffToProfileWindow(space id: String, tab tabID: String?) -> Bool {
+        guard let profile = chromiumProfileIdentity, !profile.isPrivate, let handOff = showInProfileWindow,
+              let space = model.space(id), space.profileID != profile.id else { return false }
+        handOff(id, tabID)
+        return true
+    }
     var chromiumExtensions: ChromiumExtensionActionsModel?
     @ObservationIgnored var createChromiumPage: ((SidebarItem) throws -> EnginePage)?
     @ObservationIgnored var chromiumAddressField: NSTextField?
@@ -922,6 +934,11 @@ final class BrowserState {
 
     func activate(_ tab: SidebarItem) {
         guard tab.kind == .tab else { return }
+        #if BOAZ_CHROMIUM
+        if !isPrivate(tab), let profile = chromiumProfileIdentity, !profile.isPrivate, tab.profileID != profile.id,
+           let space = tab.spaceID ?? model.sidebar.spaces.first(where: { $0.profileID == tab.profileID })?.id,
+           handOffToProfileWindow(space: space, tab: tab.id) { return }
+        #endif
         commandMode = nil
         if let split, !split.contains(tab.id) { self.split = nil }
         if let space = tab.spaceID, space != spaceID { switchSpace(to: space, restoringTab: false) }
@@ -1472,6 +1489,9 @@ final class BrowserState {
         let from = spaces.firstIndex { $0.id == spaceID } ?? 0
         let to = spaces.firstIndex { $0.id == id } ?? 0
         if let spaceID, let activeTabID { lastTabPerSpace[spaceID] = activeTabID }
+        #if BOAZ_CHROMIUM
+        if handOffToProfileWindow(space: id, tab: nil) { return }
+        #endif
         withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
             spaceEdge = to >= from ? .trailing : .leading
             currentSpaceID = id
@@ -1483,7 +1503,7 @@ final class BrowserState {
 
     /// The tab a switch to space `id` shows: a favorite already open that the space shares (same profile) stays;
     /// otherwise the tab last used there, else its most recently used one. Nil shows the empty New Tab page.
-    private func tabToShow(in id: String) -> SidebarItem? {
+    func tabToShow(in id: String) -> SidebarItem? {
         guard let space = model.space(id) else { return nil }
         let belongs = { (tab: SidebarItem) in
             tab.spaceID == id || (self.model.isFavorite(tab) && tab.profileID == space.profileID)

@@ -23,6 +23,12 @@ nonisolated struct TitleRewrites {
 }
 
 @Generable
+nonisolated struct TabNames {
+    @Guide(description: "One entry for every tab in the numbered list, none skipped")
+    var titles: [TitleRewrite]
+}
+
+@Generable
 nonisolated struct TitleRewrite {
     @Guide(description: "Number of the tab from the numbered list")
     var tab: Int
@@ -152,8 +158,25 @@ enum TabTidier {
             Write a short new title for each tab above whose title is long or unclear.
             """
         let rewrites = try await session.respond(to: prompt, generating: TitleRewrites.self).content
+        return changes(rewrites.titles, for: candidates)
+    }
+
+    /// A short title for every tab, as Pinned gives each tab that joins it.
+    static func names(for tabs: [SidebarItem]) async throws -> [TitleChange] {
+        let candidates = Array(tabs.prefix(maximumTabs))
+        let session = LanguageModelSession(model: .default, instructions: titleInstructions)
+        let prompt = """
+            \(AIFeatures.delimited(numberedList(candidates)))
+
+            Write a short new title for every tab above.
+            """
+        let names = try await session.respond(to: prompt, generating: TabNames.self).content
+        return changes(names.titles, for: candidates)
+    }
+
+    private static func changes(_ rewrites: [TitleRewrite], for candidates: [SidebarItem]) -> [TitleChange] {
         var seen = Set<Int>()
-        return rewrites.titles.compactMap { rewrite in
+        return rewrites.compactMap { rewrite in
             let index = rewrite.tab - 1
             let title = rewrite.title.trimmingCharacters(in: .whitespacesAndNewlines.union(.init(charactersIn: "\"'")))
             guard candidates.indices.contains(index), seen.insert(index).inserted,
