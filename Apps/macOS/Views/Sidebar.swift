@@ -279,9 +279,8 @@ private struct FavoriteTile: View {
         let active = browser.activeTabID == tab.id
         // The icon's own color, once its icon is known; a black, white or gray icon keeps the neutral fill.
         let color = Favicons.shared.resolved(for: tab.url)?.color
-        return Button { browser.activate(tab) } label: {
-            // Flat at rest; only hovering lifts a tile.
-            SiteMonogram(url: tab.url, tint: tint, size: 24)
+        // Flat at rest; only hovering lifts a tile.
+        return SiteMonogram(url: tab.url, tint: tint, size: 24)
                 .frame(maxWidth: .infinity).frame(height: 44)
                 .background(color.map { $0.opacity(active ? 0.42 : 0.24) }
                                 ?? (active ? SidebarStyle.selection() : SidebarStyle.hover),
@@ -293,9 +292,7 @@ private struct FavoriteTile: View {
                 .offset(y: hovering && !reduceMotion ? -1 : 0)
                 .animation(SidebarStyle.motion, value: hovering)
                 .animation(SidebarStyle.motion, value: active)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
+        .sidebarPress(onMouseDown: browser.commandMode == nil) { browser.activate(tab) }
         .accessibilityLabel(tab.title ?? tab.url?.host() ?? "Favorite")
         .accessibilityAddTraits(active ? .isSelected : [])
             .onHover { hovering = $0 }
@@ -523,18 +520,15 @@ struct ItemRow: View {
     private var row: some View {
         let active = item.kind == .tab && (browser.activeTabID == item.id || browser.split?.contains(item.id) == true)
         return HStack(spacing: 8) {
-            Button(action: open) {
-                HStack(spacing: 8) {
-                    leadingIcon
-                    Text(title).font(SidebarStyle.rowFont(size: textSize, selected: active)).lineLimit(1)
-                    Spacer(minLength: 0)
-                }
-                .opacity(liveStatus??.isDraft == true ? 0.55 : 1)
-                .padding(.leading, 8 + CGFloat(depth) * 14)
-                .frame(maxHeight: .infinity)
-                .contentShape(Rectangle())
+            HStack(spacing: 8) {
+                leadingIcon
+                Text(title).font(SidebarStyle.rowFont(size: textSize, selected: active)).lineLimit(1)
+                Spacer(minLength: 0)
             }
-            .buttonStyle(.plain)
+            .opacity(liveStatus??.isDraft == true ? 0.55 : 1)
+            .padding(.leading, 8 + CGFloat(depth) * 14)
+            .frame(maxHeight: .infinity)
+            .sidebarPress(onMouseDown: item.kind == .tab && browser.commandMode == nil, action: open)
             .accessibilityLabel(title)
             .accessibilityValue(item.kind == .folder ? (item.isExpanded ? "Expanded" : "Collapsed")
                                 : liveStatus.map { LivePullIcon.label($0) } ?? "")
@@ -881,6 +875,56 @@ func dropItems(_ payloads: [String], into parentID: String, before beforeID: Str
 /// A middle click (the wheel button) on this view, as Safari and Chrome close a tab with it. Taken before the window
 /// handles the click, so it works the first time on a window in the background without bringing it forward; other
 /// clicks, and middle clicks anywhere else (a link in the page), pass through.
+extension View {
+    /// A sidebar row or tile's click. Not a `Button`: a button inside a `draggable` view claims the mouse-down, so
+    /// drags started on it failed and a click that moved a pixel was lost. A tap gesture leaves the drag to `draggable`.
+    /// `onMouseDown` acts as the button goes down, as Chrome and Arc switch tabs, instead of on release; the drag
+    /// still starts from the same press.
+    func sidebarPress(onMouseDown: Bool = false, action: @escaping () -> Void) -> some View {
+        contentShape(Rectangle())
+            .onTapGesture { if !onMouseDown { action() } }
+            .background { if onMouseDown { MouseDownReader(action: action) } }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction(.default, action)
+    }
+}
+
+/// Runs `action` on a plain left mouse-down inside this view, letting the event through so a drag can follow.
+private struct MouseDownReader: NSViewRepresentable {
+    let action: () -> Void
+
+    func makeNSView(context: Context) -> ReaderView {
+        let view = ReaderView()
+        view.action = action
+        return view
+    }
+
+    func updateNSView(_ view: ReaderView, context: Context) { view.action = action }
+
+    final class ReaderView: NSView {
+        var action: (() -> Void)?
+        private var monitor: Any?
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let monitor { NSEvent.removeMonitor(monitor); self.monitor = nil }
+            guard window != nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+                // Control-click is the context menu.
+                guard let self, let action = self.action, event.window === self.window, event.clickCount == 1,
+                      !event.modifierFlags.contains(.control), self.window?.attachedSheet == nil,
+                      self.visibleRect.intersection(self.bounds).contains(self.convert(event.locationInWindow, from: nil))
+                else { return event }
+                action()
+                return event
+            }
+        }
+    }
+}
+
 struct MiddleClickReader: NSViewRepresentable {
     /// Nil while something covers the sidebar (the command bar), so the click goes to that.
     var action: (() -> Void)?

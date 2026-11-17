@@ -11,7 +11,7 @@ struct ChromiumTabPreview: ViewModifier {
     @State private var hovering = false
     @State private var snapshot: Snapshot?
 
-    private struct Snapshot: Identifiable {
+    struct Snapshot: Identifiable {
         let id = UUID()
         let image: NSImage
         let title: String
@@ -39,18 +39,9 @@ struct ChromiumTabPreview: ViewModifier {
                     title: browser.cachedChromiumPage(for: tabID)?.state.title.nonEmpty ?? title ?? expectedURL?.host() ?? "Page",
                     host: expectedURL?.host() ?? "")
             }
-            .popover(item: $snapshot, arrowEdge: .trailing) { value in
-                VStack(alignment: .leading, spacing: 8) {
-                    Image(nsImage: value.image).resizable().scaledToFit()
-                        .frame(width: 264, height: 176)
-                        .background(.background)
-                        .clipShape(.rect(cornerRadius: 8))
-                    Text(value.title).font(.callout.weight(.medium)).lineLimit(2)
-                    if !value.host.isEmpty { Text(value.host).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
-                }
-                .padding(12).frame(width: 288)
-                .allowsHitTesting(false)
-            }
+            // Not a popover: a transient popover swallows the click that dismisses it, so the row under the pointer
+            // missed clicks and drags. The panel beside the row never takes the mouse or focus.
+            .background(PreviewAnchor(snapshot: snapshot))
             .onChange(of: browser.activeTabID) { snapshot = nil; hovering = false }
             .onDisappear { snapshot = nil; hovering = false }
             .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { note in
@@ -58,6 +49,86 @@ struct ChromiumTabPreview: ViewModifier {
                 snapshot = nil
                 hovering = false
             }
+    }
+}
+
+private struct PreviewAnchor: NSViewRepresentable {
+    let snapshot: ChromiumTabPreview.Snapshot?
+
+    func makeNSView(context: Context) -> NSView { NSView() }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        if let snapshot { TabPreviewPanel.shared.show(snapshot, beside: view) } else { TabPreviewPanel.shared.hide(from: view) }
+    }
+
+    static func dismantleNSView(_ view: NSView, coordinator: ()) { TabPreviewPanel.shared.hide(from: view) }
+}
+
+/// One floating preview at a time, beside its row. It ignores the mouse, never becomes key, and goes away at the
+/// next click anywhere.
+@MainActor
+private final class TabPreviewPanel {
+    static let shared = TabPreviewPanel()
+
+    private let panel: NSPanel
+    private weak var owner: NSView?
+    private var monitor: Any?
+
+    private init() {
+        panel = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.ignoresMouseEvents = true
+        panel.hidesOnDeactivate = true
+        panel.level = .floating
+        panel.collectionBehavior = [.transient, .ignoresCycle, .fullScreenAuxiliary]
+        monitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
+            self?.hide(from: nil)
+            return event
+        }
+    }
+
+    func show(_ snapshot: ChromiumTabPreview.Snapshot, beside anchor: NSView) {
+        guard let window = anchor.window else { return }
+        let host = NSHostingView(rootView: PreviewCard(snapshot: snapshot))
+        host.frame.size = host.fittingSize
+        panel.contentView = host
+        let row = window.convertToScreen(anchor.convert(anchor.bounds, to: nil))
+        var frame = NSRect(x: row.maxX + 8, y: row.midY - host.frame.height / 2,
+                           width: host.frame.width, height: host.frame.height)
+        if let screen = window.screen?.visibleFrame {
+            frame.origin.y = min(max(frame.minY, screen.minY), screen.maxY - frame.height)
+        }
+        panel.setFrame(frame, display: true)
+        panel.orderFront(nil)
+        owner = anchor
+    }
+
+    /// Hides the preview if `anchor` (or anyone, when nil) is showing it.
+    func hide(from anchor: NSView?) {
+        guard anchor == nil || owner === anchor else { return }
+        panel.orderOut(nil)
+        panel.contentView = nil
+        owner = nil
+    }
+}
+
+private struct PreviewCard: View {
+    let snapshot: ChromiumTabPreview.Snapshot
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(nsImage: snapshot.image).resizable().scaledToFit()
+                .frame(width: 264, height: 176)
+                .background(.background)
+                .clipShape(.rect(cornerRadius: 8))
+            Text(snapshot.title).font(.callout.weight(.medium)).lineLimit(2)
+            if !snapshot.host.isEmpty { Text(snapshot.host).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+        }
+        .padding(12).frame(width: 288)
+        .background(.regularMaterial, in: .rect(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.separator))
     }
 }
 
