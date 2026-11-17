@@ -1,0 +1,67 @@
+--- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
++++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
+@@ -1137,7 +1137,8 @@ void KeepBoazItems(ui::SimpleMenuModel& menu, content::WebContents* contents) {
+ }
+ 
+ #if BUILDFLAG(IS_MAC)
+-// Boaz's Apple Intelligence item: Explain the selection, or Ask About This Page. A free id in the content range.
++// Boaz's Apple Intelligence items: Explain the selection, Summarize Page and Ask About This Page. Free ids in the
++// content range (boaz/bootstrap.h has the others).
+ constexpr int kBoazAskCommandId = 50900;
+ // Boaz's Google Lens items for the image or the visible page. Google Lens whatever the search engine is.
+ constexpr int kBoazLensImageCommandId = 50901;
+@@ -1786,11 +1787,13 @@ void RenderViewContextMenu::InitMenu() {
+     if (menu_model_.GetItemCount()) {
+       menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
+     }
+-    menu_model_.AddItem(kBoazAskCommandId,
+-                        params_.selection_text.empty()
+-                            ? u"Ask About This Page\u2026"
+-                            : u"Explain \u201c" + GetElidedSelectionText(kMaxSelectionTextLength, gfx::WORD_BREAK) +
+-                                  u"\u201d");
++    if (!params_.selection_text.empty()) {
++      menu_model_.AddItem(boaz::kExplainCommandId,
++                          u"Explain \u201c" + GetElidedSelectionText(kMaxSelectionTextLength, gfx::WORD_BREAK) +
++                              u"\u201d");
++    }
++    menu_model_.AddItem(boaz::kSummarizePageCommandId, u"Summarize Page");
++    menu_model_.AddItem(kBoazAskCommandId, u"Ask About This Page\u2026");
+   }
+ #endif
+ }
+@@ -1863,7 +1866,8 @@ void RenderViewContextMenu::RecordUsedItem(int id) {
+ #if BUILDFLAG(IS_MAC)
+   // Boaz's own items have no histogram bucket.
+   if (id == kBoazAskCommandId || id == kBoazLensImageCommandId || id == kBoazLensPageCommandId ||
+-      id == boaz::kShareCommandId || id == boaz::kShareImageCommandId || id == boaz::kSendToDevicesCommandId) {
++      id == boaz::kShareCommandId || id == boaz::kShareImageCommandId || id == boaz::kSendToDevicesCommandId ||
++      id == boaz::kSummarizePageCommandId || id == boaz::kExplainCommandId) {
+     return;
+   }
+ #endif
+@@ -3608,7 +3612,8 @@ void RenderViewContextMenu::AppendLiveCaptionItem() {
+ 
+ bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
+ #if BUILDFLAG(IS_MAC)
+-  if (id == kBoazAskCommandId || id == kBoazLensImageCommandId || id == kBoazLensPageCommandId) {
++  if (id == kBoazAskCommandId || id == kBoazLensImageCommandId || id == kBoazLensPageCommandId ||
++      id == boaz::kSummarizePageCommandId || id == boaz::kExplainCommandId) {
+     return true;
+   }
+   if (boaz::NativeHostEnabled()) {
+@@ -4069,8 +4074,13 @@ void RenderViewContextMenu::ExecuteCommand(int id, int event_flags) {
+   command_executed_ = true;
+ 
+ #if BUILDFLAG(IS_MAC)
+-  if (id == kBoazAskCommandId) {
+-    boaz::AskAboutPage(source_web_contents_, params_.selection_text);
++  if (id == kBoazAskCommandId || id == boaz::kExplainCommandId) {
++    boaz::AskAboutPage(source_web_contents_, id == kBoazAskCommandId ? std::u16string() : params_.selection_text);
++    return;
++  }
++  if (id == boaz::kSummarizePageCommandId) {
++    boaz::RunContextMenuCommand(source_web_contents_, id, embedder_web_contents_->GetLastCommittedURL(),
++                                embedder_web_contents_->GetTitle());
+     return;
+   }
+   if (id == kBoazLensImageCommandId) {

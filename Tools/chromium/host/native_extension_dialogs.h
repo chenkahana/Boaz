@@ -27,6 +27,8 @@ bool ShowNativeGlobalErrorBubble(BrowserWindowInterface* browser, base::WeakPtr<
 class NativeGlobalErrors {
  public:
   virtual ~NativeGlobalErrors() = default;
+  // Shows them now if the window is active: when its browser comes in front of others sharing its NSWindow.
+  virtual void ShowPending() = 0;
   static std::unique_ptr<NativeGlobalErrors> Create(BrowserWindowInterface* browser);
 };
 // Implemented by the window bridge: where a dialog for these extensions points in a Boaz window.

@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 55u
+#define BOAZ_HOST_ABI_VERSION 56u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT,
@@ -23,7 +23,9 @@ typedef enum BoazHostMenuCommand {
   BOAZ_MENU_OPEN_INCOGNITO, BOAZ_MENU_OPEN_SPLIT, BOAZ_MENU_QR_CODE,
   /* Share… for the page or link at url, or for the image at url. */
   BOAZ_MENU_SHARE, BOAZ_MENU_SHARE_IMAGE,
-  BOAZ_MENU_SEND_TO_DEVICES
+  BOAZ_MENU_SEND_TO_DEVICES,
+  /* Summarize Page, beside ask_about_page's Explain and Ask About This Page. */
+  BOAZ_MENU_SUMMARIZE_PAGE
 } BoazHostMenuCommand;
 /* BoazHostWindowOptions.menu_features: the window's pages offer these menu commands. */
 typedef enum BoazHostMenuFeature {
@@ -465,6 +467,10 @@ typedef struct BoazHostAPI {
   /* Grants the active page's site to the requesting extensions; Chromium then offers to reload. User activation only. */
   BoazHostResult (*grant_extension_access_request)(BoazHostWindow window, BoazHostPage page);
   BoazHostResult (*close_extension_side_panel)(BoazHostWindow window);
+  /* Host windows may share one NSWindow, one per profile, taking turns in it. Brings `window` in front of the others
+   * sharing its NSWindow: it alone reports active and visible, sets the title, and moves, orders or resizes the
+   * NSWindow when Chromium asks. A window created on an NSWindow that already has a host window starts behind. */
+  BoazHostResult (*bring_window_forward)(BoazHostWindow window);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

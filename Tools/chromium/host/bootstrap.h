@@ -22,6 +22,8 @@ void AskAboutPage(content::WebContents* contents, const std::u16string& selectio
 inline constexpr int kShareCommandId = 50903;
 inline constexpr int kShareImageCommandId = 50904;
 inline constexpr int kSendToDevicesCommandId = 50905;
+inline constexpr int kSummarizePageCommandId = 50906;
+inline constexpr int kExplainCommandId = 50907;
 // Context-menu commands that Boaz runs itself on the native host: Chromium's Open Link in Incognito, Open Link in
 // Split View and Create QR Code, and Boaz's items above. Run returns false when Chromium should run the command.
 bool ContextMenuCommandAvailable(content::WebContents* contents, int command);

@@ -9,6 +9,7 @@
 
 class BrowserWindow;
 class BrowserWindowInterface;
+namespace ui { class BaseWindow; }
 namespace input { struct NativeWebKeyboardEvent; }
 
 namespace boaz {
@@ -25,5 +26,9 @@ struct NativeWindowServices {
 std::unique_ptr<BrowserWindow, BrowserWindowDeleter> CreateNativeBrowserWindow(
     BrowserWindowInterface* browser, void* nswindow,
     const NativeWindowServices& services);
+// Browser windows of different profiles may share one NSWindow; only the one in front reports active and visible,
+// sets the title and acts on the NSWindow. `window` is one CreateNativeBrowserWindow made.
+void SetNativeBrowserWindowInFront(ui::BaseWindow* window, bool in_front);
+bool IsNativeBrowserWindowInFront(const ui::BaseWindow* window);
 }  // namespace boaz
 #endif

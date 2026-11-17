@@ -121,7 +121,7 @@ private struct MigrationView: View {
                             Text("No extensions in this list belong to the current profile.")
                         }
                         if otherCount > 0 {
-                            Text("\(otherCount) extension(s) belong to other profiles. Open each profile’s window to review its extensions.")
+                            Text("\(otherCount) extension(s) belong to other profiles. Switch to a space of each profile to review its extensions.")
                                 .font(.callout).foregroundStyle(.secondary)
                         }
                         if !inventory.issues.isEmpty {

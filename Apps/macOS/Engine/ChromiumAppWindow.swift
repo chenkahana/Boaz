@@ -4,49 +4,54 @@ import SwiftUI
 
 @MainActor
 final class ChromiumAppWindow: NSObject, NSWindowDelegate {
+    /// One profile's Chromium browser in this window. The window shows the spaces of every profile, as in Arc: each
+    /// profile whose space it has shown keeps its own browser here, with its cookies, extensions and pages, and the
+    /// current space's is the one in front.
+    @MainActor
+    final class Host {
+        let profile: ChromiumProfile
+        let addressField = NSTextField()
+        fileprivate var handle: BoazHostWindow = 0
+        fileprivate var extensions: ChromiumExtensionActionsModel?
+        /// Its extension's side panel, shown while it is in front.
+        fileprivate var sidePanel: (view: NSView, title: String)?
+        fileprivate weak var owner: ChromiumAppWindow?
+        fileprivate init(profile: ChromiumProfile) { self.profile = profile }
+    }
     let runtime: ChromiumRuntime
-    let profile: ChromiumProfile
     let browser: BrowserState
     let window: NSWindow
     let contentContainer = NSView()
-    let addressField = NSTextField()
+    private var hosts: [Host]
+    /// The browser in front: the current space's profile's, or the private session's.
+    private var front: Host
+    var profile: ChromiumProfile { front.profile }
+    var handle: BoazHostWindow { front.handle }
     /// Chromium's extension side panel at the trailing edge, beside the browser, as Chrome lays it out.
     private let sidePanel = ChromiumExtensionSidePanel()
     private weak var hosting: NSView?
-    private(set) var handle: BoazHostWindow = 0
     var onClosed: (() -> Void)?
     private let model: MacModel
     private let initialTabID: String?
     private let restoration: MacModel.NativeWindowRestoration?
     private var installed = false
-    private var finished = false
+    private(set) var finished = false
     private var closing = false
     private var layoutQueued = false
     private var appliedSplit: (leading: String, trailing: String)?
-    /// Windows that take turns in one place, one per profile: switching to another profile's space shows its window
-    /// here and puts this one away (`isSwappedOut`).
-    var group = UUID()
-    var isSwappedOut = false {
-        didSet { window.isExcludedFromWindowsMenu = isSwappedOut }
-    }
-    private let initialFrame: NSRect?
-    var becameKey: (() -> Void)?
-
-    func windowDidBecomeKey(_ notification: Notification) { becameKey?() }
 
     init(runtime: ChromiumRuntime, profile: ChromiumProfile, model: MacModel,
          preparedForNativeCreation: Bool = false,
-         restoration: MacModel.NativeWindowRestoration? = nil, initialTabID: String? = nil,
-         spaceID: String? = nil, frame: NSRect? = nil) throws {
+         restoration: MacModel.NativeWindowRestoration? = nil, initialTabID: String? = nil) throws {
         self.model = model
         self.initialTabID = initialTabID
-        initialFrame = frame
         self.restoration = restoration
         self.runtime = runtime
-        self.profile = profile
+        front = Host(profile: profile)
+        hosts = [front]
         browser = BrowserState(incognito: profile.identity.isPrivate)
         if !profile.identity.isPrivate {
-            let savedSpace = model.space(spaceID ?? restoration?.saved?.spaceID)
+            let savedSpace = model.space(restoration?.saved?.spaceID)
             browser.currentSpaceID = savedSpace?.profileID == profile.identity.id
                 ? savedSpace?.id : model.sidebar.spaces.first(where: { $0.profileID == profile.identity.id })?.id
         }
@@ -58,10 +63,10 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         window.title = profile.identity.isPrivate ? "Boaz — Private" : "Boaz"
         window.delegate = self
         window.contentView = contentContainer
-        addressField.isHidden = true
-        contentContainer.addSubview(addressField)
+        attach(front)
         browser.chromiumProfileIdentity = profile.identity
-        browser.chromiumAddressField = addressField
+        browser.chromiumAddressField = front.addressField
+        browser.chromiumSpaceChanged = { [weak self] in self?.showCurrentProfile() }
         browser.activateChromiumPage = { [weak self] page in
             guard let self, self.browser.peek?.nativePage == nil,
                   let adapter = page.adapter as? ChromiumEnginePageAdapter,
@@ -69,24 +74,29 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
             let result = activate(adapter.handle, 1)
             if result != BOAZ_HOST_OK { window.subtitle = "Could not activate page (\(result.rawValue))." }
         }
-        addressField.setAccessibilityLabel("Address")
         browser.updateChromiumExternalTabCount = { [weak self] count in
-            guard let self, !finished, handle != 0, let update = runtime.api.set_external_tab_count else { return false }
-            return update(handle, count) == BOAZ_HOST_OK
+            guard let self, !finished, let update = runtime.api.set_external_tab_count else { return false }
+            // Another profile's live pages keep a profile's browser open, as the window's WebKit pages do.
+            return hosts.filter { host in
+                let others = UInt32(browser.chromiumPageCount(outside: host.profile.identity))
+                return host.handle == 0 || update(host.handle, count + others) != BOAZ_HOST_OK
+            }.isEmpty
         }
         browser.chromiumLayoutChanged = { [weak self] in self?.queueLayout() }
         browser.createChromiumPage = { [weak self] tab in
             guard let self, !self.finished, self.handle != 0 else { throw EnginePageError.closed }
-            guard self.profile.identity.isPrivate || tab.profileID == self.profile.identity.id else {
+            // A tab opens in its own profile's browser, which `BrowserState` opens before it shows the tab.
+            guard let host = self.profile.identity.isPrivate ? self.front
+                    : self.hosts.first(where: { $0.profile.identity.id == tab.profileID }), host.handle != 0 else {
                 throw EnginePageError.invalidRequest
             }
-            return try self.runtime.createPage(window: self.handle,
-                url: tab.url ?? URL(string: "about:blank")!, profile: self.profile.identity,
+            return try self.runtime.createPage(window: host.handle,
+                url: tab.url ?? URL(string: "about:blank")!, profile: host.profile.identity,
                 javaScriptDisabled: self.browser.devTools[tab.id].javaScriptDisabled)
         }
         browser.createChromiumPeekPage = { [weak self] url in
             guard let self, !finished, handle != 0 else { throw EnginePageError.closed }
-            return try runtime.createPage(window: handle, url: url, profile: profile.identity)
+            return try runtime.createPage(window: handle, url: url, profile: self.profile.identity)
         }
         if preparedForNativeCreation { return }
         var options = makeOptions()
@@ -105,7 +115,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
             throw EnginePageError.invalidRequest
         }
         guard !installed else { return }
-        self.handle = handle
+        front.handle = handle
         installed = true
         browser.manageChromiumExtensions = { [weak self] in
             guard let self, !finished, !profile.identity.isPrivate else { return }
@@ -128,13 +138,14 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         }
         browser.restoreChromiumDockPreferences = { [weak self] current, last in
             guard let self, !finished else { return }
-            do { try runtime.restoreDevToolsDockPreferences(window: self.handle, current: current, last: last) }
-            catch { model.showToast(error.localizedDescription) }
+            do {
+                for host in hosts {
+                    try runtime.restoreDevToolsDockPreferences(window: host.handle, current: current, last: last)
+                }
+            } catch { model.showToast(error.localizedDescription) }
         }
-        browser.chromiumExtensions = ChromiumExtensionActionsModel(api: runtime.api, window: handle,
-            activePage: { [weak browser = browser] in
-                browser?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter
-            })
+        front.extensions = makeExtensions(for: front)
+        browser.chromiumExtensions = front.extensions
         let hosting = NSHostingView(rootView: BrowserWindow(browser: browser, nativeRestoration: restoration, initialTabID: initialTabID)
             .environment(model).task { await self.model.start() })
         hosting.frame = contentContainer.bounds
@@ -149,19 +160,89 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         }
         sidePanel.resized = { [weak self] in self?.layoutSidePanel() }
         contentContainer.addSubview(sidePanel)
-        if let initialFrame { window.setFrame(initialFrame, display: false) } else { window.center() }
+        window.center()
         window.makeKeyAndOrderFront(nil)
     }
 
-    func makeOptions() -> BoazHostWindowOptions {
+    private func attach(_ host: Host) {
+        host.owner = self
+        host.addressField.isHidden = true
+        host.addressField.setAccessibilityLabel("Address")
+        contentContainer.addSubview(host.addressField)
+    }
+
+    private func makeExtensions(for host: Host) -> ChromiumExtensionActionsModel {
+        ChromiumExtensionActionsModel(api: runtime.api, window: host.handle, activePage: { [weak browser = browser] in
+            browser?.activeEnginePage?.adapter as? ChromiumEnginePageAdapter
+        })
+    }
+
+    func hasBrowser(for profileID: String) -> Bool { hosts.contains { $0.profile.identity.id == profileID } }
+    func uses(_ profile: ChromiumProfile) -> Bool { hosts.contains { $0.profile == profile } }
+    func owns(_ handle: BoazHostWindow) -> Bool { hosts.contains { $0.handle == handle } }
+
+    /// Opens `profile`'s browser in this window, behind the one in front, before the first of its spaces shows here.
+    func open(_ profile: ChromiumProfile) throws {
+        guard !finished, installed, !self.profile.identity.isPrivate, !profile.identity.isPrivate,
+              !hasBrowser(for: profile.identity.id) else { throw EnginePageError.invalidRequest }
+        let host = Host(profile: profile)
+        attach(host)
+        hosts.append(host)
+        var options = makeOptions(host)
+        do { host.handle = try runtime.createWindow(profile: profile, options: &options) }
+        catch {
+            hosts.removeAll { $0 === host }
+            host.addressField.removeFromSuperview()
+            throw error
+        }
+        host.extensions = makeExtensions(for: host)
+        try? runtime.restoreDevToolsDockPreferences(window: host.handle, current: browser.devToolsDockSide,
+                                                    last: browser.devToolsLastDockSide)
+        browser.reportExternalTabs()
+        showCurrentProfile()
+    }
+
+    /// Puts the current space's profile in front: its browser, toolbar extensions, side panel and address field.
+    private func showCurrentProfile() {
+        guard !finished, let id = browser.currentSpace?.profileID,
+              let host = hosts.first(where: { $0.profile.identity.id == id }), host !== front else { return }
+        bringForward(host)
+    }
+
+    private func bringForward(_ host: Host) {
+        front = host
+        _ = runtime.api.bring_window_forward?(host.handle)
+        browser.chromiumProfileIdentity = host.profile.identity
+        browser.chromiumAddressField = host.addressField
+        browser.chromiumExtensions = host.extensions
+        sidePanel.show(host.sidePanel?.view, title: host.sidePanel?.title ?? "")
+        layoutSidePanel()
+    }
+
+    /// A profile's browser closed. A browser behind (an extension closed it, say) just leaves; the one in front
+    /// takes the window with it: the other profiles' browsers close one at a time, each in front as it does so a
+    /// page that asks before closing is seen. Returns the closed browser's profile.
+    func browserClosed(_ handle: BoazHostWindow) -> ChromiumProfile? {
+        guard let index = hosts.firstIndex(where: { $0.handle == handle }) else { return nil }
+        let host = hosts.remove(at: index)
+        host.addressField.removeFromSuperview()
+        guard let next = hosts.first else { finishClose(); return host.profile }
+        guard host === front else { browser.reportExternalTabs(); return host.profile }
+        bringForward(next)
+        _ = runtime.api.close_window?(front.handle)
+        return host.profile
+    }
+
+    func makeOptions() -> BoazHostWindowOptions { makeOptions(front) }
+
+    private func makeOptions(_ host: Host) -> BoazHostWindowOptions {
         var options = BoazHostWindowOptions()
         options.size = MemoryLayout<BoazHostWindowOptions>.size
         options.native_nswindow = Unmanaged.passUnretained(window).toOpaque()
-        options.context = Unmanaged.passUnretained(self).toOpaque()
+        options.context = Unmanaged.passUnretained(host).toOpaque()
         options.content_view = { context in
             let bits: UInt? = MainActor.assumeIsolated {
-                guard let context else { return nil }
-                let owner = Unmanaged<ChromiumAppWindow>.fromOpaque(context).takeUnretainedValue()
+                guard let context, let owner = Unmanaged<Host>.fromOpaque(context).takeUnretainedValue().owner else { return nil }
                 return UInt(bitPattern: Unmanaged.passUnretained(owner.contentContainer).toOpaque())
             }
             return bits.flatMap { UnsafeMutableRawPointer(bitPattern: $0) }
@@ -169,31 +250,31 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         options.address_field = { context in
             let bits: UInt? = MainActor.assumeIsolated {
                 guard let context else { return nil }
-                let owner = Unmanaged<ChromiumAppWindow>.fromOpaque(context).takeUnretainedValue()
-                return UInt(bitPattern: Unmanaged.passUnretained(owner.addressField).toOpaque())
+                let host = Unmanaged<Host>.fromOpaque(context).takeUnretainedValue()
+                return UInt(bitPattern: Unmanaged.passUnretained(host.addressField).toOpaque())
             }
             return bits.flatMap { UnsafeMutableRawPointer(bitPattern: $0) }
         }
         options.focus_address = { context in
             MainActor.assumeIsolated {
                 guard let context else { return }
-                let owner = Unmanaged<ChromiumAppWindow>.fromOpaque(context).takeUnretainedValue()
+                let host = Unmanaged<Host>.fromOpaque(context).takeUnretainedValue()
+                guard let owner = host.owner, owner.front === host else { return }
                 owner.queue { $0.browser.commandMode = .currentTab }
             }
         }
         options.focus_toolbar = options.focus_address
         options.handle_key = { context, event in
             MainActor.assumeIsolated {
-                guard let context, let event else { return 0 }
-                let owner = Unmanaged<ChromiumAppWindow>.fromOpaque(context).takeUnretainedValue()
+                guard let context, let event,
+                      let owner = Unmanaged<Host>.fromOpaque(context).takeUnretainedValue().owner else { return 0 }
                 let key = Unmanaged<NSEvent>.fromOpaque(event).takeUnretainedValue()
                 return owner.handleKey(key) ? 1 : 0
             }
         }
         options.exclusive_access_notice = { context, text, visible in
             MainActor.assumeIsolated {
-                guard let context else { return }
-                let owner = Unmanaged<ChromiumAppWindow>.fromOpaque(context).takeUnretainedValue()
+                guard let context, let owner = Unmanaged<Host>.fromOpaque(context).takeUnretainedValue().owner else { return }
                 let copied = visible != 0 ? text.map { String(cString: $0) } ?? "" : ""
                 owner.queue { $0.window.subtitle = copied }
             }
@@ -201,8 +282,8 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         options.extension_anchor = { context, id, view, bounds in
             MainActor.assumeIsolated {
                 guard let context, let view, let bounds else { return 0 }
-                let owner = Unmanaged<ChromiumAppWindow>.fromOpaque(context).takeUnretainedValue()
-                guard !owner.finished, let anchor = owner.browser.chromiumExtensions?.anchor(for: id.map { String(cString: $0) })
+                let host = Unmanaged<Host>.fromOpaque(context).takeUnretainedValue()
+                guard host.owner?.finished == false, let anchor = host.extensions?.anchor(for: id.map { String(cString: $0) })
                 else { return 0 }
                 view.pointee = Unmanaged.passUnretained(anchor).toOpaque()
                 let rect = anchor.bounds
@@ -213,10 +294,10 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         options.extension_side_panel = { context, view, title in
             MainActor.assumeIsolated {
                 guard let context else { return }
-                let owner = Unmanaged<ChromiumAppWindow>.fromOpaque(context).takeUnretainedValue()
-                guard !owner.finished else { return }
+                let host = Unmanaged<Host>.fromOpaque(context).takeUnretainedValue()
+                guard let owner = host.owner, !owner.finished else { return }
                 owner.showSidePanel(view.map { Unmanaged<NSView>.fromOpaque($0).takeUnretainedValue() },
-                                    title: title.map { String(cString: $0) } ?? "")
+                                    title: title.map { String(cString: $0) } ?? "", of: host)
             }
         }
         options.menu_features = BOAZ_MENU_FEATURE_SPLIT.rawValue | BOAZ_MENU_FEATURE_INCOGNITO.rawValue
@@ -224,7 +305,9 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         return options
     }
 
-    private func showSidePanel(_ view: NSView?, title: String) {
+    private func showSidePanel(_ view: NSView?, title: String, of host: Host) {
+        host.sidePanel = view.map { ($0, title) }
+        guard host === front else { return }
         sidePanel.show(view, title: title)
         layoutSidePanel()
         if let view { window.makeFirstResponder(view) }
@@ -250,6 +333,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
     }
 
     private func synchronizeLayout() {
+        showCurrentProfile()
         guard browser.peek?.nativePage == nil else { return }
         guard handle != 0, let getLayout = runtime.api.get_window_layout,
               let setSplit = runtime.api.set_split, let clearSplit = runtime.api.clear_split else {
@@ -401,6 +485,8 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         sidePanel.show(nil, title: "")
         browser.createChromiumPeekPage = nil
         browser.createChromiumPage = nil
+        browser.openChromiumProfile = nil
+        browser.chromiumSpaceChanged = nil
         browser.activateChromiumPage = nil
         browser.updateChromiumExternalTabCount = nil
         browser.chromiumLayoutChanged = nil

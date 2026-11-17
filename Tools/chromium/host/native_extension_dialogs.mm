@@ -315,14 +315,15 @@ class GlobalErrors final : public NativeGlobalErrors, public GlobalErrorObserver
         [](base::WeakPtr<GlobalErrors> self) { if (self) self->ShowPending(); }, weak_.GetWeakPtr()));
   }
 
- private:
-  void ShowPending() {
+  void ShowPending() override {
     if (!browser_ || !observation_.IsObserving() || !browser_->GetWindow()) return;
     NSWindow* window = browser_->GetWindow()->GetNativeWindow().GetNativeNSWindow();
-    if (!window.keyWindow || window.attachedSheet) return;
+    if (!browser_->GetWindow()->IsActive() || window.attachedSheet) return;
     if (auto* error = observation_.GetSource()->GetFirstGlobalErrorWithBubbleView())
       error->ShowBubbleView(browser_.get());
   }
+
+ private:
   base::WeakPtr<BrowserWindowInterface> browser_;
   base::ScopedObservation<GlobalErrorService, GlobalErrorObserver> observation_{this};
   id key_observer_ = nil;

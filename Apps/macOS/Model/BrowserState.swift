@@ -44,7 +44,13 @@ final class BrowserState {
     }
 
     let isIncognito: Bool
-    var currentSpaceID: String?
+    var currentSpaceID: String? {
+        didSet {
+            #if BOAZ_CHROMIUM
+            if oldValue != currentSpaceID { chromiumSpaceChanged?() }
+            #endif
+        }
+    }
     /// Direction the space column slides in from on the next switch.
     var spaceEdge: Edge = .trailing
     var activeTabID: String? {
@@ -209,9 +215,6 @@ final class BrowserState {
             engineRulesRevision = ChromiumEnginePreferences.revision
             cachedEngineRules.removeAll()
         }
-        // A Chromium window is bound to one profile, and another profile's space opens in that profile's window
-        // (`showInProfileWindow`); only a window without that hand-off would still reach here with one.
-        if let window = chromiumProfileIdentity, !window.isPrivate, tab.profileID != window.id { return .webKit }
         if engineRoutingFailures.contains(tab.id) { return .chromium }
         if let choice = engineChoices[tab.id] { return choice }
         if let live = enginePages[tab.id] { return live.kind }
@@ -244,7 +247,7 @@ final class BrowserState {
         return try enginePage(for: tab)
     }
 
-    private func reportExternalTabs() -> Bool {
+    @discardableResult func reportExternalTabs() -> Bool {
         guard createChromiumPage != nil else { return true }
         let known = engineChoices.compactMap { id, kind in
             kind == .webKit && tab(id)?.deletedAt == nil && tab(id) != nil ? id : nil
@@ -302,17 +305,31 @@ final class BrowserState {
         _ = reportExternalTabs()
     }
 
+    /// The profile whose Chromium browser is in front in this window: the current space's, or the private session.
     var chromiumProfileIdentity: EngineProfileIdentity?
-    /// Shows a space (and a tab in it) of another profile in that profile's own window, in this one's place.
-    @ObservationIgnored var showInProfileWindow: ((_ spaceID: String, _ tabID: String?) -> Void)?
+    @ObservationIgnored var chromiumSpaceChanged: (() -> Void)?
+    /// A window shows the spaces of every profile, as in Arc, each with its own Chromium browser (its cookies,
+    /// extensions and pages), opened the first time one of its spaces shows. This opens `profileID`'s and then
+    /// runs `then`; it returns false, without running it, when that browser is open already.
+    @ObservationIgnored var openChromiumProfile: ((_ profileID: String, _ then: @escaping () -> Void) -> Bool)?
+    @ObservationIgnored private var awaitedChromiumProfile: String?
 
-    /// A Chromium window holds one profile, as in Chrome: another profile's space opens in that profile's window
-    /// instead, so every tab runs in Chromium with its own profile's extensions and sign-ins.
-    private func handOffToProfileWindow(space id: String, tab tabID: String?) -> Bool {
-        guard let profile = chromiumProfileIdentity, !profile.isPrivate, let handOff = showInProfileWindow,
-              let space = model.space(id), space.profileID != profile.id else { return false }
-        handOff(id, tabID)
+    /// Whether `action` waits for `profileID`'s Chromium browser to open. A later switch replaces one still waiting.
+    private func awaitsChromiumProfile(_ profileID: String?, _ action: @escaping () -> Void) -> Bool {
+        let id = profileID ?? "default"
+        awaitedChromiumProfile = nil
+        guard openChromiumProfile?(id, { [weak self] in
+            guard let self, awaitedChromiumProfile == id else { return }
+            awaitedChromiumProfile = nil
+            action()
+        }) == true else { return false }
+        awaitedChromiumProfile = id
         return true
+    }
+    /// Live Chromium pages of profiles other than `profile`. Like WebKit pages, they keep its browser open when
+    /// its own last page closes.
+    func chromiumPageCount(outside profile: EngineProfileIdentity) -> Int {
+        enginePages.values.filter { $0.kind == .chromium && $0.profile != profile && $0.state.lifecycle != .closed }.count
     }
     var chromiumExtensions: ChromiumExtensionActionsModel?
     @ObservationIgnored var createChromiumPage: ((SidebarItem) throws -> EnginePage)?
@@ -325,7 +342,7 @@ final class BrowserState {
     }
     func adoptChromiumPage(_ page: EnginePage, active: Bool) throws {
         guard let adapter = page.adapter as? ChromiumEnginePageAdapter,
-              page.profile == chromiumProfileIdentity,
+              !isIncognito || page.profile == chromiumProfileIdentity,
               page.profile.isPrivate == isIncognito else { throw EnginePageError.invalidRequest }
         if let existing = enginePages.first(where: {
             ($0.value.adapter as? ChromiumEnginePageAdapter)?.handle == adapter.handle
@@ -355,6 +372,7 @@ final class BrowserState {
             model.commit(item)
         }
         enginePages[item.id] = page
+        reportExternalTabs()
         recency.removeAll { $0 == item.id }
         recency.append(item.id)
         if active { activate(item) }
@@ -710,6 +728,7 @@ final class BrowserState {
         if engineKind(for: tab) == .chromium, let createChromiumPage {
             let engine = try createChromiumPage(tab)
             enginePages[tab.id] = engine
+            reportExternalTabs()
             recency.removeAll { $0 == tab.id }
             recency.append(tab.id)
             if let saved = pageStates[tab.id], saved.url == tab.url { pendingRestores[tab.id] = saved }
@@ -935,9 +954,7 @@ final class BrowserState {
     func activate(_ tab: SidebarItem) {
         guard tab.kind == .tab else { return }
         #if BOAZ_CHROMIUM
-        if !isPrivate(tab), let profile = chromiumProfileIdentity, !profile.isPrivate, tab.profileID != profile.id,
-           let space = tab.spaceID ?? model.sidebar.spaces.first(where: { $0.profileID == tab.profileID })?.id,
-           handOffToProfileWindow(space: space, tab: tab.id) { return }
+        if !isPrivate(tab), awaitsChromiumProfile(tab.profileID, { [weak self] in self?.activate(tab) }) { return }
         #endif
         commandMode = nil
         if let split, !split.contains(tab.id) { self.split = nil }
@@ -1277,6 +1294,13 @@ final class BrowserState {
         ai = selection.isEmpty ? .page(tabID: tab.id, mode: .ask) : .explain(tabID: tab.id, selection: selection)
     }
 
+    /// The page's context menu chose Summarize Page.
+    func summarizePage(_ handle: BoazHostPage) {
+        guard let entry = enginePages.first(where: { ($0.value.adapter as? ChromiumEnginePageAdapter)?.handle == handle }),
+              let tab = tab(entry.key) else { return }
+        ai = .page(tabID: tab.id, mode: .summary)
+    }
+
     func chromiumPageEvent(_ handle: BoazHostPage, event: BoazHostPageEvent) {
         if let native = peek?.nativePage,
            (native.adapter as? ChromiumEnginePageAdapter)?.handle == handle {
@@ -1484,14 +1508,19 @@ final class BrowserState {
     // MARK: Spaces
 
     func switchSpace(to id: String, restoringTab: Bool = true) {
+        #if BOAZ_CHROMIUM
+        awaitedChromiumProfile = nil
+        #endif
         guard id != spaceID, !isIncognito else { return }
+        #if BOAZ_CHROMIUM
+        if let space = model.space(id), awaitsChromiumProfile(space.profileID, { [weak self] in
+            self?.switchSpace(to: id, restoringTab: restoringTab)
+        }) { return }
+        #endif
         let spaces = model.sidebar.spaces
         let from = spaces.firstIndex { $0.id == spaceID } ?? 0
         let to = spaces.firstIndex { $0.id == id } ?? 0
         if let spaceID, let activeTabID { lastTabPerSpace[spaceID] = activeTabID }
-        #if BOAZ_CHROMIUM
-        if handOffToProfileWindow(space: id, tab: nil) { return }
-        #endif
         withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
             spaceEdge = to >= from ? .trailing : .leading
             currentSpaceID = id
@@ -1503,7 +1532,7 @@ final class BrowserState {
 
     /// The tab a switch to space `id` shows: a favorite already open that the space shares (same profile) stays;
     /// otherwise the tab last used there, else its most recently used one. Nil shows the empty New Tab page.
-    func tabToShow(in id: String) -> SidebarItem? {
+    private func tabToShow(in id: String) -> SidebarItem? {
         guard let space = model.space(id) else { return nil }
         let belongs = { (tab: SidebarItem) in
             tab.spaceID == id || (self.model.isFavorite(tab) && tab.profileID == space.profileID)

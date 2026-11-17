@@ -48,6 +48,8 @@ constexpr Style kStyles[] = {
     {IDC_CONTENT_CONTEXT_EXIT_FULLSCREEN, "arrow.down.right.and.arrow.up.left"},
     {IDC_CONTENT_CONTEXT_INSPECTELEMENT, "wrench.and.screwdriver"},
     {kAskCommandId, "apple.intelligence"},
+    {kSummarizePageCommandId, "sparkles"},
+    {kExplainCommandId, "text.magnifyingglass"},
     {IDC_CONTENT_CONTEXT_OPENLINKNEWTAB, "plus.square.on.square"},
     {IDC_CONTENT_CONTEXT_OPENLINKNEWWINDOW, "macwindow.badge.plus"},
     {IDC_CONTENT_CONTEXT_OPENLINKOFFTHERECORD, "eyeglasses"},

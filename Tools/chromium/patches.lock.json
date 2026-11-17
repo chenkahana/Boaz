@@ -960,6 +960,17 @@
           "after": "498def2be68eca6446c81677794bed9d7872e7cbcce1ae310588702f382649c6"
         }
       ]
+    },
+    {
+      "file": "patches/native-context-menu-assistant.patch",
+      "sha256": "685f62a62e1e4a87a4086bceb8dc8d7ff4deec9d8fdbe8fa7bc8de5642fda577",
+      "files": [
+        {
+          "path": "chrome/browser/renderer_context_menu/render_view_context_menu.cc",
+          "before": "4f81c8b6b324185bcf8a7e7375e509487a3dfe4d33c75633025ffbedc6cdb113",
+          "after": "a979dd428c76bc8f5a75840dd97d81ea265243a3a23882365f4f679dc580c017"
+        }
+      ]
     }
   ]
 }

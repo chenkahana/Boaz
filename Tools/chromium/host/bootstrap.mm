@@ -451,6 +451,17 @@ BoazHostResult CloseWindow(BoazHostWindow id) {
   UnloadController::From(it->second.browser.get())->OnWindowClosing();
   return BOAZ_HOST_OK;
 }
+BoazHostResult BringWindowForward(BoazHostWindow id) {
+  if (auto r = Check(); r != BOAZ_HOST_OK) return r;
+  auto it = state->windows.find(id);
+  if (it == state->windows.end() || !it->second.browser) return BOAZ_HOST_INVALID_HANDLE;
+  const void* shared = it->second.options.native_nswindow;
+  for (auto& [other, window] : state->windows)
+    if (window.browser && window.options.native_nswindow == shared)
+      SetNativeBrowserWindowInFront(window.browser->GetWindow(), other == id);
+  if (it->second.global_errors) it->second.global_errors->ShowPending();
+  return BOAZ_HOST_OK;
+}
 BoazHostResult Shutdown() {
   LOG(INFO) << "Boaz shutdown requested";
   if (auto r = Check(); r != BOAZ_HOST_OK) {
@@ -1171,7 +1182,8 @@ const BoazHostAPI kAPI = {sizeof(BoazHostAPI), BOAZ_HOST_ABI_VERSION,
   Activate, NativeView, ClosePage, CloseWindow, Shutdown,
   EnumerateExtensions, InvokeExtension, CaptureDocument, ReleaseDocument, ExecuteTrusted,
   WindowLayout, SetSplit, ClearSplit, PrepareProfile, CreateProfileWindow, ReleaseProfile, SetAudioMuted, GetZoomFactor, SetZoomFactor, FindText, StopFind, StopLoading, EnumerateHistory, GoToHistoryEntry, IsBusyForResidency, ShowDevTools, CaptureDocumentOrigin, CaptureVisible, CancelCapture, ApplyViewport, GetUserAgentDefaults, ApplyUserAgent, EnumerateDownloads, DownloadAction, Print, SetExternalTabCount, CapturePDF, CancelPDF, ApplyMedia, ClearCache, ReloadFromOrigin, ApplyNetwork, ApplyCPU, ApplySensors, SetJavaScriptDisabled, AutomationStatus, CaptureFullPage, CancelFullPage, CaptureFocusedDocumentOrigin, CloneDocument, SetDevToolsDockPreferences, ExtensionMetadata, TogglePictureInPicture, EnumerateSitePermissions, ResetSitePermission, SetAutomaticPictureInPictureEnabled, PrepareBlockingAssets, ConfigureProfileBlocking, ImportCookies, WidevineStatus, SetPageAssistantEnabled, SetMenuShortcuts, SetDefaultSearchProvider,
-  SetExtensionPinned, ShowExtensionMenu, ExtensionAccessRequest, GrantExtensionAccessRequest, CloseExtensionSidePanel};
+  SetExtensionPinned, ShowExtensionMenu, ExtensionAccessRequest, GrantExtensionAccessRequest, CloseExtensionSidePanel,
+  BringWindowForward};
 
 class MainParts final : public ChromeBrowserMainExtraParts {
  public:
@@ -1344,6 +1356,7 @@ std::optional<BoazHostMenuCommand> MenuCommandFor(int command) {
     case kShareCommandId: return BOAZ_MENU_SHARE;
     case kShareImageCommandId: return BOAZ_MENU_SHARE_IMAGE;
     case kSendToDevicesCommandId: return BOAZ_MENU_SEND_TO_DEVICES;
+    case kSummarizePageCommandId: return BOAZ_MENU_SUMMARIZE_PAGE;
     default: return std::nullopt;
   }
 }
@@ -1462,7 +1475,8 @@ bool FindNativeExtensionAnchor(void* nswindow, const std::vector<std::string>& e
   CHECK_CURRENTLY_ON(content::BrowserThread::UI);
   if (!state || state->exit_requested || state->in_callback || !nswindow) return false;
   for (auto& [id, window] : state->windows) {
-    if (window.options.native_nswindow != nswindow || !window.browser || window.browser->IsDeleteScheduled())
+    if (window.options.native_nswindow != nswindow || !window.browser || window.browser->IsDeleteScheduled() ||
+        !IsNativeBrowserWindowInFront(window.browser->GetWindow()))
       continue;
     EnsureExtensionActions(id, window);
     return window.actions && window.actions->GetAnchor(extension_ids, view, bounds);
@@ -1517,6 +1531,10 @@ CreateNativeHostBrowserWindow(BrowserWindowInterface* browser) {
   }, options);
   auto window = CreateNativeBrowserWindow(browser, options.native_nswindow, services);
   CHECK(window);
+  // Another profile's browser already in this NSWindow stays in front until bring_window_forward.
+  for (const auto& [other, entry] : state->windows)
+    if (entry.browser && entry.options.native_nswindow == options.native_nswindow)
+      SetNativeBrowserWindowInFront(window.get(), false);
   auto id = state->tabs->RegisterWindow(static_cast<Browser*>(browser), options.native_nswindow);
   CHECK(id);
   Window record{weak, options, browser->RegisterBrowserCloseCancelled(base::BindRepeating(

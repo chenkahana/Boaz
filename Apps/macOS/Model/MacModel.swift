@@ -309,14 +309,9 @@ final class MacModel {
     /// Opens a URL as a Today tab in the most recent main window, creating one if needed. `spaceID` (a site
     /// rule's space, computed by the caller) puts the tab there and shows it instead of the current space.
     func openInMainWindow(_ url: URL, title: String? = nil, spaceID: String? = nil) {
-        if let spaceID, let space = space(spaceID), let tab = newTab(url, title: title, in: spaceID) {
-            // A Chromium window shows one profile's tabs: use a window of the space's profile, or open one.
+        if let spaceID, space(spaceID) != nil, let tab = newTab(url, title: title, in: spaceID) {
             let browser = ([lastActiveBrowser].compactMap { $0 } + openBrowsers).first { browser in
-                guard !browser.isIncognito, browser.window?.isVisible == true else { return false }
-                #if BOAZ_CHROMIUM
-                if let profile = browser.chromiumProfileIdentity { return profile.id == space.profileID }
-                #endif
-                return true
+                !browser.isIncognito && browser.window?.isVisible == true
             }
             if let browser, let window = browser.window {
                 browser.activate(tab)

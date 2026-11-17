@@ -6,6 +6,20 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.25] - 2026-11-17
+
+### Added
+
+- Mac: the page's right-click menu has Summarize Page, Ask About This Page and, for selected text, Explain, all
+  with Apple's on-device model.
+
+### Fixed
+
+- Mac: spaces of every profile share one window, as in Arc: switching to another profile's space no longer opens a
+  second window.
+- Mac: sidebar tabs and favorites take every click and drag; the hover preview no longer swallows the click that
+  closes it.
+
 ## [0.4.24] - 2026-11-17
 
 ### Fixed
