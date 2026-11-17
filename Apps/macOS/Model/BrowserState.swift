@@ -1508,6 +1508,9 @@ final class BrowserState {
     // MARK: Spaces
 
     func switchSpace(to id: String, restoringTab: Bool = true) {
+        #if BOAZ_CHROMIUM
+        awaitedChromiumProfile = nil
+        #endif
         guard id != spaceID, !isIncognito else { return }
         #if BOAZ_CHROMIUM
         if let space = model.space(id), awaitsChromiumProfile(space.profileID, { [weak self] in

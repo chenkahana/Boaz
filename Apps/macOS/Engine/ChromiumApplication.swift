@@ -142,7 +142,7 @@ private final class ChromiumApplication: NSObject {
             releaseProfileIfUnused(profile)
         }
         runtime.devToolsDockChanged = { [weak self] handle, current, last in
-            guard let self, let owner = windows.first(where: { $0.handle == handle }) else { return }
+            guard let self, let owner = windows.first(where: { $0.owns(handle) }) else { return }
             owner.browser.devToolsDockSide = current
             owner.browser.devToolsLastDockSide = last
             if !owner.browser.isIncognito { model.saveOpenWindows() }
@@ -288,8 +288,16 @@ private final class ChromiumApplication: NSObject {
             waited += 1
         }
         guard let url, !finished else { return }
-        if let owner = windows.first(where: { $0.profile == profile }) {
+        if profile.identity.isPrivate, let owner = windows.first(where: { $0.profile == profile }) {
             owner.browser.openTab(url)
+        } else if !profile.identity.isPrivate, let owner = windows.first(where: { $0.uses(profile) })
+            ?? windows.first(where: { $0.window.isKeyWindow && !$0.browser.isIncognito })
+            ?? windows.first(where: { !$0.browser.isIncognito }),
+           let space = owner.browser.currentSpace?.profileID == profile.identity.id ? owner.browser.currentSpace
+            : model.sidebar.spaces.first(where: { $0.profileID == profile.identity.id }),
+           let tab = model.newTab(url, in: space.id) {
+            // Every window shows every profile: the page opens in a space of its own profile.
+            owner.browser.activate(tab)
         } else if let owner = windows.first(where: { $0.window.isKeyWindow }) ?? windows.first {
             owner.browser.openTab(url)
             model.showToast("Opened a page in another window: none of its profile was open.")

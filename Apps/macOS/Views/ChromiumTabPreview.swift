@@ -73,6 +73,9 @@ private final class TabPreviewPanel {
     private let panel: NSPanel
     private weak var owner: NSView?
     private var monitor: Any?
+    /// The preview on screen, and the last one a click put away: a row redrawing doesn't bring that one back.
+    private var shown: UUID?
+    private var dismissed: UUID?
 
     private init() {
         panel = NSPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
@@ -90,7 +93,7 @@ private final class TabPreviewPanel {
     }
 
     func show(_ snapshot: ChromiumTabPreview.Snapshot, beside anchor: NSView) {
-        guard let window = anchor.window else { return }
+        guard let window = anchor.window, snapshot.id != dismissed, snapshot.id != shown || owner !== anchor else { return }
         let host = NSHostingView(rootView: PreviewCard(snapshot: snapshot))
         host.frame.size = host.fittingSize
         panel.contentView = host
@@ -103,11 +106,14 @@ private final class TabPreviewPanel {
         panel.setFrame(frame, display: true)
         panel.orderFront(nil)
         owner = anchor
+        shown = snapshot.id
     }
 
     /// Hides the preview if `anchor` (or anyone, when nil) is showing it.
     func hide(from anchor: NSView?) {
         guard anchor == nil || owner === anchor else { return }
+        if anchor == nil { dismissed = shown }
+        shown = nil
         panel.orderOut(nil)
         panel.contentView = nil
         owner = nil

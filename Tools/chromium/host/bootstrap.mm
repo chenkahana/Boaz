@@ -459,6 +459,7 @@ BoazHostResult BringWindowForward(BoazHostWindow id) {
   for (auto& [other, window] : state->windows)
     if (window.browser && window.options.native_nswindow == shared)
       SetNativeBrowserWindowInFront(window.browser->GetWindow(), other == id);
+  if (it->second.global_errors) it->second.global_errors->ShowPending();
   return BOAZ_HOST_OK;
 }
 BoazHostResult Shutdown() {

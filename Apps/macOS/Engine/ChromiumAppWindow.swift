@@ -96,7 +96,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         }
         browser.createChromiumPeekPage = { [weak self] url in
             guard let self, !finished, handle != 0 else { throw EnginePageError.closed }
-            return try runtime.createPage(window: handle, url: url, profile: profile.identity)
+            return try runtime.createPage(window: handle, url: url, profile: self.profile.identity)
         }
         if preparedForNativeCreation { return }
         var options = makeOptions()
@@ -199,6 +199,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         try? runtime.restoreDevToolsDockPreferences(window: host.handle, current: browser.devToolsDockSide,
                                                     last: browser.devToolsLastDockSide)
         browser.reportExternalTabs()
+        showCurrentProfile()
     }
 
     /// Puts the current space's profile in front: its browser, toolbar extensions, side panel and address field.
@@ -218,14 +219,16 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         layoutSidePanel()
     }
 
-    /// A profile's browser closed, and the window closes with it: the other profiles' browsers close one at a time,
-    /// each in front as it does so a page that asks before closing is seen. Returns the closed browser's profile.
+    /// A profile's browser closed. A browser behind (an extension closed it, say) just leaves; the one in front
+    /// takes the window with it: the other profiles' browsers close one at a time, each in front as it does so a
+    /// page that asks before closing is seen. Returns the closed browser's profile.
     func browserClosed(_ handle: BoazHostWindow) -> ChromiumProfile? {
         guard let index = hosts.firstIndex(where: { $0.handle == handle }) else { return nil }
         let host = hosts.remove(at: index)
         host.addressField.removeFromSuperview()
         guard let next = hosts.first else { finishClose(); return host.profile }
-        if host === front { bringForward(next) }
+        guard host === front else { browser.reportExternalTabs(); return host.profile }
+        bringForward(next)
         _ = runtime.api.close_window?(front.handle)
         return host.profile
     }
