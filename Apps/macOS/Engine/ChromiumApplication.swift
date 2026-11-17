@@ -293,8 +293,12 @@ private final class ChromiumApplication: NSObject {
             waited += 1
         }
         guard let url, !finished else { return }
-        if let owner = windows.first(where: { $0.profile == profile }) {
+        if let owner = windows.first(where: { $0.profile == profile && !$0.isSwappedOut }) {
             owner.browser.openTab(url)
+        } else if let owner = windows.first(where: { $0.profile == profile }) {
+            // Its profile's window is put away behind another profile's: bring it back to show the page.
+            owner.browser.openTab(url)
+            owner.window.makeKeyAndOrderFront(nil)
         } else if let owner = windows.first(where: { $0.window.isKeyWindow }) ?? windows.first {
             owner.browser.openTab(url)
             model.showToast("Opened a page in another window: none of its profile was open.")
@@ -378,7 +382,8 @@ private final class ChromiumApplication: NSObject {
                               parsed.host?.isEmpty == false else { continue }
                         target = parsed
                     }
-                    var owner = windows.first(where: { $0.window.isKeyWindow }) ?? windows.first
+                    var owner = windows.first(where: { $0.window.isKeyWindow })
+                        ?? windows.first(where: { !$0.isSwappedOut }) ?? windows.first
                     if owner == nil {
                         owner = await ensureMainWindow()
                     }
@@ -494,6 +499,19 @@ private final class ChromiumApplication: NSObject {
             guard let self, let window else { return }
             Task { await self.show(space: spaceID, tab: tabID, inPlaceOf: window) }
         }
+        // A put-away window that comes forward anyway (Chromium focusing it for an extension, say) takes its place
+        // back: the sibling that was in view steps aside.
+        window.becameKey = { [weak self, weak window] in
+            guard let self, let window, window.isSwappedOut else { return }
+            window.isSwappedOut = false
+            for sibling in windows where sibling !== window && sibling.group == window.group && !sibling.isSwappedOut
+                && !sibling.window.styleMask.contains(.fullScreen) {
+                window.window.setFrame(sibling.window.frame, display: true)
+                sibling.isSwappedOut = true
+                sibling.window.orderOut(nil)
+            }
+            model.saveOpenWindows()
+        }
     }
 
     /// Shows `spaceID` (and `tabID`) in its profile's window where `current` is, opening that window the first
@@ -504,7 +522,9 @@ private final class ChromiumApplication: NSObject {
         let target: ChromiumAppWindow
         if let sibling = windows.first(where: { $0 !== current && $0.group == current.group && $0.profile.identity == identity }) {
             target = sibling
-            if !current.window.styleMask.contains(.fullScreen) { target.window.setFrame(current.window.frame, display: false) }
+            if ![current, target].contains(where: { $0.window.styleMask.contains(.fullScreen) }) {
+                target.window.setFrame(current.window.frame, display: false)
+            }
             if let tab = model.item(tabID) { target.browser.activate(tab) } else { target.browser.switchSpace(to: spaceID) }
             target.isSwappedOut = false
             target.window.makeKeyAndOrderFront(nil)
@@ -514,12 +534,21 @@ private final class ChromiumApplication: NSObject {
                 let profile = try await runtime.prepareProfile(identity)
                 await ChromiumLegacyStore.importWebKitCookies(runtime: runtime, profile: profile,
                                                              store: model.dataStore(for: identity.id))
-                guard !finished, windows.contains(where: { $0 === current }), !current.isSwappedOut else { return }
+                guard !finished, !model.isQuitting, windows.contains(where: { $0 === current }), !current.isSwappedOut else {
+                    releaseProfileIfUnused(profile)
+                    return
+                }
                 let fullScreen = current.window.styleMask.contains(.fullScreen)
-                target = try ChromiumAppWindow(runtime: runtime, profile: profile, model: model,
-                    initialTabID: tabID ?? current.browser.tabToShow(in: spaceID)?.id, spaceID: spaceID,
-                    frame: fullScreen ? nil : current.window.frame)
-                target.group = current.group
+                do {
+                    target = try ChromiumAppWindow(runtime: runtime, profile: profile, model: model,
+                        initialTabID: tabID ?? current.browser.tabToShow(in: spaceID)?.id, spaceID: spaceID,
+                        frame: fullScreen ? nil : current.window.frame)
+                } catch {
+                    releaseProfileIfUnused(profile)
+                    throw error
+                }
+                // Beside a full-screen window, the new one is a window of its own, not one that takes turns with it.
+                if !fullScreen { target.group = current.group }
                 windows.append(target)
                 adopt(target)
             } catch {
@@ -531,6 +560,8 @@ private final class ChromiumApplication: NSObject {
         guard !current.window.styleMask.contains(.fullScreen) else { return }
         current.isSwappedOut = true
         current.window.orderOut(nil)
+        // Neither window's space or tab may change, so save here what a relaunch should bring back.
+        model.saveOpenWindows()
     }
 
     private func present<Content: View>(_ content: Content, title: String) {

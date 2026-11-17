@@ -30,6 +30,9 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         didSet { window.isExcludedFromWindowsMenu = isSwappedOut }
     }
     private let initialFrame: NSRect?
+    var becameKey: (() -> Void)?
+
+    func windowDidBecomeKey(_ notification: Notification) { becameKey?() }
 
     init(runtime: ChromiumRuntime, profile: ChromiumProfile, model: MacModel,
          preparedForNativeCreation: Bool = false,
