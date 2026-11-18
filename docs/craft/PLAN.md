@@ -23,7 +23,7 @@ Code base for this pass: `origin/master` at `66c3d63` (0.4.25), worktree `~/.wor
 - [x] R2.1 Mac sidebar
 - [x] R2.2 Mac command bar
 - [x] R2.3 Mac web pane and split view
-- [ ] R2.4 Mac library panel
+- [x] R2.4 Mac library panel
 - [ ] R2.5 Settings (Mac and iPhone)
 - [ ] R2.6 Onboarding (Mac and iPhone)
 - [ ] R2.7 iPhone bottom bar, tab fan and carousel

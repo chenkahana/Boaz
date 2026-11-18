@@ -1,6 +1,6 @@
 # Craft research: progress
 
-RESUME HERE: R2.4, Mac library panel (LibraryPanel.swift; popover from the sidebar's tray button) and Archive/History windows (LibraryViews.swift).
+RESUME HERE: R2.5, Settings on Mac (LibraryViews.swift:226-566, ChromiumSettingsWindow) and iPhone (LibrarySheet.swift:167+, shots/ios/main/14-16).
 
 Runtime rules for whoever resumes: never move, delete or modify `~/Library/Containers/com.chenkahana.boaz` or Chen's
 Chromium profile data, and never quit Chen's running Boaz (must-have 13). Mac runtime that would risk either is
@@ -23,3 +23,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R2.1 · Mac sidebar: 12 findings (MS-1…MS-12) · (this commit)
 - 2026-11-18 · R2.2 · Mac command bar: 6 findings (MC-1…MC-6) · (this commit)
 - 2026-11-18 · R2.3 · Mac web pane and split: 8 findings (MW-1…MW-8) · (this commit)
+- 2026-11-18 · R2.4 · Mac library panel: 6 entries (ML-1…ML-6, ML-6 a pass) · (this commit)

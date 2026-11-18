@@ -56,7 +56,7 @@ Runtime: needs Chen session for the DMG; WebKit build captured static only. Find
 
 | ID | P | Finding | Evidence | Sev | Reach | Eff | Score | MH |
 |---|---|---|---|---|---|---|---|---|
-| MW-1 | P6 | Every navigation puts a spinning `ProgressView` over the top centre of the page (DMG and WebKit), immediately, with no ~300 ms grace. Safari and Arc show progress in the chrome (address field fill, a thin bar) and never draw over the page. | `WebPane.swift:129` (DMG tab pane overlay), WebKit pane same pattern; confirm with a recording | S2 | every session | S | 12 | 1 |
+| MW-1 | P6 | On the DMG every navigation puts a spinning `ProgressView` over the top centre of the page, immediately, with no ~300 ms grace. Safari and Arc show progress in the chrome (address field fill, a thin bar) and never draw over the page. | `WebPane.swift:129` (Chromium tab pane only; the WebKit pane has no page overlay, only the Stop/Reload glyph swap in the sidebar, `Sidebar.swift:117`); confirm with a recording | S2 | every session | S | 12 | 1 |
 | MW-2 | P7 | Restoring a tab shows its snapshot with a "Saved preview" caption in the corner until the live page appears. The caption names an implementation detail; Arc and Safari show the snapshot unlabeled. | `WebPane.swift:110-118` | S3 | daily | S | 6 | 13 |
 | MW-3 | P7 | Five titles for a page that didn't load: "Can't Open This Page" (DMG tab pane, WebKit pane, iPhone), "Couldn't Open This Page" (DMG video fallback), "Couldn't Load This Page" (DMG load failure), "You're Offline", "This Page Stopped Responding". The last two are good distinct states; the first three should be one. | `WebPane.swift:36,100,387`, `ChromiumLoadFailureView.swift:17-18`, `TabBrowser.swift:198` | S3 | occasional | S | 4 | — |
 | MW-4 | P6 | "Opening page…" (a centred spinner with text) replaces the pane while a tab's engine page is created, so switching to an unloaded tab flashes a spinner instead of the tab's snapshot. | `WebPane.swift:38,132` | S3 | daily | S | 6 | 1 |
@@ -67,3 +67,17 @@ Runtime: needs Chen session for the DMG; WebKit build captured static only. Find
 
 Holds up well: the DMG's failure view separates offline (wifi.slash, "Check your internet connection"), unknown host
 and crash ("Reload Page"), keeps the address, and re-tries a recovered offline navigation once by itself.
+
+## R2.4 Mac library panel, Archive and History windows
+
+| ID | P | Finding | Evidence | Sev | Reach | Eff | Score | MH |
+|---|---|---|---|---|---|---|---|---|
+| ML-1 | P4 | The panel's tab labels are 9 pt with `minimumScaleFactor(0.8)`, so "Archived Tabs" can render at ~7 pt: below the 10–11 pt floor Mac apps use for labels, and unreadable for many. | `LibraryPanel.swift:76` | S3 | daily | S | 6 | — |
+| ML-2 | P3 | Fixed 630 pt tall popover: at the 492 pt minimum window height it can't fit beside the sidebar (AppKit shifts or clips it). | `LibraryPanel.swift:56`; confirm at 720 × 492 | S3 | occasional | S | 4 | — |
+| ML-3 | P7 | Same list, four names and three empty-state voices: "Archived Tabs" (panel tab), "Archive" (View menu, Window menu, window title), "Archive is empty · Closed and auto-archived tabs appear here." (Mac) vs "Archive is empty · Closed and inactive tabs land here." (iPhone), next to "No History", "No Downloads", "No Media" (title case, "No X" pattern). Search prompts: "Search Archive…" (panel) vs "Search archive" (window) vs "Search history". | `LibraryPanel.swift:16,174,363,469`, `LibraryViews.swift:68,120,182,186`, `LibrarySheet.swift:59` | S3 | daily | S | 6 | — |
+| ML-4 | P3 | Literal radii (10, 8) in the panel duplicate `MacRadius.tile`/`.row` instead of using them; `AppIconSettings` uses 22 and onboarding 20, outside the token set. | `LibraryPanel.swift:96,147`, `AppIconSettings.swift:102`, `OnboardingView.swift:246,510` | S4 | daily | S | 3 | — |
+| ML-5 | P8 | The panel's tab column has no keyboard path between tabs (no ⌘1–⌘4, no arrow keys); Esc closes it (`onExitCommand`). | `LibraryPanel.swift:60,68-90` | S4 | occasional | S | 2 | — |
+| ML-6 | P6 | Clearing the Archive or History confirms with "This can't be undone." and no Undo; that's the right pattern for a bulk wipe. Archiving one tab offers Undo (toast). Consistent with P6. | `LibraryViews.swift:124-130,190-195` | — | — | — | — | 13 |
+
+Holds up well: the tab column tiles take the whole 44 × 44 tile as the click target and expose selection to
+VoiceOver; downloads show live progress and an interrupted state (DMG); Esc closes; the panel takes the space's theme.
