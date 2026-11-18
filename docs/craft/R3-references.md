@@ -30,3 +30,18 @@ Steal this (Safari, iPhone):
 3. **Private as a visible tab group in the overview**, with dark chrome while in it. → IB-1, W6 (needs Chen's yes: visible behaviour change).
 4. **Per-card close in the overview** next to the swipe gesture. → IB-6, W6.
 5. **Suggestion section headers** ("Google Suggestions") so sighted and VoiceOver users both know a row's kind. → AX-4, W4.
+
+## R3.2 Safari on the Mac (known; frame-stepping needs Chen session)
+
+| Moment | Safari mechanics | Boaz gap → finding |
+|---|---|---|
+| Tab close (⌘W) | The tab collapses in place and its neighbours close the gap; Edit › **Undo Close Tab (⌘Z)** and History › Reopen Last Closed Tab both bring it back. | ⌘Z does nothing for tabs (E9, no `UndoManager`) → W5 |
+| Tab overview (⇧⌘\\) | The page **zooms down into its card** in a grid and back up when picked: the signature "it came from there" move. | Mac has no overview; sidebar is the overview (fine for Arc's model) |
+| Address entry (⌘L) | Edits **in place** in the toolbar field; suggestions drop beneath it; Top Hit first; Esc restores the URL. | Command bar opens centred, not from the pill → MC-3 |
+| Page loading | Progress fills the address field's background; nothing draws over the page. | DMG spinner over the page → MW-1 |
+| Find | Safari's own find banner (Done, ‹ ›, match count), no Replace. | WebKit build shows AppKit's finder with Replace → MW-9 |
+| Window titles | Each window is titled after its current page in Window menu and Mission Control. | DMG windows all "Boaz" → MS-13 |
+
+Steal this: **⌘Z reopens the last closed tab** (Safari's Undo Close Tab) on top of ⌘⇧T; **progress in the field, never
+over the page**; **window titled after its page**.
+
