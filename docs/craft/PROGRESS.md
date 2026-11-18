@@ -1,6 +1,6 @@
 # Craft research: progress
 
-RESUME HERE: R3.4, Chrome (secondary): known mechanics for tab strip close/drag-out, omnibox, loading in the tab favicon.
+RESUME HERE: R3.5, Dia (secondary; known): AI-sidebar browser by The Browser Company.
 
 Runtime rules for whoever resumes: never move, delete or modify `~/Library/Containers/com.chenkahana.boaz` or Chen's
 Chromium profile data, and never quit Chen's running Boaz (must-have 13). Mac runtime that would risk either is
@@ -41,3 +41,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R3.1 · Safari iPhone driven in the Duo simulator; mechanics table + 5 steal-this items · (this commit)
 - 2026-11-18 · R3.2 · Safari Mac known mechanics + 3 steal-this items · (this commit)
 - 2026-11-18 · R3.3 · Arc known mechanics; new MS-15 (space swipe not interactive) · (this commit)
+- 2026-11-18 · R3.4 · Chrome known mechanics, 5 takeaways · (this commit)

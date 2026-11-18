@@ -67,3 +67,13 @@ New finding from the comparison:
 Steal this (Arc): **interactive space paging with velocity** (MS-15), **gap-opening reorder with spring-loaded
 folders** (MS-11), **drag a tab onto the page for split view** (MW-7), **⌘Z restores the last closed tab** (W5).
 
+## R3.4 Chrome (secondary; known)
+
+| Moment | Chrome mechanics | Takeaway for Boaz |
+|---|---|---|
+| Tab close | Closing with the pointer over the strip keeps the remaining tabs' widths until the pointer leaves, so the next close button lands under the pointer. | The sidebar equivalent: keep the row layout stable while the pointer stays in the list after a close (rows don't jump under the pointer). Confirm on DMG |
+| Tab drag out | Dragging a tab off the strip lifts a live window preview; dropping elsewhere makes a window; dropping on a link target or the desktop does nothing harmful. | Dragging a sidebar row out should carry the URL (MS-1) |
+| Loading | Spinner replaces the tab's favicon, colour-coded waiting vs loading; nothing over the page. | Use the row's favicon for progress (MW-1) |
+| Omnibox | Inline autocomplete, suggestion rows with a kind icon and a remove (✕) for history rows. | Removable history suggestions; kind spoken (AX-4) |
+| Reopen | ⌘⇧T reopens tabs and whole windows in order. | Boaz has ⌘⇧T (toast Undo too) |
+
