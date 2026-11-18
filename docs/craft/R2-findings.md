@@ -259,5 +259,22 @@ announced wrong or skipped).
 |---|---|---|---|---|---|---|---|---|
 | AX-4 | P12 | Search suggestion rows announce only their text ("example pdf, button"); nothing says whether a row searches, opens a history page or switches to a tab, which sighted users get from the icon. Add the kind as a value or hint. | `shots/ios/main/05-search-typing.txt` | S3 | daily | S | 6 | — |
 | AX-5 | P12 | No rotors anywhere (0 `accessibilityRotor`): History and Archive lists, the carousel and the Mac sidebar can only be walked item by item. A "Tabs" rotor on the page and a "Pinned/Today" rotor in the sidebar would match Safari. | `rg accessibilityRotor Apps` → 0 | S3 | occasional | M | 2 | — |
-| AX-6 | P12 | iPhone has no `accessibilityShowsLargeContentViewer` on the rail and bar buttons, whose glyphs are capped (`min(glyph, 28)`) and don't grow past AX sizes: long-press-to-magnify is the system's answer for fixed-size bar controls. | `ToolRail.swift:172,190` | S3 | occasional | S | 4 | 7 |
-| AX-7 | P12 | Voice Control: the tab fan's visible content is a stack of thumbnails while its name is "Tabs"; the rail's ellipsis button is "Page Settings" though it shows "…" and is called the page menu in docs. Users have to guess the spoken names. Use `accessibilityInputLabels` with "Tabs", "Menu", "More". | `shots/ios/main/06-page.txt`; `TabBrowser.swift` label "Page Settings" | S4 | rare | S | 1 | — |
+| AX-6 | P12 | iPhone has no `accessibilityShowsLargeContentViewer` on the rail and bar buttons, whose glyphs are capped (`min(glyph, 28)`) and don't grow past AX sizes: long-press-to-magnify is the system's answer for fixed-size bar controls. | `ToolRail.swift:169,186` | S3 | occasional | S | 4 | 7 |
+| AX-7 | P12 | Voice Control: the tab fan's visible content is a stack of thumbnails while its name is "Tabs"; the rail's ellipsis button is "Page Settings" though it shows "…" and is called the page menu in docs. Users have to guess the spoken names. Use `accessibilityInputLabels` with "Tabs", "Menu", "More". | `shots/ios/main/06-page.txt`; `TabBrowser.swift:465,506` label "Page Settings" | S4 | rare | S | 1 | — |
+
+## R2.14 Accessibility: Dynamic Type AX3 and AX5 (iPhone)
+
+Runtime: `simctl ui content_size accessibility-large` (AX3) and `accessibility-extra-extra-extra-large` (AX5), same
+screens each time: page, page menu, search panel typing "exa", carousel, Settings. Screens in
+`shots/ios/dt-accessibility-large/` and `shots/ios/dt-accessibility-extra-extra-extra-large/`, side by side in
+`shots/ios/dt3.png`, `dt5.png`.
+
+| ID | P | Finding | Evidence | Sev | Reach | Eff | Score | MH |
+|---|---|---|---|---|---|---|---|---|
+| AX-8 | P4, P3 | At AX5 the carousel header's "1 Tab" runs into the "Done" button: the two overlap ("1 TaDone"). | `dt-accessibility-extra-extra-extra-large/43-carousel.png` | S1 | occasional | S | 8 | — |
+| AX-9 | P4 | At AX5 the page menu shows about one and a half rows in its half-height panel; tile captions truncate to "Ba…", "Fo…", "Re…", "Sh…" and the title to "Exampl…". At AX3 "Forward" already truncates ("Forw…"). The panel should grow to full height and the tiles drop their captions (or stack) at accessibility sizes. | `dt-…-large/41-page-menu.png`, `dt-…-extra-extra-extra-large/41-page-menu.png` | S1 | occasional | M | 4 | 7 |
+| AX-10 | P4 | At AX5 the search panel's "Switch to Tab" caption breaks mid-word ("Swit / ch to / Tab") beside a title cut to "Ex…"; at AX3 the tab row already squeezes its title to "Exampl…". The caption should move under the title at accessibility sizes (`ViewThatFits` / `dynamicTypeSize.isAccessibilitySize`). | `dt-…-extra-extra-extra-large/42-search.png`, `dt-…-large/42-search.png` | S2 | occasional | S | 6 | — |
+| AX-11 | P4 | Settings' sheet title "Settings" stays small at every size while its content grows (inline title in a custom header). | `dt-…/44-settings.png` | S4 | occasional | S | 2 | — |
+
+Holds up well at AX5: page text (WebKit honours the text size), Settings rows wrap instead of truncating, rail glyphs
+stay inside their circles by design (capped, `ToolRail.swift:169,186`; see AX-6 for the large content viewer).
