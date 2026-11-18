@@ -77,3 +77,23 @@ folders** (MS-11), **drag a tab onto the page for split view** (MW-7), **⌘Z re
 | Omnibox | Inline autocomplete, suggestion rows with a kind icon and a remove (✕) for history rows. | Removable history suggestions; kind spoken (AX-4) |
 | Reopen | ⌘⇧T reopens tabs and whole windows in order. | Boaz has ⌘⇧T (toast Undo too) |
 
+## R3.5 Dia (secondary; known, low weight)
+
+Dia (The Browser Company, Chromium) moved from Arc's sidebar to a conventional horizontal tab strip and puts an AI
+chat beside the page that can read the open tabs. What matters for Boaz is narrow:
+
+| Moment | Dia | Takeaway for Boaz |
+|---|---|---|
+| AI entry point | One persistent chat surface tied to the current page and tabs, opened from the address field. | Boaz's Summarize / Ask This Page / Tidy are three separate sheets (`MacAI.swift`, `AIViews.swift`); a single "Ask" surface with page context reads as one feature. Stays on-device (must-have 12). Judgment, not a finding yet |
+| Address field | The field doubles as the chat prompt. | Not for Boaz: must-have 12 forbids server models, and the command bar should stay a navigator |
+
+## R3.6 Orion (secondary; known, low weight)
+
+Orion (Kagi, WebKit) is the closest engine match to Boaz's App Store build.
+
+| Moment | Orion | Takeaway for Boaz |
+|---|---|---|
+| Vertical tabs | Optional vertical tab sidebar with tree-style nesting and a compact mode. | Nothing to steal beyond Arc |
+| Extensions | Installs Chrome and Firefox extensions on WebKit with a compatibility warning. | The DMG gets real Chrome extensions (must-have 4); nothing to copy |
+| Privacy defaults | Blocking on by default with a per-site toggle in the address bar. | Boaz's per-site Content Blocking lives in the iPhone page menu; a toolbar-level shield (Mac) is a judgment call for W6/W5, not a gap |
+

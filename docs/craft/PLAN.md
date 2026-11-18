@@ -43,7 +43,7 @@ Code base for this pass: `origin/master` at `66c3d63` (0.4.25), worktree `~/.wor
 - [x] R3.2 Safari on Mac
 - [x] R3.3 Arc
 - [x] R3.4 Chrome
-- [ ] R3.5 Dia
+- [x] R3.5 Dia
 - [ ] R3.6 Orion
 - [ ] R3.7 "Steal this" list mapped to R2 findings
 
