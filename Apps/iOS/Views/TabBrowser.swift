@@ -121,8 +121,8 @@ struct TabBrowser: View {
             .environment(\.chromeTint, edges?.top.color)
             .environment(\.siteEdges, edges)
             .animation(SiteEdges.fade(reduceMotion: reduceMotion), value: edges)
-            .sensoryFeedback(.selection, trigger: model.backForwardHaptic)
-            .sensoryFeedback(.impact(weight: .light), trigger: pullArmed) { old, new in new && !old }
+            .sensoryFeedback(Haptics.pageTurned.feedback, trigger: model.backForwardHaptic)
+            .sensoryFeedback(Haptics.refreshArmed.feedback, trigger: pullArmed) { old, new in new && !old }
             .onChange(of: page.url) { model.didChangeURL(tab) }
             .onChange(of: page.title) { model.didChangeTitle(tab) }
             .onChange(of: page.url) { model.restoreSiteEdges(for: tab) }

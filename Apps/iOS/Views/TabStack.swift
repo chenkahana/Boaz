@@ -129,7 +129,7 @@ struct TabCarousel: View {
             style.gradient.background(Color(.systemBackground)).ignoresSafeArea().opacity(presentation)
         }
         .allowsHitTesting(presented)
-        .sensoryFeedback(.selection, trigger: Int(position.rounded()))
+        .sensoryFeedback(Haptics.tabChanged.feedback, trigger: Int(position.rounded()))
         .onAppear {
             order = tabs.map(\.id)
             let index = tabs.firstIndex { $0.id == model.activeTabID } ?? tabs.count - 1

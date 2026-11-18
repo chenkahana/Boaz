@@ -60,7 +60,7 @@ struct RootView: View {
         .environment(\.isPrivateBrowsing, model.isIncognito)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.toast)
         .animation(BottomPanelStyle.motion, value: model.searchTarget)
-        .sensoryFeedback(.impact(weight: .medium), trigger: model.toast) { _, new in new?.canUndo == true }
+        .sensoryFeedback(Haptics.tabClosed.feedback, trigger: model.toast) { _, new in new?.canUndo == true }
         // While a sheet is up, the alert has to come from there instead.
         .modifier(ShakeToUndo(isEnabled: model.sheet == nil && !model.showOnboarding))
         .sheet(item: $model.sheet, onDismiss: model.sheetDidDismiss) { sheet in
@@ -194,7 +194,7 @@ private struct Pane: View {
                 .animation(carouselMotion, value: model.showsCoverFlow)
             }
         }
-        .sensoryFeedback(.selection, trigger: bump)
+        .sensoryFeedback(Haptics.tabChanged.feedback, trigger: bump)
         .environment(\.paneIndex, index)
         .simultaneousGesture(TapGesture().onEnded { model.focusPane(index) }, including: model.isSplit ? .all : .subviews)
     }
