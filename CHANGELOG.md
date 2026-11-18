@@ -6,6 +6,13 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.35] - 2026-11-19
+
+### Fixed
+
+- iPhone: at large text sizes the page menu's Back, Forward, Reload and Share captions shrink to fit instead of
+  clipping, the setup button no longer clips, and the Settings title grows with the text.
+
 ## [0.4.34] - 2026-11-19
 
 ### Changed

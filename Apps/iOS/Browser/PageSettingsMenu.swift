@@ -209,7 +209,8 @@ private struct NavTile: View {
     var body: some View {
         VStack(spacing: 4) {
             Image(systemName: symbol).font(.body.weight(.semibold)).contentTransition(.symbolEffect(.replace))
-            Text(title).font(.caption2.weight(.medium)).lineLimit(1)
+            // Four tiles share the row, so a caption shrinks to fit at large sizes instead of clipping.
+            Text(title).font(.caption2.weight(.medium)).lineLimit(1).minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity, minHeight: 56)
         .background(.background.opacity(0.55), in: .rect(cornerRadius: 16))
