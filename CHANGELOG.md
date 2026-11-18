@@ -6,6 +6,12 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.30] - 2026-11-18
+
+### Fixed
+
+- iPhone: the search field's Clear Text button is easier to hit (44 pt), without changing how the field looks.
+
 ## [0.4.26] - 2026-11-18
 
 ### Fixed
