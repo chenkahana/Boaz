@@ -41,7 +41,7 @@ Code base for this pass: `origin/master` at `66c3d63` (0.4.25), worktree `~/.wor
 ### R3. Reference teardown → [`R3-references.md`](R3-references.md)
 - [x] R3.1 Safari on iPhone
 - [x] R3.2 Safari on Mac
-- [ ] R3.3 Arc
+- [x] R3.3 Arc
 - [ ] R3.4 Chrome
 - [ ] R3.5 Dia
 - [ ] R3.6 Orion

@@ -1,6 +1,6 @@
 # Craft research: progress
 
-RESUME HERE: R3.3, Arc (the Mac app to beat): known mechanics for sidebar drag, space switch swipe, command bar, Little Arc/peek, split, archive, ⌘Z.
+RESUME HERE: R3.4, Chrome (secondary): known mechanics for tab strip close/drag-out, omnibox, loading in the tab favicon.
 
 Runtime rules for whoever resumes: never move, delete or modify `~/Library/Containers/com.chenkahana.boaz` or Chen's
 Chromium profile data, and never quit Chen's running Boaz (must-have 13). Mac runtime that would risk either is
@@ -40,3 +40,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R2.17 · Craft scores for 11 surfaces (18–30 of 36); R2 complete · (this commit)
 - 2026-11-18 · R3.1 · Safari iPhone driven in the Duo simulator; mechanics table + 5 steal-this items · (this commit)
 - 2026-11-18 · R3.2 · Safari Mac known mechanics + 3 steal-this items · (this commit)
+- 2026-11-18 · R3.3 · Arc known mechanics; new MS-15 (space swipe not interactive) · (this commit)

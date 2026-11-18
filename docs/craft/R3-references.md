@@ -45,3 +45,25 @@ Steal this (Safari, iPhone):
 Steal this: **⌘Z reopens the last closed tab** (Safari's Undo Close Tab) on top of ⌘⇧T; **progress in the field, never
 over the page**; **window titled after its page**.
 
+## R3.3 Arc (Mac app to beat; known, frame-stepping needs Chen session)
+
+| Moment | Arc mechanics | Boaz today | Gap → finding |
+|---|---|---|---|
+| Space switch (two-finger swipe on the sidebar) | Interactive paging: the current space's list follows the fingers 1:1 and the next space slides in beside it; release commits by distance **or** flick speed and settles with the finger's velocity. | The list moves at 0.4× up to ±90 pt, then snaps back; past 70 pt of travel (distance only, no velocity) the space changes with a separate push transition; no haptic. `Sidebar.swift:82-87` | New **MS-15** below; W1 |
+| Command bar (⌘T / ⌘L) | Centred floating bar over a dimmed window, field focused on the first frame, results grouped (tabs, history, search). | Same layout; focus by polling with type-ahead replay (MC-2); hover steals selection (MC-1) | MC-1, MC-2 |
+| Tab close / archive | Row collapses with a spring, neighbours close up; ⌘Z (and ⌘⇧T) brings it back. | Row removal animates with model springs; Undo via toast and ⌘⇧T only | E9 → W5; AX-12 for Reduce Motion |
+| Sidebar drag (reorder, into folder) | Live row preview under the pointer, gap opens where it will land, folders spring open on hover. | Insertion line, no gap; folders open only on drop | MS-11 |
+| Sidebar width | Edge drag with resize cursor; hide/show (⌘S) slides; hover the left edge to peek. | Same, hard stop at 200/420 pt | MS-5 |
+| Split view | Drag a tab onto the page: drop zones highlight left/right; divider drag between panes. | Menu command or context menu; divider invisible until hovered | MW-7, MS-12 |
+| Page loading | Indicator in the sidebar's URL pill / favicon; nothing over the page. | DMG spinner over the page | MW-1 |
+| Peek / Little Arc | Links from pinned tabs open in a floating preview over the page with Expand and Close. | Peek overlay exists (`BrowserWindow.swift:496`) | parity |
+
+New finding from the comparison:
+
+| ID | P | Finding | Evidence | Sev | Reach | Eff | Score | MH |
+|---|---|---|---|---|---|---|---|---|
+| MS-15 | P1 | The two-finger space swipe isn't interactive: the list slides at 0.4× up to 90 pt and snaps back, then a separate push transition plays if the drag passed 70 pt. A flick that's fast but short does nothing; nothing carries the fingers' speed; no haptic at the commit. | `Sidebar.swift:82-87` | S2 | daily | M | 4.5 | 2, 5 |
+
+Steal this (Arc): **interactive space paging with velocity** (MS-15), **gap-opening reorder with spring-loaded
+folders** (MS-11), **drag a tab onto the page for split view** (MW-7), **⌘Z restores the last closed tab** (W5).
+
