@@ -50,3 +50,14 @@ Not recorded, and why:
 - **Every Mac flow in motion** (launch, ⌘T/⌘L command bar, sidebar drag, space switch, split view, library panel,
   settings, onboarding) and **every DMG (Chromium) screen**: needs Chen session. Keystrokes and clicks only reach an
   active app, and activating one takes over the Mac Chen is using.
+
+## R0.3 Instruments and launch numbers
+
+| Measure | Result | Evidence | Caveat |
+|---|---|---|---|
+| iPhone launch to first frame (`XCTApplicationLaunchMetric`, 5 runs, 2–3 tabs open) | **2.39–2.92 s** (median 2.50 s) | `results/launch-ff-*.xcresult` | Debug build on the simulator. Plan target is ≤ 400 ms on a device Release build; re-measure there before treating this as a regression. |
+| iPhone launch until responsive (`waitUntilResponsive: true`) | **3.60–4.31 s** (median 4.19 s) | `results/launch-*.xcresult` | Same. The ~1.5 s gap between first frame and responsive says the main thread stays busy after the first frame (restore, snapshots, sync); worth a device Time Profiler trace. |
+| iPhone App Launch trace | Recorded ×3 | `traces/ios-launch-{1,2,3}.trace` | The simulator records CPU and thread state but leaves the lifecycle table empty, so phases (dyld, `didFinishLaunching`, first frame) need a device. |
+| iPhone Animation Hitches | **Not supported** in the simulator ("Hitches is not supported on this platform") | `traces/ios-hitches-1.trace`, `traces/hitch.log` | Needs device. The flow to trace is ready: `Motion/testMotion` (carousel ×3, paging, page menu, scroll). |
+| Mac (WebKit, Debug, isolated) launch to window on screen | **0.36–0.66 s** (3 runs) | measured by polling `CGWindowList` after `open -g` | Window exists; first content frame not measured. DMG cold launch: needs Chen session. |
+| Mac Animation Hitches, Mac App Launch template | Not recorded | | Needs Chen session (R0.1 steps). |
