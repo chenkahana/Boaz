@@ -8,8 +8,8 @@ to be reused as-is (§1 "Sister handoffs").
 ## R4.1 Motion tokens and transition catalog
 
 **Today (deterministic count, 66c3d63):** 45 distinct curves across `Apps/` (`rg` for `spring(`, `easeOut(`,
-`smooth`, `snappy`, `bouncy`, `interpolatingSpring`): 27 `spring(response:dampingFraction:)` pairs, 8 eases, 10
-`smooth`/`snappy`/`bouncy` variants. Four named constants exist, two of them called `motion` with different values
+`smooth`, `snappy`, `bouncy`, `interpolatingSpring`): 23 `spring(response:dampingFraction:)` pairs, 2
+`interpolatingSpring`s, 10 eases (one linear) and 10 `smooth`/`snappy`/`bouncy` variants. Four named constants exist, two of them called `motion` with different values
 (`SidebarStyle.motion` smooth 0.2, `BottomPanelStyle.motion` snappy 0.3), plus `TabStack…motion` smooth 0.2 and
 `Onboarding.spring` (0.5, 0.86). The most common literal, `.easeOut(duration: 0.2)` (9 uses), is mostly the hand-written
 Reduce Motion fallback.

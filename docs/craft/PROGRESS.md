@@ -1,6 +1,7 @@
+RESUME HERE: R4.2, haptic map (iPhone sensoryFeedback events and Mac NSHapticFeedbackManager events) in R4-systems.md.
+
 # Craft research: progress
 
-RESUME HERE: R4.2, haptic map (iPhone sensoryFeedback events and Mac NSHapticFeedbackManager events) in R4-systems.md.
 
 Runtime rules for whoever resumes: never move, delete or modify `~/Library/Containers/com.chenkahana.boaz` or Chen's
 Chromium profile data, and never quit Chen's running Boaz (must-have 13). Mac runtime that would risk either is
