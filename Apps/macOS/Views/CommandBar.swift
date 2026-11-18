@@ -17,6 +17,9 @@ struct CommandBar: View {
     /// The rows as they were when a preview began; answers landing meanwhile wait until the next edit or row 1.
     @State private var frozen: [Suggestion]?
     @State private var history: [HistoryVisit] = []
+    /// Where the pointer was when it last picked a row. Rows appearing under a resting pointer report a hover too,
+    /// so only a pointer that has moved since takes the selection, as in Spotlight.
+    @State private var pointer = NSEvent.mouseLocation
     @FocusState private var focused: Bool
 
     enum Suggestion: Identifiable {
@@ -95,7 +98,11 @@ struct CommandBar: View {
                             }
                             .buttonStyle(.plain)
                             .accessibilityAddTraits(index == selection ? .isSelected : [])
-                            .onHover { if $0 { selection = index } }
+                            .onContinuousHover { phase in
+                                guard case .active = phase, NSEvent.mouseLocation != pointer else { return }
+                                pointer = NSEvent.mouseLocation
+                                selection = index
+                            }
                         }
                     }
                     .padding(6)
