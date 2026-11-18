@@ -20,7 +20,7 @@ Code base for this pass: `origin/master` at `66c3d63` (0.4.25), worktree `~/.wor
 - [x] R1.4 `R1-inventory.md` complete
 
 ### R2. Pillar audit → [`R2-findings.md`](R2-findings.md)
-- [ ] R2.1 Mac sidebar
+- [x] R2.1 Mac sidebar
 - [ ] R2.2 Mac command bar
 - [ ] R2.3 Mac web pane and split view
 - [ ] R2.4 Mac library panel

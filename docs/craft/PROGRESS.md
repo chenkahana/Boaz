@@ -1,6 +1,6 @@
 # Craft research: progress
 
-RESUME HERE: R2.1, Mac sidebar audit through P1–P12 in R2-findings.md. Finding format: ID, pillar, surface, platform, evidence, severity S1–S4, reach, effort, must-have.
+RESUME HERE: R2.2, Mac command bar (CommandBar.swift; focus retry 10×50 ms at :126-160).
 
 Runtime rules for whoever resumes: never move, delete or modify `~/Library/Containers/com.chenkahana.boaz` or Chen's
 Chromium profile data, and never quit Chen's running Boaz (must-have 13). Mac runtime that would risk either is
@@ -20,3 +20,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R1.2 · Mac inventory, 27 surfaces incl. DMG-only · (this commit)
 - 2026-11-18 · R1.3 · widgets, share extension, intents, links, system integrations inventoried · (this commit)
 - 2026-11-18 · R1.4 · R1 summary of cross-surface patterns; toast announcement claim corrected after checking code · (this commit)
+- 2026-11-18 · R2.1 · Mac sidebar: 12 findings (MS-1…MS-12) · (this commit)
