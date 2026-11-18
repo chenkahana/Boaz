@@ -6,6 +6,13 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.27] - 2026-11-19
+
+### Fixed
+
+- iPhone: a tab whose page failed to load shows its icon and "Can't Open This Page" among the tabs, not a blank
+  white card.
+
 ## [0.4.26] - 2026-11-18
 
 ### Fixed
