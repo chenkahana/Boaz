@@ -191,6 +191,9 @@ struct TabBrowser: View {
             }
             .animation(.easeOut(duration: 0.2), value: model.restoringTabs.contains(tab.id))
             .onDisappear { [tab, hostID] in model.releasePage(tab.id, host: hostID) }
+            .onChange(of: loadFailure == nil, initial: true) { _, loaded in
+                if loaded { model.failedTabs.remove(tab.id) } else { model.failedTabs.insert(tab.id) }
+            }
             .overlay {
                 // WebKit draws no error page of its own, so a failed load would otherwise stay blank.
                 if let loadFailure {
