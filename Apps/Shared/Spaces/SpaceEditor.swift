@@ -274,7 +274,7 @@ extension SpaceEditor {
                 .font(SidebarStyle.rowFont(selected: true))
                 .padding(.horizontal, 8)
                 .frame(maxWidth: .infinity, minHeight: SidebarStyle.rowHeight, alignment: .leading)
-                .background(SidebarStyle.selection(), in: .rect(cornerRadius: MacRadius.row, style: .continuous))
+                .background(SidebarStyle.selection(), in: .rect(cornerRadius: Radius.row, style: .continuous))
             Text("Tab").font(SidebarStyle.rowFont()).padding(.horizontal, 8).frame(height: SidebarStyle.rowHeight)
         }
         .foregroundStyle(style.foreground)
@@ -282,8 +282,8 @@ extension SpaceEditor {
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .background { SpaceBackdrop(style: style, streakRadius: 220) }
         .environment(\.colorScheme, style.dark ? .dark : .light)
-        .clipShape(.rect(cornerRadius: MacRadius.card, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: MacRadius.card, style: .continuous).strokeBorder(.primary.opacity(0.1)) }
+        .clipShape(.rect(cornerRadius: Radius.card, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(.primary.opacity(0.1)) }
     }
 }
 #endif

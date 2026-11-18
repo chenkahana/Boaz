@@ -163,7 +163,7 @@ private struct HistoryButton: View {
                 .font(.system(size: 12, weight: .semibold))
                 .frame(width: 26, height: 26)
                 .background(.primary.opacity(hovering && !items.isEmpty ? 0.12 : 0),
-                            in: .rect(cornerRadius: MacRadius.icon, style: .continuous))
+                            in: .rect(cornerRadius: Radius.icon, style: .continuous))
                 .contentShape(Rectangle())
         } primaryAction: {
             action()
@@ -207,7 +207,7 @@ private struct AddressPill: View {
             }
             .padding(.horizontal, 8).frame(height: SidebarStyle.rowHeight)
             .background(hovering ? SidebarStyle.selection() : SidebarStyle.hover,
-                        in: .rect(cornerRadius: MacRadius.row, style: .continuous))
+                        in: .rect(cornerRadius: Radius.row, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -229,7 +229,7 @@ private struct FavoritesGrid: View {
         let container = browser.currentSpace.flatMap { model.sidebar.favoritesContainer(profileID: $0.profileID) }
         Group {
             if favorites.isEmpty {
-                RoundedRectangle(cornerRadius: MacRadius.tile, style: .continuous)
+                RoundedRectangle(cornerRadius: Radius.tile, style: .continuous)
                     .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
                     .opacity(targeted ? 0.6 : 0)
                     .frame(height: targeted ? 44 : 6)
@@ -284,9 +284,9 @@ private struct FavoriteTile: View {
                 .frame(maxWidth: .infinity).frame(height: 44)
                 .background(color.map { $0.opacity(active ? 0.42 : 0.24) }
                                 ?? (active ? SidebarStyle.selection() : SidebarStyle.hover),
-                            in: .rect(cornerRadius: MacRadius.tile, style: .continuous))
+                            in: .rect(cornerRadius: Radius.tile, style: .continuous))
                 .overlay {
-                    if targeted { RoundedRectangle(cornerRadius: MacRadius.tile, style: .continuous).strokeBorder(tint, lineWidth: 2) }
+                    if targeted { RoundedRectangle(cornerRadius: Radius.tile, style: .continuous).strokeBorder(tint, lineWidth: 2) }
                 }
                 .shadow(color: .black.opacity(hovering ? 0.12 : 0), radius: 4, y: 2)
                 .offset(y: hovering && !reduceMotion ? -1 : 0)
@@ -470,7 +470,7 @@ private struct NewTabRow: View {
             }
             .foregroundStyle(.secondary)
             .padding(.horizontal, 8).frame(height: SidebarStyle.rowHeight)
-            .background(hovering ? SidebarStyle.hover : .clear, in: .rect(cornerRadius: MacRadius.row, style: .continuous))
+            .background(hovering ? SidebarStyle.hover : .clear, in: .rect(cornerRadius: Radius.row, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -559,7 +559,7 @@ struct ItemRow: View {
         .padding(.trailing, 4)
         .frame(height: SidebarStyle.rowHeight)
         .background {
-            RoundedRectangle(cornerRadius: MacRadius.row, style: .continuous)
+            RoundedRectangle(cornerRadius: Radius.row, style: .continuous)
                 .fill(active ? SidebarStyle.selection(increasedContrast: contrast == .increased)
                       : hovering ? SidebarStyle.hover : .clear)
         }
@@ -569,7 +569,7 @@ struct ItemRow: View {
         .overlay(alignment: item.kind == .folder ? .center : .top) {
             if targeted {
                 if item.kind == .folder {
-                    RoundedRectangle(cornerRadius: MacRadius.row, style: .continuous).strokeBorder(tint, lineWidth: 2)
+                    RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(tint, lineWidth: 2)
                 } else {
                     InsertionLine(tint: tint).offset(y: -1)
                 }
@@ -583,7 +583,7 @@ struct ItemRow: View {
         .animation(SidebarStyle.motion, value: active)
         .draggable(SidebarDrag.payload(item)) {
             Label(title, systemImage: item.kind == .folder ? "folder" : "globe")
-                .padding(6).background(.regularMaterial, in: .rect(cornerRadius: MacRadius.icon))
+                .padding(6).background(.regularMaterial, in: .rect(cornerRadius: Radius.icon))
         }
         .dropDestination(for: String.self) { payloads, _ in
             if item.kind == .folder {

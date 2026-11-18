@@ -102,12 +102,12 @@ struct CommandBar: View {
                 }
             }
             .frame(width: 620)
-            .glassEffect(.regular, in: .rect(cornerRadius: MacRadius.panel))
+            .glassEffect(.regular, in: .rect(cornerRadius: Radius.panel))
             #if BOAZ_CHROMIUM
             // Glass can't sample Chromium's page layer, so without a backing the page reads straight through.
-            .background(RoundedRectangle(cornerRadius: MacRadius.panel, style: .continuous).fill(.background.opacity(0.92)))
+            .background(RoundedRectangle(cornerRadius: Radius.panel, style: .continuous).fill(.background.opacity(0.92)))
             #endif
-            .overlay(RoundedRectangle(cornerRadius: MacRadius.panel, style: .continuous).strokeBorder(.white.opacity(0.35)))
+            .overlay(RoundedRectangle(cornerRadius: Radius.panel, style: .continuous).strokeBorder(.white.opacity(0.35)))
             .shadow(color: tint.opacity(0.25), radius: 30)
             .shadow(color: .black.opacity(0.25), radius: 40, y: 20)
             .padding(.top, 110)
@@ -341,7 +341,7 @@ private struct SuggestionRow: View {
         }
         .font(.system(size: 14))
         .padding(.horizontal, 12).frame(height: 36)
-        .background(selected ? tint.opacity(0.22) : .clear, in: .rect(cornerRadius: MacRadius.row, style: .continuous))
+        .background(selected ? tint.opacity(0.22) : .clear, in: .rect(cornerRadius: Radius.row, style: .continuous))
         .contentShape(Rectangle())
     }
 }

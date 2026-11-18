@@ -6,6 +6,12 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.37] - 2026-11-18
+
+### Changed
+
+- Spacing and corner radii come from one set of layout tokens on both platforms. Nothing looks different yet.
+
 ## [0.4.26] - 2026-11-18
 
 ### Fixed
