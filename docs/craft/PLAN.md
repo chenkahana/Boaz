@@ -29,7 +29,7 @@ Code base for this pass: `origin/master` at `66c3d63` (0.4.25), worktree `~/.wor
 - [x] R2.7 iPhone bottom bar, tab fan and carousel
 - [x] R2.8 iPhone search panel
 - [x] R2.9 iPhone page menu
-- [ ] R2.10 Duo postures
+- [x] R2.10 Duo postures
 - [ ] R2.11 Widgets and extensions
 - [ ] R2.12 Accessibility: system audit (Accessibility Inspector / XCUITest audit)
 - [ ] R2.13 Accessibility: VoiceOver walk of the five main flows

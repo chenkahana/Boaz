@@ -173,3 +173,21 @@ Runtime: `shots/ios/main/07-08`, `main/12` (error page), `tabs/26`, `private/30`
 Holds up well: concentric corners (panel 28 pt, tiles 16 pt at a 12 pt inset), 46–50 pt rows, a grabber, disabled
 items dim instead of disappearing, `.isModal` plus an escape action for VoiceOver, Reduce Motion fades instead of
 sliding, text size shows tabular digits.
+
+## R2.10 iPhone Duo postures
+
+Runtime: folded only (simulator). Open, book, laptop and the hinge moving while a video plays (must-have 9) are
+**needs device**. Code-read findings:
+
+| ID | P | Finding | Evidence | Sev | Reach | Eff | Score | MH |
+|---|---|---|---|---|---|---|---|---|
+| DU-1 | P2 | Half-open tab strip rows are 36 pt tall and each row's close button is 28 × 36 pt, under 44 pt, on a screen held in the air. | `TabStrip.swift:15,54,62` | S3 | daily | S | 6 | 9 |
+| DU-2 | P11 | Posture changes are covered by a snapshot whose removal waits on timers: a 150 ms sleep, then a 300 ms fallback before the 0.2 s fade. The split itself waits 250 ms so a hand-speed unfold doesn't flash half-open (a deliberate debounce). Measure on device whether the cover lingers after the page is ready. | `RelayoutCover.swift:102-111`, `RootView.swift:86-92` | S3 | daily | M | 3 | 9 |
+| DU-3 | P7 | Landscape status pill builds its battery string by hand (`"\(Int(level * 100))%"`) rather than `.percent` formatting. | `RootView.swift:279` | S4 | occasional | S | 2 | — |
+| DU-4 | P3 | Folded: the rail column takes the page's edge colour so the page seems to run under the camera; with tinting off or before a page's colours arrive, the column is the plain background. Judgment: check the change-over isn't a visible flash on device. | `ToolRail.swift:58-63` | S4 | every session | S | 4 | 9 |
+
+**Needs device (Chen), exact checks:** (1) unfold flat with a page open: the page must not reload and the cover must
+lift as soon as the page has re-laid out; (2) half-open (book): tab strip + two panes, tap targets in the strip;
+(3) laptop: keyboard over the panes, the fold stays put; (4) move the hinge through every posture while a YouTube
+video plays (must-have 9); (5) unfolded portrait: the bar collapses while reading (`collapsesBar`) and the page ends
+above it (must-have 7). Record each at 120 Hz with screen recording.

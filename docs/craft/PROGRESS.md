@@ -1,6 +1,6 @@
 # Craft research: progress
 
-RESUME HERE: R2.10, Duo postures (RootView.swift PostureLayout, RelayoutCover.swift, TabStrip.swift): code-read plus needs device list.
+RESUME HERE: R2.11, widgets and extensions (Apps/Extensions/Widgets, ShareExtension, iOS/Intents).
 
 Runtime rules for whoever resumes: never move, delete or modify `~/Library/Containers/com.chenkahana.boaz` or Chen's
 Chromium profile data, and never quit Chen's running Boaz (must-have 13). Mac runtime that would risk either is
@@ -29,3 +29,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R2.7 · iPhone bar/fan/carousel: 10 findings (IB-1…IB-10); Incognito flow captured; corrected R1 page-menu row · (this commit)
 - 2026-11-18 · R2.8 · iPhone search panel: 4 findings (IS-1…IS-4) · (this commit)
 - 2026-11-18 · R2.9 · iPhone page menu: 6 entries (IM-1…IM-6) · (this commit)
+- 2026-11-18 · R2.10 · Duo postures: 4 code-read findings + needs-device checklist · (this commit)
