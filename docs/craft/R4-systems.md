@@ -227,3 +227,23 @@ toast (MS-14, WX-4). Log the detail instead.
 - **Lint (cheap):** a CI step that fails on `count == 1 ? "" : "s"` and on `"\(Int(` + `* 100` + `)%"` patterns via
   `rg`; a full "literal outside the catalog" check isn't cheap with SwiftUI's `LocalizedStringKey` extraction, so the
   catalog's own "stale/missing" state in Xcode is the review tool instead.
+
+## R4.6 State kit
+
+**Today:** 15+ `ContentUnavailableView`s with mixed titles, three loading styles (DMG spinner over the page,
+"Opening page…" centred spinner, iPhone/WebKit progress glow), four error views for a failed page (R2 MW-3, MW-5),
+no offline state on iPhone or the WebKit Mac build, no sync-error state anywhere (ST-5).
+
+One component family per platform, in `Apps/Shared/States/`:
+
+| Component | Shows | Rules |
+|---|---|---|
+| `EmptyState(kind:)` | `ContentUnavailableView` with title "No …", one sentence of what appears here, optional action | Titles and copy from R4.5; same symbol per kind on both platforms (archivebox, clock, arrow.down.circle, photo.on.rectangle, square.on.square); search no-results always `ContentUnavailableView.search` |
+| `LoadingState` | Nothing for the first 300 ms; then progress **in place**: the address pill / tab favicon on the Mac, the bar glow on iPhone; a snapshot (unlabelled) where a page will appear | Never a spinner over or instead of content (MW-1, MW-4, MW-2) |
+| `PageFailure(kind:)` | One view, three kinds: **unreachable** ("Can't Open This Page", host kept, Try Again), **offline** ("You're Offline", wifi.slash, retries by itself when the network returns), **crashed** ("This Page Stopped Responding", Reload Page) | Shared by DMG, WebKit Mac and iPhone (closes MW-3, MW-5); offline detection with `NWPathMonitor` on the WebKit builds |
+| `SyncStatus` | Last synced time (`.relative`), "Syncing…", or an error with a Retry / Open Settings action | Used in Settings › Sync on both platforms (ST-5) and as a quiet line in Tabs on Your Mac |
+| `Toast` | One line (two at most), sentence case, Undo when undoable, announced to VoiceOver | Errors map to a short sentence (MS-14) |
+
+Destructive actions (P6): bulk wipes (Clear Archive, Clear History, Delete Space) confirm and can't be undone;
+single-item removals (archive a tab, delete a folder) act at once and offer Undo (toast, ⌘Z on the Mac, Shake to
+Undo on iPhone). Never both, rarely neither.
