@@ -24,7 +24,7 @@ bar/fan/carousel, IS search panel, IM page menu, DU Duo, WX widgets and extensio
 | MS-6 | P1 | Three curves outside the one-curve rule in `docs/design.md`: the peek opens with `.spring(0.32, 0.85)` and closes with `.spring(0.32, 0.9)`; favorite tiles hover with `.easeOut(0.12)`; the start page hover `.spring(0.3, 0.7)` (bouncy for a hover). | `BrowserWindow.swift:299,310`, `Sidebar.swift:180`, `BrowserWindow.swift:455` | S3 | every session | S | 8 | — |
 | MS-7 | P4 | Glyphs in the sidebar have fixed point sizes (8–12 pt) that ignore Settings › Sidebar text size (14/15/17): at 17 pt the plus, lock, link and ellipsis glyphs look undersized next to the text. | `Sidebar.swift:163,195,203,383,467,621,804` | S3 | daily | S | 6 | — |
 | MS-8 | P6 | A space with no tabs (and a fresh library) shows an empty sidebar: no New Tab row, no hint; only the bottom bar's icons. | `shots/mac/empty-light-*.png` | S3 | rare | S | 2 | 5 |
-| MS-9 | P3 | At the minimum window size the Today list is cut off below New Tab with no fade or scroll cue (overlay scrollbars are hidden at rest). | `shots/mac/min-light-*.png` (720 × 492; "Today Tab" not visible) | S4 | occasional | S | 2 | — |
+| MS-9 | P3 | At the minimum window size the Today list is cut off below New Tab with no fade or scroll cue (overlay scrollbars are hidden at rest). | `shots/mac/min-light-*.png` (720 × 492; "Today Tab" not visible), `shots/mac-ci/browser-minimum-size-light.png` (a half row peeks under New Tab) | S4 | occasional | S | 2 | — |
 | MS-10 | P3 | The content card's corner (12 pt, `MacRadius.card`) at a 6 pt inset reads as rounder than the window corner beside it; concentric would be window radius − 6. Measure on a 2× display before changing. | `shots/mac/corners.png` (crop of `mac-light-main.png`), `MacRadius.swift` | S4 | every session | S | 4 | — |
 | MS-11 | P9 | Hovering a dragged tab over a collapsed folder doesn't spring it open; the folder only expands on drop. | `Sidebar.swift:588-592` | S4 | occasional | S | 2 | 5 |
 | MS-12 | P2 | The split divider is invisible until hovered (`opacity 0`), so a split has no visible handle. | `BrowserWindow.swift:478` | S3 | occasional | S | 4 | — |
@@ -63,7 +63,8 @@ Runtime: needs Chen session for the DMG; WebKit build captured static only. Find
 | MW-5 | P6 | Load failure copy differs per build: the DMG distinguishes offline, unknown host and crash with matching symbols; the WebKit Mac build and the iPhone show one generic error for all of them (iPhone: "This website couldn't be found…" even when offline). | `ChromiumLoadFailureView.swift:17-30` vs `TabBrowser.swift:413`, `WebPane.swift:387`; `shots/ios/main/11-error-page.png` | S3 | occasional | M | 2 | 10 |
 | MW-6 | P7 | Find bar tooltips and labels use sentence case ("Previous match", "Close find bar", placeholder "Find in page") while every other Mac tooltip is title case ("Toggle Sidebar", "Back to Pinned Page"). | `ChromiumFindBar.swift:17,28-36`, `Sidebar.swift:104,540` | S4 | daily | S | 3 | — |
 | MW-7 | P1, P2 | Split view: no snap to 50% (or to the halves people use), no double-click on the divider to even the panes, no haptic; the pane header's Separate and Close buttons appear only on hover; separating uses a one-off `.spring(0.4, 0.85)`. | `BrowserWindow.swift:470-494`, `WebPane.swift:76-80` | S3 | occasional | S | 4 | — |
-| MW-8 | P6 | Split pane header shows the title in `.caption` with a 6% tint for the focused pane and 2% for the other: the focus cue is faint (judgment; check against Arc's focused-pane outline). | `WebPane.swift:72-85` | S4 | occasional | S | 2 | — |
+| MW-8 | P6 | DMG split pane header shows the title in `.caption` with a 6% tint for the focused pane and 2% for the other. The WebKit build also outlines the focused pane in the space tint (`shots/mac-ci/split-view-light.png`); check the DMG shows the same outline, otherwise its focus cue is faint. | `WebPane.swift:72-85` | S4 | occasional | S | 2 | — |
+| MW-9 | P7 | The WebKit build's find bar is AppKit's text finder with a **Replace** checkbox and "Done": replace has no meaning on a web page. (The DMG has its own find bar.) | `shots/mac-ci/find-bar-light.png` | S3 | daily | S | 6 | 10 |
 
 Holds up well: the DMG's failure view separates offline (wifi.slash, "Check your internet connection"), unknown host
 and crash ("Reload Page"), keeps the address, and re-tries a recovered offline navigation once by itself.
@@ -72,7 +73,7 @@ and crash ("Reload Page"), keeps the address, and re-tries a recovered offline n
 
 | ID | P | Finding | Evidence | Sev | Reach | Eff | Score | MH |
 |---|---|---|---|---|---|---|---|---|
-| ML-1 | P4 | The panel's tab labels are 9 pt with `minimumScaleFactor(0.8)`, so "Archived Tabs" can render at ~7 pt: below the 10–11 pt floor Mac apps use for labels, and unreadable for many. | `LibraryPanel.swift:76` | S3 | daily | S | 6 | — |
+| ML-1 | P4 | The panel's tab labels are 9 pt with `minimumScaleFactor(0.8)`, so "Archived Tabs" can render at ~7 pt: below the 10–11 pt floor Mac apps use for labels, and unreadable for many. | `LibraryPanel.swift:76`; CI screenshot `shots/mac-ci/library-downloads-light-light.png` shows it truncated to "Archived…" | S3 | daily | S | 6 | — |
 | ML-2 | P3 | Fixed 630 pt tall popover: at the 492 pt minimum window height it can't fit beside the sidebar (AppKit shifts or clips it). | `LibraryPanel.swift:56`; confirm at 720 × 492 | S3 | occasional | S | 4 | — |
 | ML-3 | P7 | Same list, four names and three empty-state voices: "Archived Tabs" (panel tab), "Archive" (View menu, Window menu, window title), "Archive is empty · Closed and auto-archived tabs appear here." (Mac) vs "Archive is empty · Closed and inactive tabs land here." (iPhone), next to "No History", "No Downloads", "No Media" (title case, "No X" pattern). Search prompts: "Search Archive…" (panel) vs "Search archive" (window) vs "Search history". | `LibraryPanel.swift:16,174,363,469`, `LibraryViews.swift:68,120,182,186`, `LibrarySheet.swift:59` | S3 | daily | S | 6 | — |
 | ML-4 | P3 | Literal radii (10, 8) in the panel duplicate `MacRadius.tile`/`.row` instead of using them; `AppIconSettings` uses 22 and onboarding 20, outside the token set. | `LibraryPanel.swift:96,147`, `AppIconSettings.swift:102`, `OnboardingView.swift:246,510` | S4 | daily | S | 3 | — |
@@ -208,3 +209,33 @@ reach the app through the system "Open in 'Boaz'?" prompt (`shots/ios/links/`).
 Holds up well: the 2026-11-09 widget P0 is fixed (small and circular use `widgetURL`, the circular widget has a
 container background and a label, `BoazSearchWidget.swift:53-61`); the medium widget has an empty state; the share
 extension shows a space picker and a confirmation.
+
+## R2.12 Accessibility: system audit
+
+**iPhone.** `XCUIApplication.performAccessibilityAudit(for: .all)` on 18 screens (Light, Dark, Incognito), raw output
+in `shots/ios/*/NN-*.audit.txt`. Totals: 51 contrast failed, 8 contrast nearly passed, 39 text clipped, 35 Dynamic
+Type partially or fully unsupported, 26 hit area too small, 2 label not human-readable. Sorting them:
+
+- **Hit areas (26):** all on Wikipedia's page content, none in Boaz chrome. The audit misses the 34 × 40 pt tab fan
+  (IB-2) and the 28 pt Clear Text button (IS-1), found in the hierarchy dumps instead.
+- **Contrast (51):** onboarding buttons on the gradient (OB-2), disabled page-menu items at 40% opacity (accepted:
+  disabled controls are the exception in `docs/design.md`), menu rows over glass where the page behind is busy, and
+  the dimmed empty state behind the search panel (IS-2). Simulator contrast sampling varies run to run (`docs/qa.md`
+  §5 excludes it from CI for that reason); confirm by eye.
+- **Dynamic Type / clipping (74):** page-menu tiles (IM-4), onboarding button (OB-3), and `ContentUnavailableView`
+  error and empty states ("Can't Open This Page", "Archive is empty"); the last group is the system view and likely
+  noise unless R2.14 shows real clipping.
+- **Label not human-readable (2):** the carousel card of an untitled failed tab is labelled with its bare host
+  ("nonexistent.invalid").
+
+**Mac.** The CI suite runs the same audit (all but contrast) on every Mac screen, isolated, on GitHub's runner. On
+`master` 66c3d63: 62 tests, 49 passed, **1 failed** (`testToast`: the toast vanished before its screenshot), the
+rest skipped; **no audit failures**. 69 screenshots of every Mac screen exported to `shots/mac-ci/` (from run
+artifact `UITestResults`, `ci-uitest.xcresult`). This is the WebKit build; the DMG needs `BOAZ_UITEST_APP` (needs Chen
+session).
+
+| ID | P | Finding | Evidence | Sev | Reach | Eff | Score | MH |
+|---|---|---|---|---|---|---|---|---|
+| AX-1 | P12 | `testToast` fails on master: the toast's 2.5 s lifetime (5 s with Undo) races the screenshot, so the Mac toast screen is the one screen without an audit. | `ci-uitest.xcresult` summary; `MacModel.swift:946-948` | S3 | every session | S | 8 | 14 |
+| AX-2 | P12 | The system audit can't see hit areas inside custom rail and bar controls (it flagged none of IB-2, IS-1, DU-1); hit-target checks need the hierarchy-frame assertion the Mac suite already has ("no overlapping buttons"), ported to an iPhone UI test target. | `shots/ios/main/06-page.txt` vs `06-page.audit.txt` | S3 | every session | M | 4 | — |
+| AX-3 | P12 | A failed tab's carousel card is labelled with its bare host, which the audit calls "not human-readable"; label it "<host>, couldn't load". | `tabs/21-carousel.audit.txt` | S4 | occasional | S | 2 | — |
