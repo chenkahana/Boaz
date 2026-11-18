@@ -6,6 +6,13 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.35] - 2026-11-18
+
+### Changed
+
+- Haptics come from one named map on both platforms. Nothing feels different yet; later releases add the missing
+  ones.
+
 ## [0.4.26] - 2026-11-18
 
 ### Fixed
