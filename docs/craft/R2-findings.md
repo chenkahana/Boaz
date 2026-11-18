@@ -278,3 +278,25 @@ screens each time: page, page menu, search panel typing "exa", carousel, Setting
 
 Holds up well at AX5: page text (WebKit honours the text size), Settings rows wrap instead of truncating, rail glyphs
 stay inside their circles by design (capped, `ToolRail.swift:169,186`; see AX-6 for the large content viewer).
+
+## R2.15 Accessibility: Increase Contrast, Reduce Motion, Reduce Transparency
+
+Runtime (iPhone): all three on at once (`simctl ui increase_contrast enabled`, `EnhancedBackgroundContrastEnabled`,
+`ReduceMotionEnabled` in the simulator's `com.apple.Accessibility` domain), same five screens:
+`shots/ios/a11y-contrast-transparency-motion/` and `rec/a11y-contrast-transparency-motion.mov`. Mac: code-read.
+
+Sweep (deterministic): `accessibilityReduceTransparency` 0 uses; `colorSchemeContrast` in 2 files (Mac sidebar, Duo
+tab strip); `accessibilityReduceMotion` in 13 files; 127 animation call sites, of which those in 15 files never
+consult Reduce Motion (largest: `BrowserState.swift` 14, `WebPane.swift` 3, `LiveFolderViews.swift` 3, `MacAI.swift`
+3, `PullToRefresh.swift` 3).
+
+| ID | P | Finding | Evidence | Sev | Reach | Eff | Score | MH |
+|---|---|---|---|---|---|---|---|---|
+| AX-12 | P1, P12 | The Mac model drives 14 springs that never check Reduce Motion: new tab, archive, pin/unpin, split open/close, peek in/out, Incognito insert. Views fade their own insertions under Reduce Motion, but rows still slide and settle with these springs. | `BrowserState.swift:520,979,981,1182,1367,1371,1379,1524,1620,1630,1640,1696,1711,1743` | S2 | daily | S | 9 | — |
+| AX-13 | P5 | A translucent space theme (Customize Space, up to 60% see-through) keeps its gradient at partial opacity over the window's blur. With Reduce Transparency the system blur turns opaque grey, so the theme washes out to a greyer tint instead of turning solid. Use full opacity when `accessibilityReduceTransparency` is on. | `WindowTheme+SwiftUI.swift:108-112`, `BrowserWindow.swift:247-271` | S3 | occasional | S | 4 | 5 |
+| AX-14 | P5 | Increase Contrast changes only the Mac sidebar's selection fill and the Duo tab strip. The page-menu tiles (`.background.opacity(0.55)`), carousel captions, search-panel row highlight and the Mac command bar keep their normal-contrast fills. In the iPhone capture the page-menu tiles and search highlight look the same as without it. | `shots/ios/a11y-contrast-transparency-motion/m.png` vs `main/07`, `05`; `PageSettingsMenu.swift:167,215` | S3 | occasional | M | 2 | — |
+| AX-15 | P5 | Reduce Transparency works on iPhone glass for free: the page menu, search panel and rail turn solid (system `glassEffect`), so E4's "zero handling" mostly matters for the custom fills above (AX-13, the 0.55 tiles) and the DMG command bar's 92% background. | same capture | — | — | — | — | — |
+
+Reduce Motion holds up where it's checked: carousel springs become a 0.2 s ease-out, panels fade instead of
+sliding, onboarding fades, the Mac space push fades and hover lifts freeze. Recording a Reduce Motion pass on the
+Mac needs Chen session.

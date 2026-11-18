@@ -1,6 +1,6 @@
 # Craft research: progress
 
-RESUME HERE: R2.15, Increase Contrast, Reduce Motion, Reduce Transparency: simctl ui increase_contrast; defaults in sim for ReduceMotion/ReduceTransparency (com.apple.Accessibility); capture page menu, carousel, search panel; code sweep for accessibilityReduceTransparency.
+RESUME HERE: R2.16, re-verify every finding in inputs/ux-review-2026-11-09.md (40 findings, Folio era) against 66c3d63: fixed / open / obsolete, one line each with evidence.
 
 Runtime rules for whoever resumes: never move, delete or modify `~/Library/Containers/com.chenkahana.boaz` or Chen's
 Chromium profile data, and never quit Chen's running Boaz (must-have 13). Mac runtime that would risk either is
@@ -34,3 +34,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R2.12 · iPhone audits summarised (18 screens); Mac CI audit from master's UITestResults (69 screenshots in shots/mac-ci); 3 AX findings; added MW-9 and CI evidence to ML-1, MS-9, MW-8 · (this commit)
 - 2026-11-18 · R2.13 · VoiceOver walk derived from trees and code; 4 findings (AX-4…AX-7); device walk needs Chen · (this commit)
 - 2026-11-18 · R2.14 · Dynamic Type AX3/AX5: 4 findings (AX-8…AX-11), incl. two S1 overlaps/truncations · (this commit)
+- 2026-11-18 · R2.15 · Contrast/Motion/Transparency: 4 entries (AX-12…AX-15) · (this commit)
