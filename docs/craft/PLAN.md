@@ -39,7 +39,7 @@ Code base for this pass: `origin/master` at `66c3d63` (0.4.25), worktree `~/.wor
 - [x] R2.17 Per-surface craft scores (0–3 per pillar)
 
 ### R3. Reference teardown → [`R3-references.md`](R3-references.md)
-- [ ] R3.1 Safari on iPhone
+- [x] R3.1 Safari on iPhone
 - [ ] R3.2 Safari on Mac
 - [ ] R3.3 Arc
 - [ ] R3.4 Chrome

@@ -1,6 +1,6 @@
 # Craft research: progress
 
-RESUME HERE: R3.1, Safari on iPhone: drive MobileSafari in the Duo simulator with the harness (bundle com.apple.mobilesafari), record tab open/close, tab overview, address entry, page menu; frame-step at 60 Hz; note mechanics.
+RESUME HERE: R3.2, Safari on the Mac: known mechanics (no runtime: needs Chen session); tab open/close, tab overview (⇧⌘\), address field (⌘L), page menu, sidebar/tab bar drag.
 
 Runtime rules for whoever resumes: never move, delete or modify `~/Library/Containers/com.chenkahana.boaz` or Chen's
 Chromium profile data, and never quit Chen's running Boaz (must-have 13). Mac runtime that would risk either is
@@ -38,3 +38,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R2.16 · Re-verified all 40 findings of the 2026-11-09 review: 19 fixed, 11 open/partly open, 10 obsolete; added MS-13, MS-14 · (this commit)
 - 2026-11-18 · R2.16 correction · recount of the re-verification table: 21 fixed, 10 open/partly open, 8 obsolete, 1 mixed (R2-findings.md tally fixed) · (this commit)
 - 2026-11-18 · R2.17 · Craft scores for 11 surfaces (18–30 of 36); R2 complete · (this commit)
+- 2026-11-18 · R3.1 · Safari iPhone driven in the Duo simulator; mechanics table + 5 steal-this items · (this commit)
