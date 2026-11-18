@@ -1,4 +1,4 @@
-RESUME HERE: R4.2, haptic map (iPhone sensoryFeedback events and Mac NSHapticFeedbackManager events) in R4-systems.md.
+RESUME HERE: R4.3, layout tokens in R4-systems.md: spacing scale, radius scale with the concentric rule (MacRadius + iOS Theme.Radius + literals), 44 pt hit targets; count literal paddings/radii first.
 
 # Craft research: progress
 
@@ -47,3 +47,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R3.6 · Orion: low-weight notes · (this commit)
 - 2026-11-18 · R3.7 · 14-item steal-this list mapped to R2; note: the R3.5 commit also carried the R3.6 text · (this commit)
 - 2026-11-18 · R4.1 · Motion: 45 curves today → 4 tokens per platform + 6 transitions, Reduce Motion in the token · (this commit)
+- 2026-11-18 · R4.2 · Haptic map: 11 iPhone events (4 new), 5 Mac events, Haptics enum shape · (this commit)

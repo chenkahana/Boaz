@@ -49,3 +49,45 @@ Rules:
 **Code shape.** `Motion` enum in a shared file (`Apps/Shared/Theme/Motion.swift`) with the four tokens and
 platform `#if`; `SidebarStyle.motion`, `BottomPanelStyle.motion`, the TabStack constant and `Onboarding.spring`
 become aliases, then go. One PR replaces the literals by surface (W1), each with a before/after recording.
+
+## R4.2 Haptic map
+
+**Today:** 11 `sensoryFeedback` sites, all iPhone (and the share extension); 0 on the Mac
+(`NSHapticFeedbackManager` unused). Existing iPhone haptics are already on meaningful moments: carousel paging
+(`.selection` per card, `TabStack.swift:132`), back/forward swipe (`TabBrowser.swift:124`), pull-to-refresh armed
+(`:125`), Undo toast (`RootView.swift:63`), onboarding step/finish, iCloud ready, app icon pick, share saved.
+
+Rule: one haptic per meaningful moment (commit, threshold crossed, snap, success, failure), never on scroll ticks,
+hover or plain taps that already show a press state. Every haptic is triggered from the same state change that drives
+the visual, so the two can't drift.
+
+### iPhone (`sensoryFeedback`)
+
+| Event | Feedback | Today | Change |
+|---|---|---|---|
+| Carousel moves to another card | `.selection` | yes | keep |
+| Archive flick passes the commit threshold (−110 pt) | `.impact(weight: .medium)` at the crossing, not on release | no (only the later toast) | add (IB-4); drop the toast's medium impact when the gesture already gave one |
+| Archive / close via button or menu | none (toast shows) | toast medium impact | keep toast impact for non-gesture closes only |
+| Undo performed | `.success` | no | add |
+| Pull-to-refresh armed | `.impact(weight: .light)` | yes | keep |
+| Back/forward edge swipe commits | `.selection` | yes | keep |
+| Page menu or search panel drag-dismiss passes its threshold | `.impact(weight: .light)` | no | add (IM-3) |
+| Tab fan long-press opens a secondary menu (IB-10) | system context-menu haptic | n/a | comes with `.contextMenu` |
+| Posture change splits / joins panes (Duo) | none | none | keep none: the hinge itself is the feedback |
+| Load failure shown | `.error`? | no | **no**: a passive error page isn't an action's result; only when a user action fails (Try Again fails again) |
+| Share extension saved; iCloud ready; onboarding finished | `.success` | yes | keep |
+
+### Mac (`NSHapticFeedbackManager.defaultPerformer`, trackpad only)
+
+| Event | Pattern | Performance time |
+|---|---|---|
+| Sidebar width hits 200 or 420 pt, or a snap width | `.alignment` | `.now` |
+| Split divider snaps to 50% (and 33/67 if added) | `.alignment` | `.now` |
+| Dragged row crosses into a new slot or over a folder (spring-load fires) | `.generic` | `.drawCompleted` |
+| Space swipe passes its commit point (MS-15) | `.levelChange` | `.now` |
+| Favorite tile / pinned drop accepted | `.generic` | `.drawCompleted` |
+
+Code shape: a `Haptics` enum beside `Motion` (`Apps/Shared/Theme/Haptics.swift`) with named events
+(`.cardChanged`, `.archiveCommitted`, `.snap`, `.slotChanged`, `.undo`), mapped per platform, so a fix calls
+`Haptics.play(.snap)` and the mapping stays in one table. Mac haptics fire only from trackpad-driven drags (the
+performer is silent for a mouse anyway).
