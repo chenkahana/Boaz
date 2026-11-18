@@ -6,6 +6,12 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.26] - 2026-11-18
+
+### Fixed
+
+- Mac: Boaz no longer quits when a website asks for the camera and microphone together.
+
 ## [0.4.25] - 2026-11-17
 
 ### Added

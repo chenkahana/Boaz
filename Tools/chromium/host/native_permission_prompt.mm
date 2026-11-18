@@ -98,7 +98,10 @@ class NativePermissionPrompt final : public permissions::PermissionPrompt {
       Finish(Decision::kIgnore);
       return;
     }
-    const auto geo_type = delegate_->GetGeolocationPromptType();
+    // Chromium CHECKs for a single request; camera and microphone together arrive as two.
+    const auto geo_type = delegate_->Requests().size() == 1
+        ? delegate_->GetGeolocationPromptType()
+        : std::nullopt;
     const bool geolocation = delegate_->Requests().size() == 1 &&
         delegate_->Requests().front()->request_type() == permissions::RequestType::kGeolocation;
     if (geo_type && !geolocation) { Finish(Decision::kIgnore); return; }
