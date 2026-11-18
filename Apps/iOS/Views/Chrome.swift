@@ -63,9 +63,11 @@ struct SearchPanel: View {
                 .submitLabel(.go)
                 .onSubmit(submit)
             if !model.searchText.isEmpty {
+                // A 44 pt target that lays out as 28, so the field keeps its height.
                 Button { model.searchText = "" } label: {
-                    Image(systemName: "xmark.circle.fill").frame(minWidth: 28, minHeight: 28).contentShape(.rect)
+                    Image(systemName: "xmark.circle.fill").frame(minWidth: 44, minHeight: 44).contentShape(.rect)
                 }
+                .padding(-8)
                 .foregroundStyle(Theme.textSecondary)
                 .accessibilityLabel("Clear Text")
             }

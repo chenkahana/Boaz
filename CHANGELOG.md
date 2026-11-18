@@ -6,12 +6,25 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
-## [0.4.31] - 2026-11-18
+## [0.4.29] - 2026-11-19
 
 ### Fixed
 
 - iPhone: at accessibility text sizes, "Switch to Tab" in search suggestions sits under the page's address instead
   of breaking mid-word beside it.
+
+## [0.4.28] - 2026-11-19
+
+### Fixed
+
+- iPhone: the search field's Clear Text button is easier to hit (44 pt), without changing how the field looks.
+
+## [0.4.27] - 2026-11-19
+
+### Fixed
+
+- iPhone: a tab whose page failed to load shows its icon and "Can't Open This Page" among the tabs, not a blank
+  white card.
 
 ## [0.4.26] - 2026-11-18
 
