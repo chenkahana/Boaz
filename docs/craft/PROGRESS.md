@@ -1,6 +1,6 @@
 # Craft research: progress
 
-RESUME HERE: R2.11, widgets and extensions (Apps/Extensions/Widgets, ShareExtension, iOS/Intents).
+RESUME HERE: R2.12, accessibility system audit: summarise the XCUITest audits (shots/ios/*/*.audit.txt) into AX findings; Mac audit = make uitest (needs Chen session).
 
 Runtime rules for whoever resumes: never move, delete or modify `~/Library/Containers/com.chenkahana.boaz` or Chen's
 Chromium profile data, and never quit Chen's running Boaz (must-have 13). Mac runtime that would risk either is
@@ -30,3 +30,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R2.8 · iPhone search panel: 4 findings (IS-1…IS-4) · (this commit)
 - 2026-11-18 · R2.9 · iPhone page menu: 6 entries (IM-1…IM-6) · (this commit)
 - 2026-11-18 · R2.10 · Duo postures: 4 code-read findings + needs-device checklist · (this commit)
+- 2026-11-18 · R2.11 · Widgets/extensions/system: 5 findings (WX-1…WX-5) · (this commit)

@@ -30,7 +30,7 @@ Code base for this pass: `origin/master` at `66c3d63` (0.4.25), worktree `~/.wor
 - [x] R2.8 iPhone search panel
 - [x] R2.9 iPhone page menu
 - [x] R2.10 Duo postures
-- [ ] R2.11 Widgets and extensions
+- [x] R2.11 Widgets and extensions
 - [ ] R2.12 Accessibility: system audit (Accessibility Inspector / XCUITest audit)
 - [ ] R2.13 Accessibility: VoiceOver walk of the five main flows
 - [ ] R2.14 Accessibility: Dynamic Type AX3 and AX5

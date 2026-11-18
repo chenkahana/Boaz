@@ -191,3 +191,20 @@ lift as soon as the page has re-laid out; (2) half-open (book): tab strip + two 
 (3) laptop: keyboard over the panes, the fold stays put; (4) move the hinge through every posture while a YouTube
 video plays (must-have 9); (5) unfolded portrait: the bar collapses while reading (`collapsesBar`) and the page ends
 above it (must-have 7). Record each at 120 Hz with screen recording.
+
+## R2.11 Widgets, extensions and system integration
+
+Runtime: not rendered (widget gallery and share sheets need interaction outside the app; code-read). `boaz://` links
+reach the app through the system "Open in 'Boaz'?" prompt (`shots/ios/links/`).
+
+| ID | P | Finding | Evidence | Sev | Reach | Eff | Score | MH |
+|---|---|---|---|---|---|---|---|---|
+| WX-1 | P10 | No Handoff between Boaz on iPhone and Mac, no Spotlight items for pinned tabs or favorites, no Focus filter, no Mac App Intents or Services. Handoff is approved (§7.2) and is the biggest "two devices, one browser" gap. | `rg 'NSUserActivity|CSSearchable|SetFocusFilterIntent|NSServices' Apps` → 0 | S2 | daily | L | 3 | 10, 11, 13 |
+| WX-2 | P10 | No Control Center / Lock Screen control (`ControlWidget`) for "New Tab" or "Search", which iOS 18+ users expect from a browser. | `BoazWidgetsBundle.swift` (search widget only) | S3 | occasional | M | 2 | — |
+| WX-3 | P5 | The medium widget's favorites are letter tiles, because favicons live in the app's container and the widget can't read them. Safari's Favorites widget shows site icons. | `BoazSearchWidget.swift:103-120` (comment says why) | S3 | daily | M | 3 | 11 |
+| WX-4 | P6, P7 | Share extension errors are raw: `error.localizedDescription` from the store, "Couldn't find <Space>'s tabs.", "Nothing to save yet."; no next action. The success checkmark has no haptic. | `ShareModel.swift:50,59,73`, `ShareRootView.swift:43-62` | S4 | rare | S | 1 | 11 |
+| WX-5 | P7 | Share extension buttons say "Pin" and "Open on iPhone" inside an iPhone share sheet; "Open on iPhone" reads oddly on the iPhone itself (it means "add to my iPhone tabs"). | `ShareRootView.swift:30-36` | S4 | occasional | S | 2 | 8 |
+
+Holds up well: the 2026-11-09 widget P0 is fixed (small and circular use `widgetURL`, the circular widget has a
+container background and a label, `BoazSearchWidget.swift:53-61`); the medium widget has an empty state; the share
+extension shows a space picker and a confirmation.
