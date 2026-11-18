@@ -131,3 +131,46 @@ control size of **48 pt** (R3.1) for the rail and bottom bar. Mac: the whole row
 
 Code shape: `Spacing` and `Radius` enums in `Apps/Shared/Theme/` with platform values; `MacRadius` and
 `Theme.Radius` become those; one W3 PR per surface replaces literals, each with a before/after screenshot.
+
+## R4.4 Type ramp
+
+**Today (deterministic):** 57 fixed `.system(size:)` fonts (Mac 43, iPhone 8, Shared 4, Browser 1, Extensions 1);
+text styles are used widely (caption family ~95, callout 28, headline 24, body 14, title2 10, footnote 8,
+subheadline 7, title3 3, title/largeTitle 1 each); 9 uses of `@ScaledMetric` / `dynamicTypeSize` /
+`monospacedDigit` in total. The Mac sidebar's text-size setting (14/15/17) reaches rows, headers and the title only
+(`SidebarStyle`), not glyphs (MS-7), the command bar (MC-5) or the library panel (ML-1).
+
+### iPhone: text styles only
+
+| Role | Style | Notes |
+|---|---|---|
+| Screen / sheet title | `.title2.bold()` via `navigationTitle` | Settings title grows (AX-11) |
+| Empty / error title | `ContentUnavailableView` defaults | don't restyle |
+| Row title | `.body` | page menu rows, Settings, Library |
+| Row secondary (host, caption) | `.subheadline` / `.footnote`, `.secondary` | hosts truncate in the middle (`.truncationMode(.middle)`) so the domain's end stays |
+| Tile caption (Back, Forward…) | `.caption` | at `isAccessibilitySize`, hide captions and rely on labels + large content viewer (AX-9) |
+| Toast | `.callout.weight(.medium)` | today's value |
+| Counts and zoom % | any style + `.monospacedDigit()` | "3 Tabs", text size %, download progress |
+
+`@ScaledMetric` is allowed only for glyph and control sizes inside fixed-shape chrome (rail circles, tiles), capped,
+and paired with `accessibilityShowsLargeContentViewer` (AX-6). No `.system(size:)` for text on iPhone.
+
+### Mac: one ramp driven by the sidebar text size
+
+The Mac has no Dynamic Type, so Boaz's own setting is the user's text size. Make it a ramp instead of a row size:
+`base` = 14/15/17 (Small/Medium/Large) and every chrome size derives from it.
+
+| Role | Size | Weight |
+|---|---|---|
+| Sidebar row | base | regular; selected medium |
+| Sidebar section header | base − 3 | semibold |
+| Space title | base + 1 | semibold |
+| Sidebar glyphs (plus, lock, link, ellipsis) | base − 3 (via `.imageScale` or a derived font) | semibold |
+| Command bar field | base + 4 | regular |
+| Command bar rows | base − 1 | regular; caption base − 4 |
+| Library panel tab labels | max(base − 4, 11) | medium; never `minimumScaleFactor` below 11 pt (ML-1) |
+| Library and Settings rows | system `.body` (13) | — |
+
+Code shape: `SidebarStyle` grows into a `ChromeType(base:)` value in the environment (it already carries
+`sidebarTextSize`), read by the sidebar, command bar and library panel; the 43 Mac `.system(size:)` literals move to
+it in W3.
