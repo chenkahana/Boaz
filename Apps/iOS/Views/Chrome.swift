@@ -6,6 +6,7 @@ import SwiftUI
 /// engine's suggestions follow as they arrive (`SearchSuggestions`).
 struct SearchPanel: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
     @FocusState private var focused: Bool
     /// Off right after a deletion, so backspacing over a completion doesn't bring it straight back.
@@ -108,11 +109,15 @@ struct SearchPanel: View {
             } label: {
                 row {
                     Monogram(url: item.url, tint: Theme.brand, size: 24)
-                    titleAndHost(item.title, item.url)
-                    Spacer(minLength: 0)
-                    if model.isOpen(item) {
-                        Text("Switch to Tab").font(.caption).foregroundStyle(Theme.textSecondary)
+                    let caption = model.isOpen(item)
+                        ? Text("Switch to Tab").font(.caption).foregroundStyle(Theme.textSecondary) : nil
+                    // At accessibility sizes the caption goes under the host, so neither it nor the title breaks.
+                    VStack(alignment: .leading, spacing: 1) {
+                        titleAndHost(item.title, item.url)
+                        if dynamicTypeSize.isAccessibilitySize { caption }
                     }
+                    Spacer(minLength: 0)
+                    if !dynamicTypeSize.isAccessibilitySize { caption }
                     Image(systemName: "arrow.right.circle").foregroundStyle(Theme.textSecondary)
                 }
             }

@@ -6,6 +6,13 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.31] - 2026-11-18
+
+### Fixed
+
+- iPhone: at accessibility text sizes, "Switch to Tab" in search suggestions sits under the page's address instead
+  of breaking mid-word beside it.
+
 ## [0.4.26] - 2026-11-18
 
 ### Fixed
