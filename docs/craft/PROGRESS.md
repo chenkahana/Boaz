@@ -1,4 +1,4 @@
-RESUME HERE: R4.5, copy rules, glossary and String Catalog adoption in R4-systems.md (decision §7.3: English only; count user-facing literals; inflect plurals; FormatStyle; CI lint feasibility).
+RESUME HERE: R4.6, state kit in R4-systems.md: one empty/loading/error/offline component family per platform, with the 300 ms rule and progress-in-place.
 
 # Craft research: progress
 
@@ -50,3 +50,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R4.2 · Haptic map: 11 iPhone events (4 new), 5 Mac events, Haptics enum shape · (this commit)
 - 2026-11-18 · R4.3 · Layout tokens: spacing ladder, radius scale with concentric rule, 44/48 pt targets; corrected E11 (iOS Theme.Radius exists) · (this commit)
 - 2026-11-18 · R4.4 · Type ramp: iPhone text-style roles, Mac ramp derived from the sidebar text size · (this commit)
+- 2026-11-18 · R4.5 · Copy rules, glossary (9 terms), String Catalog plan; 30 hand-built plurals counted · (this commit)

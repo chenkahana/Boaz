@@ -174,3 +174,56 @@ The Mac has no Dynamic Type, so Boaz's own setting is the user's text size. Make
 Code shape: `SidebarStyle` grows into a `ChromeType(base:)` value in the environment (it already carries
 `sidebarTextSize`), read by the sidebar, command bar and library panel; the 43 Mac `.system(size:)` literals move to
 it in W3.
+
+## R4.5 Copy rules, glossary and String Catalog (English only, §7.3)
+
+**Today (deterministic):** no `.xcstrings` file in any target; 2 `String(localized:)`; ~630 user-facing string
+literals in `Text`/`Button`/`Label`/`Toggle`/`Picker`/`Section`/`Menu`/`ContentUnavailableView`/`help`/
+`accessibilityLabel`/`showToast` calls; **30 hand-built plurals** (`count == 1 ? "" : "s"`, e.g. "Archived \(n)
+tab\(s)", `MacModel.swift:242,663,768`, `MacAI.swift:170,186`, `ArcImportView.swift:89-91`); percentages built
+by hand (`"\(Int(level * 100))%"` in `BrowserWindow.swift:78`, `DevToolsViews.swift:140`, `RootView.swift:279`,
+"N percent" in `ThemeColorPicker.swift:256,294`).
+
+### Capitalization
+
+| Element | Rule | Example |
+|---|---|---|
+| Buttons, menu items, window and sheet titles, tab names, tooltips (Mac help tags) | Title case | "Reopen Closed Tab", "Previous Match" (fixes MW-6) |
+| Settings labels and section headers | Title case on both platforms (matches iOS Settings sections and Boaz's Mac menus) | "Search Engine", "Block Ads and Trackers", "App Icon" (fixes ST-1) |
+| Empty-state titles | Title case, "No …" pattern | "No Archived Tabs", "No History", "No Downloads" (fixes ML-3, E6) |
+| Descriptions, footers, alert messages, toasts, placeholders | Sentence case, ending period only when it's a full sentence | "Closed and inactive tabs appear here." |
+| Error titles | One title per kind: "Can't Open This Page" (generic), "You're Offline", "This Page Stopped Responding" | fixes MW-3 |
+
+**Ellipsis:** "…" (U+2026) on items that open a further step (a sheet, a dialog, a picker); never on items that act
+at once; never "..." (the code already complies, verified with `rg '\.\.\."' Apps` → 0).
+
+**Errors:** say what happened, then the next action, in plain words; never append `error.localizedDescription` to a
+toast (MS-14, WX-4). Log the detail instead.
+
+### Glossary
+
+| Term | Means | Not |
+|---|---|---|
+| **Archive** (noun, verb) | Where closed and inactive tabs go; "Archive Tab" | "Archived Tabs" as a separate name (panel tab), "Clear" for archiving Today |
+| **Today** | Unpinned tabs of the current space (Mac) | "Today Tab" in UI copy |
+| **Pinned** | Tabs kept in a space | "Saved" |
+| **Favorites** | The tiles at the top of the sidebar | "Bookmarks" |
+| **Space** | A Mac-only sidebar context (never on iPhone, must-have 8) | — |
+| **Incognito** | Private browsing, both platforms | "Private" (DMG window title, MS-13; iPhone "Private search") |
+| **Live Folder** | A folder filled from GitHub | — |
+| **Library** | iPhone sheet (Archive + History); Mac panel | — |
+| **Page Menu** | The **…** menu on iPhone (spoken name too, AX-7) | "Page Settings" |
+
+### String Catalog adoption
+
+- One `Localizable.xcstrings` per target (iOS app, Mac app, share extension, widgets) with "Use Compiler to Extract
+  Swift Strings" on; English only, so its purpose is review: every string in one place, checked against the rules
+  above.
+- Plurals through the catalog and automatic grammar agreement: `"Archived ^[\(count) tab](inflect: true)"`;
+  the 30 hand-built plurals go.
+- Numbers through `FormatStyle`: `.percent` for zoom, battery and transparency; `ByteCountFormatStyle` for download
+  sizes (`DownloadsView.swift` `sizeLabel`); `.relative(presentation: .named)` for "Yesterday"; `.list(type: .and)`
+  for "2 spaces, 14 tabs and 3 favorites" (`ArcImportView.swift:89-91`).
+- **Lint (cheap):** a CI step that fails on `count == 1 ? "" : "s"` and on `"\(Int(` + `* 100` + `)%"` patterns via
+  `rg`; a full "literal outside the catalog" check isn't cheap with SwiftUI's `LocalizedStringKey` extraction, so the
+  catalog's own "stale/missing" state in Xcode is the review tool instead.
