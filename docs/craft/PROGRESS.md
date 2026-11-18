@@ -1,6 +1,6 @@
 # Craft research: progress
 
-RESUME HERE: R1.3, widgets, share extension, App Intents and other system surfaces (Apps/Extensions, Apps/iOS/Intents).
+RESUME HERE: R1.4, close R1: add a cross-surface state matrix summary at the top of R1-inventory.md.
 
 Runtime rules for whoever resumes: never move, delete or modify `~/Library/Containers/com.chenkahana.boaz` or Chen's
 Chromium profile data, and never quit Chen's running Boaz (must-have 13). Mac runtime that would risk either is
@@ -18,3 +18,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R0.4 · R0-baseline.md summary written; R0 complete · (this commit)
 - 2026-11-18 · R1.1 · iPhone inventory, 23 surfaces · (this commit)
 - 2026-11-18 · R1.2 · Mac inventory, 27 surfaces incl. DMG-only · (this commit)
+- 2026-11-18 · R1.3 · widgets, share extension, intents, links, system integrations inventoried · (this commit)

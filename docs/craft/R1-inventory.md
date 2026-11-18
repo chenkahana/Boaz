@@ -77,3 +77,16 @@ tab hover preview, peek and Quick Window. So DMG-only rows below are code-read o
 | Developer: Responsive Design Mode, User Agent, Vision Simulator, DevTools window | Develop menu | Emulation pending spinner | | ⌥⌘R, ⌥⌘C, ⌥⌘U | | `Views/DevToolsViews.swift`, `Engine/ChromiumResponsiveBar.swift` |
 | Updates | Boaz › Check for Updates… | | Up-to-date / error feedback (code-read) | | | `Updates/Updates.swift` |
 | Menu bar | Always | WebKit: File, Edit, View, History, Tabs, Extensions, Spaces, Develop, Window, Help. DMG: Boaz, File, Edit, Passwords, View, History, Tabs, Spaces, Page, Develop, … | Double separators, duplicate Close items, names differ between builds (R2.2/R2.3) | | | `shots/mac/menus-webkit-adhoc.txt`; `ChromiumApplicationMenu.swift` |
+
+## R1.3 Widgets, extensions and system surfaces
+
+| Surface | Platform | States / behavior | Gaps | Code |
+|---|---|---|---|---|
+| Search widget (small, medium, Lock Screen circular) | iPhone | Small and circular use `widgetURL` (search), medium has a search pill plus favorite tiles as `Link`s; circular has a clear container background and a label | No empty state for medium without favorites (code-read); no Control Center or Lock Screen *control* (`ControlWidget`) | `Extensions/Widgets/BoazSearchWidget.swift:41-130` |
+| Share extension | iPhone | Space picker, Pin / Open on iPhone, error text in red, checkmark confirmation (scale + opacity), "Loading…" title | Error copy is raw (`errorMessage`), checkmark has no haptic | `Extensions/ShareExtension/ShareRootView.swift` |
+| App Shortcuts: "Search in Boaz", "Open in Boaz" | iPhone | Routed through `DeepLink` | No Mac App Intents; no Focus filter; no Spotlight items | `iOS/Intents/AppIntents.swift` |
+| `boaz://` links (`open`, `search`) | iPhone | `simctl openurl` shows the system "Open in 'Boaz'?" prompt first, as for any external caller; `javascript:` must do nothing (`docs/qa.md`) | — | `iOS/Intents/DeepLink.swift`; `shots/ios/links/` |
+| Default browser | iPhone, Mac | iPhone: Settings row ("Make Boaz Your Default Browser" / "Boaz is your default browser"); Mac: General › Default browser row and onboarding step | — | `iOS/Views/DefaultBrowserSection.swift`, `LibraryViews.swift:337` |
+| Handoff, Spotlight, Services, Dock menu | both | **None.** No `NSUserActivity`, `CSSearchableItem`, Services provider or `applicationDockMenu` in `Apps/` | W7 (Handoff approved, §7.2) | `rg` over `Apps/` returns nothing |
+| Mac external opens | Mac | Every scene sets `.handlesExternalEvents(matching: [])`; links go to the Quick Window | — | `BoazMacApp.swift:22-65` |
+| Notifications / Live Activities | both | None (downloads finish silently outside the app) | judgment | — |
