@@ -1,6 +1,6 @@
 # Craft research: progress
 
-RESUME HERE: R0.1, build current master (`make bootstrap`, `make build` in `~/.worktrees/Boaz/craft-research`) and install where it is safe; see the runtime rules in the log entry below.
+RESUME HERE: R0.1, build current master (`make bootstrap`, `make build` in `~/.worktrees/Boaz/craft-research`) and install where it is safe. Runtime rules below.
 
 Runtime rules for whoever resumes: never move, delete or modify `~/Library/Containers/com.chenkahana.boaz` or Chen's
 Chromium profile data, and never quit Chen's running Boaz (must-have 13). Mac runtime that would risk either is
