@@ -48,7 +48,7 @@ Code base for this pass: `origin/master` at `66c3d63` (0.4.25), worktree `~/.wor
 - [x] R3.7 "Steal this" list mapped to R2 findings
 
 ### R4. Systems design → [`R4-systems.md`](R4-systems.md)
-- [ ] R4.1 Motion tokens and transition catalog
+- [x] R4.1 Motion tokens and transition catalog
 - [ ] R4.2 Haptic map (iPhone and Mac)
 - [ ] R4.3 Layout tokens (spacing, radius, concentric rule, hit targets)
 - [ ] R4.4 Type ramp
