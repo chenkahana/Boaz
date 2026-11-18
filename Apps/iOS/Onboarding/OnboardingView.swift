@@ -77,7 +77,8 @@ struct OnboardingView: View {
                         .buttonStyle(.glass)
                 }
                 Button(action: primaryAction) {
-                    Text(primary).font(.headline).frame(maxWidth: .infinity)
+                    // One line that shrinks before it clips: the capsule keeps its height at large text sizes.
+                    Text(primary).font(.headline).lineLimit(1).minimumScaleFactor(0.6).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.glassProminent)
                 // White on the brand color in both appearances (the app's tint is lighter in Dark Mode).

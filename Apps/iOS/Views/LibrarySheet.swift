@@ -166,6 +166,7 @@ private struct Row: View {
 
 struct SettingsSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AppStorage(Preferences.archiveAfterKey) private var archiveAfter = ArchiveInterval.week.rawValue
     @AppStorage(Preferences.searchEngineKey) private var searchEngine = SearchEngine.duckDuckGo.rawValue
     @AppStorage(Preferences.searchSuggestionsKey) private var searchSuggestions = true
@@ -220,7 +221,8 @@ struct SettingsSheet: View {
                 AboutSection()
             }
             .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
+            // An inline title stays small; at accessibility sizes the large one grows with the rows.
+            .navigationBarTitleDisplayMode(dynamicTypeSize.isAccessibilitySize ? .large : .inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button(role: .close) { dismiss() } } }
         }
     }
