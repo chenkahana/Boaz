@@ -91,3 +91,43 @@ Code shape: a `Haptics` enum beside `Motion` (`Apps/Shared/Theme/Haptics.swift`)
 (`.cardChanged`, `.archiveCommitted`, `.snap`, `.slotChanged`, `.undo`), mapped per platform, so a fix calls
 `Haptics.play(.snap)` and the mapping stays in one table. Mac haptics fire only from trackpad-driven drags (the
 performer is silent for a mouse anyway).
+
+## R4.3 Layout tokens
+
+**Today (deterministic):** two radius scales already exist, `MacRadius` (6/8/10/12/16, used in 9 files) and iOS
+`Theme.Radius` (row 12, tile 18, card 20, sheet 30, used in 4 files), plus two stray constants (`Theme.cornerRadius`
+18, `BottomPanelStyle.cornerRadius` 28). (The plan's E11 said iOS had none; it has one, mostly unused.) 33 literal
+`cornerRadius:` values remain (10 ×7, 6 ×5, 12 ×5, 8 ×4, 22/20/16 ×3, 18 ×2, 24). Paddings and stack spacings are all
+literals: padding 8 ×43, 12 ×33, 16 ×25, 10 ×23, 6 ×18, 4 ×16, 20 ×15, 14 ×8; spacing 8 ×46, 10 ×27, 2/12 ×25,
+6 ×23, 4/14 ×18. In practice the app already uses a 2-4-6-8-10-12-14-16-20-24 ladder; 10 and 14 are the odd steps.
+
+### Spacing scale (both platforms)
+
+`xxs 2 · xs 4 · s 6 · m 8 · l 12 · xl 16 · xxl 20 · xxxl 24 · section 32`. 10 and 14 fold into 8/12 or 12/16 per call
+site (judge by eye; the sidebar's documented 8/10 values in `docs/design.md` stay as named sidebar constants).
+
+### Radius scale and the concentric rule
+
+| Token | Mac | iPhone | Used for |
+|---|---|---|---|
+| `icon` | 6 | 8 | favicons, monograms |
+| `row` | 8 | 12 | rows, hover/selection fills, fields |
+| `tile` | 10 | 16 | favorites, menu tiles, nav tiles |
+| `card` | 12 | 20 | content card (Mac), carousel cards, sections |
+| `panel` | 16 | 28 | popovers, command bar, bottom panels |
+| `sheet` | system | 30 / system | sheets: let the system draw them |
+
+**Concentric rule:** an inset container's radius = outer radius − inset, rounded to the nearest token, never above
+the outer. Checks to run: the Mac content card (12 at a 6 pt inset) against the macOS 26 window corner (MS-10:
+measure on a 2× display; if the window radius is ≤ 16, the card should be 10 = `tile`); the iPhone page menu already
+passes (panel 28, tiles 16 at a 12 inset). Always `style: .continuous`.
+
+### Hit targets
+
+iPhone: 44 × 44 pt minimum for every control, enforced in the components (`RailButton`, `RailIcon`, field clear
+buttons, `TabStrip` rows) with `.frame(minWidth: 44, minHeight: 44).contentShape(...)`, not per call site; one bar
+control size of **48 pt** (R3.1) for the rail and bottom bar. Mac: the whole row or tile is the click target
+(`contentShape`), 24 pt minimum for icon buttons, a tooltip on every icon-only control (already true).
+
+Code shape: `Spacing` and `Radius` enums in `Apps/Shared/Theme/` with platform values; `MacRadius` and
+`Theme.Radius` become those; one W3 PR per surface replaces literals, each with a before/after screenshot.

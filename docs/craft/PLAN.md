@@ -50,7 +50,7 @@ Code base for this pass: `origin/master` at `66c3d63` (0.4.25), worktree `~/.wor
 ### R4. Systems design → [`R4-systems.md`](R4-systems.md)
 - [x] R4.1 Motion tokens and transition catalog
 - [x] R4.2 Haptic map (iPhone and Mac)
-- [ ] R4.3 Layout tokens (spacing, radius, concentric rule, hit targets)
+- [x] R4.3 Layout tokens (spacing, radius, concentric rule, hit targets)
 - [ ] R4.4 Type ramp
 - [ ] R4.5 Copy rules, glossary and String Catalog adoption
 - [ ] R4.6 State kit
