@@ -58,3 +58,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R5.2 · R5.2 done: 96 items (88 findings + SY-1..8) in W1–W9, each exactly once (script-checked). Totals: W4 96.3, W3 68 (both S1s), W2 58, W1 41.5, W5 34.5, W9 29, W6 27, W7 8, W8 7. · (this commit)
 - 2026-11-18 · R5.3 · R5.3 done: 77 PRs in 4 waves (A 19 quick/S1, B 13 foundations+first unlocks, C 41, D 4 gated); all 96 items in exactly one PR (script-checked); 38 marked Chen's yes (must-have touched, behaviour change, or system integration). · (this commit)
 - 2026-11-18 · R5.4 · R5.4 done: review section (top 10, 5 questions for Chen, needs-session/device list). Research stopped; no app code changed. · (this commit)
+- 2026-11-18 · R5.4 correction · Section pointers fixed: the VoiceOver pass is R2.13, the Duo posture checks are R2.10 · (this commit)

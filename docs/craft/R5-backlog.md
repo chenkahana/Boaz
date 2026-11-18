@@ -333,9 +333,9 @@ in the waves above starts until Chen approves.
 
 - Mac DMG (Chromium): every DMG screen, keyboard and pointer flow, Animation Hitches and App Launch traces. Exact
   steps in R0 "Needs Chen session". Blocks verification of PRs 3, 16, 18 and the Mac W1/W2 recordings.
-- Mac with VoiceOver: the 15-minute pass in R2.15 (blocks the W9 Mac items' before/after).
+- Mac with VoiceOver: the 15-minute pass in R2.13 (blocks the W9 Mac items' before/after).
 - Standard iPhone (bottom bar): R0.1, `make device DEVICE=<udid>`; the iOS 27.1 simulator only offers the Duo.
-- Duo open, book and laptop postures plus the posture change: the exact checks in R2.13 (blocks DU-1, DU-2, DU-4,
+- Duo open, book and laptop postures plus the posture change: the exact checks in R2.10 (blocks DU-1, DU-2, DU-4,
   ST-4 verification).
 - 120 Hz recordings and iPhone Animation Hitches: simulator records at 60 Hz and can't trace hitches.
 - Handoff: two devices on one Apple ID (SY-8).
