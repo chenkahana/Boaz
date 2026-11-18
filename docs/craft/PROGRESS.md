@@ -54,3 +54,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R4.6 · State kit: 5 components, 300 ms rule, one PageFailure for all builds · (this commit)
 - 2026-11-18 · R4.7 · Handoff design: activity type, Incognito never advertises, landing places, must-haves 2/7/10/11/13, one open question · (this commit)
 - 2026-11-18 · R5.1 · R5.1 done: R5-backlog.md ranks 87 findings (scores recomputed by script from R2/R3 cells, all match; AX-15/ML-6 pass notes and IM-6 left out) plus 8 system items SY-1..SY-8 from R4 and the code sweeps (SY-7 ⌘Z UndoManager had no R2 row). S1 first: AX-8, AX-9; then IB-2 12, MW-1 12, AX-12 9, MC-1 9. · (this commit)
+- 2026-11-18 · R5.1 correction · The R5.1 parser dropped WX-1 (unescaped `|` inside its evidence code span split the row). Now parsed from both ends: 88 findings, WX-1 at #56 (score 3), all scores still match · (this commit)
