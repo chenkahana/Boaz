@@ -81,3 +81,21 @@ and crash ("Reload Page"), keeps the address, and re-tries a recovered offline n
 
 Holds up well: the tab column tiles take the whole 44 × 44 tile as the click target and expose selection to
 VoiceOver; downloads show live progress and an interrupted state (DMG); Esc closes; the panel takes the space's theme.
+
+## R2.5 Settings (Mac and iPhone)
+
+Runtime: iPhone `shots/ios/main/14-16-settings*.png` (Light), `main-dark/14` (Dark). Mac code-read (the Settings
+window needs a key window).
+
+| ID | P | Finding | Evidence | Sev | Reach | Eff | Score | MH |
+|---|---|---|---|---|---|---|---|---|
+| ST-1 | P7 | Labels mix title case and sentence case in the same list: "Archive Inactive Tabs After", "Search Engine Suggestions", "Tint chrome with site colors", "Block ads and trackers", "Search engine"; section headers "Default Browser", "Apple Intelligence", "iCloud Sync" next to "App icon". Across platforms: "Sync Folder" (iPhone) vs "Sync folder" (Mac), "Default Browser" vs "Default browser". | `LibrarySheet.swift` (iPhone settings), `LibraryViews.swift:294-540`; `shots/ios/main/14,15,16` | S3 | occasional | S | 4 | — |
+| ST-2 | P7 | "Archive Inactive Tabs After" shows "After 7 days" as its value: "After" twice. | `shots/ios/main/14-settings.png` | S4 | occasional | S | 2 | — |
+| ST-3 | P7 | iCloud row: "Sign in to iCloud in Settings to sync." directly above a "Sign In to iCloud" button; the message repeats the button. | `shots/ios/main/15-settings-2.png` | S4 | occasional | S | 2 | 11 |
+| ST-4 | P3 | iPhone Settings on the Duo cover screen: the sheet's close button sits outside the sheet, in the rail column, as a floating glass circle; the sheet's own title "Settings" is a small inline title rather than a navigation title. Judgment; needs device check on a standard iPhone. | `shots/ios/main/14-settings.png` | S3 | occasional | M | 2 | 9 |
+| ST-5 | P6 | Sync section has no error or "last synced" state on either platform: Sync Now and a sign-in prompt, but no feedback when a sync fails or when it last succeeded. | `LibraryViews.swift:459-497`, `LibrarySheet.swift` iCloud section | S3 | occasional | M | 2 | 11 |
+| ST-6 | P2 | Mac Settings is eight toolbar panes (General, App Icon, Privacy, Sync, Passwords, Accounts, Sites, Shortcuts); fine for the DMG's AppKit window, but the WebKit build uses SwiftUI `TabView` tabs, so the two Settings windows differ in chrome and resize behaviour. | `ChromiumSettingsWindow.swift`, `LibraryViews.swift:255-262` | S4 | occasional | M | 1 | 10 |
+
+Holds up well: every iPhone toggle has an explanation footer in plain words ("Runs on your iPhone with Apple
+Intelligence; nothing is sent to a server."), the default-browser row switches to a confirmation once set, Reset
+keyboard shortcuts confirms.

@@ -34,7 +34,7 @@ the popup sheet, password sheet and AI sheets); none for New Tab, Address, Close
 
 | Surface | Entry → exit (transition) | States designed | States missing | Keyboard | Context menu | Shot / code |
 |---|---|---|---|---|---|---|
-| Onboarding (2 pages: iCloud, You're all set) | First launch, full-screen cover → Start Browsing | F; iCloud checking ("Checking your iCloud account..."), signed out, folder-sync fallback | Offline during iCloud check (spinner text only); Dynamic Type clipping flagged by audit | — | n/a | `shots/ios/main/01,02`; `Onboarding/OnboardingView.swift` |
+| Onboarding (2 pages: iCloud, You're all set) | First launch, full-screen cover → Start Browsing | F; iCloud checking ("Checking your iCloud account…"), signed out, folder-sync fallback | Offline during iCloud check (spinner text only); Dynamic Type clipping flagged by audit | — | n/a | `shots/ios/main/01,02`; `Onboarding/OnboardingView.swift` |
 | Empty browser ("No tab open") | No tabs → New Tab | E | — | — | — | `03-empty`; `RootView.swift:356` |
 | Page (web view) | Tab open; posture change covered by `RelayoutCover` (snapshot fade) | L (progress glow), Er ("Can't Open This Page", Try Again) | O (offline shows the same generic error), P (camera/mic prompts are WebKit's), blank card while a failed tab reloads | — | WebKit's link/image menus | `06-page`, `11-error-page`; `TabBrowser.swift:197` |
 | Rail / bottom bar | Always; tab fan (`TabStack`), **+**, **…** | Tabs value "N open" | — | — | Long-press **…** opens the page menu, not a separate menu | `06-page.txt` (Tabs 34 × 40 pt) |
