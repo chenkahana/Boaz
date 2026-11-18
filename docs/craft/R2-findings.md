@@ -305,7 +305,7 @@ Mac needs Chen session.
 
 Status against 66c3d63. **Fixed** = the problem is gone (evidence given); **open** = still true (pointer to the
 R2 finding that carries it); **obsolete** = the surface no longer exists (Folio-era Space Home, per-space iPhone UI).
-Tally: 19 fixed, 11 open or partly open, 10 obsolete.
+Tally: 21 fixed (one of them differently), 10 open or partly open, 8 obsolete, 1 mixed (P2-16).
 
 | Old | Status | Evidence now |
 |---|---|---|
@@ -356,3 +356,25 @@ New finding from this pass:
 |---|---|---|---|---|---|---|---|---|
 | MS-13 | P7, P10 | DMG windows are titled "Boaz" (or "Boaz — Private") whatever space or page they show, so Window menu, Mission Control and the VoiceOver window chooser can't tell them apart; "Private" is the only place that name is used for Incognito. | `ChromiumAppWindow.swift:63` | S3 | daily | S | 6 | 2 |
 | MS-14 | P6, P7 | Mac error toasts append the raw system error ("Couldn't save: The operation couldn't be completed. (…)") in six places. | `MacModel.swift:244,633,651,787,873,924` | S3 | rare | S | 2 | 13 |
+
+## R2.17 Craft scores per surface
+
+0 = missing or broken, 1 = present with clear gaps, 2 = good with nits, 3 = could ship in an Apple app. "n/a" counts
+as 3 so surfaces compare on 36. Scores are judgments from the findings above; re-score after each workstream (§5).
+
+| Surface | P1 Motion | P2 Touch/click | P3 Geometry | P4 Type | P5 Color | P6 States | P7 Words | P8 Keyboard | P9 Direct manip. | P10 System | P11 Speed | P12 A11y | **Total /36** |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Mac sidebar | 2 (MS-6) | 1 (MS-4, MS-12) | 2 (MS-9, MS-10) | 2 (MS-7) | 3 | 1 (MS-8) | 2 | 1 (MS-2) | 1 (MS-1, MS-11) | 1 (MS-13) | 2 | 1 (MS-2, MS-3) | **19** |
+| Mac command bar | 2 (MC-3) | 1 (MC-1) | 3 | 2 (MC-5) | 2 (MC-4) | 2 | 2 (MC-6) | 3 | n/a 3 | 2 | 1 (MC-2) | 2 | **25** |
+| Mac web pane and split | 2 (MW-7) | 2 (MW-7) | 3 | 3 | 3 | 1 (MW-1, MW-4) | 1 (MW-2, MW-3, MW-9) | 2 | 2 | 2 | 2 | 2 | **25** |
+| Mac library panel, Archive, History | 2 | 3 | 2 (ML-2, ML-4) | 1 (ML-1) | 3 | 3 | 1 (ML-3) | 2 (ML-5) | 2 | 2 | 3 | 3 | **27** |
+| Settings (Mac, iPhone) | 3 | 3 | 2 (ST-4) | 2 (AX-11) | 3 | 1 (ST-5) | 1 (ST-1–ST-3) | 2 | n/a 3 | 2 | 3 | 3 | **28** |
+| Onboarding (Mac, iPhone) | 3 | 2 (OB-4) | 3 | 2 (OB-3) | 1 (OB-2) | 2 (OB-5) | 3 | 3 | n/a 3 | 3 | 3 | 1 (OB-1) | **29** |
+| iPhone bar, fan, carousel | 2 (IB-5) | 1 (IB-2, IB-4, IB-10) | 2 (IB-9) | 2 | 1 (IB-1) | 1 (IB-3, IB-7, IB-8) | 3 | 1 (IS-3) | 1 (IB-6) | 1 (WX-1) | 1 (R0.3 launch) | 2 (AX-6, AX-8) | **18** |
+| iPhone search panel | 3 | 2 (IS-1) | 3 | 1 (AX-10) | 3 | 2 (IS-2, IS-4) | 3 | 1 (IS-3) | n/a 3 | 2 | 3 | 2 (AX-4) | **28** |
+| iPhone page menu | 2 (IM-3) | 3 | 1 (IM-1) | 1 (IM-4, AX-9) | 2 (IM-5) | 3 | 2 (IM-2) | 1 | n/a 3 | 2 | 3 | 2 (AX-9) | **25** |
+| iPhone Duo postures (code-read) | 2 (DU-2) | 1 (DU-1) | 2 (DU-4) | 2 | 3 | 2 | 2 (DU-3) | 2 | 2 | 2 | 2 (DU-2) | 2 | **24** |
+| Widgets and extensions | n/a 3 | 2 (WX-4) | 3 | 3 | 2 (WX-3) | 2 (WX-4) | 2 (WX-5) | n/a 3 | n/a 3 | 1 (WX-1, WX-2) | 3 | 3 | **30** |
+
+The two surfaces people touch every session score lowest: the Mac sidebar (19) and the iPhone bar, fan and carousel
+(18). That's where W1 (motion), W2 (touch and pointer), W5 (Mac nativeness) and W9 (accessibility) should land first.
