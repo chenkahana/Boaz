@@ -1,4 +1,4 @@
-RESUME HERE: R5.1, score every finding in R5-backlog.md: collect all IDs from R2-findings.md (and MS-15 in R3), compute severity×reach÷effort, sort.
+RESUME HERE: R5.2, group every R5.1 item into workstreams W1–W9 (plan §6) in R5-backlog.md; each ID in exactly one workstream, with the workstream's total score and dependencies.
 
 # Craft research: progress
 
@@ -53,3 +53,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R4.5 · Copy rules, glossary (9 terms), String Catalog plan; 30 hand-built plurals counted · (this commit)
 - 2026-11-18 · R4.6 · State kit: 5 components, 300 ms rule, one PageFailure for all builds · (this commit)
 - 2026-11-18 · R4.7 · Handoff design: activity type, Incognito never advertises, landing places, must-haves 2/7/10/11/13, one open question · (this commit)
+- 2026-11-18 · R5.1 · R5.1 done: R5-backlog.md ranks 87 findings (scores recomputed by script from R2/R3 cells, all match; AX-15/ML-6 pass notes and IM-6 left out) plus 8 system items SY-1..SY-8 from R4 and the code sweeps (SY-7 ⌘Z UndoManager had no R2 row). S1 first: AX-8, AX-9; then IB-2 12, MW-1 12, AX-12 9, MC-1 9. · (this commit)
