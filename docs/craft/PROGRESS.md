@@ -1,4 +1,4 @@
-RESUME HERE: R4.7, Handoff design (§7.2 approved): NSUserActivity on both platforms, Incognito never advertises, landing place (Mac current space Today; iPhone new tab on top of the fan), must-haves 10, 11, 13.
+RESUME HERE: R5.1, score every finding in R5-backlog.md: collect all IDs from R2-findings.md (and MS-15 in R3), compute severity×reach÷effort, sort.
 
 # Craft research: progress
 
@@ -52,3 +52,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R4.4 · Type ramp: iPhone text-style roles, Mac ramp derived from the sidebar text size · (this commit)
 - 2026-11-18 · R4.5 · Copy rules, glossary (9 terms), String Catalog plan; 30 hand-built plurals counted · (this commit)
 - 2026-11-18 · R4.6 · State kit: 5 components, 300 ms rule, one PageFailure for all builds · (this commit)
+- 2026-11-18 · R4.7 · Handoff design: activity type, Incognito never advertises, landing places, must-haves 2/7/10/11/13, one open question · (this commit)

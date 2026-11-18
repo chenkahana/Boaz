@@ -247,3 +247,45 @@ One component family per platform, in `Apps/Shared/States/`:
 Destructive actions (P6): bulk wipes (Clear Archive, Clear History, Delete Space) confirm and can't be undone;
 single-item removals (archive a tab, delete a folder) act at once and offer Undo (toast, ⌘Z on the Mac, Shake to
 Undo on iPhone). Never both, rarely neither.
+
+## R4.7 Handoff between iPhone and Mac (approved, §7.2)
+
+**Goal.** The page open on one device shows in the other's Dock (Mac) or App Switcher (iPhone); picking it opens the
+same page in Boaz on that device, in the right place. Today nothing advertises (`rg NSUserActivity Apps` → 0).
+
+**Pairing.** Handoff pairs apps signed by the same team that declare the same activity type. Both apps use bundle id
+`com.chenkahana.boaz` and team `DPF8459C2J` (`project.yml`); the DMG is Developer ID–signed by the same team, so the
+DMG, the Mac App Store build and the iPhone app can all take part. Each target declares `NSUserActivityTypes =
+[com.chenkahana.boaz.page]` in its Info.plist.
+
+**Advertising (sender).**
+
+| | iPhone | Mac (DMG and App Store) |
+|---|---|---|
+| Who owns the activity | The focused pane's page (`TabBrowser`) | The key window's active tab (`BrowserState`), both engines |
+| Activity | `NSUserActivity(activityType: "com.chenkahana.boaz.page")`, `webpageURL = page URL`, `title = page title`, `isEligibleForHandoff = true`, `isEligibleForSearch = false`, `isEligibleForPublicIndexing = false` | same |
+| When | `becomeCurrent()` when a page finishes loading and when the tab or pane gains focus; `resignCurrent()` when the app backgrounds with no page, or on the empty browser | same, on window key / tab switch; `resignCurrent()` when the window closes |
+| Never | **Incognito tabs and windows** (no activity at all, not even `invalidate`-later), `file:`, `data:`, `about:`, `chrome:` and `javascript:` URLs, error pages, pages behind HTTP auth prompts | same |
+| Fallback | `webpageURL` means a device without Boaz opens the page in its default browser | same |
+
+**Receiving (continuation).**
+
+| | iPhone | Mac |
+|---|---|---|
+| Entry | `.onContinueUserActivity("com.chenkahana.boaz.page")` in `BoazApp` → `DeepLink`-style handler | `.onContinueUserActivity` on the main scene (WebKit build); `application(_:continue:restorationHandler:)` in the DMG's AppKit delegate |
+| Where it lands | A **new tab on top of the fan** (must-have 7: the page comes first), switching out of Incognito if needed (the new tab is a normal tab) | A new tab in the **current space's Today**, in the frontmost main window; if none is open, the main window opens first (must-have 2: never a new window per space) |
+| Duplicates | If the same URL is already the active tab, just focus it | Same: focus an existing tab with that URL in the current space instead of adding one |
+| Validation | Same scheme allow-list as `boaz://open` (http/https only) | same |
+
+**Must-haves to check in the real app (Chen's devices):** 10 (each side keeps its engine: the iPhone opens the page
+in WebKit, the DMG in Chromium); 11 (Handoff carries only the current page of a normal tab; History and Incognito
+never leave the device, and no library data is written by advertising); 13 (continuation only adds a tab, never
+replaces or reorders the library); 2 and 7 (landing places above).
+
+**Open question for Chen (one line):** a Handoff'd URL travels to the user's own devices through Apple's Handoff
+channel, not the iCloud database; we read must-have 11 as allowing that for normal tabs (it's what "the iPhone can open
+the Mac's tabs" already does). If that reading is wrong, W7 stops at design.
+
+**Verification for the PR:** two devices on the test Apple Account; open a page on each side and pick it from the
+Dock / App Switcher; repeat with Incognito (nothing must appear), with the DMG and the App Store build, and with Boaz
+not installed on the receiver (default browser opens it).

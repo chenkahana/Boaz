@@ -54,7 +54,7 @@ Code base for this pass: `origin/master` at `66c3d63` (0.4.25), worktree `~/.wor
 - [x] R4.4 Type ramp
 - [x] R4.5 Copy rules, glossary and String Catalog adoption
 - [x] R4.6 State kit
-- [ ] R4.7 Handoff design (iPhone ↔ Mac)
+- [x] R4.7 Handoff design (iPhone ↔ Mac)
 
 ### R5. Backlog → [`R5-backlog.md`](R5-backlog.md)
 - [ ] R5.1 Every finding scored
