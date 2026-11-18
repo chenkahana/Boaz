@@ -33,3 +33,19 @@ Holds up well: one selection fill and hover fill from tokens, Increase Contrast 
 Reduce Motion turns the space push into a fade (`Sidebar.swift:64`) and freezes hover lifts (`:292`), every icon button
 has a tooltip with its shortcut (`keys.hint`), resize and split handles show resize cursors (`BrowserWindow.swift:328,483`),
 rows act on mouse-down like Arc and Chrome (`:881`), middle-click closes.
+
+## R2.2 Mac command bar (⌘T, ⌘L)
+
+Runtime: needs Chen session (a background app gets no keystrokes). All findings code-read.
+
+| ID | P | Finding | Evidence | Sev | Reach | Eff | Score | MH |
+|---|---|---|---|---|---|---|---|---|
+| MC-1 | P2 | Hovering a suggestion selects it (`onHover { selection = index }`), so a pointer that happens to rest where the list opens steals the selection from the top hit as rows appear and Return opens the hovered row. Spotlight, Safari and Arc move the selection only when the pointer actually moves. | `CommandBar.swift:96` | S2 | daily | S | 9 | — |
+| MC-2 | P11 | Focus is reached by polling: up to 10 × 50 ms of toggling `focused` / `makeFirstResponder` until the field editor owns the keyboard; keys typed meanwhile are held and replayed (`beginTypeAhead`). It works as a safety net, but the field can be up to 0.5 s late, and the replay is what makes the first keystroke land. Measure on the DMG: ⌘T then type immediately, 20×, record at 120 Hz. | `CommandBar.swift:126-160` | S3 | every session | M | 4 | 1 |
+| MC-3 | P1 | Opens with `.scale(0.96, anchor: .top) + opacity` from a fixed 110 pt top inset for both ⌘T and ⌘L. ⌘L edits the address shown in the sidebar's top pill but doesn't grow from it, so the eye has to jump. Judgment against Arc (which does the same) and Safari (edits in place). | `BrowserWindow.swift:63`, `CommandBar.swift:111` | S4 | every session | M | 2 | — |
+| MC-4 | P5 | The DMG draws the bar on a 92% opaque background because glass can't sample Chromium's layer, while the WebKit build shows glass: the two builds' command bars look different. Fine as a fallback, but it's also what Reduce Transparency should show on both. | `CommandBar.swift:103-106` | S4 | every session | S | 4 | 1 |
+| MC-5 | P4 | Fixed sizes (field 19 pt, icon 17 pt, rows 14 pt) that don't follow Settings › Sidebar text size, which is the only text-size control the Mac app offers. | `CommandBar.swift:55,68,343` | S4 | daily | S | 3 | — |
+| MC-6 | P7 | Row captions are "Search", "Switch to Tab", or a bare host; a history row and a typed address both show a host with no distinction beyond the icon. Judgment: Safari labels history rows "History" — cheap clarity. | `CommandBar.swift:321-340` | S4 | daily | S | 3 | — |
+
+Holds up well: ↑/↓/Esc/Return all handled; history lookup debounced 100 ms off the main thread; ⌘L selects the
+address so typing replaces it; a bar closing while the next one opens hands the held keys to the new one.
