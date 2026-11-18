@@ -197,6 +197,12 @@ Order and dependencies: After W1 (Reduce Motion lives in the tokens) and W3 (siz
 One visible change per PR, each its own patch release (`patch-release-every-pr`); token-only PRs say "no visible change" and prove it with identical before/after recordings. **Chen's yes** is marked when the PR touches a must-have (plan §1: number given), changes what a gesture, command or menu does or where something lives, or adds a system integration. Every PR's verification is plan §6: before/after recording of the flow, its must-haves checked in the real app, and the R2 craft score updated. A script checked that all 96 items land in exactly one PR.
 
 
+### Chen-requested: ahead of the waves (ordered by Chen, not by score)
+
+| # | PR | Items | W | Score | Eff | Chen's yes |
+|---|---|---|---|---|---|---|
+| 78 | Live tab snapshots: freeze instead of unload; on unload save the DOM (MHTML) plus scroll position plus a full-resolution first frame; show it live and scrollable while the page reloads; hand over without a jump; sidebar hover preview from the last-seen capture. Spec: `tab-snapshots.md`. Starts with a spike (MHTML cost, gaps on canvas-heavy pages, memory held by frozen pages), then 2 or 3 PRs. Absorbs PR 17 (MW-2). | MW-10, MW-2 | W8 | 3 | L | **asked for by Chen**. Still needs his yes on: on-disk snapshots (privacy.md line, LRU size) and the frozen-page memory budget. MH 1, 3, 11, 13 |
+
 ### Wave A: S1s and the quick high scorers (no foundation needed except SY-1)
 
 | # | PR | Items | W | Score | Eff | Chen's yes |
@@ -294,7 +300,7 @@ One visible change per PR, each its own patch release (`patch-release-every-pr`)
 | 76 | Spotlight for pages and Focus filters (Handoff half is SY-8) | WX-1 | W7 | 3 | L | **yes**: MH 10, 11, 13; system integration |
 | 77 | Control Center / Lock Screen controls: New Tab, Search | WX-2 | W6 | 2 | M | **yes**: system integration |
 
-77 PRs; 38 need Chen's yes, 39 can go on the normal review path once the backlog is approved.
+78 PRs (PR 78 added 2026-11-18 at Chen's request; PR 17 folds into it); 38 need Chen's yes, 39 can go on the normal review path once the backlog is approved.
 
 ## R5.4 Stopped for Chen's review
 

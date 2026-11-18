@@ -1,4 +1,4 @@
-RESUME HERE: DONE. Research complete through R5; stopped for Chen's review of R5-backlog.md. Next: Chen's answers to the R5.4 questions, then Wave A PRs.
+RESUME HERE: DONE. Research complete through R5 (+R5.5 tab snapshots); stopped for Chen's review of R5-backlog.md. Next: Chen's answers to the R5.4 questions, then the PR 78 spike and Wave A.
 
 # Craft research: progress
 
@@ -59,3 +59,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R5.3 · R5.3 done: 77 PRs in 4 waves (A 19 quick/S1, B 13 foundations+first unlocks, C 41, D 4 gated); all 96 items in exactly one PR (script-checked); 38 marked Chen's yes (must-have touched, behaviour change, or system integration). · (this commit)
 - 2026-11-18 · R5.4 · R5.4 done: review section (top 10, 5 questions for Chen, needs-session/device list). Research stopped; no app code changed. · (this commit)
 - 2026-11-18 · R5.4 correction · Section pointers fixed: the VoiceOver pass is R2.13, the Duo posture checks are R2.10 · (this commit)
+- 2026-11-18 · R5.5 · Chen asked for live, scrollable tab snapshots on the Mac DMG: finding MW-10 in R2.3, spec `tab-snapshots.md`, PR 78 at the head of the backlog (absorbs PR 17). · (this commit)

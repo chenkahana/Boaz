@@ -61,6 +61,7 @@ Code base for this pass: `origin/master` at `66c3d63` (0.4.25), worktree `~/.wor
 - [x] R5.2 Grouped into workstreams
 - [x] R5.3 Sliced into PRs, Chen-yes items marked
 - [x] R5.4 Stop for Chen's review
+- [x] R5.5 Added at Chen's request: live tab snapshots (MW-10, PR 78, `tab-snapshots.md`)
 
 ---
 
