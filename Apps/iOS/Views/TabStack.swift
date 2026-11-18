@@ -476,7 +476,7 @@ private struct DeckCards: View, Animatable {
     }
 }
 
-/// One card: the page as last seen, or its icon until there's a snapshot.
+/// One card: the page as last seen, or its icon until there's a snapshot or when the page failed to load.
 private struct DeckCard: View {
     @Environment(AppModel.self) private var model
     let tab: SidebarItem
@@ -487,7 +487,22 @@ private struct DeckCard: View {
     var body: some View {
         ZStack {
             Rectangle().fill(.background)
-            if let snapshot = model.snapshots[tab.id] {
+            if model.failedTabs.contains(tab.id) {
+                // The page under a failed load is blank, so its snapshot would be a white slab.
+                VStack(spacing: 10) {
+                    Monogram(url: tab.url, tint: Theme.brand, size: 64)
+                        .overlay(alignment: .bottomTrailing) {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .font(.title2)
+                                .symbolRenderingMode(.multicolor)
+                                .background(Circle().fill(.background))
+                                .offset(x: 8, y: 8)
+                        }
+                    Text("Can't Open This Page")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(Theme.textSecondary)
+                }
+            } else if let snapshot = model.snapshots[tab.id] {
                 Color.clear.overlay(alignment: .top) { Image(uiImage: snapshot).resizable().scaledToFill() }
             } else {
                 Monogram(url: tab.url, tint: Theme.brand, size: 64)

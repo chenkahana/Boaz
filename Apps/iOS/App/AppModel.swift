@@ -94,6 +94,8 @@ final class AppModel {
     @ObservationIgnored private var pendingRestores: [String: PageState] = [:]
     /// Tabs whose page is going back to its place, which their browser covers with the preview meanwhile.
     private(set) var restoringTabs: Set<String> = []
+    /// Tabs showing a load failure, whose snapshot would be blank: the carousel draws them a failed card instead.
+    var failedTabs: Set<String> = []
     /// Tabs whose title is cooling down after a save, and whether it changed again meanwhile (`didChangeTitle`).
     @ObservationIgnored private var titleCooldowns: [String: Bool] = [:]
     /// The address each tab's current page was recorded at in history, which its later titles name (`didCommitLoad`).
@@ -619,6 +621,7 @@ final class AppModel {
             snapshots[id] = nil
             SnapshotCache.remove(id)
         }
+        failedTabs.formIntersection(live)
         pageStates.prune(keeping: ids)
     }
 
