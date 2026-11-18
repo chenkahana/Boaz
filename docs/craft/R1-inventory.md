@@ -5,6 +5,24 @@ keyboard path and its context menu. Code at 66c3d63. "Shot" points at R0 capture
 State key: **E** empty, **L** loading, **Er** error, **O** offline, **P** permission, **F** first run, **—** not
 designed (no code path found), **n/a** can't occur.
 
+**Summary.** 23 iPhone surfaces, 27 Mac surfaces (8 of them DMG-only and code-read), 8 system surfaces. The patterns
+that repeat across them, and feed R2 and R4:
+
+- **Empty states exist almost everywhere, in two voices.** `ContentUnavailableView` titles mix "Archive is empty",
+  "No history", "No downloads" (sentence case, iPhone) with "No Tabs", "No Downloads", "No History" (title case, Mac),
+  and the Mac Archive window uses "Archive is empty" too. The Mac sidebar has no empty state at all.
+- **Loading replaces content** on the Mac ("Opening page…" centred spinner, `WebPane.swift:132`) and is a thin glow on
+  iPhone; nothing waits ~300 ms before showing.
+- **Offline is not a state** on iPhone or the WebKit Mac build: it shows the generic load error. The DMG has a
+  distinct offline message.
+- **VoiceOver announcements** exist for toasts on both platforms (`AppModel.swift:1052`, `MacModel.swift:944`, with a
+  longer Undo window under VoiceOver) and Mac onboarding; AI completions, downloads finishing and sheet results
+  aren't announced.
+- **Keyboard**: the Mac has full menu commands; the iPhone has three shortcuts in total.
+- **Context menus**: Mac sidebar objects have them; iPhone tab cards and the tab fan don't.
+- **System surfaces**: widgets, a share extension and two App Shortcuts on iPhone; nothing on the Mac; no Handoff or
+  Spotlight on either.
+
 ## R1.1 iPhone
 
 Layout facts that shape every row: one view tree for every posture (`RootView.swift:4`); the bar is a vertical rail
@@ -25,7 +43,7 @@ the popup sheet, password sheet and AI sheets); none for New Tab, Address, Close
 | Tab carousel (deck) | Tap tab fan → deck grows out of the page (custom hero, not `matchedGeometry`), Done or tap card → grows back | E ("No Tabs"), "N Tabs" header, swipe-up archive with Undo toast | Snapshot missing for a failed tab: blank white card, also in Dark | — | — (no long-press menu on cards) | `tabs/21–23`, `tabs-dark/21`; `TabStack.swift:66` |
 | Tabs on Your Mac sheet | Carousel rail → sheet | E ("No tabs open on your Mac in this space.") | Sync off / signed out state, loading | — | — | `TabStack.swift:546` |
 | Tab strip (Duo half-open) | Posture → strip | — | **Needs device** | — | "Close …" button per row | `TabStrip.swift` |
-| Toast (Tab archived · Undo) | Top, spring 0.35/0.85, medium impact haptic when it can undo | — | VoiceOver announcement not found | — | n/a | `tabs/23,24`; `Chrome.swift:229` |
+| Toast (Tab archived · Undo) | Top, spring 0.35/0.85, medium impact haptic when it can undo | Announced to VoiceOver, 10 s Undo under VoiceOver (`AppModel.swift:1052`) | — | — | n/a | `tabs/23,24`; `Chrome.swift:229` |
 | Shake to Undo alert | Shake → "Undo Archive Tab?" | — | — | — | n/a | `RootView.swift:348` |
 | Library sheet (Archive · History) | Menu › Library → sheet with segmented control, search | E ("Archive is empty", "No history"), search no-results, clear with confirmation dialog | L (none needed), sync-pending | — | Row context menu (Open, Copy Link, Delete) + swipe actions | `13-library`; `LibrarySheet.swift:6` |
 | Settings sheet | Menu › Settings or carousel gear → sheet, close X in the rail column | iCloud signed out, default browser set / not set | Sync error, sync in progress | — | — | `14–16`; `LibrarySheet.swift:167` |
@@ -64,7 +82,7 @@ tab hover preview, peek and Quick Window. So DMG-only rows below are code-read o
 | Customize Space (space editor sheet) | Space menu → sheet | Theme, grain, light streak, transparency (#137) | Reduce Transparency preview | Esc/Return | — | `Shared/Spaces/SpaceEditor.swift` |
 | Rename sheet | Tab/folder menu → sheet | — | — | Return/Esc | — | `BrowserWindow.swift:614` |
 | AI sheet (Summarize, Ask This Page, Tidy Tabs) | View menu / right-click → sheet | L, Er ("Couldn't Read This Page"), Not Available | — | Done = Esc | — | `Intelligence/MacAI.swift`, `Browser/Intelligence/AIViews.swift` |
-| Toast (Tab closed · Undo) | Bottom capsule, move from bottom + opacity | Undo with ⌘⇧T hint in tooltip | VoiceOver announcement | ⌘⇧T | — | `BrowserWindow.swift:596` |
+| Toast (Tab closed · Undo) | Bottom capsule, move from bottom + opacity | Undo with ⌘⇧T hint in tooltip; announced (`MacModel.swift:944`) | — | ⌘⇧T | — | `BrowserWindow.swift:596` |
 | Onboarding (Welcome, Bring your browser, Make default, All set) | First launch → sheet; page transition | Arc import progress | — | Return/Esc | — | `Onboarding/OnboardingView.swift` |
 | Import (Arc, other browsers) | File menu → sheet | L ("Reading your Arc sidebar…"), progress, result | Er detail | | | `Import/ArcImportView.swift` |
 | QR code sheet | Share › QR | "Too Long for a QR Code" | | | | `QRCodeSheet.swift` |
