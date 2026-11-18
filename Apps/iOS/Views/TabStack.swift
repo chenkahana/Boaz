@@ -175,15 +175,17 @@ struct TabCarousel: View {
     }
 
     private func header(count: Int) -> some View {
-        HStack {
-            Spacer()
-            Button("Done", action: dismiss).fontWeight(.semibold)
-        }
-        .overlay {
-            Text(count == 1 ? "1 Tab" : "\(count) Tabs")
-                .font(.headline)
-                .contentTransition(.numericText(value: Double(count)))
-                .accessibilityAddTraits(.isHeader)
+        let title = Text(count == 1 ? "1 Tab" : "\(count) Tabs")
+            .font(.headline)
+            .lineLimit(1)
+            .contentTransition(.numericText(value: Double(count)))
+            .accessibilityAddTraits(.isHeader)
+        let done = Button("Done", action: dismiss).fontWeight(.semibold).fixedSize(horizontal: true, vertical: false)
+        // Centred between Done and a hidden twin while that fits; at accessibility sizes the title takes the room Done
+        // leaves, so the two never overlap.
+        return ViewThatFits(in: .horizontal) {
+            HStack { done.hidden(); title.fixedSize().frame(maxWidth: .infinity); done }
+            HStack { title.minimumScaleFactor(0.5).frame(maxWidth: .infinity); done }
         }
         .buttonStyle(.glass)
         .padding(.horizontal, 12)

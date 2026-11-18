@@ -6,6 +6,12 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.27] - 2026-11-18
+
+### Fixed
+
+- iPhone: at the largest text sizes, the tab count above the cards no longer runs into Done.
+
 ## [0.4.26] - 2026-11-18
 
 ### Fixed
