@@ -27,7 +27,7 @@ Code base for this pass: `origin/master` at `66c3d63` (0.4.25), worktree `~/.wor
 - [x] R2.5 Settings (Mac and iPhone)
 - [x] R2.6 Onboarding (Mac and iPhone)
 - [x] R2.7 iPhone bottom bar, tab fan and carousel
-- [ ] R2.8 iPhone search panel
+- [x] R2.8 iPhone search panel
 - [ ] R2.9 iPhone page menu
 - [ ] R2.10 Duo postures
 - [ ] R2.11 Widgets and extensions

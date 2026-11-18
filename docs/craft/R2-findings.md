@@ -140,3 +140,18 @@ Holds up well: the carousel grows out of the page and back into it (a custom her
 "no matched geometry" is about the API, not the effect); paging carries velocity and ticks a selection haptic per
 card; archive has Undo in a toast and Shake to Undo; "1 Tab"/"3 Tabs" plurals are right; Reduce Motion swaps every
 carousel spring for a 0.2 s ease-out.
+
+## R2.8 iPhone search panel (**+**)
+
+Runtime: `shots/ios/main/04-search-panel`, `05-search-typing` (Light), `main-dark/04` (Dark), `private/32` (Incognito).
+
+| ID | P | Finding | Evidence | Sev | Reach | Eff | Score | MH |
+|---|---|---|---|---|---|---|---|---|
+| IS-1 | P2 | The field's Clear Text button is 28 × 28 pt, under the 44 pt minimum, right where the thumb lands to retype. | `shots/ios/main/05-search-typing.txt` (Button 'Clear Text' {28, 28}), `Chrome.swift:66` | S3 | every session | S | 8 | — |
+| IS-2 | P6 | Opened from the empty browser, the panel's scrim leaves the "No tab open · New Tab" empty state readable behind it, so two "new tab" affordances show at once (the audit flags the dimmed "New Tab" for contrast). | `shots/ios/main/04-search-panel.png`, `04-search-panel.audit.txt` | S4 | rare | S | 1 | 7 |
+| IS-3 | P8 | With a hardware keyboard, ↑/↓ don't move through suggestions and ⌘L/⌘T do nothing; Return is the only key. | `rg keyboardShortcut Apps/iOS` (3 hits, none here) | S4 | rare | S | 1 | — |
+| IS-4 | P6 | No state for "suggestions failed" or offline: rows just don't appear, and the panel stays at full height (it grows on the first keystroke and keeps it by design). Judgment: fine for failures, but an offline hint would explain the empty panel. | `Chrome.swift:39-44` | S4 | occasional | S | 2 | — |
+
+Holds up well: 44 pt rows with separate 44 × 44 Fill In buttons labelled "Fill In <suggestion>", inline completion
+that doesn't come back after Delete, `.webSearch` keyboard with Go, no autocorrect or auto-capitalisation, the panel
+grows once and holds its height so the field never jumps, nothing is sent in Incognito or for addresses.
