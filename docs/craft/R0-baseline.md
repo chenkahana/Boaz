@@ -3,6 +3,15 @@
 Code: `origin/master` 66c3d63 (0.4.25). Binaries live under `~/tmp/codex/boaz-craft/` on Chen's Mac (not in git);
 paths below are relative to that folder.
 
+**Summary.** The iPhone app runs in a dedicated Duo simulator (folded cover screen, side rail) and is driven by a
+research XCUITest harness, so every iPhone flow in this pass has screenshots, a light and a dark recording, a
+hierarchy dump and a system accessibility audit. The Mac WebKit build runs isolated (own bundle id, temp library) in
+the background for static screenshots and the menu inventory; anything that needs keystrokes or clicks on the Mac,
+and anything on the Chromium DMG, needs a Chen session. The standard iPhone bottom bar and the Duo's open, book and
+laptop postures need a device. First numbers: iPhone launch 2.4–2.9 s to first frame and ~4 s to responsive (simulator
+Debug, far from the 400 ms target, to confirm on device); Mac window in under 0.7 s. Hitch counts need a device
+or Chen's Mac.
+
 ## R0.1 Builds
 
 | Build | Status | How | Notes |

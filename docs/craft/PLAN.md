@@ -11,7 +11,7 @@ Code base for this pass: `origin/master` at `66c3d63` (0.4.25), worktree `~/.wor
 - [x] R0.1 Builds installed: Mac DMG (Chromium), Mac App Store (WebKit), iPhone standard, iPhone Duo
 - [x] R0.2 Recordings per flow (Light and Dark)
 - [x] R0.3 Instruments: Animation Hitches and App Launch traces
-- [ ] R0.4 `R0-baseline.md` written
+- [x] R0.4 `R0-baseline.md` written
 
 ### R1. Surface inventory → [`R1-inventory.md`](R1-inventory.md)
 - [ ] R1.1 iPhone surfaces × states
