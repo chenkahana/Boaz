@@ -1,6 +1,6 @@
 # Craft research: progress
 
-RESUME HERE: R2.9, iPhone page menu (PageSettingsMenu.swift, BottomPanel.swift; shots/ios/main/07-08, tabs/26, private/30, audits).
+RESUME HERE: R2.10, Duo postures (RootView.swift PostureLayout, RelayoutCover.swift, TabStrip.swift): code-read plus needs device list.
 
 Runtime rules for whoever resumes: never move, delete or modify `~/Library/Containers/com.chenkahana.boaz` or Chen's
 Chromium profile data, and never quit Chen's running Boaz (must-have 13). Mac runtime that would risk either is
@@ -28,3 +28,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R2.6 · Onboarding: 5 findings (OB-1…OB-5) · (this commit)
 - 2026-11-18 · R2.7 · iPhone bar/fan/carousel: 10 findings (IB-1…IB-10); Incognito flow captured; corrected R1 page-menu row · (this commit)
 - 2026-11-18 · R2.8 · iPhone search panel: 4 findings (IS-1…IS-4) · (this commit)
+- 2026-11-18 · R2.9 · iPhone page menu: 6 entries (IM-1…IM-6) · (this commit)

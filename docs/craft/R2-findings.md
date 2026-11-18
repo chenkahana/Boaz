@@ -155,3 +155,21 @@ Runtime: `shots/ios/main/04-search-panel`, `05-search-typing` (Light), `main-dar
 Holds up well: 44 pt rows with separate 44 × 44 Fill In buttons labelled "Fill In <suggestion>", inline completion
 that doesn't come back after Delete, `.webSearch` keyboard with Go, no autocorrect or auto-capitalisation, the panel
 grows once and holds its height so the field never jumps, nothing is sent in Incognito or for addresses.
+
+## R2.9 iPhone page menu (**…**)
+
+Runtime: `shots/ios/main/07-08`, `main/12` (error page), `tabs/26`, `private/30` (scrolled to the end), Dark
+`main-dark/07`, `tabs-dark/26`; audits `07-page-menu.audit.txt`, `private/30-menu-end.audit.txt`.
+
+| ID | P | Finding | Evidence | Sev | Reach | Eff | Score | MH |
+|---|---|---|---|---|---|---|---|---|
+| IM-1 | P3 | The panel cuts its last visible row in half at the bottom edge (Print, Archive Tab) with no fade or edge effect, at rest and after scrolling; it reads as clipped rather than "more below". The README's 2026-11-13 note said the same. | `shots/ios/main/07-page-menu.png`, `tabs/26-menu-bottom.png` | S3 | daily | S | 6 | 7 |
+| IM-2 | P7 | One undivided list of ~18 rows: page actions (Find, Reader, Listen, Translate, Print, Copy URL, Downloads), site settings (text size, Desktop, Pop-ups, Content Blocking), tab actions (Reopen Closed Tab, Archive Tab) and app items (Tidy Tab Titles, Library, Incognito, Settings) at the very end, three swipes down. No section titles. | `shots/ios/private/30-menu-end.png`, `PageSettingsMenu.swift:47` | S3 | daily | M | 3 | — |
+| IM-3 | P1 | Drag-to-dismiss decides with the predicted end translation but doesn't carry velocity: past the threshold the panel leaves on its fixed transition; short of it, it snaps back on `BottomPanelStyle.motion`. The rubber band when dragging up is right. | `BottomPanel.swift:76-90` | S3 | daily | S | 6 | — |
+| IM-4 | P4 | The Back/Forward/Reload/Share tile captions (`caption2`, one line, fixed 56 pt tiles) clip at larger text sizes; the site monogram letter ignores Dynamic Type. | `07-page-menu.audit.txt` ("Text clipped", "Dynamic Type font sizes are partially unsupported" ×4, "unsupported" for 'E'), `PageSettingsMenu.swift:212-214` | S3 | rare | S | 2 | — |
+| IM-5 | P5 | The scrim (black 18%) dims the page but not the rail or bottom bar under the panel, by design so they stay tappable; the bright, live bar next to a dimmed page makes it unclear what's modal. Judgment; the README's 2026-11-13 note flagged it on the bottom bar. | `shots/ios/main/07-page-menu.png`, `BottomPanel.swift:9-11,33-39` | S4 | daily | S | 3 | 7 |
+| IM-6 | P3 | Not reproduced in the simulator: the README's "smeared shadow" on disabled Back/Forward tiles (they render at 40% opacity with no shadow here). Check on a device. | `shots/ios/main/07-page-menu.png`, `PageSettingsMenu.swift:215-217` | — | — | — | — | — |
+
+Holds up well: concentric corners (panel 28 pt, tiles 16 pt at a 12 pt inset), 46–50 pt rows, a grabber, disabled
+items dim instead of disappearing, `.isModal` plus an escape action for VoiceOver, Reduce Motion fades instead of
+sliding, text size shows tabular digits.
