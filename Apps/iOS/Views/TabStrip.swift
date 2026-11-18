@@ -63,7 +63,7 @@ private struct TabStripRow: View {
                 .contentShape(.rect)
         }
         .listRowBackground(
-            RoundedRectangle(cornerRadius: Theme.Radius.row)
+            RoundedRectangle(cornerRadius: Radius.row)
                 .fill(.primary.opacity(selected ? (contrast == .increased ? 0.3 : 0.12) : 0))
                 .padding(.horizontal, 6)
         )

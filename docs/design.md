@@ -17,6 +17,9 @@ The Mac sidebar and its tab list follow these rules. The tokens live in `Sidebar
 
 - Rows are 34 pt tall with 2 pt between them, 8 pt side padding, and 8 pt between sections. The line above Today
   has 8 pt above and below it; the space buttons at the bottom sit 10 pt apart.
+- Elsewhere, spacing and corners come from `Spacing` (2, 4, 6, 8, 12, 16, 20, 24, 32) and `Radius` (Mac: icon 6, row
+  8, tile 10, card 12, panel 16; iPhone: 8, 12, 16, 20, 28) in `Apps/Shared/Theme/Layout.swift`. A container inset in
+  another takes `Radius.concentric(in:inset:)`.
 
 ## Fills
 

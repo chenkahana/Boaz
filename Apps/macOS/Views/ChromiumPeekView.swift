@@ -40,8 +40,8 @@ struct ChromiumPeekView: View {
                     }
             }
             .background(.regularMaterial)
-            .clipShape(.rect(cornerRadius: MacRadius.panel, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: MacRadius.panel).strokeBorder(.white.opacity(0.3)))
+            .clipShape(.rect(cornerRadius: Radius.panel, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.panel).strokeBorder(.white.opacity(0.3)))
             .shadow(color: .black.opacity(0.35), radius: 30, y: 12)
             .padding(.horizontal, 56).padding(.vertical, 32)
         }

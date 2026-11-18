@@ -303,8 +303,8 @@ private struct PeekingSidebar: View {
                 SidebarView()
                     .frame(width: width)
                     .background { WindowBackdrop(blending: .withinWindow) }
-                    .clipShape(.rect(cornerRadius: MacRadius.card, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: MacRadius.card, style: .continuous).strokeBorder(.white.opacity(0.25)))
+                    .clipShape(.rect(cornerRadius: Radius.card, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Radius.card, style: .continuous).strokeBorder(.white.opacity(0.25)))
                     .shadow(color: .black.opacity(0.3), radius: 24, x: 6)
                     .padding(6)
                     .onHover { inside in
@@ -400,7 +400,7 @@ private struct ContentArea: View {
 extension View {
     /// The rounded, slightly lifted card web content sits in, concentric with the window's corners.
     func webCard(focused: Bool = false, tint: Color = .accentColor) -> some View {
-        let shape = ConcentricRectangle(corners: .concentric(minimum: .fixed(MacRadius.card)), isUniform: true)
+        let shape = ConcentricRectangle(corners: .concentric(minimum: .fixed(Radius.card)), isUniform: true)
         return self
             .clipShape(shape)
             .overlay {
@@ -500,7 +500,7 @@ private struct PeekOverlay: View {
     var body: some View {
         ZStack {
             Color.black.opacity(0.22)
-                .clipShape(.rect(cornerRadius: MacRadius.card, style: .continuous))
+                .clipShape(.rect(cornerRadius: Radius.card, style: .continuous))
                 .onTapGesture { browser.closePeek() }
             VStack(spacing: 0) {
                 HStack(spacing: 8) {
@@ -517,8 +517,8 @@ private struct PeekOverlay: View {
                     .overlay(alignment: .top) { LoadingGlow(page: page) }
             }
             .background(.regularMaterial)
-            .clipShape(.rect(cornerRadius: MacRadius.panel, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: MacRadius.panel, style: .continuous).strokeBorder(.white.opacity(0.3)))
+            .clipShape(.rect(cornerRadius: Radius.panel, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.panel, style: .continuous).strokeBorder(.white.opacity(0.3)))
             .shadow(color: .black.opacity(0.35), radius: 30, y: 12)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("screen.peek")
@@ -543,7 +543,7 @@ struct HoverIconButton: View {
             Image(systemName: symbol)
                 .font(.system(size: 12, weight: .semibold))
                 .frame(width: size, height: size)
-                .background(.primary.opacity(hovering ? 0.12 : 0), in: .rect(cornerRadius: MacRadius.icon, style: .continuous))
+                .background(.primary.opacity(hovering ? 0.12 : 0), in: .rect(cornerRadius: Radius.icon, style: .continuous))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

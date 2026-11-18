@@ -120,7 +120,7 @@ private struct FavoriteTile: View {
             Text(letter)
                 .font(.system(.headline, design: .rounded, weight: .bold))
                 .frame(width: 36, height: 36)
-                .background(.white.opacity(0.22), in: .rect(cornerRadius: Theme.Radius.row, style: .continuous))
+                .background(.white.opacity(0.22), in: .rect(cornerRadius: Radius.row, style: .continuous))
                 .widgetAccentable()
             Text(name).font(.caption2).lineLimit(1)
         }

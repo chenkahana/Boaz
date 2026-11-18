@@ -20,16 +20,6 @@ enum AIRequest: Identifiable, Equatable {
     }
 }
 
-private enum AIRadius {
-    #if os(iOS)
-    static let card = Theme.Radius.card
-    static let row = Theme.Radius.row
-    #else
-    static let card = MacRadius.card
-    static let row = MacRadius.row
-    #endif
-}
-
 /// Sheet frame: a navigation bar with Close on iPhone, a header with Done on the Mac.
 private struct AISheet<Content: View, Actions: View>: View {
     @Environment(\.dismiss) private var dismiss
@@ -220,7 +210,7 @@ struct PageAssistantView: View {
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(16)
-                    .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: AIRadius.card))
+                    .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: Radius.card))
                     .animation(.smooth, value: summary.points?.count)
                     // One passage of text: VoiceOver reads the gist and every point, without the bullets.
                     .accessibilityElement(children: .combine)
@@ -268,7 +258,7 @@ struct PageAssistantView: View {
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(12)
-                            .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: AIRadius.row))
+                            .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: Radius.row))
                             .id(turn.id)
                         }
                         if let notice = assistant.notice {
