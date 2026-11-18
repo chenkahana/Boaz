@@ -14,7 +14,7 @@ Code base for this pass: `origin/master` at `66c3d63` (0.4.25), worktree `~/.wor
 - [x] R0.4 `R0-baseline.md` written
 
 ### R1. Surface inventory → [`R1-inventory.md`](R1-inventory.md)
-- [ ] R1.1 iPhone surfaces × states
+- [x] R1.1 iPhone surfaces × states
 - [ ] R1.2 Mac surfaces × states
 - [ ] R1.3 Widgets, extensions and system surfaces
 - [ ] R1.4 `R1-inventory.md` complete

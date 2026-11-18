@@ -1,6 +1,6 @@
 # Craft research: progress
 
-RESUME HERE: R1.1, iPhone surfaces × states in R1-inventory.md (start from docs/qa.md §2 and Apps/iOS; R0 screenshots in ~/tmp/codex/boaz-craft/shots/ios/).
+RESUME HERE: R1.2, Mac surfaces × states in R1-inventory.md (Apps/macOS/Views, Engine/Chromium* for DMG-only surfaces; shots in ~/tmp/codex/boaz-craft/shots/mac/).
 
 Runtime rules for whoever resumes: never move, delete or modify `~/Library/Containers/com.chenkahana.boaz` or Chen's
 Chromium profile data, and never quit Chen's running Boaz (must-have 13). Mac runtime that would risk either is
@@ -16,3 +16,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R0.2 · iPhone main + tab flows recorded light and dark with audits; Mac static captures and menu inventory · (this commit)
 - 2026-11-18 · R0.3 · iPhone launch metric 2.4–2.9 s first frame (sim Debug); hitches unsupported in sim; Mac isolated window 0.36–0.66 s · (this commit)
 - 2026-11-18 · R0.4 · R0-baseline.md summary written; R0 complete · (this commit)
+- 2026-11-18 · R1.1 · iPhone inventory, 23 surfaces · (this commit)
