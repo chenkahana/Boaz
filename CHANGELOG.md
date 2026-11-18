@@ -6,6 +6,12 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.33] - 2026-11-19
+
+### Changed
+
+- Mac: chrome text sizes come from one type ramp based on Settings › Sidebar text size. Nothing looks different yet.
+
 ## [0.4.32] - 2026-11-19
 
 ### Changed
