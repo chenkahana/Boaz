@@ -97,3 +97,23 @@ Orion (Kagi, WebKit) is the closest engine match to Boaz's App Store build.
 | Extensions | Installs Chrome and Firefox extensions on WebKit with a compatibility warning. | The DMG gets real Chrome extensions (must-have 4); nothing to copy |
 | Privacy defaults | Blocking on by default with a per-site toggle in the address bar. | Boaz's per-site Content Blocking lives in the iPhone page menu; a toolbar-level shield (Mac) is a judgment call for W6/W5, not a gap |
 
+## R3.7 Steal-this list, mapped to R2
+
+Ordered by the app to beat first (§7.1), then by the R2 score of the finding it answers.
+
+| # | Steal | From | Answers | Workstream |
+|---|---|---|---|---|
+| 1 | One 48 pt control size for every rail and bar button | Safari iPhone (observed) | IB-2 (12), IB-9 | W2 |
+| 2 | Progress in the address pill or favicon, never over the page | Safari Mac, Arc, Chrome | MW-1 (12) | W4 |
+| 3 | Page menu as a grouped popover with dividers; app-level items out of it | Safari iPhone (observed) | IM-1, IM-2 | W6 |
+| 4 | Interactive space paging that follows the fingers and keeps their speed | Arc | MS-15 (4.5), MS-6 | W1 |
+| 5 | ⌘Z restores the last closed tab (Undo Close Tab), plus library edits | Safari Mac, Arc | E9 | W5 |
+| 6 | Private as a visible tab group, dark chrome while in it | Safari iPhone (observed) | IB-1 | W6 (Chen's yes) |
+| 7 | Per-card close in the tab overview | Safari iPhone (observed) | IB-6 | W6 |
+| 8 | Suggestion section headers and spoken row kinds | Safari iPhone (observed), Chrome | AX-4 | W4, W9 |
+| 9 | Reorder that opens a gap, folders that spring open on hover | Arc | MS-11 | W5 |
+| 10 | Drag a tab onto the page to split | Arc | MW-7 | W5 |
+| 11 | Selection follows pointer movement, not pointer position | Arc, Spotlight | MC-1 (9) | W2 |
+| 12 | Window titled after its page | Safari Mac | MS-13 | W5 |
+| 13 | Dragged tabs carry their URL out of the app | Chrome, Safari | MS-1 | W5 |
+| 14 | Find bar without Replace | Safari Mac | MW-9 | W5 |

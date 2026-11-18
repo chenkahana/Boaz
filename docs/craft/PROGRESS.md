@@ -1,6 +1,6 @@
 # Craft research: progress
 
-RESUME HERE: R3.7, consolidated steal-this list mapped to R2 findings at the end of R3-references.md.
+RESUME HERE: R4.1, motion tokens and transition catalog in R4-systems.md: inventory every curve (rg 'spring\(|easeOut|smooth|snappy|bouncy' Apps), propose named tokens per platform with Reduce Motion fallbacks, map surfaces.
 
 Runtime rules for whoever resumes: never move, delete or modify `~/Library/Containers/com.chenkahana.boaz` or Chen's
 Chromium profile data, and never quit Chen's running Boaz (must-have 13). Mac runtime that would risk either is
@@ -44,3 +44,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R3.4 · Chrome known mechanics, 5 takeaways · (this commit)
 - 2026-11-18 · R3.5 · Dia: AI surface takeaway, kept as judgment (must-hve 12) · (this commit)
 - 2026-11-18 · R3.6 · Orion: low-weight notes · (this commit)
+- 2026-11-18 · R3.7 · 14-item steal-this list mapped to R2; note: the R3.5 commit also carried the R3.6 text · (this commit)
