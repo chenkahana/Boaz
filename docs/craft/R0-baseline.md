@@ -30,3 +30,23 @@ Run these on the DMG with a throwaway profile, or on the isolated test build, wh
 2. QuickTime › New Screen Recording, 120 Hz display, for each flow in R0.2's Mac list, Light then Dark.
 3. Instruments › Animation Hitches attached to Boaz while doing: sidebar drag, space switch (⌃1/⌃2), ⌘T then type,
    split view open/close, library panel open/close. Instruments › App Launch on a cold launch of the DMG.
+
+## R0.2 Recordings
+
+Simulator recordings are 60 Hz (`simctl io recordVideo`); 120 Hz frame-stepping needs a ProMotion device. Every
+recording has a matching screenshot set with an accessibility hierarchy dump (`.txt`) and, per screen, an XCUITest
+accessibility audit (`.audit.txt`).
+
+| Flow | Platform | Light | Dark | Screenshots |
+|---|---|---|---|---|
+| Fresh install: onboarding → empty browser → search panel → type → first page → page menu → second tab → error page → Library → Settings | iPhone (Duo folded) | `rec/main.mov` | `rec/main-dark.mov` | `shots/ios/main/`, `shots/ios/main-dark/` (01–16) |
+| Relaunch → tab carousel → page through → swipe up to archive (Undo toast) → open card → toolbar swipe → page menu bottom → Archive Tab | iPhone (Duo folded) | `rec/tabs.mov` | `rec/tabs-dark.mov` | `shots/ios/tabs/`, `shots/ios/tabs-dark/` (20–27) |
+| Main window with a library (standard fixture), empty library, one space, minimum size 720 × 492 | Mac (WebKit, isolated) | `shots/mac/mac-light-main.png`, `shots/mac/min-light-*.png`, `shots/mac/empty-light-*.png` | `shots/mac/std-dark-*.png` | static only |
+| Menu bar inventory (titles, shortcuts) | Mac (WebKit, isolated) | `shots/mac/menus-webkit-adhoc.txt` | | Enabled state is not meaningful: a background app has no key window, so most items read disabled |
+
+Not recorded, and why:
+
+- **Standard iPhone bottom bar, Duo open/book/laptop and the posture change**: needs device (see R0.1).
+- **Every Mac flow in motion** (launch, ⌘T/⌘L command bar, sidebar drag, space switch, split view, library panel,
+  settings, onboarding) and **every DMG (Chromium) screen**: needs Chen session. Keystrokes and clicks only reach an
+  active app, and activating one takes over the Mac Chen is using.
