@@ -41,3 +41,9 @@ The Mac sidebar and its tab list follow these rules. The tokens live in `Sidebar
 
 - One curve, `SidebarStyle.motion` (smooth, 0.2 s), for hover, selection and list changes.
 - With Reduce Motion, nothing moves or scales: hover lifts stay put and the space switch cross-fades.
+
+## Haptics
+
+- One haptic per meaningful moment (a commit, a threshold crossed, a snap), never on scrolling, hover or a plain tap.
+  Call sites name the moment from `Apps/Shared/Theme/Haptics.swift`: `.sensoryFeedback(Haptics.tabChanged.feedback,
+  trigger:)` on the iPhone, `Haptics.snap.play()` on the Mac trackpad.

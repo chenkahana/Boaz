@@ -1,14 +1,48 @@
 import AppKit
 import BoazKit
 import SwiftUI
+import UniformTypeIdentifiers
 import WebKit
 
 /// Drag payload for sidebar items; anything else dropped (a link) becomes a new tab.
-enum SidebarDrag {
+nonisolated enum SidebarDrag {
     static let prefix = "boaz-item:"
     static func payload(_ item: SidebarItem) -> String { prefix + item.id }
     static func itemID(_ payload: String) -> String? {
         payload.hasPrefix(prefix) ? String(payload.dropFirst(prefix.count)) : nil
+    }
+
+    /// Boaz's own drag type: only Boaz reads it, so another app never sees the item's id.
+    static let itemType = UTType(exportedAs: "com.chenkahana.boaz.sidebar-item")
+
+    /// A dragged row or tile: the item for drops inside Boaz, and its page's address for Notes, Mail, Finder or
+    /// another browser.
+    struct Item: Transferable {
+        let payload: String
+        let url: URL?
+
+        init(_ item: SidebarItem) {
+            payload = SidebarDrag.payload(item)
+            url = item.url
+        }
+
+        static var transferRepresentation: some TransferRepresentation {
+            DataRepresentation(exportedContentType: SidebarDrag.itemType) { Data($0.payload.utf8) }
+            ProxyRepresentation { $0.url ?? URL(string: "about:blank")! }
+                .exportingCondition { $0.url != nil }
+            ProxyRepresentation { $0.url?.absoluteString ?? "" }
+                .exportingCondition { $0.url != nil }
+        }
+    }
+
+    /// What a sidebar drop reads: a dragged item first, else text (a link from another app).
+    struct Drop: Transferable {
+        let payload: String
+
+        static var transferRepresentation: some TransferRepresentation {
+            DataRepresentation(importedContentType: SidebarDrag.itemType) { Drop(payload: String(decoding: $0, as: UTF8.self)) }
+            ProxyRepresentation { (text: String) in Drop(payload: text) }
+        }
     }
 }
 
@@ -262,7 +296,7 @@ private struct FavoritesGrid: View {
         .animation(SidebarStyle.motion, value: favorites.map(\.id))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Favorites")
-        .dropDestination(for: String.self) { payloads, _ in
+        .dropDestination(for: SidebarDrag.Drop.self) { payloads, _ in
             guard let container else { return false }
             return dropItems(payloads, into: container.id, before: nil, model: model, browser: browser)
         } isTargeted: { targeted = $0 }
@@ -314,8 +348,8 @@ private struct FavoriteTile: View {
         .accessibilityAddTraits(active ? .isSelected : [])
             .onHover { hovering = $0 }
             .help(tab.title ?? tab.url?.absoluteString ?? "")
-            .draggable(SidebarDrag.payload(tab)) { SiteMonogram(url: tab.url, tint: tint, size: 28) }
-            .dropDestination(for: String.self) { payloads, _ in
+            .draggable(SidebarDrag.Item(tab)) { SiteMonogram(url: tab.url, tint: tint, size: 28) }
+            .dropDestination(for: SidebarDrag.Drop.self) { payloads, _ in
                 dropItems(payloads, into: tab.parentID ?? "", before: tab.id, model: model, browser: browser)
             } isTargeted: { targeted = $0 }
             .contextMenu { TabMenu(tab: tab) }
@@ -350,7 +384,7 @@ private struct SpaceColumn: View {
         ScrollView {
             VStack(alignment: .leading, spacing: SidebarStyle.rowSpacing) {
                 SpaceHeader(space: space)
-                    .dropDestination(for: String.self) { payloads, _ in
+                    .dropDestination(for: SidebarDrag.Drop.self) { payloads, _ in
                         guard let pinnedBox else { return false }
                         return dropItems(payloads, into: pinnedBox.id, before: pinned.first?.id, model: model, browser: browser)
                     } isTargeted: { pinnedTargeted = $0 }
@@ -358,7 +392,7 @@ private struct SpaceColumn: View {
                 ForEach(pinned) { ItemRow(item: $0, depth: 0, tint: tint) }
 
                 TodayDivider(space: space, hasTabs: !today.isEmpty)
-                    .dropDestination(for: String.self) { payloads, _ in
+                    .dropDestination(for: SidebarDrag.Drop.self) { payloads, _ in
                         guard let todayBox else { return false }
                         return dropItems(payloads, into: todayBox.id, before: today.first?.id, model: model, browser: browser)
                     } isTargeted: { todayTargeted = $0 }
@@ -368,7 +402,7 @@ private struct SpaceColumn: View {
                 Color.clear
                     .frame(height: 80)
                     .contentShape(Rectangle())
-                    .dropDestination(for: String.self) { payloads, _ in
+                    .dropDestination(for: SidebarDrag.Drop.self) { payloads, _ in
                         guard let todayBox else { return false }
                         return dropItems(payloads, into: todayBox.id, before: nil, model: model, browser: browser)
                     }
@@ -598,11 +632,11 @@ struct ItemRow: View {
         #endif
         .onHover { inside in withAnimation(SidebarStyle.motion) { hovering = inside } }
         .animation(SidebarStyle.motion, value: active)
-        .draggable(SidebarDrag.payload(item)) {
+        .draggable(SidebarDrag.Item(item)) {
             Label(title, systemImage: item.kind == .folder ? "folder" : "globe")
                 .padding(6).background(.regularMaterial, in: .rect(cornerRadius: MacRadius.icon))
         }
-        .dropDestination(for: String.self) { payloads, _ in
+        .dropDestination(for: SidebarDrag.Drop.self) { payloads, _ in
             if item.kind == .folder {
                 if !item.isExpanded { model.toggleExpanded(item) }
                 return dropItems(payloads, into: item.id, before: nil, model: model, browser: browser)
@@ -867,12 +901,12 @@ private struct SpaceDot: View {
 
 /// Moves dragged sidebar items, or opens dropped links as tabs at the drop point.
 @discardableResult
-func dropItems(_ payloads: [String], into parentID: String, before beforeID: String?,
+func dropItems(_ drops: [SidebarDrag.Drop], into parentID: String, before beforeID: String?,
                model: MacModel, browser: BrowserState) -> Bool {
     guard !parentID.isEmpty, !browser.isIncognito else { return false }
     var handled = false
     withAnimation(SidebarStyle.motion) {
-        for payload in payloads {
+        for payload in drops.map(\.payload) {
             if let id = SidebarDrag.itemID(payload) {
                 model.move(id, into: parentID, before: beforeID)
                 handled = true
