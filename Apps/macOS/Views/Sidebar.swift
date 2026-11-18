@@ -20,16 +20,33 @@ enum SidebarStyle {
     /// Rows' text size; Settings › General › Sidebar Text Size picks 14, 15 or 17 (`sidebarTextSize`).
     static let defaultTextSize: CGFloat = 15
     static func rowFont(size: CGFloat = defaultTextSize, selected: Bool = false) -> Font {
-        .system(size: size, weight: selected ? .medium : .regular)
+        ChromeType(base: size).row(selected: selected)
     }
-    static func sectionFont(size: CGFloat = defaultTextSize) -> Font { .system(size: size - 3, weight: .semibold) }
-    static func titleFont(size: CGFloat = defaultTextSize) -> Font { .system(size: size + 1, weight: .semibold) }
+    static func sectionFont(size: CGFloat = defaultTextSize) -> Font { ChromeType(base: size).sectionHeader }
+    static func titleFont(size: CGFloat = defaultTextSize) -> Font { ChromeType(base: size).spaceTitle }
     /// The label color at 12%: one flat fill for the selection, on every theme.
     static func selection(increasedContrast: Bool = false) -> Color { .primary.opacity(increasedContrast ? 0.24 : 0.12) }
     /// Half the selection.
     static let hover = Color.primary.opacity(0.06)
     /// The one curve for hover, selection and list changes.
     static let motion = Animation.smooth(duration: 0.2)
+}
+
+/// The Mac's type ramp (docs/design.md). The Mac has no Dynamic Type, so the sidebar text size the user picks in
+/// Settings (14, 15 or 17 pt) is the base every chrome size derives from.
+struct ChromeType {
+    var base = SidebarStyle.defaultTextSize
+
+    func row(selected: Bool = false) -> Font { .system(size: base, weight: selected ? .medium : .regular) }
+    var sectionHeader: Font { .system(size: base - 3, weight: .semibold) }
+    var spaceTitle: Font { .system(size: base + 1, weight: .semibold) }
+    /// The sidebar's small symbols: plus, lock, link, ellipsis.
+    var glyph: Font { .system(size: base - 3, weight: .semibold) }
+    var commandField: Font { .system(size: base + 4) }
+    var commandRow: Font { .system(size: base - 1) }
+    var commandCaption: Font { .system(size: base - 4) }
+    /// Never below 11 pt, the smallest a Mac label reads at.
+    var libraryLabel: Font { .system(size: max(base - 4, 11), weight: .medium) }
 }
 
 extension EnvironmentValues {

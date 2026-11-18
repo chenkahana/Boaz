@@ -9,6 +9,9 @@ The Mac sidebar and its tab list follow these rules. The tokens live in `Sidebar
 - Rows 15 pt regular; the selected row 15 pt medium. Settings › General › Sidebar text size sets rows to 14, 15 or
   17 pt; headers and the title keep their offset (-3 pt, +1 pt).
 - Section headers 12 pt semibold. The space title 16 pt semibold.
+- Every other chrome size comes from the same base through `ChromeType` (`Sidebar.swift`): sidebar glyphs base − 3
+  semibold, the command bar field base + 4, its rows base − 1 and captions base − 4, Library panel labels
+  base − 4 but never under 11 pt. The iPhone uses text styles only, never fixed sizes for text.
 
 ## Spacing
 
