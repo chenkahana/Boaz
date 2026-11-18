@@ -6,6 +6,13 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.31] - 2026-11-19
+
+### Fixed
+
+- Mac: dragging a tab, pinned tab or favorite out of the sidebar into Notes, Mail, Finder or another browser gives
+  its page's address instead of an internal id.
+
 ## [0.4.30] - 2026-11-19
 
 ### Fixed
