@@ -6,6 +6,13 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.30] - 2026-11-19
+
+### Fixed
+
+- Mac: in the command bar, a pointer resting where the suggestions open no longer takes the selection from the top
+  hit; moving the pointer over a row still selects it.
+
 ## [0.4.29] - 2026-11-19
 
 ### Fixed
