@@ -6,7 +6,7 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
-## [0.4.32] - 2026-11-18
+## [0.4.27] - 2026-11-19
 
 ### Fixed
 
