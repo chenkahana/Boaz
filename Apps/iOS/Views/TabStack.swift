@@ -130,6 +130,8 @@ struct TabCarousel: View {
         }
         .allowsHitTesting(presented)
         .sensoryFeedback(Haptics.tabChanged.feedback, trigger: Int(position.rounded()))
+        // At the crossing, so the finger feels where letting go archives.
+        .sensoryFeedback(Haptics.archiveCommitted.feedback, trigger: pastArchiveLine) { old, new in new && !old }
         .onAppear {
             order = tabs.map(\.id)
             let index = tabs.firstIndex { $0.id == model.activeTabID } ?? tabs.count - 1
@@ -160,6 +162,9 @@ struct TabCarousel: View {
     private var heroZooms: Bool { !reduceMotion }
 
     private var presentation: Double { presented ? 1 : 0 }
+
+    /// A lifted card is past the point where letting go archives it.
+    private var pastArchiveLine: Bool { lift < -110 }
 
     /// By last use, the current tab last (in front). Tabs opened while the deck is up go in front of the rest.
     private var phoneTabs: [SidebarItem] {
@@ -266,9 +271,10 @@ struct TabCarousel: View {
 
     private func endLift(predicted: CGFloat, height: CGFloat) {
         guard let id = liftedID else { return }
-        if lift < -110 || (lift < 0 && predicted < -360) {
+        if pastArchiveLine || (lift < 0 && predicted < -360) {
+            let felt = pastArchiveLine
             withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .snappy(duration: 0.28)) { lift = -height } completion: {
-                archive(id)
+                archiveTab(id, felt: felt)
                 lift = 0
                 liftedID = nil
             }
@@ -333,9 +339,12 @@ struct TabCarousel: View {
         close()
     }
 
-    private func archive(_ id: String) {
+    private func archive(_ id: String) { archiveTab(id, felt: false) }
+
+    /// `felt`: the flick already gave the archive haptic.
+    private func archiveTab(_ id: String, felt: Bool) {
         guard let tab = phoneTabs.first(where: { $0.id == id }) else { return }
-        withAnimation(.snappy) { model.close(tab) }
+        withAnimation(.snappy) { model.close(tab, felt: felt) }
     }
 
     private func dismiss() {
