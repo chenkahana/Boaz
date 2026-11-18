@@ -297,7 +297,7 @@ private struct PeekingSidebar: View {
                 .frame(maxHeight: .infinity)
                 .contentShape(Rectangle())
                 .onHover { inside in
-                    if inside { withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) { browser.sidebarPeeking = true } }
+                    if inside { withMotion(.emphasized) { browser.sidebarPeeking = true } }
                 }
             if browser.sidebarPeeking {
                 SidebarView()
@@ -308,7 +308,7 @@ private struct PeekingSidebar: View {
                     .shadow(color: .black.opacity(0.3), radius: 24, x: 6)
                     .padding(6)
                     .onHover { inside in
-                        if !inside { withAnimation(.spring(response: 0.32, dampingFraction: 0.9)) { browser.sidebarPeeking = false } }
+                        if !inside { withMotion(.emphasized) { browser.sidebarPeeking = false } }
                     }
                     .transition(reduceMotion ? .opacity : .move(edge: .leading).combined(with: .opacity))
             }
@@ -452,7 +452,7 @@ private struct EmptyContent: View {
             }
             .buttonStyle(.plain)
             .onHover { hovering = $0 }
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: hovering)
+            .motion(.quick, value: hovering)
             .accessibilityLabel("New Tab")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

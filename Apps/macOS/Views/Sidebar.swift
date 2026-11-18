@@ -228,7 +228,7 @@ private struct HistoryButton: View {
         .help(hint)
         .accessibilityLabel(help)
         .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.12), value: hovering)
+        .motion(.quick, value: hovering)
     }
 }
 
