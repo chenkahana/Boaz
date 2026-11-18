@@ -44,8 +44,26 @@ Runtime: needs Chen session (a background app gets no keystrokes). All findings 
 | MC-2 | P11 | Focus is reached by polling: up to 10 × 50 ms of toggling `focused` / `makeFirstResponder` until the field editor owns the keyboard; keys typed meanwhile are held and replayed (`beginTypeAhead`). It works as a safety net, but the field can be up to 0.5 s late, and the replay is what makes the first keystroke land. Measure on the DMG: ⌘T then type immediately, 20×, record at 120 Hz. | `CommandBar.swift:126-160` | S3 | every session | M | 4 | 1 |
 | MC-3 | P1 | Opens with `.scale(0.96, anchor: .top) + opacity` from a fixed 110 pt top inset for both ⌘T and ⌘L. ⌘L edits the address shown in the sidebar's top pill but doesn't grow from it, so the eye has to jump. Judgment against Arc (which does the same) and Safari (edits in place). | `BrowserWindow.swift:63`, `CommandBar.swift:111` | S4 | every session | M | 2 | — |
 | MC-4 | P5 | The DMG draws the bar on a 92% opaque background because glass can't sample Chromium's layer, while the WebKit build shows glass: the two builds' command bars look different. Fine as a fallback, but it's also what Reduce Transparency should show on both. | `CommandBar.swift:103-106` | S4 | every session | S | 4 | 1 |
-| MC-5 | P4 | Fixed sizes (field 19 pt, icon 17 pt, rows 14 pt) that don't follow Settings › Sidebar text size, which is the only text-size control the Mac app offers. | `CommandBar.swift:55,68,343` | S4 | daily | S | 3 | — |
+| MC-5 | P4 | Fixed sizes (field 19 pt, icon 17 pt, rows 14 pt) that don't follow Settings › Sidebar text size, which is the only text-size control the Mac app offers. | `CommandBar.swift:55,68,342` | S4 | daily | S | 3 | — |
 | MC-6 | P7 | Row captions are "Search", "Switch to Tab", or a bare host; a history row and a typed address both show a host with no distinction beyond the icon. Judgment: Safari labels history rows "History" — cheap clarity. | `CommandBar.swift:321-340` | S4 | daily | S | 3 | — |
 
 Holds up well: ↑/↓/Esc/Return all handled; history lookup debounced 100 ms off the main thread; ⌘L selects the
 address so typing replaces it; a bar closing while the next one opens hands the held keys to the new one.
+
+## R2.3 Mac web pane and split view
+
+Runtime: needs Chen session for the DMG; WebKit build captured static only. Findings code-read unless noted.
+
+| ID | P | Finding | Evidence | Sev | Reach | Eff | Score | MH |
+|---|---|---|---|---|---|---|---|---|
+| MW-1 | P6 | Every navigation puts a spinning `ProgressView` over the top centre of the page (DMG and WebKit), immediately, with no ~300 ms grace. Safari and Arc show progress in the chrome (address field fill, a thin bar) and never draw over the page. | `WebPane.swift:129` (DMG tab pane overlay), WebKit pane same pattern; confirm with a recording | S2 | every session | S | 12 | 1 |
+| MW-2 | P7 | Restoring a tab shows its snapshot with a "Saved preview" caption in the corner until the live page appears. The caption names an implementation detail; Arc and Safari show the snapshot unlabeled. | `WebPane.swift:110-118` | S3 | daily | S | 6 | 13 |
+| MW-3 | P7 | Five titles for a page that didn't load: "Can't Open This Page" (DMG tab pane, WebKit pane, iPhone), "Couldn't Open This Page" (DMG video fallback), "Couldn't Load This Page" (DMG load failure), "You're Offline", "This Page Stopped Responding". The last two are good distinct states; the first three should be one. | `WebPane.swift:36,100,387`, `ChromiumLoadFailureView.swift:17-18`, `TabBrowser.swift:198` | S3 | occasional | S | 4 | — |
+| MW-4 | P6 | "Opening page…" (a centred spinner with text) replaces the pane while a tab's engine page is created, so switching to an unloaded tab flashes a spinner instead of the tab's snapshot. | `WebPane.swift:38,132` | S3 | daily | S | 6 | 1 |
+| MW-5 | P6 | Load failure copy differs per build: the DMG distinguishes offline, unknown host and crash with matching symbols; the WebKit Mac build and the iPhone show one generic error for all of them (iPhone: "This website couldn't be found…" even when offline). | `ChromiumLoadFailureView.swift:17-30` vs `TabBrowser.swift:413`, `WebPane.swift:387`; `shots/ios/main/11-error-page.png` | S3 | occasional | M | 2 | 10 |
+| MW-6 | P7 | Find bar tooltips and labels use sentence case ("Previous match", "Close find bar", placeholder "Find in page") while every other Mac tooltip is title case ("Toggle Sidebar", "Back to Pinned Page"). | `ChromiumFindBar.swift:17,28-36`, `Sidebar.swift:104,540` | S4 | daily | S | 3 | — |
+| MW-7 | P1, P2 | Split view: no snap to 50% (or to the halves people use), no double-click on the divider to even the panes, no haptic; the pane header's Separate and Close buttons appear only on hover; separating uses a one-off `.spring(0.4, 0.85)`. | `BrowserWindow.swift:470-494`, `WebPane.swift:76-80` | S3 | occasional | S | 4 | — |
+| MW-8 | P6 | Split pane header shows the title in `.caption` with a 6% tint for the focused pane and 2% for the other: the focus cue is faint (judgment; check against Arc's focused-pane outline). | `WebPane.swift:72-85` | S4 | occasional | S | 2 | — |
+
+Holds up well: the DMG's failure view separates offline (wifi.slash, "Check your internet connection"), unknown host
+and crash ("Reload Page"), keeps the address, and re-tries a recovered offline navigation once by itself.
