@@ -1,4 +1,4 @@
-RESUME HERE: R5.2, group every R5.1 item into workstreams W1–W9 (plan §6) in R5-backlog.md; each ID in exactly one workstream, with the workstream's total score and dependencies.
+RESUME HERE: R5.3, slice each workstream into one-visible-change PRs in R5-backlog.md, in shipping order, marking the ones that need Chen's yes (must-have adjacent, visible behaviour change, new system integration).
 
 # Craft research: progress
 
@@ -55,3 +55,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R4.7 · Handoff design: activity type, Incognito never advertises, landing places, must-haves 2/7/10/11/13, one open question · (this commit)
 - 2026-11-18 · R5.1 · R5.1 done: R5-backlog.md ranks 87 findings (scores recomputed by script from R2/R3 cells, all match; AX-15/ML-6 pass notes and IM-6 left out) plus 8 system items SY-1..SY-8 from R4 and the code sweeps (SY-7 ⌘Z UndoManager had no R2 row). S1 first: AX-8, AX-9; then IB-2 12, MW-1 12, AX-12 9, MC-1 9. · (this commit)
 - 2026-11-18 · R5.1 correction · The R5.1 parser dropped WX-1 (unescaped `|` inside its evidence code span split the row). Now parsed from both ends: 88 findings, WX-1 at #56 (score 3), all scores still match · (this commit)
+- 2026-11-18 · R5.2 · R5.2 done: 96 items (88 findings + SY-1..8) in W1–W9, each exactly once (script-checked). Totals: W4 96.3, W3 68 (both S1s), W2 58, W1 41.5, W5 34.5, W9 29, W6 27, W7 8, W8 7. · (this commit)

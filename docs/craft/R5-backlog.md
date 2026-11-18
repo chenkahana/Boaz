@@ -121,3 +121,73 @@ evidence is the findings they unblock plus the code sweep; each is scored the sa
 | SY-6 | Copy rules, glossary, English String Catalog with plurals and `FormatStyle`, cheap `rg` lint (R4.5) | ST-1, ML-3, MW-2, MW-3, OB-1 | 630 literals, 30 hand-built plurals (R4.5 count) | S4 | every session | L | 1.33 | — |
 | SY-7 | ⌘Z: Edit › Undo Close Tab and library edits through `UndoManager` | (none in R2; R3.2, R3.3) | 0 `UndoManager` uses (E9); Safari and Arc both have it (R3.2, R3.3). Runtime: needs Chen session (the isolated build can't take keys in the background) | S3 | daily | M | 3 | 13 |
 | SY-8 | Handoff iPhone ↔ Mac via `NSUserActivity` (R4.7, approved §7.2) | WX-1 (Handoff half) | 0 `NSUserActivity` (E8); runtime needs two signed devices on one Apple ID: needs Chen | S3 | daily | L | 2 | 2, 7, 10, 11, 13 |
+
+## R5.2 Grouped into workstreams
+
+Each scored item sits in exactly one workstream (plan §6); a script checked that all 96 items (88 findings, 8 system items) are assigned once. Inside a workstream, items are in score order with S1 first. Total = the sum of scores, a rough "how much better it gets" measure, not a cost.
+
+| W | Name | Items | S1 | Total | Top items |
+|---|---|---|---|---|---|
+| W1 | Motion system | 8 | 0 | 41.5 | AX-12 (9), MS-6 (8), IB-5 (6) |
+| W2 | Touch & pointer | 9 | 0 | 58 | IB-2 (12), MC-1 (9), IS-1 (8) |
+| W3 | Geometry & type | 18 | 2 | 68 | AX-8 (8), AX-9 (4), AX-10 (6) |
+| W4 | States & copy | 27 | 0 | 96.33 | MW-1 (12), AX-1 (8), AX-4 (6) |
+| W5 | Mac nativeness | 9 | 0 | 34.5 | MS-1 (6), MS-13 (6), MW-9 (6) |
+| W6 | iPhone nativeness | 10 | 0 | 27 | IM-1 (6), IB-1 (3), IB-10 (3) |
+| W7 | System integration | 3 | 0 | 8 | WX-1 (3), WX-3 (3), SY-8 (2) |
+| W8 | Speed | 2 | 0 | 7 | MC-2 (4), DU-2 (3) |
+| W9 | Accessibility | 10 | 0 | 29 | AX-13 (4), AX-2 (4), AX-6 (4) |
+
+### W1 Motion system · 8 items · total 41.5
+
+AX-12 (9), MS-6 (8), IB-5 (6), IM-3 (6), MS-15 (4.5), SY-1 (4), MC-3 (2), MS-5 (2).
+
+Order and dependencies: SY-1 first; every other W1 item is a token swap plus its own mechanic.
+
+### W2 Touch & pointer · 9 items · total 58
+
+IB-2 (12), MC-1 (9), IS-1 (8), DU-1 (6), IB-4 (6), MS-4 (6), IB-9 (4), MS-12 (4), SY-2 (3).
+
+Order and dependencies: Hit targets need SY-4's 44/48 pt rule only as a constant; haptics need SY-2.
+
+### W3 Geometry & type · 18 items · total 68
+
+AX-8 (8), AX-9 (4), AX-10 (6), ML-1 (6), MS-7 (6), DU-4 (4), MC-4 (4), ML-2 (4), MS-10 (4), SY-3 (4), MC-5 (3), ML-4 (3), AX-11 (2), IM-4 (2), MS-9 (2), MW-8 (2), OB-3 (2), SY-4 (2).
+
+Order and dependencies: SY-3 before the Dynamic Type fixes (AX-8/9/10, IM-4, OB-3, AX-11); SY-4 before MS-10, ML-4.
+
+### W4 States & copy · 27 items · total 96.33
+
+MW-1 (12), AX-1 (8), AX-4 (6), IB-3 (6), ML-3 (6), MW-2 (6), MW-4 (6), IB-8 (4), MW-3 (4), ST-1 (4), MC-6 (3), MW-6 (3), SY-5 (3), DU-3 (2), IB-7 (2), IS-4 (2), MS-14 (2), MS-8 (2), MW-5 (2), OB-5 (2), ST-2 (2), ST-3 (2), ST-5 (2), WX-5 (2), SY-6 (1.33), IS-2 (1), WX-4 (1).
+
+Order and dependencies: SY-5 before the state items; SY-6 (catalog, glossary) before the copy items; MW-1 can go first on its own.
+
+### W5 Mac nativeness · 9 items · total 34.5
+
+MS-1 (6), MS-13 (6), MW-9 (6), MS-2 (4.5), MW-7 (4), SY-7 (3), ML-5 (2), MS-11 (2), ST-6 (1).
+
+Order and dependencies: None; MS-2 (keyboard focus) before W9's MS-3.
+
+### W6 iPhone nativeness · 10 items · total 27
+
+IM-1 (6), IB-1 (3), IB-10 (3), IB-6 (3), IM-2 (3), IM-5 (3), ST-4 (2), WX-2 (2), IS-3 (1), OB-4 (1).
+
+Order and dependencies: IM-1 and IM-2 together (one page-menu PR pair); IB-1 needs Chen's yes.
+
+### W7 System integration · 3 items · total 8
+
+WX-1 (3), WX-3 (3), SY-8 (2).
+
+Order and dependencies: SY-8 Handoff approved (§7.2); WX-1's Spotlight and Focus halves need Chen's yes.
+
+### W8 Speed · 2 items · total 7
+
+MC-2 (4), DU-2 (3).
+
+Order and dependencies: None.
+
+### W9 Accessibility · 10 items · total 29
+
+AX-13 (4), AX-2 (4), AX-6 (4), MS-3 (4), OB-1 (3), OB-2 (3), AX-14 (2), AX-3 (2), AX-5 (2), AX-7 (1).
+
+Order and dependencies: After W1 (Reduce Motion lives in the tokens) and W3 (sizes); MS-3 after MS-2.
