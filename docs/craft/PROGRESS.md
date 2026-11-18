@@ -1,6 +1,6 @@
 # Craft research: progress
 
-RESUME HERE: R2.16, re-verify every finding in inputs/ux-review-2026-11-09.md (40 findings, Folio era) against 66c3d63: fixed / open / obsolete, one line each with evidence.
+RESUME HERE: R2.17, per-surface craft scores (0–3 per pillar, 36 max) for each R2 surface group; add a table to R2-findings.md.
 
 Runtime rules for whoever resumes: never move, delete or modify `~/Library/Containers/com.chenkahana.boaz` or Chen's
 Chromium profile data, and never quit Chen's running Boaz (must-have 13). Mac runtime that would risk either is
@@ -35,3 +35,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R2.13 · VoiceOver walk derived from trees and code; 4 findings (AX-4…AX-7); device walk needs Chen · (this commit)
 - 2026-11-18 · R2.14 · Dynamic Type AX3/AX5: 4 findings (AX-8…AX-11), incl. two S1 overlaps/truncations · (this commit)
 - 2026-11-18 · R2.15 · Contrast/Motion/Transparency: 4 entries (AX-12…AX-15) · (this commit)
+- 2026-11-18 · R2.16 · Re-verified all 40 findings of the 2026-11-09 review: 19 fixed, 11 open/partly open, 10 obsolete; added MS-13, MS-14 · (this commit)

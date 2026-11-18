@@ -35,7 +35,7 @@ Code base for this pass: `origin/master` at `66c3d63` (0.4.25), worktree `~/.wor
 - [x] R2.13 Accessibility: VoiceOver walk of the five main flows
 - [x] R2.14 Accessibility: Dynamic Type AX3 and AX5
 - [x] R2.15 Accessibility: Increase Contrast, Reduce Motion, Reduce Transparency
-- [ ] R2.16 `inputs/ux-review-2026-11-09.md` re-verified (fixed / open / obsolete per finding)
+- [x] R2.16 `inputs/ux-review-2026-11-09.md` re-verified (fixed / open / obsolete per finding)
 - [ ] R2.17 Per-surface craft scores (0–3 per pillar)
 
 ### R3. Reference teardown → [`R3-references.md`](R3-references.md)

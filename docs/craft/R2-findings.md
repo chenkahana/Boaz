@@ -300,3 +300,59 @@ consult Reduce Motion (largest: `BrowserState.swift` 14, `WebPane.swift` 3, `Liv
 Reduce Motion holds up where it's checked: carousel springs become a 0.2 s ease-out, panels fade instead of
 sliding, onboarding fades, the Mac space push fades and hover lifts freeze. Recording a Reduce Motion pass on the
 Mac needs Chen session.
+
+## R2.16 Re-verification of the 2026-11-09 review (`inputs/ux-review-2026-11-09.md`)
+
+Status against 66c3d63. **Fixed** = the problem is gone (evidence given); **open** = still true (pointer to the
+R2 finding that carries it); **obsolete** = the surface no longer exists (Folio-era Space Home, per-space iPhone UI).
+Tally: 19 fixed, 11 open or partly open, 10 obsolete.
+
+| Old | Status | Evidence now |
+|---|---|---|
+| P0-1 widgets open the app, circular has no background | Fixed | `BoazSearchWidget.swift:53-61` (`widgetURL`, container background, label) |
+| P0-2 Clear History/Archive in one tap, confetti | Fixed | Confirmation dialogs (`LibrarySheet.swift:80`, `LibraryViews.swift:124,190`); `rg confetti Apps` → 0 |
+| P0-3 Mac sidebar unusable with VoiceOver or keyboard | Partly open | VoiceOver: rows are buttons with labels and selection (`Sidebar.swift:885-889`). Keyboard focus still missing → MS-2; custom actions → MS-3 |
+| P0-4 no visible Back on standard iPhones, no Forward | Fixed differently | Back/Forward tiles with history menus in the page menu (`PageSettingsMenu.swift:95-118`) plus edge swipe; bottom bar itself needs device |
+| P0-5 failed load leaves a blank page | Fixed | "Can't Open This Page" + Try Again (`TabBrowser.swift:196-206`, `shots/ios/main/11`); offline copy still generic → MW-5 |
+| P1-1 home content under the bar, dots over cards | Obsolete | Space Home removed (must-have 8) |
+| P1-2 Today card close button 24 pt | Obsolete | Space Home removed |
+| P1-3 touch targets under 44 pt | Open (new places) | IB-2 tab fan 34 × 40, IS-1 Clear Text 28, DU-1 strip 28 × 36 |
+| P1-4 missing iOS VoiceOver labels | Fixed, one new gap | Menu labelled (`HomeBar.swift:68`); new: OB-1 iCloud icon |
+| P1-5 gestures without alternatives, nothing teaches them | Fixed | Next/Previous Tab and Archive actions (`TabStack.swift:155-156,474`, `TabBrowser.swift:116-117`); TipKit toolbar tip |
+| P1-6 search overlay without escape or modal trait | Fixed | `BottomPanel.swift:49-51` (`.isModal`, escape action) |
+| P1-7 toasts not announced, 5 s Undo | Fixed | `AppModel.swift:1052`, `MacModel.swift:944` (announced, 10 s under VoiceOver) |
+| P1-8 tab paging slides from the wrong side | Obsolete | Paging moved to the carousel deck with velocity (`TabStack.swift:252`); the old `move(edge:)` is gone |
+| P1-9 haptics fire too often | Fixed | 11 `sensoryFeedback` sites, each on a commit or threshold; none on scroll |
+| P1-10 book/laptop "Tabs" button closes the page | Obsolete (needs device) | Posture layout rewritten (`RootView.swift` `PostureLayout`, `TabStrip`) |
+| P1-11 no Find on iOS; Mac Find replaces the Edit text group | Fixed | iOS page menu Find on Page; Mac Edit › Find in Page… as its own item (`menus-webkit-adhoc.txt`) |
+| P1-12 Clear Today's Undo restores one tab | Fixed | `MacModel.swift:640` ("Undo restores both" tabs and folders) |
+| P1-13 Mac lacks zoom, Print, History | Fixed | View › Zoom In/Out/Actual Size, File › Print…, History › Show All History (`menus-webkit-adhoc.txt`) |
+| P1-14 Mac Settings window not Mac-like | Fixed | Toolbar panes (`ChromiumSettingsWindow.swift`, `LibraryViews.swift:255`); pane chrome differs by build → ST-6 |
+| P1-15 Mac sidebar type too small | Fixed | 15 pt rows with a 14/15/17 setting (`docs/design.md`); glyphs don't scale → MS-7 |
+| P1-16 Dynamic Type breaks main surfaces | Open (new surfaces) | AX-8, AX-9, AX-10 at AX3/AX5 |
+| P1-17 Library "empty" on no results; History can't delete | Fixed | `ContentUnavailableView.search` (`LibrarySheet.swift:57`); swipe Delete (`:26`) |
+| P1-18 shake to undo silent, ignores the setting | Fixed | Alert "Undo Archive Tab?" and `applicationSupportsShakeToEdit` check (`RootView.swift:345-348`) |
+| P1-19 widget favorites all globes, no empty state | Partly open | Letter tiles and an empty state (`BoazSearchWidget.swift:64-69,103`); real icons → WX-3 |
+| P2-1 glass on material, mixed materials | Obsolete | Space Home cards removed; remaining glass-over-tint is Liquid Glass panels |
+| P2-2 radii not tokenized | Open | `MacRadius` exists; literals remain → ML-4, MS-10 |
+| P2-3 dark space cards blend into the backdrop | Obsolete | Space Home removed |
+| P2-4 sheet buttons without iOS 26 roles | Fixed | `Button(role: .close)` in sheet toolbars (`LibrarySheet.swift:224`, `TabStack.swift:571`, `DownloadsView.swift:52`) |
+| P2-5 copy inconsistent | Open | ML-3, ST-1, MW-3, MW-6 |
+| P2-6 shortcut hints hard-coded | Fixed | `keys.hint(...)` everywhere (`Sidebar.swift:104`, `BrowserWindow.swift:601`) |
+| P2-7 error toasts show raw system strings | Open | `MacModel.swift:244,633,651,787,873,924` ("Couldn't save: \(error.localizedDescription)") |
+| P2-8 Mac Back/Forward dimmed but enabled | Fixed | `.disabled(items.isEmpty)` (`Sidebar.swift:175`) |
+| P2-9 manual NSCursor push/pop | Fixed | `.pointerStyle(.frameResize/.columnResize)` (`BrowserWindow.swift:328,483`) |
+| P2-10 Mac window titles never set | Partly open | WebKit: `.navigationTitle(windowTitle)` (`BrowserWindow.swift:98`). DMG: the AppKit window is titled "Boaz" or "Boaz — Private" (`ChromiumAppWindow.swift:63`), so the Window menu can't tell windows apart, and "Private" contradicts "Incognito" everywhere else (P7) |
+| P2-11 folder icon states reversed between platforms | Obsolete | iPhone has no folders UI (must-have 8) |
+| P2-12 Reduce Motion / Increase Contrast gaps | Partly open | The five listed transitions now check Reduce Motion; model springs don't → AX-12; Increase Contrast only in two files → AX-14 |
+| P2-13 fold glow over the page at 80% | Obsolete (needs device) | Replaced by `FoldFill` behind the panes (`RootView.swift:49`) |
+| P2-14 Pro Max landscape gets the unfolded layout | Fixed | Layout keys on the hinge's reserved region, not size class (`RootView.swift:16-20,50-52`) |
+| P2-15 context menus unequal across platforms | Open | iPhone cards and fan have none → IB-6 |
+| P2-16 small polish items | Mixed | Folded into the R2 sections above where still true |
+
+New finding from this pass:
+
+| ID | P | Finding | Evidence | Sev | Reach | Eff | Score | MH |
+|---|---|---|---|---|---|---|---|---|
+| MS-13 | P7, P10 | DMG windows are titled "Boaz" (or "Boaz — Private") whatever space or page they show, so Window menu, Mission Control and the VoiceOver window chooser can't tell them apart; "Private" is the only place that name is used for Incognito. | `ChromiumAppWindow.swift:63` | S3 | daily | S | 6 | 2 |
+| MS-14 | P6, P7 | Mac error toasts append the raw system error ("Couldn't save: The operation couldn't be completed. (…)") in six places. | `MacModel.swift:244,633,651,787,873,924` | S3 | rare | S | 2 | 13 |
