@@ -99,3 +99,20 @@ window needs a key window).
 Holds up well: every iPhone toggle has an explanation footer in plain words ("Runs on your iPhone with Apple
 Intelligence; nothing is sent to a server."), the default-browser row switches to a confirmation once set, Reset
 keyboard shortcuts confirms.
+
+## R2.6 Onboarding (Mac and iPhone)
+
+Runtime: iPhone `shots/ios/main/01-02`, `main-dark/01`, audits `01-onboarding-1.audit.txt`, `02-onboarding-2.audit.txt`.
+Mac code-read (needs Chen session; `make uitest` with `-BoazResetOnboarding YES` covers it).
+
+| ID | P | Finding | Evidence | Sev | Reach | Eff | Score | MH |
+|---|---|---|---|---|---|---|---|---|
+| OB-1 | P12 | The iCloud status icon has no label, so VoiceOver reads the SF Symbol's name: "Not Uploaded To Icloud" for `icloud.slash`. | `shots/ios/main/01-onboarding-1.txt` (Image label), `ICloudSignIn.swift:85` | S2 | rare | S | 3 | 11 |
+| OB-2 | P5 | System audit flags contrast on every onboarding control: "Sign In to iCloud", "Continue Without Syncing", "Start Browsing" (white on the light end of the brand gradient) and the secondary text in the iCloud card. | `main/01-onboarding-1.audit.txt`, `02-onboarding-2.audit.txt` | S2 | rare | S | 3 | — |
+| OB-3 | P4 | "Sign In to iCloud" is flagged as clipping at larger Dynamic Type sizes. | `01-onboarding-1.audit.txt` ("Text clipped") | S3 | rare | S | 2 | — |
+| OB-4 | P9 | Pages change only with the buttons; a swipe between them does nothing, though the page dots invite one (iPhone). | `iOS/Onboarding/OnboardingView.swift` (no gesture), `Onboarding.swift:71-86` | S4 | rare | S | 1 | — |
+| OB-5 | P6 | With no iCloud account the first page leads with "Not signed in to iCloud · In Settings, tap Apple Account…", a dead end that sends people out of the app before they've browsed once; the primary button is still "Sign In to iCloud". Judgment: lead with Start Browsing, offer sync as the secondary path. | `shots/ios/main/01-onboarding-1.png` | S3 | rare | S | 2 | 11 |
+
+Holds up well: Reduce Motion turns page slides into a fade (`Onboarding.swift:30-35`), the step dots read "Step 1 of 2",
+the iCloud icon animates only while checking and switches with a symbol replace, Mac import progress and "Import
+Again" are labelled with the source.
