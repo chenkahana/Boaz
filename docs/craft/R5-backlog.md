@@ -191,3 +191,107 @@ Order and dependencies: None.
 AX-13 (4), AX-2 (4), AX-6 (4), MS-3 (4), OB-1 (3), OB-2 (3), AX-14 (2), AX-3 (2), AX-5 (2), AX-7 (1).
 
 Order and dependencies: After W1 (Reduce Motion lives in the tokens) and W3 (sizes); MS-3 after MS-2.
+
+## R5.3 Sliced into PRs
+
+One visible change per PR, each its own patch release (`patch-release-every-pr`); token-only PRs say "no visible change" and prove it with identical before/after recordings. **Chen's yes** is marked when the PR touches a must-have (plan §1: number given), changes what a gesture, command or menu does or where something lives, or adds a system integration. Every PR's verification is plan §6: before/after recording of the flow, its must-haves checked in the real app, and the R2 craft score updated. A script checked that all 96 items land in exactly one PR.
+
+
+### Wave A: S1s and the quick high scorers (no foundation needed except SY-1)
+
+| # | PR | Items | W | Score | Eff | Chen's yes |
+|---|---|---|---|---|---|---|
+| 1 | iPhone carousel header: "N Tabs" and Done never overlap at AX sizes | AX-8 | W3 | 8 | S | — |
+| 2 | iPhone rail: one 48 pt control size for every button (Safari) | IB-2, IB-9 | W2 | 16 | S | **yes**: MH 7, 9 |
+| 3 | DMG: page-load progress in the address pill after 300 ms, never over the page | MW-1 | W4 | 12 | S | **yes**: MH 1 |
+| 4 | Motion tokens, Reduce Motion inside the token (no visible change; recordings identical) | SY-1 | W1 | 4 | M | — |
+| 5 | Mac: the 14 model springs fade under Reduce Motion | AX-12 | W1 | 9 | S | — |
+| 6 | Mac command bar: selection follows pointer movement, not pointer position | MC-1 | W2 | 9 | S | — |
+| 7 | Mac toast UI test waits for the toast instead of racing it (test only) | AX-1 | W4 | 8 | S | **yes**: MH 14 |
+| 8 | iPhone search field: 44 pt Clear Text button | IS-1 | W2 | 8 | S | — |
+| 9 | Mac peek and sidebar: three one-off curves become tokens | MS-6 | W1 | 8 | S | — |
+| 10 | iPhone search panel: captions wrap by word at AX sizes | AX-10 | W3 | 6 | S | — |
+| 11 | Duo half-open strip: 44 pt rows and close buttons | DU-1 | W2 | 6 | S | **yes**: MH 9 |
+| 12 | iPhone carousel: a failed tab gets a designed card, not a white slab | IB-3 | W4 | 6 | S | — |
+| 13 | iPhone page menu: the panel ends on a whole row or an edge fade | IM-1 | W6 | 6 | S | **yes**: MH 7 |
+| 14 | Mac library panel: tab labels at a readable size | ML-1 | W3 | 6 | S | — |
+| 15 | Mac sidebar: dragging a tab out gives its URL | MS-1 | W5 | 6 | S | — |
+| 16 | DMG windows titled after their page | MS-13 | W5 | 6 | S | **yes**: MH 2 |
+| 17 | Restored tab: no "Saved preview" caption | MW-2 | W4 | 6 | S | **yes**: MH 13 |
+| 18 | Mac: switching to an unloaded tab keeps its snapshot instead of "Opening page…" | MW-4 | W4 | 6 | S | **yes**: MH 1 |
+| 19 | Mac WebKit find bar without Replace | MW-9 | W5 | 6 | S | **yes**: MH 10 |
+
+### Wave B: foundations and what they unlock first
+
+| # | PR | Items | W | Score | Eff | Chen's yes |
+|---|---|---|---|---|---|---|
+| 20 | `Haptics` enum and haptic map (no visible change on its own) | SY-2 | W2 | 3 | M | — |
+| 21 | iPhone archive swipe: haptic at the commit threshold | IB-4 | W2 | 6 | S | — |
+| 22 | iPhone archive flick keeps the finger's speed | IB-5 | W1 | 6 | S | — |
+| 23 | iPhone page menu: drag-to-dismiss keeps velocity | IM-3 | W1 | 6 | S | — |
+| 24 | Mac trackpad haptics at sidebar limits, folder crossings and split snaps | MS-4 | W2 | 6 | S | — |
+| 25 | Type ramp tokens (no visible change on its own) | SY-3 | W3 | 4 | M | — |
+| 26 | iPhone page menu usable at AX5 (taller panel, wrapped captions) | AX-9 | W3 | 4 | M | **yes**: MH 7 |
+| 27 | Mac sidebar glyphs and command bar follow Settings › Sidebar text size | MS-7, MC-5 | W3 | 9 | S | — |
+| 28 | iPhone: page-menu tiles, onboarding button and Settings title scale with Dynamic Type | IM-4, OB-3, AX-11 | W3 | 6 | S | — |
+| 29 | Spacing and radius tokens (no visible change on its own) | SY-4 | W3 | 2 | M | — |
+| 30 | Mac: concentric card and panel corners from the radius scale | MS-10, ML-4 | W3 | 7 | S | — |
+| 31 | State kit components (no visible change on its own) | SY-5 | W4 | 3 | M | **yes**: MH 1, 11 |
+| 32 | English String Catalog, glossary and copy lint (no visible change on its own) | SY-6 | W4 | 1.33 | L | — |
+
+### Wave C: the rest, by workstream order
+
+| # | PR | Items | W | Score | Eff | Chen's yes |
+|---|---|---|---|---|---|---|
+| 33 | Search suggestions say what each row does (section headers, spoken kinds, Mac captions) | AX-4, MC-6 | W4 | 9 | S | — |
+| 34 | Mac: one name for the Archive and one empty-state voice | ML-3 | W4 | 6 | S | — |
+| 35 | iPhone: reopening a failed tab shows its failure state at once | IB-8 | W4 | 4 | S | — |
+| 36 | One load-failure page on every build (title, copy, offline) | MW-3, MW-5 | W4 | 6 | M | **yes**: MH 10 |
+| 37 | Settings and find bar: title case and no doubled "After" | ST-1, ST-2, MW-6 | W4 | 9 | S | — |
+| 38 | iPhone search panel: offline / failed-suggestions state; scrim hides the empty state | IS-4, IS-2 | W4 | 3 | S | **yes**: MH 7 |
+| 39 | iPhone: the toolbar-swipe tip waits until the page has loaded | IB-7 | W4 | 2 | S | — |
+| 40 | Duo status pill: battery through `.percent` format | DU-3 | W4 | 2 | S | — |
+| 41 | Mac toasts and share extension: plain-language errors | MS-14, WX-4 | W4 | 3 | S | **yes**: MH 11, 13 |
+| 42 | Mac: an empty space shows a New Tab row and a hint | MS-8 | W4 | 2 | S | **yes**: MH 5 |
+| 43 | Onboarding and Settings: one clear iCloud sign-in message | OB-5, ST-3 | W4 | 4 | S | **yes**: MH 11 |
+| 44 | Sync: "last synced" and error state on both platforms | ST-5 | W4 | 2 | M | **yes**: MH 11 |
+| 45 | Share extension: "Pin" and "Open on iPhone" renamed for context | WX-5 | W4 | 2 | S | **yes**: MH 8 |
+| 46 | Mac: ⌘Z / Edit › Undo Close Tab and undo for library edits | SY-7 | W5 | 3 | M | **yes**: MH 13; behaviour change: new command |
+| 47 | Mac sidebar rows take keyboard focus (Full Keyboard Access) | MS-2 | W5 | 4.5 | M | **yes**: MH 5 |
+| 48 | Mac split: snap to halves, double-click divider to even, hover cursor | MW-7 | W5 | 4 | S | — |
+| 49 | Mac split divider visible without hovering | MS-12 | W2 | 4 | S | — |
+| 50 | Mac: folders spring open while dragging over them | MS-11 | W5 | 2 | S | **yes**: MH 5 |
+| 51 | Mac library panel: ⌘1–⌘4 and arrows between tabs | ML-5 | W5 | 2 | S | — |
+| 52 | Mac Settings: fewer panes, grouped | ST-6 | W5 | 1 | M | **yes**: MH 10; behaviour change: settings move |
+| 53 | Mac: interactive space swipe that follows the fingers | MS-15 | W1 | 4.5 | M | **yes**: MH 2, 5; behaviour change: gesture |
+| 54 | Mac sidebar and split: rubber band at width limits | MS-5 | W1 | 2 | S | — |
+| 55 | Mac command bar: ⌘L opens from the address, ⌘T from the centre | MC-3 | W1 | 2 | M | — |
+| 56 | Mac at minimum window size: library panel fits, Today list shows a scroll cue | ML-2, MS-9 | W3 | 6 | S | — |
+| 57 | Materials: DMG pane header, DMG command bar background, Duo rail colour | MW-8, MC-4, DU-4 | W3 | 10 | S | **yes**: MH 1, 9 |
+| 58 | iPhone page menu grouped with dividers, app-level items out | IM-2 | W6 | 3 | M | **yes**: behaviour change: items move |
+| 59 | iPhone page menu scrim covers the rail and bar too | IM-5 | W6 | 3 | S | **yes**: MH 7; behaviour change: rail not tappable under the menu |
+| 60 | iPhone: context menus on carousel cards and the tab fan | IB-6 | W6 | 3 | M | — |
+| 61 | iPhone: long-press on … and the tab fan gets a secondary action | IB-10 | W6 | 3 | S | **yes**: behaviour change: gesture |
+| 62 | Duo cover screen: Settings close button inside the sheet | ST-4 | W6 | 2 | M | **yes**: MH 9 |
+| 63 | iPhone with a hardware keyboard: ↑/↓, ⌘L, ⌘T in the search panel | IS-3 | W6 | 1 | S | — |
+| 64 | Onboarding pages swipe | OB-4 | W6 | 1 | S | — |
+| 65 | Mac command bar: focus without polling | MC-2 | W8 | 4 | M | **yes**: MH 1 |
+| 66 | Duo posture change: snapshot removed on layout, not timers | DU-2 | W8 | 3 | M | **yes**: MH 9 |
+| 67 | Mac sidebar rows: VoiceOver custom actions | MS-3 | W9 | 4 | S | — |
+| 68 | iPhone rail and bar: real hit areas for the audit, large content viewer, Voice Control names | AX-2, AX-6, AX-7 | W9 | 9 | M | **yes**: MH 7 |
+| 69 | Reduce Transparency and Increase Contrast fallbacks beyond the sidebar | AX-13, AX-14 | W9 | 6 | M | **yes**: MH 5 |
+| 70 | VoiceOver rotors for History, Archive, carousel and sidebar | AX-5 | W9 | 2 | M | — |
+| 71 | VoiceOver labels: iCloud status icon, failed tab cards | OB-1, AX-3 | W9 | 5 | S | **yes**: MH 11 |
+| 72 | Onboarding controls pass the contrast audit | OB-2 | W9 | 3 | S | — |
+| 73 | Medium widget: real favicons from the app group | WX-3 | W7 | 3 | M | **yes**: MH 11 |
+
+### Wave D: needs Chen before work starts
+
+| # | PR | Items | W | Score | Eff | Chen's yes |
+|---|---|---|---|---|---|---|
+| 74 | iPhone Incognito looks different (dark chrome, Private label, own empty state) | IB-1 | W6 | 3 | M | **yes**: MH 8; behaviour change: Incognito look (R3.1 #6) |
+| 75 | Handoff iPhone ↔ Mac (scope approved §7.2; answer the R4.7 must-have 11 question first; two-device check) | SY-8 | W7 | 2 | L | **yes**: MH 2, 7, 10, 11, 13; system integration |
+| 76 | Spotlight for pages and Focus filters (Handoff half is SY-8) | WX-1 | W7 | 3 | L | **yes**: MH 10, 11, 13; system integration |
+| 77 | Control Center / Lock Screen controls: New Tab, Search | WX-2 | W6 | 2 | M | **yes**: system integration |
+
+77 PRs; 38 need Chen's yes, 39 can go on the normal review path once the backlog is approved.

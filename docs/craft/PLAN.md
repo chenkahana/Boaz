@@ -59,7 +59,7 @@ Code base for this pass: `origin/master` at `66c3d63` (0.4.25), worktree `~/.wor
 ### R5. Backlog → [`R5-backlog.md`](R5-backlog.md)
 - [x] R5.1 Every finding scored
 - [x] R5.2 Grouped into workstreams
-- [ ] R5.3 Sliced into PRs, Chen-yes items marked
+- [x] R5.3 Sliced into PRs, Chen-yes items marked
 - [ ] R5.4 Stop for Chen's review
 
 ---
