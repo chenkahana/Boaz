@@ -6,6 +6,13 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.28] - 2026-11-18
+
+### Changed
+
+- Animations come from one set of motion tokens that follow Reduce Motion on their own. Nothing looks different yet;
+  later releases move each surface onto them.
+
 ## [0.4.26] - 2026-11-18
 
 ### Fixed

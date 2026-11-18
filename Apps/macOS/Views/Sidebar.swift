@@ -29,7 +29,7 @@ enum SidebarStyle {
     /// Half the selection.
     static let hover = Color.primary.opacity(0.06)
     /// The one curve for hover, selection and list changes.
-    static let motion = Animation.smooth(duration: 0.2)
+    static let motion = Motion.quick.animation
 }
 
 extension EnvironmentValues {

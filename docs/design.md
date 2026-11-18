@@ -36,5 +36,8 @@ The Mac sidebar and its tab list follow these rules. The tokens live in `Sidebar
 
 ## Motion
 
-- One curve, `SidebarStyle.motion` (smooth, 0.2 s), for hover, selection and list changes.
-- With Reduce Motion, nothing moves or scales: hover lifts stay put and the space switch cross-fades.
+- Curves come from the tokens in `Apps/Shared/Theme/Motion.swift`, never from literals: `quick` for hover, press and
+  selection (`SidebarStyle.motion`, smooth 0.2 s on the Mac), `standard` for panels and list changes, `emphasized`
+  for presenting a hero, and `gesture(velocity:)` for anything a finger lets go of, carrying its speed.
+- With Reduce Motion, nothing moves or scales: hover lifts stay put and the space switch cross-fades. The tokens
+  read the setting themselves (`withMotion(_:)` in models, `.motion(_:value:)` in views).
