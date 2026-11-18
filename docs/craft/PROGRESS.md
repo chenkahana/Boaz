@@ -1,4 +1,4 @@
-RESUME HERE: R5.4, stop for Chen's review: add the review section to R5-backlog.md (top 10, questions only Chen can answer, needs-Chen-session/device list), tick R5.4, final report to team-lead.
+RESUME HERE: DONE. Research complete through R5; stopped for Chen's review of R5-backlog.md. Next: Chen's answers to the R5.4 questions, then Wave A PRs.
 
 # Craft research: progress
 
@@ -57,3 +57,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R5.1 correction · The R5.1 parser dropped WX-1 (unescaped `|` inside its evidence code span split the row). Now parsed from both ends: 88 findings, WX-1 at #56 (score 3), all scores still match · (this commit)
 - 2026-11-18 · R5.2 · R5.2 done: 96 items (88 findings + SY-1..8) in W1–W9, each exactly once (script-checked). Totals: W4 96.3, W3 68 (both S1s), W2 58, W1 41.5, W5 34.5, W9 29, W6 27, W7 8, W8 7. · (this commit)
 - 2026-11-18 · R5.3 · R5.3 done: 77 PRs in 4 waves (A 19 quick/S1, B 13 foundations+first unlocks, C 41, D 4 gated); all 96 items in exactly one PR (script-checked); 38 marked Chen's yes (must-have touched, behaviour change, or system integration). · (this commit)
+- 2026-11-18 · R5.4 · R5.4 done: review section (top 10, 5 questions for Chen, needs-session/device list). Research stopped; no app code changed. · (this commit)

@@ -295,3 +295,47 @@ One visible change per PR, each its own patch release (`patch-release-every-pr`)
 | 77 | Control Center / Lock Screen controls: New Tab, Search | WX-2 | W6 | 2 | M | **yes**: system integration |
 
 77 PRs; 38 need Chen's yes, 39 can go on the normal review path once the backlog is approved.
+
+## R5.4 Stopped for Chen's review
+
+Research stops here, as planned. No app code was changed: no version bump, no CHANGELOG entry, no release. Nothing
+in the waves above starts until Chen approves.
+
+**Top 10 by the R5.1 order:**
+
+| # | ID | Finding | Score | PR |
+|---|---|---|---|---|
+| 1 | AX-8 | At AX5 the carousel's "1 Tab" runs into Done ("1 TaDone"). S1 | 8 | 1 |
+| 2 | AX-9 | At AX5 the page menu shows about one and a half rows; captions cut to "Ba…". S1 | 4 | 26 |
+| 3 | IB-2 | The tab fan's hit area is 34 × 40 pt, on the most-used control | 12 | 2 |
+| 4 | MW-1 | DMG: a spinner sits over the page on every navigation, with no grace period | 12 | 3 |
+| 5 | AX-12 | Mac: 14 model springs ignore Reduce Motion | 9 | 5 |
+| 6 | MC-1 | Mac command bar: a resting pointer steals the keyboard selection | 9 | 6 |
+| 7 | AX-1 | `testToast` fails on master (timing race), so the toast screen is unverified | 8 | 7 |
+| 8 | IS-1 | iPhone search field's Clear Text button is 28 pt | 8 | 8 |
+| 9 | MS-6 | Mac peek and sidebar: three one-off curves outside the one-curve rule | 8 | 9 |
+| 10 | AX-10 | At AX5 "Switch to Tab" breaks mid-word in the search panel | 6 | 10 |
+
+**Questions only Chen can answer:**
+
+1. Approve the backlog and the wave order (A → B → C, with D gated)? Wave A is 19 small PRs, mostly effort S.
+2. The 38 PRs marked **yes**: approve by wave, or one by one? Most are "touches must-have N" and only need the
+   must-have checked in the real app; the ones that change behaviour are IM-2 (page-menu items move), IM-5 (rail no
+   longer tappable under the menu), IB-10 (long-press gets its own action), MS-15 (interactive space swipe), ST-6
+   (Mac Settings regrouped) and SY-7 (⌘Z restores the last closed tab).
+3. Handoff (R4.7): is it right to read must-have 11 as allowing a normal tab's URL to travel over Apple's Handoff
+   channel? If not, W7 stops at design.
+4. IB-1: should Incognito on iPhone look different (dark chrome, Private label, own empty state, as Safari does)?
+5. WX-1 and WX-2: are Spotlight for pages, Focus filters and Control Center controls wanted at all (new system
+   integrations, §1)?
+
+**Needs a Chen session or a device before the matching PRs can be verified:**
+
+- Mac DMG (Chromium): every DMG screen, keyboard and pointer flow, Animation Hitches and App Launch traces. Exact
+  steps in R0 "Needs Chen session". Blocks verification of PRs 3, 16, 18 and the Mac W1/W2 recordings.
+- Mac with VoiceOver: the 15-minute pass in R2.15 (blocks the W9 Mac items' before/after).
+- Standard iPhone (bottom bar): R0.1, `make device DEVICE=<udid>`; the iOS 27.1 simulator only offers the Duo.
+- Duo open, book and laptop postures plus the posture change: the exact checks in R2.13 (blocks DU-1, DU-2, DU-4,
+  ST-4 verification).
+- 120 Hz recordings and iPhone Animation Hitches: simulator records at 60 Hz and can't trace hitches.
+- Handoff: two devices on one Apple ID (SY-8).
