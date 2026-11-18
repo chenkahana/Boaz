@@ -111,8 +111,8 @@ struct ThemeColorPicker: View {
             })
         }
         .frame(height: 150)
-        .clipShape(.rect(cornerRadius: MacRadius.panel, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: MacRadius.panel, style: .continuous).strokeBorder(.primary.opacity(0.1)) }
+        .clipShape(.rect(cornerRadius: Radius.panel, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: Radius.panel, style: .continuous).strokeBorder(.primary.opacity(0.1)) }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Theme colors")
     }

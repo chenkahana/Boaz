@@ -92,7 +92,7 @@ private struct BlockView: View {
                     // Reserve space so the text below doesn't jump when the image arrives.
                     Rectangle().fill(.quaternary).frame(minHeight: 180)
                 }
-                .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.row))
+                .clipShape(RoundedRectangle(cornerRadius: Radius.row))
             }
         case .figcaption:
             Text(block.text ?? "").font(.caption).foregroundStyle(Theme.textSecondary)

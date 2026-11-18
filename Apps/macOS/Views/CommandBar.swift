@@ -17,6 +17,9 @@ struct CommandBar: View {
     /// The rows as they were when a preview began; answers landing meanwhile wait until the next edit or row 1.
     @State private var frozen: [Suggestion]?
     @State private var history: [HistoryVisit] = []
+    /// Where the pointer was when it last picked a row. Rows appearing under a resting pointer report a hover too,
+    /// so only a pointer that has moved since takes the selection, as in Spotlight.
+    @State private var pointer = NSEvent.mouseLocation
     @FocusState private var focused: Bool
 
     enum Suggestion: Identifiable {
@@ -95,19 +98,23 @@ struct CommandBar: View {
                             }
                             .buttonStyle(.plain)
                             .accessibilityAddTraits(index == selection ? .isSelected : [])
-                            .onHover { if $0 { selection = index } }
+                            .onContinuousHover { phase in
+                                guard case .active = phase, NSEvent.mouseLocation != pointer else { return }
+                                pointer = NSEvent.mouseLocation
+                                selection = index
+                            }
                         }
                     }
                     .padding(6)
                 }
             }
             .frame(width: 620)
-            .glassEffect(.regular, in: .rect(cornerRadius: MacRadius.panel))
+            .glassEffect(.regular, in: .rect(cornerRadius: Radius.panel))
             #if BOAZ_CHROMIUM
             // Glass can't sample Chromium's page layer, so without a backing the page reads straight through.
-            .background(RoundedRectangle(cornerRadius: MacRadius.panel, style: .continuous).fill(.background.opacity(0.92)))
+            .background(RoundedRectangle(cornerRadius: Radius.panel, style: .continuous).fill(.background.opacity(0.92)))
             #endif
-            .overlay(RoundedRectangle(cornerRadius: MacRadius.panel, style: .continuous).strokeBorder(.white.opacity(0.35)))
+            .overlay(RoundedRectangle(cornerRadius: Radius.panel, style: .continuous).strokeBorder(.white.opacity(0.35)))
             .shadow(color: tint.opacity(0.25), radius: 30)
             .shadow(color: .black.opacity(0.25), radius: 40, y: 20)
             .padding(.top, 110)
@@ -341,7 +348,7 @@ private struct SuggestionRow: View {
         }
         .font(.system(size: 14))
         .padding(.horizontal, 12).frame(height: 36)
-        .background(selected ? tint.opacity(0.22) : .clear, in: .rect(cornerRadius: MacRadius.row, style: .continuous))
+        .background(selected ? tint.opacity(0.22) : .clear, in: .rect(cornerRadius: Radius.row, style: .continuous))
         .contentShape(Rectangle())
     }
 }

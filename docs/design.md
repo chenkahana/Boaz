@@ -9,11 +9,17 @@ The Mac sidebar and its tab list follow these rules. The tokens live in `Sidebar
 - Rows 15 pt regular; the selected row 15 pt medium. Settings › General › Sidebar text size sets rows to 14, 15 or
   17 pt; headers and the title keep their offset (-3 pt, +1 pt).
 - Section headers 12 pt semibold. The space title 16 pt semibold.
+- Every other chrome size comes from the same base through `ChromeType` (`Sidebar.swift`): sidebar glyphs base − 3
+  semibold, the command bar field base + 4, its rows base − 1 and captions base − 4, Library panel labels
+  base − 4 but never under 11 pt. The iPhone uses text styles only, never fixed sizes for text.
 
 ## Spacing
 
 - Rows are 34 pt tall with 2 pt between them, 8 pt side padding, and 8 pt between sections. The line above Today
   has 8 pt above and below it; the space buttons at the bottom sit 10 pt apart.
+- Elsewhere, spacing and corners come from `Spacing` (2, 4, 6, 8, 12, 16, 20, 24, 32) and `Radius` (Mac: icon 6, row
+  8, tile 10, card 12, panel 16; iPhone: 8, 12, 16, 20, 28) in `Apps/Shared/Theme/Layout.swift`. A container inset in
+  another takes `Radius.concentric(in:inset:)`.
 
 ## Fills
 
@@ -38,3 +44,9 @@ The Mac sidebar and its tab list follow these rules. The tokens live in `Sidebar
 
 - One curve, `SidebarStyle.motion` (smooth, 0.2 s), for hover, selection and list changes.
 - With Reduce Motion, nothing moves or scales: hover lifts stay put and the space switch cross-fades.
+
+## Haptics
+
+- One haptic per meaningful moment (a commit, a threshold crossed, a snap), never on scrolling, hover or a plain tap.
+  Call sites name the moment from `Apps/Shared/Theme/Haptics.swift`: `.sensoryFeedback(Haptics.tabChanged.feedback,
+  trigger:)` on the iPhone, `Haptics.snap.play()` on the Mac trackpad.

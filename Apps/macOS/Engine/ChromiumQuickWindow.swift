@@ -226,7 +226,7 @@ final class ChromiumQuickWindow: NSObject, ObservableObject, NSWindowDelegate {
                         Color(nsColor: .textBackgroundColor)
                     }
                 }
-                .clipShape(.rect(cornerRadius: MacRadius.row, style: .continuous))
+                .clipShape(.rect(cornerRadius: Radius.row, style: .continuous))
                 .shadow(color: .black.opacity(0.15), radius: 4, y: 1)
                 .padding([.horizontal, .bottom], 6)
             }
