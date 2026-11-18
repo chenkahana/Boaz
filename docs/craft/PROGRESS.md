@@ -1,6 +1,6 @@
 # Craft research: progress
 
-RESUME HERE: R2.7, iPhone bottom bar, tab fan and carousel (ToolRail.swift, TabStack.swift, HomeBar.swift; shots/ios/main, tabs, tabs-dark). Bottom bar itself needs device.
+RESUME HERE: R2.8, iPhone search panel (Chrome.swift SearchPanel; shots/ios/main/04-05).
 
 Runtime rules for whoever resumes: never move, delete or modify `~/Library/Containers/com.chenkahana.boaz` or Chen's
 Chromium profile data, and never quit Chen's running Boaz (must-have 13). Mac runtime that would risk either is
@@ -26,3 +26,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R2.4 · Mac library panel: 6 entries (ML-1…ML-6, ML-6 a pass) · (this commit)
 - 2026-11-18 · R2.5 · Settings: 6 findings (ST-1…ST-6); fixed a mis-read ellipsis in R1 · (this commit)
 - 2026-11-18 · R2.6 · Onboarding: 5 findings (OB-1…OB-5) · (this commit)
+- 2026-11-18 · R2.7 · iPhone bar/fan/carousel: 10 findings (IB-1…IB-10); Incognito flow captured; corrected R1 page-menu row · (this commit)

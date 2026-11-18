@@ -116,3 +116,27 @@ Mac code-read (needs Chen session; `make uitest` with `-BoazResetOnboarding YES`
 Holds up well: Reduce Motion turns page slides into a fade (`Onboarding.swift:30-35`), the step dots read "Step 1 of 2",
 the iCloud icon animates only while checking and switches with a symbol replace, Mac import progress and "Import
 Again" are labelled with the source.
+
+## R2.7 iPhone bar, tab fan and carousel
+
+Runtime: Duo folded (side rail) `shots/ios/main`, `tabs`, `tabs-dark`, `private`; recordings `rec/main*.mov`,
+`rec/tabs*.mov`, `rec/private.mov`. The standard-iPhone bottom bar (must-have 7) needs a device: every bar finding
+below is from the rail, which shares `HomeBar`/`TabStack`/`RailButton`.
+
+| ID | P | Finding | Evidence | Sev | Reach | Eff | Score | MH |
+|---|---|---|---|---|---|---|---|---|
+| IB-1 | P5 | Incognito doesn't look different. The empty page still says "No tab open", the search field still says "Search or enter address", pages, rail and carousel look the same; only the search button's glyph (glasses) and a toast "Incognito on" change. Safari tints the whole chrome dark. | `shots/ios/private/31-34`; `HomeBar.swift:31-32` (the "Private search" placeholder exists only in the bottom-bar variant) | S2 | occasional | M | 3 | 8 |
+| IB-2 | P2 | The tab fan's hit area is 34 × 40 pt, under the 44 pt minimum, on the control people use most. | `shots/ios/main/06-page.txt` (Button 'Tabs' {34.0, 40.3}) | S2 | every session | S | 12 | 7 |
+| IB-3 | P6, P5 | A tab whose load failed has no snapshot, so its carousel card is a blank white rectangle, in Dark too (a white slab on the dark deck). | `shots/ios/tabs/21-carousel.png`, `tabs-dark/21-carousel.png` | S2 | occasional | S | 6 | — |
+| IB-4 | P2 | Swipe-up to archive has no haptic at the commit threshold (−110 pt); the only feedback is the medium impact when the Undo toast appears afterwards. Paging does tick per card (`.selection`). | `TabStack.swift:132,267`, `RootView.swift:63` | S3 | daily | S | 6 | — |
+| IB-5 | P1 | The archive flick doesn't carry the finger's speed: on release past the threshold the card leaves on a fixed `.snappy(0.28)`; below it, it returns on a one-off `.spring(0.3, 0.75)`. Paging does hand velocity to its spring (`settle(velocity:)`). | `TabStack.swift:252-274` | S3 | daily | S | 6 | — |
+| IB-6 | P9 | No context menu on carousel cards or on the tab fan (Safari: Close, Copy, Share, Move to Tab Group). The only actions are tap and swipe-up. | `TabStack.swift` (no `.contextMenu`) | S3 | daily | M | 3 | — |
+| IB-7 | P6 | The "Swipe the toolbar to switch tabs" tip pops over the middle of a page that's still loading, right after the second tab opens. | `shots/ios/main/09-second-page.png` | S3 | rare | S | 2 | — |
+| IB-8 | P1 | Reopening a failed tab from the carousel shows a blank page with only a hairline progress glow for 2+ s before the error returns. | `shots/ios/tabs/24-opened.png`, `25-toolbar-swipe.png` | S3 | occasional | S | 4 | — |
+| IB-9 | P3 | Rail controls use four sizes on one column: Search 60 pt, Menu 56 pt, New Tab 46 pt, Tabs 34 × 40 pt. | `shots/ios/main/03-empty.txt`, `06-page.txt` | S4 | every session | S | 4 | 9 |
+| IB-10 | P2 | The page menu (**…**) and the tab fan answer a long-press with the same action as a tap; no secondary action (Safari: long-press tabs for Close/New Private Tab). | `shots/ios/main/12-menu-longpress.png` | S4 | daily | S | 3 | — |
+
+Holds up well: the carousel grows out of the page and back into it (a custom hero, `TabStack.swift:62-64`, so E2's
+"no matched geometry" is about the API, not the effect); paging carries velocity and ticks a selection haptic per
+card; archive has Undo in a toast and Shake to Undo; "1 Tab"/"3 Tabs" plurals are right; Reduce Motion swaps every
+carousel spring for a 0.2 s ease-out.
