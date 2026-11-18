@@ -6,6 +6,13 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.33] - 2026-11-18
+
+### Fixed
+
+- Mac: the Library panel's Media, Downloads, Spaces and Archived Tabs labels are 11 pt and wrap instead of shrinking
+  to about 7 pt.
+
 ## [0.4.26] - 2026-11-18
 
 ### Fixed

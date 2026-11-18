@@ -37,7 +37,7 @@ struct LibraryPanel: View {
     @State private var tab: LibraryTab = .downloads
     @State private var downloads = DownloadsLibraryModel()
 
-    private static let columnWidth: CGFloat = 54
+    static let columnWidth: CGFloat = 72
     private static let paneWidth: CGFloat = 290
 
     var body: some View {
@@ -75,7 +75,11 @@ private struct LibraryTabColumn: View {
                 Button { tab = item } label: {
                     VStack(spacing: 4) {
                         Image(systemName: item.symbol).font(.system(size: 16, weight: .medium))
-                        Text(item.title).font(.system(size: 9)).lineLimit(1).minimumScaleFactor(0.8)
+                        // 11 pt, the smallest a Mac label reads at: a long title wraps instead of shrinking.
+                        Text(item.title)
+                            .font(.system(size: 11, weight: .medium))
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
                     }
                 }
                 .buttonStyle(LibraryTabButtonStyle(selected: tab == item, style: style))
@@ -86,7 +90,7 @@ private struct LibraryTabColumn: View {
             Spacer(minLength: 0)
         }
         .padding(.vertical, 20)
-        .frame(width: 54)
+        .frame(width: LibraryPanel.columnWidth)
     }
 }
 
@@ -97,7 +101,7 @@ private struct LibraryTabButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(selected ? style.tint : style.secondary)
-            .frame(width: 44, height: 44)
+            .frame(width: 64, height: 54)
             .background(selected ? style.tint.opacity(0.18) : configuration.isPressed ? style.secondary.opacity(0.1) : .clear,
                         in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             // The whole tile takes the click, not just the icon's and the title's pixels.
