@@ -239,3 +239,25 @@ session).
 | AX-1 | P12 | `testToast` fails on master: the toast's 2.5 s lifetime (5 s with Undo) races the screenshot, so the Mac toast screen is the one screen without an audit. | `ci-uitest.xcresult` summary; `MacModel.swift:946-948` | S3 | every session | S | 8 | 14 |
 | AX-2 | P12 | The system audit can't see hit areas inside custom rail and bar controls (it flagged none of IB-2, IS-1, DU-1); hit-target checks need the hierarchy-frame assertion the Mac suite already has ("no overlapping buttons"), ported to an iPhone UI test target. | `shots/ios/main/06-page.txt` vs `06-page.audit.txt` | S3 | every session | M | 4 | — |
 | AX-3 | P12 | A failed tab's carousel card is labelled with its bare host, which the audit calls "not human-readable"; label it "<host>, couldn't load". | `tabs/21-carousel.audit.txt` | S4 | occasional | S | 2 | — |
+
+## R2.13 Accessibility: VoiceOver walk of the five main flows
+
+The simulator harness can't run VoiceOver, so this walk reads what VoiceOver would get: the element tree from each R0
+screen (`shots/ios/*/NN-*.txt`), the Mac CI audit, and every `accessibility*` modifier in `Apps/`. A spoken walk on a
+device (iPhone) and with VoiceOver on the Mac DMG is **needs Chen** (15 min: the five flows below, VO on, note anything
+announced wrong or skipped).
+
+| Flow | iPhone | Mac |
+|---|---|---|
+| 1. Open a page from search | "Search" / "New Tab" buttons labelled; field "Search or enter address"; suggestion rows read their text, Fill In buttons read "Fill In <text>"; panel is modal with an escape action | Command bar field identified; rows are buttons with a selected trait |
+| 2. Switch tabs | Tab fan: "Tabs, 3 open, Shows your tabs side by side"; on the page: "Next Tab"/"Previous Tab" actions; carousel: escape, next/previous, per-card "Archive" action | Sidebar rows: buttons with the title, selected trait, folder "Expanded/Collapsed" value; but no keyboard focus (MS-2) |
+| 3. A page-menu action (Find on Page) | Rows labelled; tiles "Back"/"Forward" labelled and dimmed; no headers in an 18-row list (IM-2) | Menu bar commands (full) |
+| 4. Archive a tab, then Undo | Card action "Archive"; toast announced; Undo button in the toast, 10 s under VoiceOver | Row context menu only (no custom action, MS-3); toast announced, Undo in it |
+| 5. Settings | Standard `Form` rows | Standard; audit clean on every pane |
+
+| ID | P | Finding | Evidence | Sev | Reach | Eff | Score | MH |
+|---|---|---|---|---|---|---|---|---|
+| AX-4 | P12 | Search suggestion rows announce only their text ("example pdf, button"); nothing says whether a row searches, opens a history page or switches to a tab, which sighted users get from the icon. Add the kind as a value or hint. | `shots/ios/main/05-search-typing.txt` | S3 | daily | S | 6 | — |
+| AX-5 | P12 | No rotors anywhere (0 `accessibilityRotor`): History and Archive lists, the carousel and the Mac sidebar can only be walked item by item. A "Tabs" rotor on the page and a "Pinned/Today" rotor in the sidebar would match Safari. | `rg accessibilityRotor Apps` → 0 | S3 | occasional | M | 2 | — |
+| AX-6 | P12 | iPhone has no `accessibilityShowsLargeContentViewer` on the rail and bar buttons, whose glyphs are capped (`min(glyph, 28)`) and don't grow past AX sizes: long-press-to-magnify is the system's answer for fixed-size bar controls. | `ToolRail.swift:172,190` | S3 | occasional | S | 4 | 7 |
+| AX-7 | P12 | Voice Control: the tab fan's visible content is a stack of thumbnails while its name is "Tabs"; the rail's ellipsis button is "Page Settings" though it shows "…" and is called the page menu in docs. Users have to guess the spoken names. Use `accessibilityInputLabels` with "Tabs", "Menu", "More". | `shots/ios/main/06-page.txt`; `TabBrowser.swift` label "Page Settings" | S4 | rare | S | 1 | — |

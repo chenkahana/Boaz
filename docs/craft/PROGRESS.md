@@ -1,6 +1,6 @@
 # Craft research: progress
 
-RESUME HERE: R2.13, VoiceOver walk of the five main flows: no VoiceOver runtime in the simulator harness, so derive from hierarchy dumps (shots/ios/*/NN-*.txt) and code (accessibilityLabel/Action/Hint); mark device walk as needs Chen.
+RESUME HERE: R2.14, Dynamic Type AX3 and AX5 on iPhone: simctl ui content_size accessibility-large / accessibility-extra-extra-extra-large, re-run Explore/testMainFlow subset, compare.
 
 Runtime rules for whoever resumes: never move, delete or modify `~/Library/Containers/com.chenkahana.boaz` or Chen's
 Chromium profile data, and never quit Chen's running Boaz (must-have 13). Mac runtime that would risk either is
@@ -32,3 +32,4 @@ Append-only. One line per completed sub-step: date, step, what was done, commit.
 - 2026-11-18 · R2.10 · Duo postures: 4 code-read findings + needs-device checklist · (this commit)
 - 2026-11-18 · R2.11 · Widgets/extensions/system: 5 findings (WX-1…WX-5) · (this commit)
 - 2026-11-18 · R2.12 · iPhone audits summarised (18 screens); Mac CI audit from master's UITestResults (69 screenshots in shots/mac-ci); 3 AX findings; added MW-9 and CI evidence to ML-1, MS-9, MW-8 · (this commit)
+- 2026-11-18 · R2.13 · VoiceOver walk derived from trees and code; 4 findings (AX-4…AX-7); device walk needs Chen · (this commit)

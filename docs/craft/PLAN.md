@@ -32,7 +32,7 @@ Code base for this pass: `origin/master` at `66c3d63` (0.4.25), worktree `~/.wor
 - [x] R2.10 Duo postures
 - [x] R2.11 Widgets and extensions
 - [x] R2.12 Accessibility: system audit (Accessibility Inspector / XCUITest audit)
-- [ ] R2.13 Accessibility: VoiceOver walk of the five main flows
+- [x] R2.13 Accessibility: VoiceOver walk of the five main flows
 - [ ] R2.14 Accessibility: Dynamic Type AX3 and AX5
 - [ ] R2.15 Accessibility: Increase Contrast, Reduce Motion, Reduce Transparency
 - [ ] R2.16 `inputs/ux-review-2026-11-09.md` re-verified (fixed / open / obsolete per finding)
