@@ -52,6 +52,8 @@ struct BottomPanel<Content: View>: View {
                     .padding(8)
                     .offset(y: drag)
                     .gesture(dragToDismiss(height: proxy.size.height))
+                    // Felt where letting go closes the panel.
+                    .sensoryFeedback(Haptics.dismissCommitted.feedback, trigger: drag > 80) { old, new in new && !old }
                     .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
