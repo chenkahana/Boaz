@@ -1,4 +1,4 @@
-RESUME HERE: all non-gated Wave A and B items merged (batch #158 = v0.4.36). Remaining: confirm the v0.4.36 release run and add 0.4.35 notes to it; then the runtime checks owed below. Next work: Wave C non-gated items, or Chen's yes on the gated ones.
+RESUME HERE: DONE for non-gated Wave A and B: all merged, last release v0.4.36 (appcast 0.4.36). Next: runtime checks owed below (need a session with nobody on the Mac), Chen's yes on the waiting items, then Wave C non-gated items.
 
 # Implementation
 
