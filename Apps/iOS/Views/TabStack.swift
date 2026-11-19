@@ -248,7 +248,9 @@ struct TabCarousel: View {
             .onEnded { value in
                 switch drag {
                 case .paging: settle(velocity: value.velocity.width, unit: metrics.unit, tabs: tabs)
-                case .lifting: endLift(predicted: value.predictedEndTranslation.height, height: metrics.size.height)
+                case .lifting:
+                    endLift(predicted: value.predictedEndTranslation.height, velocity: value.velocity.height,
+                            height: metrics.size.height)
                 default: break
                 }
                 drag = nil
@@ -269,17 +271,23 @@ struct TabCarousel: View {
         }
     }
 
-    private func endLift(predicted: CGFloat, height: CGFloat) {
+    /// Archives past the threshold, else drops the card back; either way at the speed the finger let it go.
+    private func endLift(predicted: CGFloat, velocity: CGFloat, height: CGFloat) {
         guard let id = liftedID else { return }
+        func carried(to target: CGFloat) -> Animation {
+            let distance = target - lift
+            let initial = abs(distance) > 1 ? max(min(Double(velocity / distance), 30), -30) : 0
+            return Motion.gesture(velocity: initial).animation
+        }
         if pastArchiveLine || (lift < 0 && predicted < -360) {
             let felt = pastArchiveLine
-            withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .snappy(duration: 0.28)) { lift = -height } completion: {
+            withAnimation(carried(to: -height)) { lift = -height } completion: {
                 archiveTab(id, felt: felt)
                 lift = 0
                 liftedID = nil
             }
         } else {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) { lift = 0 }
+            withAnimation(carried(to: 0)) { lift = 0 }
         }
     }
 
