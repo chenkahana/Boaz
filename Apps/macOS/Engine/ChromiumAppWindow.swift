@@ -60,7 +60,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
                           backing: .buffered, defer: false)
         super.init()
         window.isReleasedWhenClosed = false
-        window.title = profile.identity.isPrivate ? "Boaz — Private" : "Boaz"
+        window.title = profile.identity.isPrivate ? "Incognito" : "Boaz"
         window.delegate = self
         window.contentView = contentContainer
         attach(front)
