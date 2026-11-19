@@ -76,11 +76,15 @@ struct ChromeType {
     var spaceTitle: Font { .system(size: base + 1, weight: .semibold) }
     /// The sidebar's small symbols: plus, lock, link, ellipsis.
     var glyph: Font { .system(size: base - 3, weight: .semibold) }
-    var commandField: Font { .system(size: base + 4) }
+    var commandField: Font { .system(size: commandFieldSize) }
+    var commandFieldSize: CGFloat { base + 4 }
     var commandRow: Font { .system(size: base - 1) }
     var commandCaption: Font { .system(size: base - 4) }
     /// Never below 11 pt, the smallest a Mac label reads at.
     var libraryLabel: Font { .system(size: max(base - 4, 11), weight: .medium) }
+
+    /// A size drawn for the default base, grown or shrunk with the user's choice.
+    func scaled(_ size: CGFloat) -> CGFloat { size * base / SidebarStyle.defaultTextSize }
 }
 
 extension EnvironmentValues {
@@ -194,6 +198,7 @@ private struct SidebarTopBar: View {
 
 /// Back or forward: click to step once, hold for the page's history (as Safari does). Disabled with no history.
 private struct HistoryButton: View {
+    @Environment(\.sidebarTextSize) private var textSize
     @Environment(BrowserState.self) private var browser
     let symbol: String
     let help: String
@@ -211,7 +216,7 @@ private struct HistoryButton: View {
             }
         } label: {
             Image(systemName: symbol)
-                .font(.system(size: 12, weight: .semibold))
+                .font(ChromeType(base: textSize).glyph)
                 .frame(width: 26, height: 26)
                 .background(.primary.opacity(hovering && !items.isEmpty ? 0.12 : 0),
                             in: .rect(cornerRadius: Radius.icon, style: .continuous))
@@ -243,7 +248,7 @@ private struct AddressPill: View {
         Button { browser.commandMode = browser.activeTab == nil ? .newTab : .currentTab } label: {
             HStack(spacing: 6) {
                 if browser.activeIsSecure {
-                    Image(systemName: "lock.fill").font(.system(size: 10)).foregroundStyle(.secondary)
+                    Image(systemName: "lock.fill").font(.system(size: ChromeType(base: textSize).scaled(10))).foregroundStyle(.secondary)
                 }
                 Text(url?.host()?.replacingOccurrences(of: "www.", with: "") ?? "Search or enter address")
                     .font(SidebarStyle.rowFont(size: textSize))
@@ -251,7 +256,7 @@ private struct AddressPill: View {
                     .lineLimit(1)
                 Spacer(minLength: 0)
                 if hovering, url != nil {
-                    Image(systemName: "link").font(.system(size: 11)).foregroundStyle(.secondary)
+                    Image(systemName: "link").font(.system(size: ChromeType(base: textSize).scaled(11))).foregroundStyle(.secondary)
                         .onTapGesture { browser.copyActiveURL() }
                         .help(browser.model.keyBindings.hint("Copy URL", .copyURL))
                 }
@@ -431,7 +436,7 @@ private struct SpaceHeader: View {
             Menu {
                 SpaceMenu(space: space)
             } label: {
-                Image(systemName: "ellipsis").font(.system(size: 12, weight: .semibold)).frame(width: 24, height: 24)
+                Image(systemName: "ellipsis").font(ChromeType(base: textSize).glyph).frame(width: 24, height: 24)
             }
             .menuStyle(.button)
             .buttonStyle(.plain)
@@ -515,7 +520,7 @@ private struct NewTabRow: View {
     var body: some View {
         Button { browser.commandMode = .newTab } label: {
             HStack(spacing: 8) {
-                Image(systemName: "plus").font(.system(size: 12, weight: .semibold)).frame(width: 18)
+                Image(systemName: "plus").font(ChromeType(base: textSize).glyph).frame(width: 18)
                 Text("New Tab").font(SidebarStyle.rowFont(size: textSize))
                 Spacer()
             }
@@ -669,7 +674,7 @@ struct ItemRow: View {
                 .frame(width: 18)
                 .overlay(alignment: .leading) {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 8, weight: .bold))
+                        .font(.system(size: ChromeType(base: textSize).scaled(8), weight: .bold))
                         .foregroundStyle(.secondary)
                         .rotationEffect(.degrees(item.isExpanded ? 90 : 0))
                         .offset(x: -12)
@@ -821,6 +826,7 @@ private struct IncognitoColumn: View {
 // MARK: Bottom bar
 
 private struct SidebarBottomBar: View {
+    @Environment(\.sidebarTextSize) private var textSize
     @Environment(MacModel.self) private var model
     @Environment(BrowserState.self) private var browser
     @Environment(\.openWindow) private var openWindow
@@ -852,7 +858,7 @@ private struct SidebarBottomBar: View {
                 Button("New Incognito Window") { openWindow(id: "incognito") }
                 Button("Import from Arc…") { browser.showImport = true }
             } label: {
-                Image(systemName: "plus").font(.system(size: 12, weight: .semibold)).frame(width: 26, height: 26)
+                Image(systemName: "plus").font(ChromeType(base: textSize).glyph).frame(width: 26, height: 26)
                     .contentShape(Rectangle())
             }
             .menuStyle(.button)
