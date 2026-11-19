@@ -39,7 +39,7 @@ struct ThemeTests {
     }
 
     @Test func themeOptionsEditOnlyWhatChanged() throws {
-        let original = SpacePalette.sky.themeJSON
+        let original = try #require(SpacePalette.all.first { $0.id == "sky" }).themeJSON
         var options = SpaceThemeOptions(themeJSON: original)
         #expect(SpacePalette.matching(original)?.id == "sky")
         options.accent = WindowTheme.RGBA(red: 1, green: 0, blue: 0)
@@ -53,7 +53,7 @@ struct ThemeTests {
     }
 
     @Test func themeOptionsRoundTrip() throws {
-        let original = SpacePalette.rose.themeJSON
+        let original = try #require(SpacePalette.all.first { $0.id == "rose" }).themeJSON
         let options = SpaceThemeOptions(themeJSON: original)
         #expect(options.applied(to: original) == original)
     }
