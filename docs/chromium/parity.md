@@ -1,21 +1,23 @@
 # Chromium parity ledger
 
-## Current merge-readiness status — 2026-11-14
+## Current shipping status — 2026-11-20
 
-This checklist supersedes historical checkpoint statuses below. The PR remains draft until all essential gates pass on the final candidate.
+The Chromium DMG is no longer a draft awaiting its gates: since #138 (2026-11-16) every master commit that
+touches the Mac app becomes a signed, notarized DMG on GitHub Releases, with the appcast Sparkle reads from
+releases/latest (`.github/workflows/release.yml`). The gates below therefore track the *shipping* build, not a
+draft PR. "Source implemented" means the code is on master but no runtime acceptance on a clean machine is
+recorded; that evidence is still owed, and a failure found gathering it is a release-blocking bug.
 
 | Gate | Status | Evidence / next action |
 |---|---|---|
-| Merge current master | Passed locally | `f4234ad`; release shell syntax and staged whitespace checks passed |
-| Production cloud signing | Passed on earlier candidate | Existing cloud submission exported successfully; Developer ID team and production profile verified |
-| Notarization / Gatekeeper | Passed on earlier candidate | `20261114T070158.082063Z.log`; stapler validation, Gatekeeper and deep/strict codesign passed |
-| Local DMG packaging | Passed on earlier candidate | `20261114-production-cloud-package/candidate-receipt.json`; no publication |
-| Final merged UI build | Running | Build started from `f4234ad`; native ABI unchanged |
-| Runtime reopen / popup quit / engine switching | Pending | Verify matching final candidate |
-| Upgrade and data continuity | Blocked | Both sandboxed and ordinary Application Support databases exist; preserve both and establish intended library |
-| Profiles, private data, passwords, fallback, media, permissions, downloads, extensions | Pending | Prior partial development evidence is not final production acceptance |
-| WebKit Mac / iOS preservation | Pending | Verify merged sources |
-| Qwen sanity review | Pending | Two tool-based packets timed out; bounded no-tool sanity retry requested |
+| Merge current master | Done | Chromium sources merged; master is the shipping line |
+| Production cloud signing | Passed on earlier candidate | Existing cloud submission exported successfully; Developer ID team and production profile verified; `release.yml` signs every published DMG |
+| Notarization / Gatekeeper | Passed on earlier candidate | `20261114T070158.082063Z.log`; stapler validation, Gatekeeper and deep/strict codesign passed; `release.yml` notarizes every published DMG |
+| Local DMG packaging | Passed on earlier candidate | `20261114-production-cloud-package/candidate-receipt.json` |
+| Upgrade and data continuity | Source implemented; runtime acceptance owed | `Apps/macOS/Engine/ChromiumLegacyStore.swift` keeps both the sandboxed and the Application Support library, picks the one holding the user's data (never replacing either), and imports previous preferences, WebKit website data and per-profile WebKit cookies; wired into `ChromiumApplication` launch and `MacModel`'s store directory. Still owed: upgrade a real install from the sandboxed build and confirm tabs, spaces, archive, settings and sign-ins survive |
+| Profiles, private data, passwords, fallback, media, permissions, downloads, extensions | Source implemented; runtime acceptance owed | Per-profile Chromium contexts, permission prompts, password save/fill and download handling exist in `Tools/chromium/host/` and `Apps/macOS/Engine/`; prior partial development evidence is not production acceptance |
+| Runtime reopen / popup quit / engine switching | Pending | Verify on a current published DMG |
+| WebKit Mac / iOS preservation | Pending | The WebKit app still builds from the same sources (`project-webkit-dmg.yml`); verify merged sources |
 | Performance budgets, exhaustive matrices, extended deltas, three-day dogfood | Deferred | Previously agreed completion scope |
 
 Recovered artifacts: `/Volumes/BoazBuild/cef/direct/artifacts/20261114-production-cloud-notarized/Boaz.app` and `/Volumes/BoazBuild/cef/direct/artifacts/20261114-production-cloud-package/Boaz.dmg`. They predate the merged source and do not establish final runtime acceptance.
