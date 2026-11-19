@@ -51,14 +51,14 @@ struct BottomPanel<Content: View>: View {
                     .accessibilityAction(.escape, onDismiss)
                     .padding(8)
                     .offset(y: drag)
-                    .gesture(dragToDismiss)
+                    .gesture(dragToDismiss(height: proxy.size.height))
                     .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
     }
 
-    private var dragToDismiss: some Gesture {
+    private func dragToDismiss(height: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 12)
             .onChanged { value in
                 let y = value.translation.height
@@ -67,10 +67,14 @@ struct BottomPanel<Content: View>: View {
                 drag = y > 0 ? y : -12 * (1 - exp(y / 40))
             }
             .onEnded { value in
-                if value.translation.height > 80 || value.predictedEndTranslation.height > 220 {
-                    onDismiss()
+                // Leaves, or springs back, at the speed the finger let go.
+                let dismisses = value.translation.height > 80 || value.predictedEndTranslation.height > 220
+                let target = dismisses ? height : 0
+                let distance = target - drag
+                let initial = abs(distance) > 1 ? max(min(Double(value.velocity.height / distance), 30), -30) : 0
+                withAnimation(Motion.gesture(velocity: initial).animation) { drag = target } completion: {
+                    if dismisses { onDismiss() }
                 }
-                withAnimation(BottomPanelStyle.motion) { drag = 0 }
             }
     }
 }
