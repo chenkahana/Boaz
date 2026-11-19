@@ -299,7 +299,7 @@ private struct FavoritesGrid: View {
         .dropDestination(for: SidebarDrag.Drop.self) { payloads, _ in
             guard let container else { return false }
             return dropItems(payloads, into: container.id, before: nil, model: model, browser: browser)
-        } isTargeted: { targeted = $0 }
+        } isTargeted: { targeted = $0; if $0 { Haptics.slotChanged.play() } }
     }
 }
 
@@ -351,7 +351,7 @@ private struct FavoriteTile: View {
             .draggable(SidebarDrag.Item(tab)) { SiteMonogram(url: tab.url, tint: tint, size: 28) }
             .dropDestination(for: SidebarDrag.Drop.self) { payloads, _ in
                 dropItems(payloads, into: tab.parentID ?? "", before: tab.id, model: model, browser: browser)
-            } isTargeted: { targeted = $0 }
+            } isTargeted: { targeted = $0; if $0 { Haptics.slotChanged.play() } }
             .contextMenu { TabMenu(tab: tab) }
     }
 }
@@ -387,7 +387,7 @@ private struct SpaceColumn: View {
                     .dropDestination(for: SidebarDrag.Drop.self) { payloads, _ in
                         guard let pinnedBox else { return false }
                         return dropItems(payloads, into: pinnedBox.id, before: pinned.first?.id, model: model, browser: browser)
-                    } isTargeted: { pinnedTargeted = $0 }
+                    } isTargeted: { pinnedTargeted = $0; if $0 { Haptics.slotChanged.play() } }
                     .overlay(alignment: .bottom) { if pinnedTargeted { InsertionLine(tint: tint) } }
                 ForEach(pinned) { ItemRow(item: $0, depth: 0, tint: tint) }
 
@@ -395,7 +395,7 @@ private struct SpaceColumn: View {
                     .dropDestination(for: SidebarDrag.Drop.self) { payloads, _ in
                         guard let todayBox else { return false }
                         return dropItems(payloads, into: todayBox.id, before: today.first?.id, model: model, browser: browser)
-                    } isTargeted: { todayTargeted = $0 }
+                    } isTargeted: { todayTargeted = $0; if $0 { Haptics.slotChanged.play() } }
                     .overlay(alignment: .bottom) { if todayTargeted { InsertionLine(tint: tint) } }
                 NewTabRow()
                 ForEach(today) { ItemRow(item: $0, depth: 0, tint: tint) }
@@ -642,7 +642,7 @@ struct ItemRow: View {
                 return dropItems(payloads, into: item.id, before: nil, model: model, browser: browser)
             }
             return dropItems(payloads, into: item.parentID ?? "", before: item.id, model: model, browser: browser)
-        } isTargeted: { targeted = $0 }
+        } isTargeted: { targeted = $0; if $0 { Haptics.slotChanged.play() } }
         .contextMenu {
             if item.kind == .folder {
                 FolderMenu(folder: item) { choosingIcon = true }
@@ -918,6 +918,7 @@ func dropItems(_ drops: [SidebarDrag.Drop], into parentID: String, before before
             }
         }
     }
+    if handled { Haptics.dropAccepted.play() }
     return handled
 }
 

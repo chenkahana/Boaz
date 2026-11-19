@@ -330,7 +330,9 @@ private struct SidebarResizeHandle: View {
                 .onChanged { value in
                     let origin = start ?? width
                     start = origin
-                    width = min(420, max(200, origin + value.translation.width))
+                    let next = min(420, max(200, origin + value.translation.width))
+                    if next != width, next == 200 || next == 420 { Haptics.snap.play() }
+                    width = next
                 }
                 .onEnded { _ in start = nil })
     }
@@ -486,7 +488,11 @@ private struct SplitDivider: View {
                 .onChanged { value in
                     let origin = start ?? browser.split?.fraction ?? 0.5
                     start = origin
-                    browser.split?.fraction = min(0.8, max(0.2, origin + value.translation.width / width))
+                    let next = min(0.8, max(0.2, origin + value.translation.width / width))
+                    // A tick at the limits and as the divider passes the middle.
+                    if let old = browser.split?.fraction, next != old,
+                       next == 0.2 || next == 0.8 || (old - 0.5) * (next - 0.5) < 0 { Haptics.snap.play() }
+                    browser.split?.fraction = next
                 }
                 .onEnded { _ in start = nil })
     }
