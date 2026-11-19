@@ -239,7 +239,7 @@ final class MacModel {
         Task {
             do {
                 let count = try await store.archiveStaleTabs(olderThan: TimeInterval(interval.rawValue), onDevice: deviceID)
-                if count > 0 { showToast("Archived \(count) inactive tab\(count == 1 ? "" : "s")") }
+                if count > 0 { showToast(String(inflecting: "Archived ^[\(count) inactive tab](inflect: true)")) }
             } catch {
                 showToast("Couldn't archive tabs: \(error.localizedDescription)")
             }
@@ -660,7 +660,7 @@ final class MacModel {
             return (tab, entry?.id)
         }
         closedTabs.append(entries + folders.map { (tab: $0, archiveID: nil) })
-        showToast("Archived \(tabs.count) tab\(tabs.count == 1 ? "" : "s")", canUndo: true)
+        showToast(String(inflecting: "Archived ^[\(tabs.count) tab](inflect: true)"), canUndo: true)
     }
 
     /// Restores the last close (all of a Clear's tabs) and returns the first restored tab.
@@ -765,7 +765,7 @@ final class MacModel {
         let links = descendants(of: folder.id).compactMap { $0.kind == .tab ? $0.url?.absoluteString : nil }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(links.joined(separator: "\n"), forType: .string)
-        showToast("Copied \(links.count) link\(links.count == 1 ? "" : "s")")
+        showToast(String(inflecting: "Copied ^[\(links.count) link](inflect: true)"))
     }
 
     /// Deletes a folder with everything in it. A live folder's own tabs simply go (the source lists them again); the

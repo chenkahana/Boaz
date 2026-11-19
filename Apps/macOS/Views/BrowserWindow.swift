@@ -75,11 +75,11 @@ struct BrowserWindow: View {
                 }
                 #endif
                 if let level = browser.zoomTag {
-                    Label("\(Int((level * 100).rounded()))%", systemImage: level < 1 ? "minus.magnifyingglass" : "plus.magnifyingglass")
+                    Label(level.formatted(.percent.precision(.fractionLength(0))), systemImage: level < 1 ? "minus.magnifyingglass" : "plus.magnifyingglass")
                         .font(.caption.monospacedDigit()).padding(.horizontal, 10).padding(.vertical, 6)
                         .background(.regularMaterial, in: Capsule())
                         .transition(.opacity)
-                        .accessibilityLabel("Zoom \(Int((level * 100).rounded())) percent")
+                        .accessibilityLabel("Zoom \(level.formatted(.percent.precision(.fractionLength(0))))")
                 }
             }
             .padding(10)

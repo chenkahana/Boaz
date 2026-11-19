@@ -47,6 +47,10 @@ jobs:
             build/DerivedData/SourcePackages
           key: spm-${{ runner.os }}-${{ hashFiles('Packages/BoazKit/Package.resolved') }}
 
+      - name: Copy lint
+        # Hand-built plurals and percentages (docs/copy.md).
+        run: Tools/copy-lint.sh
+
       - name: Build BoazKit
         run: make kit
 

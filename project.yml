@@ -28,6 +28,9 @@ settings:
     ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
     ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: NO
+    # Xcode collects every user-facing string into each target's Localizable.xcstrings (English only, for review:
+    # docs/copy.md).
+    SWIFT_EMIT_LOC_STRINGS: YES
   # CloudKit environment, a separate database each. Release builds use Production, like the DMG and App Store builds,
   # so a Release build on a phone (`make device`) syncs with them. Debug builds use Development, whose schema grows
   # as they save new fields.

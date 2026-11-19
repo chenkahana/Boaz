@@ -177,12 +177,12 @@ func relativeLibrarySection(for date: Date, now: Date = .now) -> String {
     if days < 7 { return "\(days) days ago" }
     if days < 35 {
         let weeks = days / 7
-        return "\(weeks) week\(weeks == 1 ? "" : "s") ago"
+        return String(inflecting: "^[\(weeks) week](inflect: true) ago")
     }
     let months = max(calendar.dateComponents([.month], from: start, to: today).month ?? 1, 1)
-    if months < 12 { return "\(months) month\(months == 1 ? "" : "s") ago" }
+    if months < 12 { return String(inflecting: "^[\(months) month](inflect: true) ago") }
     let years = max(calendar.dateComponents([.year], from: start, to: today).year ?? 1, 1)
-    return "\(years) year\(years == 1 ? "" : "s") ago"
+    return String(inflecting: "^[\(years) year](inflect: true) ago")
 }
 
 /// Caches `QLThumbnailGenerator` output per file so re-rendering a row (scrolling, filtering) doesn't regenerate it.

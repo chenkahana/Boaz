@@ -260,7 +260,7 @@ final class AppModel {
         Task {
             do {
                 let count = try await store.archiveStaleTabs(olderThan: TimeInterval(interval.rawValue), onDevice: deviceID)
-                if count > 0 { showToast("Archived \(count) inactive tab\(count == 1 ? "" : "s")") }
+                if count > 0 { showToast(String(inflecting: "Archived ^[\(count) inactive tab](inflect: true)")) }
             } catch {
                 Self.log.error("Archiving stale tabs failed: \(String(describing: error))")
                 showToast("Couldn't archive inactive tabs.")

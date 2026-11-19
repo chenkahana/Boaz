@@ -529,7 +529,7 @@ private struct ShortcutsSettings: View {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             let count = try model.keyBindings.applyArcKeyBindings(fileURL: url)
-            message = count == 0 ? "No custom Arc shortcuts found." : "Applied \(count) shortcut\(count == 1 ? "" : "s")."
+            message = count == 0 ? "No custom Arc shortcuts found." : String(inflecting: "Applied ^[\(count) shortcut](inflect: true).")
         } catch {
             message = "Couldn't read shortcuts: \(error.localizedDescription)"
         }

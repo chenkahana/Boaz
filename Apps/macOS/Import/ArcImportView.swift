@@ -86,10 +86,10 @@ struct ArcImportView: View {
         }
         let tabs = snapshot.items.filter { $0.kind == .tab }.count
         let favorites = snapshot.tabCounts[.favorites] ?? 0
-        var parts = ["\(snapshot.spaces.count) \(snapshot.spaces.count == 1 ? "space" : "spaces")",
-                     "\(tabs) \(tabs == 1 ? "tab" : "tabs")"]
-        if favorites > 0 { parts.append("\(favorites) \(favorites == 1 ? "favorite" : "favorites")") }
-        if snapshot.folders > 0 { parts.append("\(snapshot.folders) \(snapshot.folders == 1 ? "folder" : "folders")") }
+        var parts = [String(inflecting: "^[\(snapshot.spaces.count) space](inflect: true)"),
+                     String(inflecting: "^[\(tabs) tab](inflect: true)")]
+        if favorites > 0 { parts.append(String(inflecting: "^[\(favorites) favorite](inflect: true)")) }
+        if snapshot.folders > 0 { parts.append(String(inflecting: "^[\(snapshot.folders) folder](inflect: true)")) }
         if snapshot.profiles.count > 1 { parts.append("\(snapshot.profiles.count) profiles") }
         var text = parts.joined(separator: " · ")
         if phase != .done {
@@ -99,7 +99,9 @@ struct ArcImportView: View {
             text += " \(snapshot.splitViews) split \(snapshot.splitViews == 1 ? "view comes" : "views come") over as side-by-side tabs."
         }
         let left = snapshot.skippedTabs + snapshot.skippedItems
-        if left > 0 { text += " \(left) Arc-only \(left == 1 ? "item" : "items") (notes, easels, arc:// pages) stay in Arc." }
+        if left > 0 {
+            text += " " + String(inflecting: "^[\(left) Arc-only item](inflect: true) (notes, easels, arc:// pages) stay in Arc.")
+        }
         return text
     }
 
@@ -139,7 +141,7 @@ struct ArcImportView: View {
 
     private var importTitle: String {
         let count = snapshot?.spaces.count ?? 0
-        return "Import \(count) \(count == 1 ? "Space" : "Spaces")"
+        return String(inflecting: "Import ^[\(count) Space](inflect: true)")
     }
 
     // MARK: Folder access (sandbox)
@@ -316,7 +318,7 @@ private struct SpaceCard: View {
             SpaceIcon(space: space, size: 22).frame(width: 28)
             VStack(alignment: .leading, spacing: 1) {
                 Text(space.title).font(.headline).lineLimit(1)
-                Text([profile, "\(tabs) \(tabs == 1 ? "tab" : "tabs")"].compactMap { $0 }.joined(separator: " · "))
+                Text([profile, String(inflecting: "^[\(tabs) tab](inflect: true)")].compactMap { $0 }.joined(separator: " · "))
                     .font(.caption).opacity(0.7).lineLimit(1)
             }
             Spacer(minLength: 0)

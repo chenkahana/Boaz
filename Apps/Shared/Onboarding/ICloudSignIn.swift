@@ -132,8 +132,6 @@ extension Sidebar {
         let spaceCount = spaces.count
         let tabs = items.filter { $0.kind == .tab }.count
         guard spaceCount + tabs > 0 else { return nil }
-        let s = spaceCount == 1 ? "1 space" : "\(spaceCount) spaces"
-        let t = tabs == 1 ? "1 tab" : "\(tabs) tabs"
-        return "\(s), \(t)"
+        return String(inflecting: "^[\(spaceCount) space](inflect: true), ^[\(tabs) tab](inflect: true)")
     }
 }

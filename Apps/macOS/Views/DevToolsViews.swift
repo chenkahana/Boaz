@@ -137,7 +137,7 @@ struct ResponsiveBar: View {
             }
             Spacer()
             if scale < 1 {
-                Text("\(Int((scale * 100).rounded()))%").monospacedDigit().foregroundStyle(.secondary)
+                Text(scale, format: .percent.precision(.fractionLength(0))).monospacedDigit().foregroundStyle(.secondary)
                     .help("Scaled to fit the window")
             }
             HoverIconButton(symbol: "xmark", help: "Exit Responsive Design Mode",
