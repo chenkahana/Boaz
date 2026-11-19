@@ -944,7 +944,7 @@ final class MacModel {
         AccessibilityNotification.Announcement(message).post()
         let voiceOver = NSWorkspace.shared.isVoiceOverEnabled
         Task {
-            try? await Task.sleep(for: .seconds(canUndo ? (voiceOver ? 10 : 5) : 2.5))
+            try? await Task.sleep(for: .seconds(UITestMode.toastSeconds ?? (canUndo ? (voiceOver ? 10 : 5) : 2.5)))
             if self.toast == toast { withAnimation(.easeOut(duration: 0.25)) { self.toast = nil } }
         }
     }
