@@ -52,7 +52,8 @@ struct LibraryTests {
         let tab = tab("tab1", parentID: pinned.id, spaceID: space.id)
         try store.save([tab])
         _ = try store.archive(tab, reason: "closed")
-        #expect(try store.archive(tab, reason: "closed") == .alreadyArchived)
+        let again = try store.archive(tab, reason: "closed")
+        guard case .alreadyArchived = again else { Issue.record("second archive was \(again)"); return }
         #expect(try store.archivedItems().count == 1)
     }
 

@@ -100,10 +100,10 @@ struct BookmarkImporterTests {
         #expect(summary.skipped == 0)
 
         let pinned = try #require(store.sidebar().container(.pinned, in: space.id))
-        let children = store.sidebar().children(of: pinned.id)
+        let children = try store.sidebar().children(of: pinned.id)
         #expect(children.map(\.title) == ["Example", "Dev"])
         let folder = try #require(children.last)
-        #expect(store.sidebar().children(of: folder.id).map(\.title) == ["Docs"])
+        #expect(try store.sidebar().children(of: folder.id).map(\.title) == ["Docs"])
     }
 
     @Test func reimportKeepsWhereTheUserMovedThings() throws {
@@ -149,7 +149,7 @@ struct BookmarkImporterTests {
         let summary = try second.importInto(store, spaceID: space.id)
         #expect(summary.removed == 1) // only chrome-b
 
-        let sidebar = store.sidebar()
+        let sidebar = try store.sidebar()
         // The folder survives because it holds the user's own tab; the stale bookmark is gone.
         #expect(sidebar.items.contains { $0.id == "chrome-f" })
         #expect(sidebar.items.contains { $0.id == "my-tab" })
