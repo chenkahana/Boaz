@@ -20,6 +20,8 @@ struct CommandBar: View {
     /// Where the pointer was when it last picked a row. Rows appearing under a resting pointer report a hover too,
     /// so only a pointer that has moved since takes the selection, as in Spotlight.
     @State private var pointer = NSEvent.mouseLocation
+    /// Settings › Sidebar text size, the Mac's text size for all of Boaz's chrome (`ChromeType`).
+    @AppStorage(Preferences.sidebarTextSizeKey) private var textSize = SidebarStyle.defaultTextSize
     @FocusState private var focused: Bool
 
     enum Suggestion: Identifiable {
@@ -56,7 +58,9 @@ struct CommandBar: View {
                 .onTapGesture { browser.commandMode = nil }
             VStack(spacing: 0) {
                 HStack(spacing: 12) {
-                    Image(systemName: icon).font(.system(size: 17, weight: .medium)).foregroundStyle(tint)
+                    Image(systemName: icon)
+                        .font(.system(size: ChromeType(base: textSize).scaled(17), weight: .medium))
+                        .foregroundStyle(tint)
                         .accessibilityHidden(true)
                     #if BOAZ_CHROMIUM
                     if let field = browser.chromiumAddressField {
@@ -64,11 +68,12 @@ struct CommandBar: View {
                             moveUp: { select(selection - 1, in: suggestions) },
                             moveDown: { select(selection + 1, in: suggestions) },
                             submit: { run(suggestions.indices.contains(selection) ? suggestions[selection] : nil) },
-                            cancel: { browser.commandMode = nil })
+                            cancel: { browser.commandMode = nil },
+                            fontSize: ChromeType(base: textSize).commandFieldSize)
                     } else {
                     TextField(placeholder, text: fieldText)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 19))
+                        .font(ChromeType(base: textSize).commandField)
                         .focused($focused)
                         .onSubmit { run(suggestions.indices.contains(selection) ? suggestions[selection] : nil) }
                         .onKeyPress(.downArrow) { select(selection + 1, in: suggestions); return .handled }
@@ -79,7 +84,7 @@ struct CommandBar: View {
                     #else
                     TextField(placeholder, text: fieldText)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 19))
+                        .font(ChromeType(base: textSize).commandField)
                         .focused($focused)
                         .onSubmit { run(suggestions.indices.contains(selection) ? suggestions[selection] : nil) }
                         .onKeyPress(.downArrow) { select(selection + 1, in: suggestions); return .handled }
@@ -317,6 +322,7 @@ struct CommandBar: View {
 }
 
 private struct SuggestionRow: View {
+    @AppStorage(Preferences.sidebarTextSizeKey) private var textSize = SidebarStyle.defaultTextSize
     let suggestion: CommandBar.Suggestion
     let selected: Bool
     let tint: Color
@@ -346,7 +352,7 @@ private struct SuggestionRow: View {
                 Text(visit.url.host() ?? "").font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
         }
-        .font(.system(size: 14))
+        .font(ChromeType(base: textSize).commandRow)
         .padding(.horizontal, 12).frame(height: 36)
         .background(selected ? tint.opacity(0.22) : .clear, in: .rect(cornerRadius: Radius.row, style: .continuous))
         .contentShape(Rectangle())

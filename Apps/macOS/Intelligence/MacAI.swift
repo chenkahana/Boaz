@@ -167,7 +167,7 @@ extension MacModel {
         let before = records.compactMap { item($0.id) }
         let folders = records.filter { $0.kind == .folder }
         withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { commit(records) }
-        showToast("Tidied into \(folders.count) folder\(folders.count == 1 ? "" : "s")", canUndo: true)
+        showToast(String(inflecting: "Tidied into ^[\(folders.count) folder](inflect: true)"), canUndo: true)
         AIUndo.register(toast: toast?.id) { [weak self] in
             let removed = folders.map { var folder = $0; folder.deletedAt = .now; return folder }
             withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { self?.commit(before + removed) }
@@ -183,7 +183,7 @@ extension MacModel {
         }
         guard !renamed.isEmpty else { return }
         commit(renamed)
-        showToast("Renamed \(renamed.count) tab\(renamed.count == 1 ? "" : "s")", canUndo: true)
+        showToast(String(inflecting: "Renamed ^[\(renamed.count) tab](inflect: true)"), canUndo: true)
         AIUndo.register(toast: toast?.id) { [weak self] in self?.commit(before) }
     }
 

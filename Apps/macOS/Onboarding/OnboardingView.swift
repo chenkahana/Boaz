@@ -243,7 +243,7 @@ private struct BrowserImportList: View {
             }
         }
         .padding(.vertical, 6)
-        .glassEffect(.regular, in: .rect(cornerRadius: 20))
+        .glassEffect(.regular, in: .rect(cornerRadius: Radius.panel))
     }
 }
 
@@ -328,7 +328,7 @@ private struct BrowserImportRow: View {
         let spaces = model.sidebar.spaces.filter { $0.id.hasPrefix(ArcSidebarImporter.idPrefix) }.count
         guard spaces > 0 else { return }
         let tabs = model.sidebar.items.filter { $0.kind == .tab && $0.id.hasPrefix(ArcSidebarImporter.idPrefix) }.count
-        succeed("\(spaces) \(spaces == 1 ? "space" : "spaces"), \(tabs) \(tabs == 1 ? "tab" : "tabs")")
+        succeed(String(inflecting: "^[\(spaces) space](inflect: true), ^[\(tabs) tab](inflect: true)"))
     }
 
     private func importChromium(supportFolder: String) {
@@ -385,8 +385,8 @@ private struct BrowserImportRow: View {
             defer { imports.isRunning = false }
             do {
                 let summary = try await Task.detached { try read().importInto(store, spaceID: spaceID) }.value
-                var text = "\(summary.folders) \(summary.folders == 1 ? "folder" : "folders"), "
-                    + "\(summary.bookmarks) \(summary.bookmarks == 1 ? "bookmark" : "bookmarks")"
+                var text = String(inflecting:
+                    "^[\(summary.folders) folder](inflect: true), ^[\(summary.bookmarks) bookmark](inflect: true)")
                 if summary.skipped > 0 { text += " (\(summary.skipped) skipped)" }
                 succeed(text)
             } catch {
@@ -507,7 +507,7 @@ private struct DefaultBrowserPanel: View {
             }
         }
         .padding(16)
-        .glassEffect(.regular, in: .rect(cornerRadius: 20))
+        .glassEffect(.regular, in: .rect(cornerRadius: Radius.panel))
         .accessibilityElement(children: .contain)
         .animation(Onboarding.spring, value: current.isBoaz)
         .onAppear { current = DefaultBrowser.current() }

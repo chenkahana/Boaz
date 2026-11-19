@@ -517,7 +517,7 @@ final class BrowserState {
     }
 
     func toggleSidebar() {
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.86)) {
+        withMotion(.standard) {
             sidebarVisible.toggle()
             sidebarPeeking = false
         }
@@ -976,9 +976,9 @@ final class BrowserState {
             let slot = incognitoSlot(below: source)
             tab = SidebarItem(id: UUID().uuidString, spaceID: nil, profileID: "incognito", parentID: nil,
                               kind: .tab, title: title ?? url.host(), url: url, position: slot.position, lastActiveAt: .now)
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { incognitoTabs.insert(tab, at: slot.index) }
+            withMotion(.standard) { incognitoTabs.insert(tab, at: slot.index) }
         } else {
-            guard let new = withAnimation(.spring(response: 0.35, dampingFraction: 0.8), {
+            guard let new = withMotion(.standard, {
                 model.newTab(url, title: title, in: spaceID, below: source)
             }) else { return }
             tab = new
@@ -1179,7 +1179,7 @@ final class BrowserState {
         finishUnload(tab.id)
         // A closed tab opens fresh, a pinned one at its pinned page's top.
         pageStates.remove(tab.id)
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+        withMotion(.standard) {
             if isPrivate(tab) {
                 incognitoTabs.removeAll { $0.id == tab.id }
             } else if !model.isPinned(tab) {
@@ -1364,11 +1364,11 @@ final class BrowserState {
         #if BOAZ_CHROMIUM
         chromiumPreviews[tab.id] = nil
         #endif
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { model.archive(tab) }
+        withMotion(.standard) { model.archive(tab) }
     }
 
     func reopenClosedTab() {
-        guard !isIncognito, let tab = withAnimation(.spring(response: 0.35, dampingFraction: 0.8), {
+        guard !isIncognito, let tab = withMotion(.standard, {
             model.reopenClosedTab()
         }) else { return }
         activate(tab)
@@ -1376,7 +1376,7 @@ final class BrowserState {
 
     func togglePinActive() {
         guard let tab = activeTab, !isPrivate(tab) else { return }
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { togglePin(tab) }
+        withMotion(.standard) { togglePin(tab) }
     }
 
     func copyActiveURL() {
@@ -1521,7 +1521,7 @@ final class BrowserState {
         let from = spaces.firstIndex { $0.id == spaceID } ?? 0
         let to = spaces.firstIndex { $0.id == id } ?? 0
         if let spaceID, let activeTabID { lastTabPerSpace[spaceID] = activeTabID }
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+        withMotion(.emphasized) {
             spaceEdge = to >= from ? .trailing : .leading
             currentSpaceID = id
             guard restoringTab else { return }
@@ -1617,7 +1617,7 @@ final class BrowserState {
 
     func toggleSplit() {
         if split != nil {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { split = nil }
+            withMotion(.standard) { split = nil }
         } else if activeTab != nil {
             commandMode = .split
         }
@@ -1627,7 +1627,7 @@ final class BrowserState {
         commandMode = nil
         guard let active = activeTab, active.id != tab.id else { activate(tab); return }
         if !isPrivate(tab) { model.markActive(tab) }
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.85)) {
+        withMotion(.standard) {
             split = Split(leading: active.id, trailing: tab.id)
             activeTabID = tab.id
         }
@@ -1637,7 +1637,7 @@ final class BrowserState {
         guard let active = activeTab else { openTab(url); return }
         openTab(url)
         guard let new = activeTab, new.id != active.id else { return }
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.85)) {
+        withMotion(.standard) {
             split = Split(leading: active.id, trailing: new.id)
         }
     }
@@ -1693,7 +1693,7 @@ final class BrowserState {
         }
         #endif
         let page = makePage(profileID: profileID, context: .peek, loading: url)
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.78)) { peek = Peek(page: page, profileID: profileID) }
+        withMotion(.emphasized) { peek = Peek(page: page, profileID: profileID) }
     }
 
     func closePeek() {
@@ -1708,7 +1708,7 @@ final class BrowserState {
             return
         }
         #endif
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) { peek = nil }
+        withMotion(.emphasized) { peek = nil }
     }
 
     /// Keeps the peeked page alive and turns it into a Today tab. The peek's WebView has to be gone before a
@@ -1740,7 +1740,7 @@ final class BrowserState {
             try? await Task.sleep(for: .milliseconds(60))
             if isIncognito {
                 openTab(url, title: page.title)
-            } else if let tab = withAnimation(.spring(response: 0.4, dampingFraction: 0.85), {
+            } else if let tab = withMotion(.standard, {
                 model.newTab(url, title: page.title, in: spaceID)
             }) {
                 pages[tab.id] = page

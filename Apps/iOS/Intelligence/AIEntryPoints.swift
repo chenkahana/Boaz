@@ -87,7 +87,7 @@ extension AppModel {
             tab.modifiedAt = .now
             return tab
         }
-        saveAI(records, done: "Renamed \(records.count) tab\(records.count == 1 ? "" : "s")")
+        saveAI(records, done: String(inflecting: "Renamed ^[\(records.count) tab](inflect: true)"))
     }
 
     private func saveAI(_ records: [SidebarItem], done: String?) {

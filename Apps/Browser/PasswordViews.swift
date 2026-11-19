@@ -222,7 +222,7 @@ struct PasswordsSettings: View {
             let count = added + updated
             message = items.isEmpty ? "The file has no website passwords."
                 : count == 0 ? "Boaz already has all \(items.count) of these passwords."
-                : "Imported \(count) password\(count == 1 ? "" : "s")\(updated > 0 ? ", \(updated) of them updated" : "")."
+                : String(inflecting: "Imported ^[\(count) password](inflect: true)") + (updated > 0 ? ", \(updated) of them updated." : ".")
         } catch {
             message = error.localizedDescription
         }

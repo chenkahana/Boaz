@@ -60,7 +60,7 @@ struct RootView: View {
         .environment(\.isPrivateBrowsing, model.isIncognito)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: model.toast)
         .animation(BottomPanelStyle.motion, value: model.searchTarget)
-        .sensoryFeedback(Haptics.tabClosed.feedback, trigger: model.toast) { _, new in new?.canUndo == true }
+        .sensoryFeedback(Haptics.tabClosed.feedback, trigger: model.toast) { _, new in new?.canUndo == true && new?.felt == false }
         // While a sheet is up, the alert has to come from there instead.
         .modifier(ShakeToUndo(isEnabled: model.sheet == nil && !model.showOnboarding))
         .sheet(item: $model.sheet, onDismiss: model.sheetDidDismiss) { sheet in
@@ -276,7 +276,7 @@ private struct BatteryReadout: View {
     var body: some View {
         HStack(spacing: 3) {
             Image(systemName: batterySymbol)
-            if batteryLevel >= 0 { Text("\(Int((batteryLevel * 100).rounded()))%") }
+            if batteryLevel >= 0 { Text(Double(batteryLevel), format: .percent.precision(.fractionLength(0))) }
         }
         .fixedSize(horizontal: true, vertical: false)
         .onAppear {

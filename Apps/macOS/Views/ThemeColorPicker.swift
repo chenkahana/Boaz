@@ -253,7 +253,7 @@ private struct WavySlider: View {
         }
         .frame(height: 26)
         .accessibilityRepresentation { Slider(value: $value, in: 0...1, step: 0.1) { Text("Texture Intensity") } }
-        .accessibilityValue("\(Int((value * 100).rounded())) percent")
+        .accessibilityValue(Text(value, format: .percent.precision(.fractionLength(0))))
     }
 }
 
@@ -291,7 +291,7 @@ private struct TranslucencyDial: View {
         .frame(width: 64, height: 64)
         .help("Transparency: how much of the desktop shows through the window")
         .accessibilityRepresentation { Slider(value: $value, in: 0...1, step: 0.1) { Text("Transparency") } }
-        .accessibilityValue("\(Int((value * 100).rounded())) percent")
+        .accessibilityValue(Text(value, format: .percent.precision(.fractionLength(0))))
     }
 
     /// A fraction of the way round from the top, clockwise.

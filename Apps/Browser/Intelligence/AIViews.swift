@@ -382,7 +382,7 @@ struct TidyTabsView: View {
             Section {
                 OnDeviceFootnote()
             } footer: {
-                Text("Boaz creates \(plan.groups.count) folder\(plan.groups.count == 1 ? "" : "s") in Today and moves these tabs in. Rename a folder by editing its name.")
+                Text("Boaz creates ^[\(plan.groups.count) folder](inflect: true) in Today and moves these tabs in. Rename a folder by editing its name.")
             }
         }
     }
@@ -433,7 +433,7 @@ struct TidyTitlesView: View {
                     } else if changes != nil {
                         preview
                     } else {
-                        ProgressView("Reading \(candidates.count) title\(candidates.count == 1 ? "" : "s")…").frame(maxWidth: .infinity, maxHeight: .infinity)
+                        ProgressView("Reading ^[\(candidates.count) title](inflect: true)…").frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
                 .task { if changes == nil && !candidates.isEmpty { await load() } }

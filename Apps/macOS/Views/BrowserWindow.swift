@@ -75,11 +75,11 @@ struct BrowserWindow: View {
                 }
                 #endif
                 if let level = browser.zoomTag {
-                    Label("\(Int((level * 100).rounded()))%", systemImage: level < 1 ? "minus.magnifyingglass" : "plus.magnifyingglass")
+                    Label(level.formatted(.percent.precision(.fractionLength(0))), systemImage: level < 1 ? "minus.magnifyingglass" : "plus.magnifyingglass")
                         .font(.caption.monospacedDigit()).padding(.horizontal, 10).padding(.vertical, 6)
                         .background(.regularMaterial, in: Capsule())
                         .transition(.opacity)
-                        .accessibilityLabel("Zoom \(Int((level * 100).rounded())) percent")
+                        .accessibilityLabel("Zoom \(level.formatted(.percent.precision(.fractionLength(0))))")
                 }
             }
             .padding(10)
@@ -297,7 +297,7 @@ private struct PeekingSidebar: View {
                 .frame(maxHeight: .infinity)
                 .contentShape(Rectangle())
                 .onHover { inside in
-                    if inside { withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) { browser.sidebarPeeking = true } }
+                    if inside { withMotion(.emphasized) { browser.sidebarPeeking = true } }
                 }
             if browser.sidebarPeeking {
                 SidebarView()
@@ -308,7 +308,7 @@ private struct PeekingSidebar: View {
                     .shadow(color: .black.opacity(0.3), radius: 24, x: 6)
                     .padding(6)
                     .onHover { inside in
-                        if !inside { withAnimation(.spring(response: 0.32, dampingFraction: 0.9)) { browser.sidebarPeeking = false } }
+                        if !inside { withMotion(.emphasized) { browser.sidebarPeeking = false } }
                     }
                     .transition(reduceMotion ? .opacity : .move(edge: .leading).combined(with: .opacity))
             }
@@ -330,7 +330,9 @@ private struct SidebarResizeHandle: View {
                 .onChanged { value in
                     let origin = start ?? width
                     start = origin
-                    width = min(420, max(200, origin + value.translation.width))
+                    let next = min(420, max(200, origin + value.translation.width))
+                    if next != width, next == 200 || next == 420 { Haptics.snap.play() }
+                    width = next
                 }
                 .onEnded { _ in start = nil })
     }
@@ -398,9 +400,10 @@ private struct ContentArea: View {
 }
 
 extension View {
-    /// The rounded, slightly lifted card web content sits in, concentric with the window's corners.
+    /// The rounded, slightly lifted card web content sits in, concentric with the window's corners. The floor is a
+    /// tile's radius, not a card's: on a window whose corner less the inset is under 12 pt, 12 read rounder than it.
     func webCard(focused: Bool = false, tint: Color = .accentColor) -> some View {
-        let shape = ConcentricRectangle(corners: .concentric(minimum: .fixed(Radius.card)), isUniform: true)
+        let shape = ConcentricRectangle(corners: .concentric(minimum: .fixed(Radius.tile)), isUniform: true)
         return self
             .clipShape(shape)
             .overlay {
@@ -452,7 +455,7 @@ private struct EmptyContent: View {
             }
             .buttonStyle(.plain)
             .onHover { hovering = $0 }
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: hovering)
+            .motion(.quick, value: hovering)
             .accessibilityLabel("New Tab")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -486,7 +489,11 @@ private struct SplitDivider: View {
                 .onChanged { value in
                     let origin = start ?? browser.split?.fraction ?? 0.5
                     start = origin
-                    browser.split?.fraction = min(0.8, max(0.2, origin + value.translation.width / width))
+                    let next = min(0.8, max(0.2, origin + value.translation.width / width))
+                    // A tick at the limits and as the divider passes the middle.
+                    if let old = browser.split?.fraction, next != old,
+                       next == 0.2 || next == 0.8 || (old - 0.5) * (next - 0.5) < 0 { Haptics.snap.play() }
+                    browser.split?.fraction = next
                 }
                 .onEnded { _ in start = nil })
     }

@@ -8,7 +8,8 @@ import WebKit
 final class AppModel {
     enum SearchTarget { case newTab, currentTab }
     enum Sheet: String, Identifiable { case library, settings; var id: String { rawValue } }
-    struct Toast: Equatable { var message: String; var canUndo: Bool }
+    /// `felt`: the gesture that caused it already gave its haptic, so the toast doesn't add another.
+    struct Toast: Equatable { var message: String; var canUndo: Bool; var felt = false }
 
     /// Private tabs hang off this pseudo-parent and never reach the store, history or sync.
     static let incognitoParent = "incognito"
@@ -259,7 +260,7 @@ final class AppModel {
         Task {
             do {
                 let count = try await store.archiveStaleTabs(olderThan: TimeInterval(interval.rawValue), onDevice: deviceID)
-                if count > 0 { showToast("Archived \(count) inactive tab\(count == 1 ? "" : "s")") }
+                if count > 0 { showToast(String(inflecting: "Archived ^[\(count) inactive tab](inflect: true)")) }
             } catch {
                 Self.log.error("Archiving stale tabs failed: \(String(describing: error))")
                 showToast("Couldn't archive inactive tabs.")
@@ -883,7 +884,7 @@ final class AppModel {
     }
 
     /// Closing sends a tab to the archive (like Arc); undo brings it back and removes the archive entry.
-    func close(_ tab: SidebarItem) {
+    func close(_ tab: SidebarItem, felt: Bool = false) {
         // A second close of the same tab (a double tap, say) would archive it twice.
         guard isLive(tab.id) else { return }
         // A pane whose tab goes shows the next most recent tab the other pane isn't showing.
@@ -908,7 +909,7 @@ final class AppModel {
             // Undo after the sweep got there first would bring back a tab that is also in the archive.
             guard case .archived(let entry)? = try store?.archive(tab, reason: "closed") else { return }
             closedTabs.append((tab, entry?.id, snapshot))
-            showToast("Tab archived", canUndo: true)
+            showToast("Tab archived", canUndo: true, felt: felt)
         } catch {
             Self.log.error("Archiving a tab failed: \(String(describing: error))")
             showToast("Couldn't archive the tab. Try again.")
@@ -1049,8 +1050,8 @@ final class AppModel {
         return current
     }
 
-    func showToast(_ message: String, canUndo: Bool = false) {
-        let toast = Toast(message: message, canUndo: canUndo)
+    func showToast(_ message: String, canUndo: Bool = false, felt: Bool = false) {
+        let toast = Toast(message: message, canUndo: canUndo, felt: felt)
         self.toast = toast
         AccessibilityNotification.Announcement(message).post()
         // VoiceOver users need longer to reach Undo.
