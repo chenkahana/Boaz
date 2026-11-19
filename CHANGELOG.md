@@ -6,6 +6,33 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.36] - 2026-11-19
+
+### Fixed
+
+- iPhone: at the largest text sizes, the tab count above the cards no longer runs into Done.
+- iPhone: swiping a card up to archive it gives a tap at the point where letting go archives, and the card leaves
+  or drops back at the speed of the finger.
+- iPhone: the page menu follows the finger's speed when dragged closed, with a tap where letting go closes it.
+- Mac: with Reduce Motion on, opening and closing tabs, pinning, split view, the sidebar, spaces and the peek fade
+  instead of sliding.
+- Mac: the Library panel's Media, Downloads, Spaces and Archived Tabs labels are 11 pt and wrap instead of
+  shrinking to about 7 pt.
+- Mac: the sidebar's small symbols and the command bar follow Settings › Sidebar text size.
+- Mac: the page card's corners follow the window's corners at every size.
+
+### Added
+
+- Mac: on a trackpad, a tap when the sidebar reaches its narrowest or widest, when split view passes the middle or
+  its limits, when a dragged tab moves over a new spot, and when it drops.
+
+### Changed
+
+- Animations come from one set of motion tokens that follow Reduce Motion on their own; the peek and sidebar hover
+  use them too.
+- Plurals and percentages are written by Foundation, and every target has an English String Catalog for reviewing
+  Boaz's copy against docs/copy.md.
+
 ## [0.4.35] - 2026-11-19
 
 ### Fixed
