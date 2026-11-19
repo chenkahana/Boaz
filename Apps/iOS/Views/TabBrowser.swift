@@ -479,7 +479,7 @@ private struct BrowserBar: View {
     @ViewBuilder private var tabsButton: some View {
         if !listsTabsElsewhere {
             if axis == .vertical {
-                TabStack(cardSize: CGSize(width: 26, height: 36)).padding(.vertical, 4)
+                TabStack(cardSize: CGSize(width: 26, height: 36), minimumSide: RailMetrics.control)
             } else {
                 TabStack(cardSize: collapsesBar ? CGSize(width: 30, height: 39) : CGSize(width: 34, height: 46))
             }
@@ -507,7 +507,7 @@ private struct BrowserBar: View {
             .accessibilityLabel("New Tab")
             .accessibilityAddTraits(searching ? .isSelected : [])
             RailButton(symbol: "ellipsis", label: "Page Settings", isSelected: showsPageSettings,
-                       size: collapsesBar ? 44 : 46,
+                       size: collapsesBar ? 44 : RailMetrics.barControl,
                        action: togglePageSettings)
                 .glassEffect(.regular.interactive(), in: .circle)
                 .frame(maxWidth: .infinity, alignment: .trailing)
