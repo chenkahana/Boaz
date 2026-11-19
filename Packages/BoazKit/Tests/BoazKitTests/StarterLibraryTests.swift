@@ -73,7 +73,7 @@ struct StarterLibraryTests {
         let starterProfile = try #require(store.sidebar().spaces.first?.profileID)
         _ = try store.createSpace(title: "Real", icon: nil, palette: .defaultPalette, profileID: starterProfile, at: t0)
 
-        // Another profile's space arrived: the untouched starter space retires.
+        // The starter profile gains a space of the user's own: the untouched starter space retires.
         #expect(try await StarterLibrary.retireUnusedStarterSpace(store) == true)
         #expect(try store.sidebar().spaces.count == 1)
 
@@ -81,8 +81,7 @@ struct StarterLibraryTests {
         let second = try BoazStore.inMemory()
         try StarterLibrary.seedIfEmpty(second)
         try second.updateSpace("personal", title: "Mine", icon: nil, themeJSON: nil)
-        try second.save([Profile(id: "p2", name: "Work", isDefault: false, modifiedAt: t0)])
-        _ = try second.createSpace(title: "Real", icon: nil, palette: .defaultPalette, profileID: "p2", at: t0)
+        _ = try second.createSpace(title: "Real", icon: nil, palette: .defaultPalette, profileID: "default", at: t0)
         #expect(try await StarterLibrary.retireUnusedStarterSpace(second) == false)
         #expect(try second.sidebar().spaces.count == 2)
     }
