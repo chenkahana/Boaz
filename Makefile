@@ -19,7 +19,7 @@ ADHOC    := CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=YE
 XCB      := xcodebuild -project $(PROJECT) -derivedDataPath $(DERIVED) -quiet
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap project kit ios mac mac-dmg mac-webkit-dmg build device archive dmg uitest clean
+.PHONY: help bootstrap project kit kit-test ios mac mac-dmg mac-webkit-dmg build device archive dmg uitest clean
 
 help: ## List the available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "  %-10s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -34,6 +34,9 @@ project: ## Generate Boaz.xcodeproj from project.yml
 
 kit: ## Build the BoazKit package
 	swift build --package-path Packages/BoazKit
+
+kit-test: ## Run the BoazKit unit tests
+	swift test --package-path Packages/BoazKit
 
 ios: project ## Build the iPhone app and extensions (unsigned)
 	$(XCB) -scheme Boaz-iOS -configuration Debug -destination 'generic/platform=iOS' $(UNSIGNED) build
