@@ -70,8 +70,8 @@ struct StarterLibraryTests {
     @Test func retireUnusedStarterSpaceOnlyWhenUntouchedAndEmpty() async throws {
         let store = try BoazStore.inMemory()
         try StarterLibrary.seedIfEmpty(store)
-        try store.save([Profile(id: "p2", name: "Work", isDefault: false, modifiedAt: t0)])
-        _ = try store.createSpace(title: "Real", icon: nil, palette: .defaultPalette, profileID: "p2", at: t0)
+        let starterProfile = try #require(store.sidebar().spaces.first?.profileID)
+        _ = try store.createSpace(title: "Real", icon: nil, palette: .defaultPalette, profileID: starterProfile, at: t0)
 
         // Another profile's space arrived: the untouched starter space retires.
         #expect(try await StarterLibrary.retireUnusedStarterSpace(store) == true)

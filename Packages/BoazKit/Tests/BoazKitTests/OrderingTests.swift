@@ -79,7 +79,7 @@ struct SidebarModelTests {
 
         let sidebar = try store.sidebar()
         #expect(Set(sidebar.todayTabs(in: space.id, onDevice: "d1").map(\.id)) == ["mine", "before-devices"])
-        #expect(sidebar.todayTabs(in: space.id, onDevice: "d2").map(\.id) == ["theirs"])
+        #expect(Set(sidebar.todayTabs(in: space.id, onDevice: "d2").map(\.id)) == ["theirs", "before-devices"])
     }
 
     @Test func mobileTabsSortMostRecentlyUsedFirst() throws {

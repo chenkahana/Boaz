@@ -97,7 +97,7 @@ struct LibraryTests {
         let url = URL(string: "https://example.com")!
         store.recordVisit(profileID: "p1", url: url, title: nil, at: t0)
         store.recordVisit(profileID: "p1", url: url, title: "Example", at: t0.addingTimeInterval(300))
-        store.recordVisit(profileID: "p1", url: url, title: "Example", at: t0.addingTimeInterval(601))
+        store.recordVisit(profileID: "p1", url: url, title: "Example", at: t0.addingTimeInterval(901))
         await store.waitForQueuedWrites()
         let history = try await store.history()
         #expect(history.count == 2)

@@ -51,8 +51,8 @@ struct SearchInputTests {
     }
 
     @Test func disallowedSchemeSearches() {
-        // `mailto:` is not in the default scheme set, so it becomes a search rather than a navigation.
-        let url = SearchInput.url(for: "mailto:a@b.com")
+        // `tel:` is not in the default scheme set, so it becomes a search rather than a navigation.
+        let url = SearchInput.url(for: "tel:+972525961515")
         #expect(url?.absoluteString.hasPrefix("https://duckduckgo.com/?q=") == true)
     }
 
