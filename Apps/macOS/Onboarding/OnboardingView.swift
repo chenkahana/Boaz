@@ -243,7 +243,7 @@ private struct BrowserImportList: View {
             }
         }
         .padding(.vertical, 6)
-        .glassEffect(.regular, in: .rect(cornerRadius: 20))
+        .glassEffect(.regular, in: .rect(cornerRadius: Radius.panel))
     }
 }
 
@@ -507,7 +507,7 @@ private struct DefaultBrowserPanel: View {
             }
         }
         .padding(16)
-        .glassEffect(.regular, in: .rect(cornerRadius: 20))
+        .glassEffect(.regular, in: .rect(cornerRadius: Radius.panel))
         .accessibilityElement(children: .contain)
         .animation(Onboarding.spring, value: current.isBoaz)
         .onAppear { current = DefaultBrowser.current() }

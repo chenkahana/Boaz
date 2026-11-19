@@ -400,9 +400,10 @@ private struct ContentArea: View {
 }
 
 extension View {
-    /// The rounded, slightly lifted card web content sits in, concentric with the window's corners.
+    /// The rounded, slightly lifted card web content sits in, concentric with the window's corners. The floor is a
+    /// tile's radius, not a card's: on a window whose corner less the inset is under 12 pt, 12 read rounder than it.
     func webCard(focused: Bool = false, tint: Color = .accentColor) -> some View {
-        let shape = ConcentricRectangle(corners: .concentric(minimum: .fixed(Radius.card)), isUniform: true)
+        let shape = ConcentricRectangle(corners: .concentric(minimum: .fixed(Radius.tile)), isUniform: true)
         return self
             .clipShape(shape)
             .overlay {

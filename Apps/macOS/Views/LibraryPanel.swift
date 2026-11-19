@@ -103,9 +103,9 @@ private struct LibraryTabButtonStyle: ButtonStyle {
             .foregroundStyle(selected ? style.tint : style.secondary)
             .frame(width: 64, height: 54)
             .background(selected ? style.tint.opacity(0.18) : configuration.isPressed ? style.secondary.opacity(0.1) : .clear,
-                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
             // The whole tile takes the click, not just the icon's and the title's pixels.
-            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
     }
 }
 
@@ -147,7 +147,7 @@ private struct LibrarySearchBar: View {
             }
         }
         .padding(.horizontal, 10).padding(.vertical, 7)
-        .background(style.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(style.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         .padding(.horizontal, 12).padding(.top, 12)
     }
 }
@@ -329,7 +329,7 @@ private struct ActiveChromiumDownloadRow: View {
             .font(.system(size: 11))
         }
         .padding(8)
-        .background(style.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(style.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
     }
 
     private var statusText: String {
@@ -452,7 +452,7 @@ private struct LibrarySpaceRow: View {
             .foregroundStyle(style.foreground)
             .padding(.horizontal, 10).padding(.vertical, 7)
             .background(selected ? style.tint.opacity(0.18) : hovering ? style.secondary.opacity(0.1) : .clear,
-                        in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        in: RoundedRectangle(cornerRadius: Radius.row, style: .continuous))
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
