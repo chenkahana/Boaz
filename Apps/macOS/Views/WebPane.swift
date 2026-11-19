@@ -125,11 +125,14 @@ private struct ChromiumTabPane: View {
                             ChromiumLoadFailureView(adapter: adapter)
                         }
                     }
-                    .overlay(alignment: .top) {
-                        if engine.state.isLoading { ProgressView().padding(8) }
-                    }
+            } else if let preview = browser.chromiumPreview(for: tab.id, url: tab.url) {
+                // The page is being created: keep the tab's last look rather than flash a spinner.
+                Image(nsImage: preview).resizable().scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(.background)
+                    .accessibilityHidden(true)
             } else {
-                ProgressView("Opening page…").frame(maxWidth: .infinity, maxHeight: .infinity)
+                Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .task(id: tab.id) { open() }
