@@ -137,8 +137,9 @@ first navigation decision, before any of its scripts run. A `window.open` that a
 toolbars (Safari's rule for a window) opens in a sheet, with the opener's configuration as WebKit passes it, so the
 data store (incognito stays in memory), content blockers and extensions carry over. It closes on `window.close()`,
 its close button, or when the opener's view goes. Any other new window (a `target=_blank` link, `window.open`
-without features) opens in a tab below the opener on Mac (a peek for pinned tabs) and in place on iPhone, where a
-site whose pop-ups are blocked gets nothing for the windows its scripts open. WebPage's own delegate doesn't create
+without features) opens in a tab below the opener on Mac (a peek for pinned tabs) and in place on iPhone. A window
+a script opens on a site whose pop-ups are blocked gets no view, but the block is never invisible: a toast says
+Boaz blocked a pop-up and offers to open it once, in place. WebPage's own delegate doesn't create
 windows, so before this a `window.open` got `null` on both apps and a `target=_blank` link did nothing on iPhone.
 Windows a pop-up opens load in the pop-up.
 

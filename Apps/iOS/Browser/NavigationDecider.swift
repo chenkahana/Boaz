@@ -14,6 +14,8 @@ struct BoazNavigationDecider: WebPage.NavigationDeciding {
     let hostPopups: @MainActor () -> Void
     let onDownload: @MainActor (URLResponse) -> Void
     let onExternalLinkFailure: @MainActor () -> Void
+    /// A script-opened window the site's settings blocked: reported so the block is never invisible.
+    let onPopupBlocked: @MainActor (URL?) -> Void
 
     @MainActor
     func decidePolicy(for action: WebPage.NavigationAction,
@@ -25,6 +27,7 @@ struct BoazNavigationDecider: WebPage.NavigationDeciding {
         // separate window for it — so it navigates this tab in place unless the opener's site blocks pop-ups.
         if action.target == nil, action.navigationType == .other,
            PageSettings.settings(for: page()?.url, isPrivate: isPrivate).popups == .block {
+            onPopupBlocked(action.request.url)
             return .cancel
         }
         if action.target?.isMainFrame != false, let url = action.request.url,
