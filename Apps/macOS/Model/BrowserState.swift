@@ -888,8 +888,16 @@ final class BrowserState {
         var hostsPopups = false
         if case .tab(let id) = context, let page = pages[id] { hostsPopups = hostPopups(on: page, tabID: id) }
         guard let url = action.request.url, url.scheme?.hasPrefix("http") == true else {
-            if downloadRequested { model.showToast("Boaz can't download this link") }
-            return downloadRequested ? .cancel : .allow
+            // A main-frame link for another app (`mailto:`, `tel:`, …): never navigate to it (WebKit would show
+            // its raw error page); ask, then hand it to the app, as the Chromium build's dialog does.
+            if downloadRequested { model.showToast("Boaz can't download this link"); return .cancel }
+            if let url = action.request.url, action.target?.isMainFrame != false,
+               ExternalLinkOpener.handles(url) {
+                let host: String? = if case .tab(let id) = context { pages[id]?.url?.host() } else { nil }
+                Task { await ExternalLinkOpener.confirmAndOpen(url, from: host) }
+                return .cancel
+            }
+            return .allow
         }
         if action.shouldPerformDownload || downloadRequested {
             download(url, context: context)

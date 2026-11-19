@@ -354,6 +354,9 @@ private struct WebsiteSettingsRows: View {
             picker("Pop-ups", systemImage: "macwindow.on.rectangle", selection: $settings.popups,
                    PageSettings.PopupPolicy.allCases)
             divider
+            picker("Open in Apps", systemImage: "arrow.up.forward.app", selection: $settings.appLinks,
+                   PageSettings.AppLinksPolicy.allCases)
+            divider
             VStack(alignment: .leading, spacing: 2) {
                 Toggle(isOn: $settings.contentBlocking) {
                     Label("Content Blocking", systemImage: "shield.lefthalf.filled").labelStyle(PanelLabelStyle())
@@ -395,3 +398,4 @@ private struct WebsiteSettingsRows: View {
 private protocol PageSettingsOption { var label: String { get } }
 extension PageSettings.Permission: PageSettingsOption {}
 extension PageSettings.PopupPolicy: PageSettingsOption {}
+extension PageSettings.AppLinksPolicy: PageSettingsOption {}

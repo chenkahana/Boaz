@@ -23,12 +23,22 @@ enum PageSettings {
         var label: String { self == .block ? "Block" : "Allow" }
     }
 
+    /// Whether links to a site may leave Boaz for the site's app (universal links). Allowed by default,
+    /// as in Safari; Block keeps every link to the site in Boaz.
+    enum AppLinksPolicy: String, Codable, CaseIterable, Identifiable {
+        case allow, block
+        var id: String { rawValue }
+        var label: String { self == .allow ? "Allow" : "Block" }
+    }
+
     struct HostSettings: Codable, Equatable {
         var desktopSite = false
         var camera: Permission = .ask
         var microphone: Permission = .ask
         /// Allowed by default: a blocked pop-up is often a sign-in window the site can't work without.
         var popups: PopupPolicy = .allow
+        /// Keyed by the link's destination: blocking youtube.com keeps YouTube links in Boaz wherever they're tapped.
+        var appLinks: AppLinksPolicy = .allow
         var contentBlocking = true
 
         init() {}
@@ -41,6 +51,7 @@ enum PageSettings {
             camera = try container.decodeIfPresent(Permission.self, forKey: .camera) ?? defaults.camera
             microphone = try container.decodeIfPresent(Permission.self, forKey: .microphone) ?? defaults.microphone
             popups = try container.decodeIfPresent(PopupPolicy.self, forKey: .popups) ?? defaults.popups
+            appLinks = try container.decodeIfPresent(AppLinksPolicy.self, forKey: .appLinks) ?? defaults.appLinks
             contentBlocking = try container.decodeIfPresent(Bool.self, forKey: .contentBlocking) ?? defaults.contentBlocking
         }
     }

@@ -30,7 +30,10 @@ struct BoazNavigationDecider: WebPage.NavigationDeciding {
         if action.target?.isMainFrame != false, let url = action.request.url,
            let scheme = url.scheme?.lowercased() {
             if scheme == "http" || scheme == "https" {
+                // A tapped link may leave Boaz for the site's app (a universal link) only when the
+                // destination's settings allow it; otherwise Boaz loads the page itself.
                 if action.navigationType == .linkActivated,
+                   PageSettings.settings(for: url, isPrivate: isPrivate).appLinks == .allow,
                    await UIApplication.shared.open(url, options: [.universalLinksOnly: true]) {
                     return .cancel
                 }
