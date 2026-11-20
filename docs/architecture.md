@@ -137,11 +137,14 @@ first navigation decision, before any of its scripts run. A `window.open` that a
 toolbars (Safari's rule for a window) opens in a sheet, with the opener's configuration as WebKit passes it, so the
 data store (incognito stays in memory), content blockers and extensions carry over. It closes on `window.close()`,
 its close button, or when the opener's view goes. Any other new window (a `target=_blank` link, `window.open`
-without features) opens in a tab below the opener on Mac (a peek for pinned tabs) and in place on iPhone. A window
-a script opens on a site whose pop-ups are blocked gets no view, but the block is never invisible: a toast says
-Boaz blocked a pop-up and offers to open it once, in place. WebPage's own delegate doesn't create
-windows, so before this a `window.open` got `null` on both apps and a `target=_blank` link did nothing on iPhone.
-Windows a pop-up opens load in the pop-up.
+without features) opens in a tab below the opener on Mac (a peek for pinned tabs) and in place on iPhone — but
+only for links. A window a script opens is a pop-up even when it asks for no features: `window.opener` lives only
+in the `WKWebView` WebKit makes, and checkout flows (PayPal, a bank's 3-D Secure step) post their result back over
+it and close, so placement gives way to keeping the page and its window able to talk. On a site whose pop-ups are
+blocked a script window gets no view, but the block is never invisible: a toast says Boaz blocked a pop-up and
+offers to open it once, in place. WebPage's own delegate doesn't create windows, so before this a `window.open`
+got `null` on both apps and a `target=_blank` link did nothing on iPhone. A window a pop-up opens loads in the
+pop-up when it's a link, and stacks as its own pop-up — with the pop-up as its opener — when a script opens it.
 
 When the SDK changes, check, on both apps:
 
