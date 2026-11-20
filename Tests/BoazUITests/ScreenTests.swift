@@ -171,7 +171,7 @@ final class ScreenTests: BoazUITestCase {
     /// A window a script opens keeps `window.opener` even without pop-up features: the child posts back and the
     /// opener hears it. Checkout flows (PayPal, a bank's 3-D Secure step) live on that channel.
     func testScriptWindowKeepsItsOpener() {
-        launch()
+        launch(fixture: "opener")
         let page = openSidebarTab("Opener Playground")
         let pay = page.buttons["Pay"].firstMatch
         XCTAssertTrue(pay.waitForExistence(timeout: 10), "The Opener Playground page never loaded")
