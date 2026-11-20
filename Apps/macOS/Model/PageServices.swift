@@ -45,6 +45,51 @@ struct MacDialogs: WebPage.DialogPresenting {
     }
 }
 
+/// Links that leave Boaz for another app (`mailto:`, `tel:`, an app's own scheme). WebKit would load one and
+/// fail with a raw "Can't Open This Page" error; instead Boaz asks first, like the Chromium build's native
+/// dialog, and only then hands the link to the app.
+enum ExternalLinkOpener {
+    /// Whether `url` names another app's scheme that some app can open. Schemes a page may load in place
+    /// (about:, blob:, data:, file:, javascript:) are not.
+    static func handles(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased() else { return false }
+        return !["about", "blob", "data", "file", "javascript"].contains(scheme)
+    }
+
+    /// Asks whether to open `url` in its app, then does. With no app to take it, says so and stays put.
+    @MainActor
+    static func confirmAndOpen(_ url: URL, from host: String?) async {
+        guard let appURL = NSWorkspace.shared.urlForApplication(toOpen: url) else {
+            MacModel.shared.showToast("No app is available to open this link.")
+            return
+        }
+        let appName = Bundle(url: appURL)?.infoDictionary?["CFBundleName"] as? String
+            ?? appURL.deletingPathExtension().lastPathComponent
+        let alert = NSAlert()
+        alert.messageText = "Open \(appName)?"
+        if let host, !host.isEmpty {
+            alert.informativeText = "\(host) wants to open this link in \(appName)."
+        } else {
+            alert.informativeText = "This page wants to open this link in \(appName)."
+        }
+        // Return must not launch an app: Open answers only to a click, Cancel is Escape and the default.
+        let open = alert.addButton(withTitle: "Open \(appName)")
+        open.keyEquivalent = ""
+        let cancel = alert.addButton(withTitle: "Cancel")
+        cancel.keyEquivalent = "\u{1B}"
+        alert.window.defaultButtonCell = nil
+        alert.window.makeFirstResponder(cancel)
+        let answer: NSApplication.ModalResponse = if let window = NSApp.keyWindow {
+            await alert.beginSheetModal(for: window)
+        } else {
+            alert.runModal()
+        }
+        if answer == .alertFirstButtonReturn, !NSWorkspace.shared.open(url) {
+            MacModel.shared.showToast("No app is available to open this link.")
+        }
+    }
+}
+
 /// Files a page can't display (or marks as attachments) go to ~/Downloads instead.
 enum PageDownloads {
     /// Whether a response should be saved rather than shown.

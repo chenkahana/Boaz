@@ -54,6 +54,9 @@ jobs:
       - name: Build BoazKit
         run: make kit
 
+      - name: Test BoazKit
+        run: make kit-test
+
       - name: Build iPhone app and extensions
         run: make ios
 

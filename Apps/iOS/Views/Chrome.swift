@@ -246,6 +246,9 @@ struct ToastView: View {
             if toast.canUndo {
                 Button("Undo") { model.undoClose() }.font(.callout.weight(.bold))
             }
+            if let action = toast.action {
+                Button(action.title) { action.perform() }.font(.callout.weight(.bold))
+            }
         }
         .padding(.horizontal, 18).padding(.vertical, 12)
         // A capsule while the message fits one line; a rounded card once it wraps.
