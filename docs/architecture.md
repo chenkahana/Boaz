@@ -172,6 +172,11 @@ Every open posture uses the same view tree (`UnfoldedShell`), so the web view is
 The fold position comes from the system's reserved regions rather than from hard-coded sizes. Standard iPhones use
 the folded layout.
 
+Status (time, cellular, Wi-Fi, battery) is the system's own cluster, live by definition: unfolded portrait shows it
+in the column the screen reserves for it, with the tool rail stacked below; unfolded landscape hides it for a
+floating, collapsible pill (`LandscapeStatusPill`). A hand-drawn status bar can only fake signal strength, so Boaz
+doesn't draw one.
+
 ## Importers (Mac)
 
 - **Arc sidebar:** reads `StorableSidebar.json` and recreates profiles, spaces, pinned folders, favorites and themes
