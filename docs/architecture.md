@@ -187,7 +187,9 @@ doesn't draw one.
   stored in the Boaz database or synced.
 - **Bookmarks:** Chrome, Brave, Edge and Safari bookmark files become pinned tabs and folders.
 
-Boaz does not import saved passwords. `ArcPasswordImporter.swift` is excluded from the package build.
+- **Passwords (CSV only):** Boaz never reads another browser's password store. Saved passwords come in through the
+  CSV file a browser or password manager exports, which `PasswordCSV` parses and the Passwords screen imports. There
+  is no Arc password importer; the old `ArcPasswordImporter.swift` no longer exists.
 
 ## Privacy and security
 

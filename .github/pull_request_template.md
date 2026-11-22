@@ -22,3 +22,4 @@
 - [ ] CHANGELOG.md updated under "Unreleased" for user-visible changes
 - [ ] Touches the engine, sync or a migration: the last such release has soaked for a day (docs/release.md)
 - [ ] Cutting a release: App Store Connect and Organizer crash reports for the current version reviewed
+- [ ] Docs touched? `docs/architecture.md` and the parity ledger still match what this change does (or no docs are affected)
