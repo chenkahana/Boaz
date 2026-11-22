@@ -53,6 +53,16 @@ Polish-only commits (copy, spacing, icons, docs) skip the soak. If you want a re
 appcast from a prerelease and point a few installs at it; that needs a separate feed URL in the app, so it is not
 set up here.
 
+**Crash check before the next release.** Boaz has no analytics and no crash reporting, so field visibility is
+procedural. Before cutting a release, look at the previous one:
+
+- App Store Connect › TestFlight/App Store › Crashes, for the iPhone and Mac App Store builds.
+- Xcode › Window › Organizer › Crashes, for the same versions.
+- For the DMG, there is no automatic report; check new GitHub issues since the last release.
+
+If the current release has a crash signature that is new or rising, fix it before shipping anything else. Write what
+you looked at in the release notes ("Crash reports reviewed: none new"), so skipping the check is visible.
+
 **Secrets** (Settings › Secrets and variables › Actions):
 
 - `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8`: an App Store Connect team API key with the **Admin** role, which
