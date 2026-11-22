@@ -18,6 +18,9 @@ struct AboutSection: View {
             .accessibilityElement(children: .combine)
             Link("Privacy Policy", destination: Self.privacyPolicy)
             Link("Support", destination: Self.support)
+            LabeledContent("WebKit internals", value: WebKitInternals.summary)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("settings.webkitDiagnostics")
         } header: {
             Text("About")
         } footer: {

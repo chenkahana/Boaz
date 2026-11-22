@@ -152,6 +152,9 @@ When the SDK changes, check, on both apps:
 - `backingWebView(of:)` still finds the view, and the tab's `uiDelegate` is still a `WebKit.`-prefixed class. If
   either fails, new windows keep their old placement and the app logs `No pop-up host` once (subsystem
   `com.chenkahana.boaz`, category `popups`); Mac extensions lose per-tab scripting the same way.
+- Settings ▸ About shows a "WebKit internals" line: "No problems seen", or "Degraded: pop-ups" once a fallback
+  has happened this launch (`WebKitInternals`). `ScreenTests.testWebKitInternalsStillWorkAfterAScriptWindow` fails when
+  it reads Degraded after a script window; CI runs it on every change, so an SDK bump that breaks it is caught there.
 - JavaScript alert, confirm and prompt, file inputs, camera and microphone prompts and fullscreen still work on a
   page that has opened a pop-up: those go through the forwarded delegate.
 

@@ -100,6 +100,7 @@ enum PagePopups {
             loggedFailure = true
             log.error("No pop-up host, new windows keep their old placement: \(reason, privacy: .public)")
         }
+        WebKitInternals.record(feature: "pop-ups", reason: reason)
         return false
     }
 
