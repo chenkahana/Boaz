@@ -380,6 +380,8 @@ public final class BoazSync {
 
     @ObservationIgnored private let store: BoazStore
     @ObservationIgnored private var started = false
+    /// Set when a folder was chosen but its bookmark no longer opens, so the status says so instead of "no folder".
+    @ObservationIgnored private var folderProblem: String?
     @ObservationIgnored private var pass: Task<Void, Never>?
     @ObservationIgnored private var passRequested = false
     @ObservationIgnored private var scopedURL: URL?
@@ -435,7 +437,7 @@ public final class BoazSync {
 
     /// Runs a pass now (or right after the one in progress) and returns once passes are done.
     public func syncNow() async {
-        guard let folderURL else { status = .noFolder; return }
+        guard let folderURL else { status = noFolderStatus; return }
         if let pass {
             passRequested = true
             return await pass.value
@@ -474,6 +476,8 @@ public final class BoazSync {
 
     // MARK: Private
 
+    private var noFolderStatus: Status { folderProblem.map { Status.error($0) } ?? Status.noFolder }
+
     private func fail(_ error: any Error) {
         Self.log.error("Folder sync failed: \(error, privacy: .public)")
         status = .error(error.localizedDescription)
@@ -490,6 +494,7 @@ public final class BoazSync {
 
     private func resolveFolder() {
         detachFolder()
+        folderProblem = nil
         var url: URL?
         if let encoded = store.syncSetting(Self.bookmarkKey), let data = Data(base64Encoded: encoded) {
             var stale = false
@@ -505,10 +510,11 @@ public final class BoazSync {
                 if stale { Self.log.notice("Sync folder bookmark is stale; pick the folder again if sync fails") }
             } catch {
                 Self.log.error("Sync folder bookmark unusable: \(error, privacy: .public)")
+                folderProblem = "The sync folder can't be opened. Choose it again."
             }
         }
         folderURL = url
-        guard let url else { status = .noFolder; return }
+        guard let url else { status = noFolderStatus; return }
         let presenter = FolderPresenter(url: url.appendingPathComponent("devices", isDirectory: true)) { [weak self] in
             Task { @MainActor in self?.schedule(after: .seconds(1)) }
         }

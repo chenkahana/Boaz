@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import WebKit
 
 /// Per-host choices from the page settings menu: desktop/mobile site and the Website Settings sheet's
@@ -121,9 +122,35 @@ enum PageSettings {
         }
     }
 
+    /// One host's entry, decoded on its own so a single damaged entry costs only that site's choices.
+    private struct Entry: Decodable {
+        let settings: HostSettings?
+        init(from decoder: any Decoder) throws { settings = try? HostSettings(from: decoder) }
+    }
+
+    private static let log = Logger(subsystem: "com.chenkahana.boaz", category: "page-settings")
+    private static let damagedKey = "pageSettingsByHost.damaged"
+    private static var reportedDamage = false
+
     private static func saved() -> [String: HostSettings] {
         guard let data = UserDefaults.standard.data(forKey: defaultsKey) else { return [:] }
-        return (try? JSONDecoder().decode([String: HostSettings].self, from: data)) ?? [:]
+        do {
+            let entries = try JSONDecoder().decode([String: Entry].self, from: data)
+            let kept = entries.compactMapValues(\.settings)
+            if kept.count != entries.count { reportDamage("\(entries.count - kept.count) site entries could not be read", data: data) }
+            return kept
+        } catch {
+            reportDamage("the store could not be read: \(error)", data: data)
+            return [:]
+        }
+    }
+
+    /// Logs once per launch and keeps a copy of the unreadable bytes, so the next save does not make the loss permanent.
+    private static func reportDamage(_ reason: String, data: Data) {
+        guard !reportedDamage else { return }
+        reportedDamage = true
+        log.error("Per-site settings damaged: \(reason, privacy: .public)")
+        if UserDefaults.standard.data(forKey: damagedKey) == nil { UserDefaults.standard.set(data, forKey: damagedKey) }
     }
 
     private static func save(_ all: [String: HostSettings]) {
