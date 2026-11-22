@@ -9,7 +9,18 @@ final class AppModel {
     enum SearchTarget { case newTab, currentTab }
     enum Sheet: String, Identifiable { case library, settings; var id: String { rawValue } }
     /// `felt`: the gesture that caused it already gave its haptic, so the toast doesn't add another.
-    struct Toast: Equatable { var message: String; var canUndo: Bool; var felt = false }
+    struct Toast: Equatable {
+        var message: String
+        var canUndo: Bool
+        var felt = false
+        /// A button next to the message ("Open" on a blocked pop-up notice).
+        var action: (title: String, perform: () -> Void)?
+
+        static func == (a: Toast, b: Toast) -> Bool {
+            a.message == b.message && a.canUndo == b.canUndo && a.felt == b.felt
+                && a.action?.title == b.action?.title
+        }
+    }
 
     /// Private tabs hang off this pseudo-parent and never reach the store, history or sync.
     static let incognitoParent = "incognito"
@@ -375,6 +386,9 @@ final class AppModel {
             },
             onExternalLinkFailure: { [weak self] in
                 self?.showToast("No app is available to open this link.")
+            },
+            onPopupBlocked: { [weak self] url in
+                self?.popupBlocked(url, tabID: tab.id)
             })
         let pictureInPicture = PictureInPicture.install(in: &configuration)
         let page = WebPage(configuration: configuration, navigationDecider: decider)
@@ -430,7 +444,8 @@ final class AppModel {
             PageSettings.settings(for: page?.url, isPrivate: isPrivate).popups != .block
         }, present: { [weak self] in self?.popup = $0 }, dismiss: { [weak self] closed in
             self?.popup = PagePopups.remaining(after: closed, shown: self?.popup)
-        }, fallback: { [weak page] action in page?.load(action.request) })
+        }, fallback: { [weak page] action in page?.load(action.request) },
+           blocked: { [weak self] action in self?.popupBlocked(action.request.url, tabID: tabID) })
     }
 
     // MARK: Picture in Picture
@@ -1050,15 +1065,28 @@ final class AppModel {
         return current
     }
 
-    func showToast(_ message: String, canUndo: Bool = false, felt: Bool = false) {
-        let toast = Toast(message: message, canUndo: canUndo, felt: felt)
+    func showToast(_ message: String, canUndo: Bool = false, felt: Bool = false,
+                   action: (title: String, perform: () -> Void)? = nil) {
+        let toast = Toast(message: message, canUndo: canUndo, felt: felt, action: action)
         self.toast = toast
         AccessibilityNotification.Announcement(message).post()
-        // VoiceOver users need longer to reach Undo.
+        // VoiceOver users need longer to reach Undo or another action.
         let undoTime: Double = UIAccessibility.isVoiceOverRunning ? 10 : 5
         Task {
-            try? await Task.sleep(for: .seconds(canUndo ? undoTime : 2.5))
+            try? await Task.sleep(for: .seconds(canUndo || action != nil ? undoTime : 2.5))
             if self.toast == toast { self.toast = nil }
+        }
+    }
+
+    /// A blocked pop-up is never invisible: say so and offer to open it once, in place. The site's Pop-ups
+    /// setting in the page menu is where blocking itself is turned on or off.
+    private func popupBlocked(_ url: URL?, tabID: String) {
+        if let url, url.scheme?.hasPrefix("http") == true {
+            showToast("Boaz blocked a pop-up.", action: ("Open", { [weak self] in
+                self?.pages[tabID]?.load(URLRequest(url: url))
+            }))
+        } else {
+            showToast("Boaz blocked a pop-up.")
         }
     }
 }

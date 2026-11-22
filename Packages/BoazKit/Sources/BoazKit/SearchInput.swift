@@ -19,7 +19,10 @@ public enum SearchInput {
         if !text.contains(" "), text.contains("."), !text.hasSuffix("."), let url = URL(string: "https://" + text) {
             return url
         }
-        let query = text.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? text
+        // `urlQueryAllowed` keeps "&", "=", "+" and "?", which would split or mangle the query at the engine.
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "&+=?")
+        let query = text.addingPercentEncoding(withAllowedCharacters: allowed) ?? text
         return URL(string: searchTemplate.replacingOccurrences(of: "%@", with: query))
     }
 }

@@ -1,0 +1,17 @@
+{
+  "spaces": [
+    {
+      "id": "space-work",
+      "name": "Work",
+      "icon": "\ud83d\udcbc",
+      "pinned": [
+        { "id": "pinned-opener", "title": "Opener Playground", "url": "data:text/html,<title>Opener Playground</title><div id=out>waiting</div><button onclick=pay()>Pay</button><script>function pay(){var w=window.open('about:blank','pay');if(!w){out.textContent='null';return};w.document.write('<script>opener.postMessage(\\'done\\',\\'*\\');close()<\\/script>');w.document.close()};window.addEventListener('message',function(e){out.textContent='heard:'+e.data})</script>" }
+      ],
+      "folders": [],
+      "today": []
+    }
+  ],
+  "favorites": [],
+  "archived": [],
+  "history": []
+}

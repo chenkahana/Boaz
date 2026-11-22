@@ -38,6 +38,31 @@ Otherwise the next patch after the newest tag, with the commit subject as the no
 Run the workflow by hand with `dry_run` (the default) to build, sign and notarize without publishing; the DMG is
 kept as a workflow artifact for three days.
 
+**Soak for risky changes.** Five releases shipped on 19 Nov, and Sparkle takes DMG users straight to the latest.
+That pace is fine for polish. A commit that touches the engine (`Tools/chromium`, `Apps/macOS/Engine`), sync
+(`Packages/BoazKit/Sources/BoazKit/Sync`, CloudKit) or migrations (`BoazStore`) is a risky release and waits for a
+soak before the next risky one ships:
+
+1. Release it as usual, but do not merge another engine, sync or migration change until it has run on your own
+   Mac and iPhone for a full day, with the Mac updated through Sparkle rather than a fresh install.
+2. In that day, check the three things that fail quietly: tabs, spaces and sign-ins survive the update; two devices
+   still converge through sync; Settings ▸ About, "WebKit internals", reads "No problems seen".
+3. If anything is off, fix forward in the next release and say so in its notes; do not stack more changes on it.
+
+Polish-only commits (copy, spacing, icons, docs) skip the soak. If you want a real beta channel later, serve a second
+appcast from a prerelease and point a few installs at it; that needs a separate feed URL in the app, so it is not
+set up here.
+
+**Crash check before the next release.** Boaz has no analytics and no crash reporting, so field visibility is
+procedural. Before cutting a release, look at the previous one:
+
+- App Store Connect, the app's crash reports (TestFlight and App Store builds), for the iPhone and Mac App Store versions.
+- Xcode › Window › Organizer › Crashes, for the same versions.
+- For the DMG, there is no automatic report; check new GitHub issues since the last release.
+
+If the current release has a crash signature that is new or rising, fix it before shipping anything else. Write what
+you looked at in the release notes ("Crash reports reviewed: none new"), so skipping the check is visible.
+
 **Secrets** (Settings › Secrets and variables › Actions):
 
 - `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8`: an App Store Connect team API key with the **Admin** role, which

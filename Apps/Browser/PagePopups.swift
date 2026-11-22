@@ -34,11 +34,12 @@ final class PagePopup: NSObject, Identifiable, WKUIDelegate {
     /// `window.close()`.
     func webViewDidClose(_ webView: WKWebView) { close() }
 
-    /// A pop-up the pop-up opens (a sign-in page handing over to its provider) takes its place until it closes; any
-    /// other window loads in the pop-up, as a peek's does.
+    /// A window the pop-up opens keeps the chain: a script window (a sign-in handing over to its provider, a
+    /// checkout's bank step) is a pop-up of its own with this one as its opener; a link loads in the pop-up, as a
+    /// peek's does.
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                  for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-        guard PagePopups.isPopup(windowFeatures) else {
+        guard PagePopups.isPopup(windowFeatures) || action.navigationType != .linkActivated else {
             webView.load(action.request)
             return nil
         }
@@ -58,13 +59,15 @@ enum PagePopups {
     private static var openerKey = 0
 
     /// Puts the pop-up host on `page`, once. `present` shows a pop-up and `dismiss` takes it away (on `window.close()`,
-    /// its close button, or when the opener's page goes); `fallback` places any other http(s) window (a `target=_blank`
-    /// link, `window.open` without pop-up features). `allowsScriptWindows` is the site's pop-up setting: when it's
-    /// false, windows a script opens get nothing, and links the user follows still open. False when WebPage's
-    /// internals aren't what Boaz expects: the caller keeps its old behavior.
+    /// its close button, or when the opener's page goes); `fallback` places a window a link opened (a `target=_blank`
+    /// link) — windows scripts open are pop-ups, so `window.opener` survives. `allowsScriptWindows` is the site's
+    /// pop-up setting: when it's
+    /// false, windows a script opens get nothing from WebKit and `blocked` hears about each one, so the block is
+    /// never invisible. False when WebPage's internals aren't what Boaz expects: the caller keeps its old behavior.
     static func install(on page: WebPage, allowsScriptWindows: @escaping () -> Bool = { true },
                         present: @escaping (PagePopup) -> Void, dismiss: @escaping (PagePopup) -> Void,
-                        fallback: @escaping (WKNavigationAction) -> Void) -> Bool {
+                        fallback: @escaping (WKNavigationAction) -> Void,
+                        blocked: @escaping (WKNavigationAction) -> Void = { _ in }) -> Bool {
         guard let webView = backingWebView(of: page) else { return failed("no WKWebView behind WebPage") }
         if webView.uiDelegate is PopupOpener { return true }
         guard let original = webView.uiDelegate as? NSObject,
@@ -72,7 +75,7 @@ enum PagePopups {
             return failed("unexpected UI delegate \(String(describing: webView.uiDelegate))")
         }
         let opener = PopupOpener(original: original, allowsScriptWindows: allowsScriptWindows, present: present,
-                                 dismiss: dismiss, fallback: fallback)
+                                 dismiss: dismiss, fallback: fallback, blocked: blocked)
         // `uiDelegate` is weak: the opener lives as long as the view does.
         objc_setAssociatedObject(webView, &openerKey, opener, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         webView.uiDelegate = opener
@@ -97,6 +100,7 @@ enum PagePopups {
             loggedFailure = true
             log.error("No pop-up host, new windows keep their old placement: \(reason, privacy: .public)")
         }
+        WebKitInternals.record(feature: "pop-ups", reason: reason)
         return false
     }
 
@@ -115,15 +119,18 @@ private final class PopupOpener: NSObject, WKUIDelegate {
     private let present: (PagePopup) -> Void
     private let dismiss: (PagePopup) -> Void
     private let fallback: (WKNavigationAction) -> Void
+    private let blocked: (WKNavigationAction) -> Void
     private weak var popup: PagePopup?
 
     init(original: NSObject, allowsScriptWindows: @escaping () -> Bool, present: @escaping (PagePopup) -> Void,
-         dismiss: @escaping (PagePopup) -> Void, fallback: @escaping (WKNavigationAction) -> Void) {
+         dismiss: @escaping (PagePopup) -> Void, fallback: @escaping (WKNavigationAction) -> Void,
+         blocked: @escaping (WKNavigationAction) -> Void) {
         self.original = original
         self.allowsScriptWindows = allowsScriptWindows
         self.present = present
         self.dismiss = dismiss
         self.fallback = fallback
+        self.blocked = blocked
     }
 
     /// The opener's view is gone (its tab closed or unloaded), so is its pop-up.
@@ -131,8 +138,15 @@ private final class PopupOpener: NSObject, WKUIDelegate {
 
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                  for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-        if action.navigationType != .linkActivated, !allowsScriptWindows() { return nil }
-        if PagePopups.isPopup(windowFeatures) {
+        if action.navigationType != .linkActivated, !allowsScriptWindows() {
+            blocked(action)
+            return nil
+        }
+        // A window a script opened keeps `window.opener` only in the view WebKit made for it, so the page and the
+        // window can talk: sign-in and checkout flows post their result back and close. That channel matters more
+        // than placement, so script windows are pop-ups even without pop-up features; links keep the browser's
+        // placement (a tab on Mac, in place on iPhone).
+        if PagePopups.isPopup(windowFeatures) || action.navigationType != .linkActivated {
             popup?.close()
             // The configuration WebKit passes is the opener's: same data store (incognito stays in memory),
             // content blockers, scripts and extensions.
@@ -146,7 +160,7 @@ private final class PopupOpener: NSObject, WKUIDelegate {
             fallback(action)
             return nil
         }
-        // An about:blank window without pop-up features: whatever WebPage does with it (today, nothing).
+        // An about:blank window a link opens: whatever WebPage does with it (today, nothing).
         return (original as? WKUIDelegate)?.webView?(webView, createWebViewWith: configuration, for: action,
                                                      windowFeatures: windowFeatures)
     }

@@ -10,5 +10,9 @@ let package = Package(
     ],
     targets: [
         .target(name: "BoazKit", dependencies: [.product(name: "GRDB", package: "GRDB.swift")]),
+        .testTarget(name: "BoazKitTests", dependencies: [
+            "BoazKit",
+            .product(name: "GRDB", package: "GRDB.swift"),
+        ]),
     ]
 )

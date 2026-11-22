@@ -168,6 +168,34 @@ final class ScreenTests: BoazUITestCase {
         XCTAssertTrue(waitForDisappearance(popup))
     }
 
+    /// A window a script opens keeps `window.opener` even without pop-up features: the child posts back and the
+    /// opener hears it. Checkout flows (PayPal, a bank's 3-D Secure step) live on that channel.
+    func testScriptWindowKeepsItsOpener() {
+        launch(fixture: "opener")
+        let page = openSidebarTab("Opener Playground")
+        let pay = page.buttons["Pay"].firstMatch
+        XCTAssertTrue(pay.waitForExistence(timeout: 10), "The Opener Playground page never loaded")
+        pay.click()
+        XCTAssertTrue(page.staticTexts["heard:done"].waitForExistence(timeout: 10),
+                      "The script window's postMessage never reached its opener")
+    }
+
+    /// The pop-up host reaches into WebPage's internals. After a script window has opened and talked back, Settings ▸
+    /// About must still report no WebKit problems; on a WebKit update that breaks the reflection this goes red.
+    func testWebKitInternalsStillWorkAfterAScriptWindow() {
+        launch(fixture: "opener")
+        let page = openSidebarTab("Opener Playground")
+        let pay = page.buttons["Pay"].firstMatch
+        XCTAssertTrue(pay.waitForExistence(timeout: 10), "The Opener Playground page never loaded")
+        pay.click()
+        XCTAssertTrue(page.staticTexts["heard:done"].waitForExistence(timeout: 10),
+                      "The script window's postMessage never reached its opener")
+        _ = openSettings(tab: "General")
+        let line = element("settings.webkitDiagnostics")
+        XCTAssertTrue(line.waitForExistence(timeout: 10), "Settings ▸ About has no WebKit internals line")
+        XCTAssertFalse(line.label.contains("Degraded"), "WebKit internals fell back: \(line.label)")
+    }
+
     func testSplitView() {
         launch()
         openSidebarTab("Today Tab")

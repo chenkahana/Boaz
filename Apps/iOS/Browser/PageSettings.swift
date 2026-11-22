@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import WebKit
 
 /// Per-host choices from the page settings menu: desktop/mobile site and the Website Settings sheet's
@@ -23,12 +24,22 @@ enum PageSettings {
         var label: String { self == .block ? "Block" : "Allow" }
     }
 
+    /// Whether links to a site may leave Boaz for the site's app (universal links). Allowed by default,
+    /// as in Safari; Block keeps every link to the site in Boaz.
+    enum AppLinksPolicy: String, Codable, CaseIterable, Identifiable {
+        case allow, block
+        var id: String { rawValue }
+        var label: String { self == .allow ? "Allow" : "Block" }
+    }
+
     struct HostSettings: Codable, Equatable {
         var desktopSite = false
         var camera: Permission = .ask
         var microphone: Permission = .ask
         /// Allowed by default: a blocked pop-up is often a sign-in window the site can't work without.
         var popups: PopupPolicy = .allow
+        /// Keyed by the link's destination: blocking youtube.com keeps YouTube links in Boaz wherever they're tapped.
+        var appLinks: AppLinksPolicy = .allow
         var contentBlocking = true
 
         init() {}
@@ -41,6 +52,7 @@ enum PageSettings {
             camera = try container.decodeIfPresent(Permission.self, forKey: .camera) ?? defaults.camera
             microphone = try container.decodeIfPresent(Permission.self, forKey: .microphone) ?? defaults.microphone
             popups = try container.decodeIfPresent(PopupPolicy.self, forKey: .popups) ?? defaults.popups
+            appLinks = try container.decodeIfPresent(AppLinksPolicy.self, forKey: .appLinks) ?? defaults.appLinks
             contentBlocking = try container.decodeIfPresent(Bool.self, forKey: .contentBlocking) ?? defaults.contentBlocking
         }
     }
@@ -110,9 +122,35 @@ enum PageSettings {
         }
     }
 
+    /// One host's entry, decoded on its own so a single damaged entry costs only that site's choices.
+    private struct Entry: Decodable {
+        let settings: HostSettings?
+        init(from decoder: any Decoder) throws { settings = try? HostSettings(from: decoder) }
+    }
+
+    private static let log = Logger(subsystem: "com.chenkahana.boaz", category: "page-settings")
+    private static let damagedKey = "pageSettingsByHost.damaged"
+    private static var reportedDamage = false
+
     private static func saved() -> [String: HostSettings] {
         guard let data = UserDefaults.standard.data(forKey: defaultsKey) else { return [:] }
-        return (try? JSONDecoder().decode([String: HostSettings].self, from: data)) ?? [:]
+        do {
+            let entries = try JSONDecoder().decode([String: Entry].self, from: data)
+            let kept = entries.compactMapValues(\.settings)
+            if kept.count != entries.count { reportDamage("\(entries.count - kept.count) site entries could not be read", data: data) }
+            return kept
+        } catch {
+            reportDamage("the store could not be read: \(error)", data: data)
+            return [:]
+        }
+    }
+
+    /// Logs once per launch and keeps a copy of the unreadable bytes, so the next save does not make the loss permanent.
+    private static func reportDamage(_ reason: String, data: Data) {
+        guard !reportedDamage else { return }
+        reportedDamage = true
+        log.error("Per-site settings damaged: \(reason, privacy: .public)")
+        if UserDefaults.standard.data(forKey: damagedKey) == nil { UserDefaults.standard.set(data, forKey: damagedKey) }
     }
 
     private static func save(_ all: [String: HostSettings]) {

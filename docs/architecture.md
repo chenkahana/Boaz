@@ -137,10 +137,14 @@ first navigation decision, before any of its scripts run. A `window.open` that a
 toolbars (Safari's rule for a window) opens in a sheet, with the opener's configuration as WebKit passes it, so the
 data store (incognito stays in memory), content blockers and extensions carry over. It closes on `window.close()`,
 its close button, or when the opener's view goes. Any other new window (a `target=_blank` link, `window.open`
-without features) opens in a tab below the opener on Mac (a peek for pinned tabs) and in place on iPhone, where a
-site whose pop-ups are blocked gets nothing for the windows its scripts open. WebPage's own delegate doesn't create
-windows, so before this a `window.open` got `null` on both apps and a `target=_blank` link did nothing on iPhone.
-Windows a pop-up opens load in the pop-up.
+without features) opens in a tab below the opener on Mac (a peek for pinned tabs) and in place on iPhone — but
+only for links. A window a script opens is a pop-up even when it asks for no features: `window.opener` lives only
+in the `WKWebView` WebKit makes, and checkout flows (PayPal, a bank's 3-D Secure step) post their result back over
+it and close, so placement gives way to keeping the page and its window able to talk. On a site whose pop-ups are
+blocked a script window gets no view, but the block is never invisible: a toast says Boaz blocked a pop-up and
+offers to open it once, in place. WebPage's own delegate doesn't create windows, so before this a `window.open`
+got `null` on both apps and a `target=_blank` link did nothing on iPhone. A window a pop-up opens loads in the
+pop-up when it's a link, and stacks as its own pop-up — with the pop-up as its opener — when a script opens it.
 
 When the SDK changes, check, on both apps:
 
@@ -148,6 +152,9 @@ When the SDK changes, check, on both apps:
 - `backingWebView(of:)` still finds the view, and the tab's `uiDelegate` is still a `WebKit.`-prefixed class. If
   either fails, new windows keep their old placement and the app logs `No pop-up host` once (subsystem
   `com.chenkahana.boaz`, category `popups`); Mac extensions lose per-tab scripting the same way.
+- Settings ▸ About shows a "WebKit internals" line: "No problems seen", or "Degraded: pop-ups" once a fallback
+  has happened this launch (`WebKitInternals`). `ScreenTests.testWebKitInternalsStillWorkAfterAScriptWindow` fails when
+  it reads Degraded after a script window; CI runs it on every change, so an SDK bump that breaks it is caught there.
 - JavaScript alert, confirm and prompt, file inputs, camera and microphone prompts and fullscreen still work on a
   page that has opened a pop-up: those go through the forwarded delegate.
 
@@ -168,6 +175,11 @@ Every open posture uses the same view tree (`UnfoldedShell`), so the web view is
 The fold position comes from the system's reserved regions rather than from hard-coded sizes. Standard iPhones use
 the folded layout.
 
+Status (time, cellular, Wi-Fi, battery) is the system's own cluster, live by definition: unfolded portrait shows it
+in the column the screen reserves for it, with the tool rail stacked below; unfolded landscape hides it for a
+floating, collapsible pill (`LandscapeStatusPill`). A hand-drawn status bar can only fake signal strength, so Boaz
+doesn't draw one.
+
 ## Importers (Mac)
 
 - **Arc sidebar:** reads `StorableSidebar.json` and recreates profiles, spaces, pinned folders, favorites and themes
@@ -178,7 +190,9 @@ the folded layout.
   stored in the Boaz database or synced.
 - **Bookmarks:** Chrome, Brave, Edge and Safari bookmark files become pinned tabs and folders.
 
-Boaz does not import saved passwords. `ArcPasswordImporter.swift` is excluded from the package build.
+- **Passwords (CSV only):** Boaz never reads another browser's password store. Saved passwords come in through the
+  CSV file a browser or password manager exports, which `PasswordCSV` parses and the Passwords screen imports. There
+  is no Arc password importer; the old `ArcPasswordImporter.swift` no longer exists.
 
 ## Privacy and security
 

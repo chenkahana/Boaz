@@ -29,8 +29,10 @@ struct RootView: View {
             Pane(index: 0)
             if case .split = arrangement { Pane(index: 1).layoutValue(key: PaneSlot.self, value: 1) }
         }
-        .statusBarHidden(isPortrait || isLandscape)
-        .ignoresSafeArea(.container, edges: isLandscape ? [.top, .leading, .trailing] : isPortrait ? .top : [])
+        // Landscape keeps the system status cluster hidden for the floating pill. Every other posture shows it:
+        // it's live (battery, cellular, Wi-Fi) and native in a way a hand-drawn bar can only fake.
+        .statusBarHidden(isLandscape)
+        .ignoresSafeArea(.container, edges: isLandscape ? [.top, .leading, .trailing] : [])
         .overlay(alignment: .topTrailing) {
             if isLandscape {
                 LandscapeStatusPill(collapsed: $landscapeStatusCollapsed, site: focusedSite)
@@ -164,8 +166,6 @@ struct PostureLayout: Layout {
 private struct Pane: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.collapsesBar) private var collapsesBar
-    @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
     let index: Int
     /// The side the next tab slides in from; set while the finger is still down, so the outgoing page
     /// has already rendered with it by the time the tab changes.
@@ -174,7 +174,6 @@ private struct Pane: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if collapsesBar { PortraitStatusBar(site: statusSite) }
             ZStack {
                 if let tab = model.tab(inPane: index) {
                     TabBrowser(tab: tab, pageDirection: $pageDirection, bump: $bump)
@@ -207,31 +206,6 @@ private struct Pane: View {
 
     private var carouselMotion: Animation {
         reduceMotion ? .easeInOut(duration: 0.2) : .interpolatingSpring(duration: 0.42, bounce: 0.08)
-    }
-
-    private var statusSite: SiteColor? {
-        guard tintWithSiteColors, let id = model.tabID(inPane: index) else { return nil }
-        return model.siteEdges[id]?.top
-    }
-}
-
-private struct PortraitStatusBar: View {
-    let site: SiteColor?
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "cellularbars")
-            Image(systemName: "wifi")
-            StatusClock()
-            Spacer(minLength: 8)
-            BatteryReadout()
-        }
-        .font(.system(size: 15, weight: .semibold))
-        .padding(.horizontal, 18)
-        .frame(height: 36)
-        .padding(.top, 16)
-        .background(site?.color ?? Color(uiColor: .systemBackground))
-        .chromeScheme(site)
     }
 }
 
