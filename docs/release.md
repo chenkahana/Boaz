@@ -56,7 +56,7 @@ set up here.
 **Crash check before the next release.** Boaz has no analytics and no crash reporting, so field visibility is
 procedural. Before cutting a release, look at the previous one:
 
-- App Store Connect › TestFlight/App Store › Crashes, for the iPhone and Mac App Store builds.
+- App Store Connect, the app's crash reports (TestFlight and App Store builds), for the iPhone and Mac App Store versions.
 - Xcode › Window › Organizer › Crashes, for the same versions.
 - For the DMG, there is no automatic report; check new GitHub issues since the last release.
 
