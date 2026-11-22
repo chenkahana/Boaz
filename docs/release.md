@@ -46,7 +46,7 @@ soak before the next risky one ships:
 1. Release it as usual, but do not merge another engine, sync or migration change until it has run on your own
    Mac and iPhone for a full day, with the Mac updated through Sparkle rather than a fresh install.
 2. In that day, check the three things that fail quietly: tabs, spaces and sign-ins survive the update; two devices
-   still converge through sync; the Settings diagnostics line (once it exists) shows no problem.
+   still converge through sync; Settings ▸ About, "WebKit internals", reads "No problems seen".
 3. If anything is off, fix forward in the next release and say so in its notes; do not stack more changes on it.
 
 Polish-only commits (copy, spacing, icons, docs) skip the soak. If you want a real beta channel later, serve a second
