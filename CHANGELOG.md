@@ -6,6 +6,20 @@ All notable changes to Boaz are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- iPhone: a script-opened window (a PayPal or bank checkout step) keeps its connection to the page that opened it, so the result reaches the page.
+- iPhone: a blocked pop-up now says so, with a button to open it once.
+- iPhone Duo: the portrait status bar is the live system one (battery, cellular, Wi-Fi) instead of a drawn copy.
+- Mac: links for other apps (`mailto:`, `tel:`) ask before opening the app, instead of showing a raw error page.
+- Search: text containing `&`, `+`, `=` or `?` is sent to the search engine intact.
+- A single unreadable per-site setting no longer resets every site's settings, and a sync folder that can no longer be opened says so.
+
+### Added
+
+- iPhone: a per-site "Open in Apps" setting for links that would otherwise leave Boaz for the site's app.
+- Settings › About shows whether Boaz's WebKit workarounds (pop-ups) are working.
+
 ## [0.4.36] - 2026-11-19
 
 ### Fixed
