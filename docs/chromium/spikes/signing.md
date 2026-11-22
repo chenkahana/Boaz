@@ -1,3 +1,5 @@
+> `Tools/cef/sign-spike.py` and the spike app it signs moved to the `archive/cef-spike` branch; the commands below run from a checkout of that branch.
+
 # Development signing for the CEF spike
 
 After the spike finishes building, stage a separately signed copy. Select the exact Apple Development certificate SHA1 from the available signing identities. Keep that certificate and the bundle identifiers stable across rebuilds.
