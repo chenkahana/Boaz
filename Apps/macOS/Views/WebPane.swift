@@ -83,7 +83,7 @@ private struct ChromiumTabPane: View {
                     }
                 }
                 .padding(.horizontal, 10).frame(height: 26)
-                .background(.primary.opacity(focused ? 0.06 : 0.02))
+                .background(.primary.opacity(focused ? 0.1 : 0.02)) // Chromium covers the card outline: the header carries focus.
                 .contentShape(Rectangle())
                 .onTapGesture { browser.focusPane(tab.id) }
                 .onHover { hovering = $0 }
