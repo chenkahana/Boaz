@@ -44,10 +44,12 @@ final class ShareModel {
     /// space's website data).
     @MainActor
     func save(pinned: Bool) {
-        guard let store, let url = pageURL, let spaceID = selectedSpaceID,
-              let space = spaces.first(where: { $0.id == spaceID })
-        else {
-            errorMessage = "Nothing to save yet."
+        guard let url = pageURL else {
+            errorMessage = "There's no web address to save."
+            return
+        }
+        guard let store, let spaceID = selectedSpaceID, let space = spaces.first(where: { $0.id == spaceID }) else {
+            errorMessage = "Open Boaz once to set up your library, then try again."
             return
         }
         do {
@@ -56,7 +58,7 @@ final class ShareModel {
             if pinned {
                 let sidebar = try store.sidebar()
                 guard let box = sidebar.container(.pinned, in: space.id) else {
-                    errorMessage = "Couldn't find \(space.title)'s tabs."
+                    errorMessage = "Couldn't save to \(space.title). Open Boaz once, then try again."
                     return
                 }
                 tab = SidebarItem(id: UUID().uuidString, spaceID: space.id, profileID: space.profileID,
@@ -70,7 +72,7 @@ final class ShareModel {
             try store.save([tab])
             didSave = true
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = "Couldn't save this page. Try again."
         }
     }
 

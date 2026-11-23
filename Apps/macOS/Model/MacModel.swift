@@ -241,7 +241,7 @@ final class MacModel {
                 let count = try await store.archiveStaleTabs(olderThan: TimeInterval(interval.rawValue), onDevice: deviceID)
                 if count > 0 { showToast(String(inflecting: "Archived ^[\(count) inactive tab](inflect: true)")) }
             } catch {
-                showToast("Couldn't archive tabs: \(error.localizedDescription)")
+                showError("Couldn't archive these tabs. Try again.", error)
             }
         }
     }
@@ -630,7 +630,7 @@ final class MacModel {
             guard case .archived(let entry)? = try store?.archive(tab, reason: reason) else { return nil }
             return (tab, entry?.id)
         } catch {
-            showToast("Couldn't archive tab: \(error.localizedDescription)")
+            showError("Couldn't archive this tab. Try again.", error)
             return nil
         }
     }
@@ -648,7 +648,7 @@ final class MacModel {
         do {
             archived = try store.archive(tabs, reason: "cleared", saving: emptied, at: now)
         } catch {
-            showToast("Couldn't archive tabs: \(error.localizedDescription)")
+            showError("Couldn't archive these tabs. Try again.", error)
             return
         }
         var updated = sidebar
@@ -784,7 +784,7 @@ final class MacModel {
         do {
             try store.archive(archived, reason: "closed", saving: folders + live.map(tombstone), at: now)
         } catch {
-            showToast("Couldn't delete folder: \(error.localizedDescription)")
+            showError("Couldn't delete this folder. Try again.", error)
             return
         }
         var updated = sidebar
@@ -870,7 +870,7 @@ final class MacModel {
         let tabIDs = sidebar.items.filter { $0.spaceID == space.id && $0.kind == .tab }.map(\.id)
         for browser in windows { tabIDs.forEach(browser.unload) }
         for browser in windows where browser.spaceID == space.id { browser.switchSpace(to: other.id) }
-        do { try store?.deleteSpace(space.id) } catch { showToast("Couldn't delete space: \(error.localizedDescription)") }
+        do { try store?.deleteSpace(space.id) } catch { showError("Couldn't delete this space. Try again.", error) }
     }
 
     /// WebKit won't delete a data store while a page uses it, so a deleted profile's pages close first: its tabs and
@@ -921,7 +921,7 @@ final class MacModel {
         space.modifiedAt = .now
         if let index = sidebar.spaces.firstIndex(where: { $0.id == space.id }) { sidebar.spaces[index] = space }
         guard save else { return }
-        do { try store?.save([space]) } catch { showToast("Couldn't save: \(error.localizedDescription)") }
+        do { try store?.save([space]) } catch { showError("Couldn't save your changes. Try again.", error) }
     }
 
     // MARK: Helpers
@@ -934,7 +934,13 @@ final class MacModel {
         for item in items { sidebar.upsert(item) }
         PinnedTabNamer.shared.committed(items, wasPinned: wasPinned)
         // Every tab click and navigation lands here, so the write never holds up the main thread.
-        store?.saveInBackground(items) { [weak self] error in self?.showToast("Couldn't save: \(error.localizedDescription)") }
+        store?.saveInBackground(items) { [weak self] error in self?.showError("Couldn't save your changes. Try again.", error) }
+    }
+
+    /// A failure in plain words; the system's own description goes to the log, where it helps, not the toast.
+    func showError(_ message: String, _ error: any Error) {
+        Self.log.error("\(message, privacy: .public) \(String(describing: error))")
+        showToast(message)
     }
 
     func showToast(_ message: String, canUndo: Bool = false) {
