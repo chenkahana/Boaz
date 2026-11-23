@@ -199,7 +199,7 @@ struct TabBrowser: View {
                 // WebKit draws no error page of its own, so a failed load would otherwise stay blank.
                 if let loadFailure {
                     ContentUnavailableView {
-                        Label("Can't Open This Page", systemImage: "exclamationmark.circle")
+                        Label(loadFailure.kind.title, systemImage: loadFailure.kind.symbol)
                     } description: {
                         Text(loadFailure.message)
                     } actions: {
@@ -210,7 +210,7 @@ struct TabBrowser: View {
                     .background(Color(.systemBackground).ignoresSafeArea())
                 } else if model.failedTabs.contains(tab.id), page.isLoading {
                     ContentUnavailableView {
-                        Label("Can't Open This Page", systemImage: "exclamationmark.circle")
+                        Label(PageFailureKind.unreachable.title, systemImage: PageFailureKind.unreachable.symbol)
                     } description: {
                         Text("Trying again…")
                     } actions: {
@@ -393,6 +393,7 @@ struct TabBrowser: View {
 private struct LoadFailure {
     let message: String
     let url: URL?
+    var kind = PageFailureKind.unreachable
     /// Whether it may well load on its own later: the connection was down or dropped, or the page's process ended.
     var passes = false
 
@@ -402,8 +403,9 @@ private struct LoadFailure {
         switch error as? WebPage.NavigationError {
         case .failedProvisionalNavigation(let inner): underlying = inner
         case .webContentProcessTerminated:
-            message = "The page stopped responding."
+            message = "Reload the page to continue."
             url = nil
+            kind = .crashed
             passes = true
             return
         case .invalidURL:
@@ -420,7 +422,7 @@ private struct LoadFailure {
         if nsError.domain == NSURLErrorDomain {
             switch nsError.code {
             case NSURLErrorNotConnectedToInternet, NSURLErrorDataNotAllowed:
-                message = "You're offline. Check your connection and try again."
+                message = "Check your connection. The page loads again on its own when you're back online."
             case NSURLErrorTimedOut, NSURLErrorNetworkConnectionLost:
                 message = "The connection was interrupted. Try again."
             case NSURLErrorCannotFindHost:
@@ -434,6 +436,7 @@ private struct LoadFailure {
             message = nsError.localizedDescription
         }
         url = nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL
+        kind = PageFailureKind(nsError)
         passes = nsError.domain == NSURLErrorDomain && [
             NSURLErrorNotConnectedToInternet, NSURLErrorNetworkConnectionLost, NSURLErrorTimedOut,
             NSURLErrorDataNotAllowed, NSURLErrorCannotFindHost, NSURLErrorCannotConnectToHost,
