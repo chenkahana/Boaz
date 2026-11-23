@@ -142,6 +142,9 @@ struct RailButton: View {
             .buttonStyle(PressableStyle())
             .accessibilityLabel(label ?? symbol)
             .accessibilityAddTraits(isSelected ? .isSelected : [])
+            // The glyph stops growing at accessibility sizes; press and hold shows it large instead.
+            .accessibilityShowsLargeContentViewer { Label(label ?? symbol, systemImage: symbol) }
+            .accessibilityInputLabels(symbol == "ellipsis" ? [label ?? "Page Settings", "Menu", "More"] : [label ?? symbol])
     }
 }
 

@@ -37,6 +37,7 @@ struct TabStack: View {
         .buttonStyle(PressableStyle())
         .animation(reduceMotion ? .easeOut(duration: 0.2) : .bouncy(duration: 0.35), value: recent.map(\.id))
         .accessibilityLabel("Tabs")
+        .accessibilityShowsLargeContentViewer { Label("Tabs", systemImage: "square.on.square") }
         .accessibilityValue("\(tabs.count) open")
         .accessibilityHint("Shows your tabs side by side")
     }
