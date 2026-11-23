@@ -520,8 +520,11 @@ private struct SplitDivider: View {
                 withMotion(.standard) { browser.split?.fraction = 0.5 }
                 Haptics.snap.play()
             }
-            .accessibilityElement()
-            .accessibilityLabel("Split Divider")
+            // A slider to VoiceOver: it reads the split and adjusts it.
+            .accessibilityRepresentation {
+                Slider(value: Binding { browser.split?.fraction ?? 0.5 } set: { browser.split?.fraction = $0 },
+                       in: 0.2...0.8) { Text("Split Divider") }
+            }
             .accessibilityAction(named: "Even Panes") { browser.split?.fraction = 0.5 }
     }
 }
