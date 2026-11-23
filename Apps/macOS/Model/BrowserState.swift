@@ -157,11 +157,19 @@ final class BrowserState {
               window?.isVisible == true, let image = NSImage(data: data) else { return false }
         chromiumPreviews[tabID] = ChromiumPreview(url: url, navigation: navigation,
                                                 image: image, capturedAt: Date())
+        if let tab = tab(tabID), !isPrivate(tab) { TabSnapshots.save(data, tabID: tabID, url: url, profileID: tab.profileID) }
         if chromiumPreviews.count > 20,
            let oldest = chromiumPreviews.min(by: { $0.value.capturedAt < $1.value.capturedAt })?.key {
             chromiumPreviews[oldest] = nil
         }
         return true
+    }
+    /// After an unload or a relaunch, the tab's last look comes back from disk while its page loads.
+    func restoreChromiumPreview(tabID: String, url: URL?) async {
+        guard chromiumPreviews[tabID] == nil, let url, let tab = tab(tabID), !isPrivate(tab),
+              let data = await TabSnapshots.load(tabID: tabID, url: url, profileID: tab.profileID),
+              chromiumPreviews[tabID] == nil, let image = NSImage(data: data) else { return }
+        chromiumPreviews[tabID] = ChromiumPreview(url: url, navigation: 0, image: image, capturedAt: .distantPast)
     }
     @ObservationIgnored var createChromiumPeekPage: ((URL) throws -> EnginePage)?
     @ObservationIgnored private var chromiumPeekTask: Task<Void, Never>?
@@ -1099,6 +1107,8 @@ final class BrowserState {
         #if BOAZ_CHROMIUM
         chromiumPreviews[tab.id] = nil
         if isPrivate(tab) || !model.isPinned(tab) {
+            // Archived: its saved look goes too. An unloaded pinned tab keeps it for its return.
+            TabSnapshots.remove(tabID: tab.id, profileID: tab.profileID)
             engineChoices[tab.id] = nil
             engineRoutingFailures.remove(tab.id)
             if !isPrivate(tab) {
@@ -1301,6 +1311,7 @@ final class BrowserState {
     func removePinned(_ tab: SidebarItem) {
         #if BOAZ_CHROMIUM
         chromiumPreviews[tab.id] = nil
+        TabSnapshots.remove(tabID: tab.id, profileID: tab.profileID)
         #endif
         withMotion(.standard) { model.archive(tab) }
     }
