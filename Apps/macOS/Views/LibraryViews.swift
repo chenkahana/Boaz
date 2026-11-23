@@ -4,7 +4,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// Closed and auto-archived tabs by day, searchable; double-click or Restore reopens one. Embeddable: shared by
-/// the standalone `ArchiveWindow` (⌥⌘A) and the Library panel's Archived Tabs pane.
+/// the standalone `ArchiveWindow` (⌥⌘A) and the Library panel's Archive pane.
 struct ArchiveListView: View {
     @Environment(MacModel.self) private var model
     @Binding var query: String
@@ -59,14 +59,14 @@ struct ArchiveListView: View {
                 }
             }
         }
-        .accessibilityLabel("Archived tabs")
+        .accessibilityLabel("Archive")
         .contextMenu(forSelectionType: ArchiveItem.ID.self) { _ in } primaryAction: { ids in
             for id in ids { if let item = filtered.first(where: { $0.id == id }) { restore(item) } }
         }
         .overlay {
             if items.isEmpty {
-                ContentUnavailableView("Archive is empty", systemImage: "archivebox",
-                                       description: Text("Closed and auto-archived tabs appear here."))
+                ContentUnavailableView("No Archived Tabs", systemImage: "archivebox",
+                                       description: Text("Closed and inactive tabs appear here."))
             }
         }
         .task(id: model.sidebar) {
@@ -117,7 +117,7 @@ struct ArchiveWindow: View {
     var body: some View {
         ArchiveListView(query: $query, isEmpty: $isEmpty)
             .id(clears)
-            .searchable(text: $query, prompt: "Search archive")
+            .searchable(text: $query, prompt: "Search Archive")
             .toolbar {
                 Button("Clear Archive", systemImage: "trash") { confirmClear = true }
                     .disabled(isEmpty)

@@ -56,9 +56,9 @@ struct LibrarySheet: View {
                 if !query.isEmpty, (tab == 0 ? filteredArchive.isEmpty : history.isEmpty) {
                     ContentUnavailableView.search(text: query)
                 } else if (tab == 0 ? archive.isEmpty : history.isEmpty) {
-                    ContentUnavailableView(tab == 0 ? "Archive is empty" : "No history",
+                    ContentUnavailableView(tab == 0 ? "No Archived Tabs" : "No History",
                                            systemImage: tab == 0 ? "archivebox" : "clock",
-                                           description: Text(tab == 0 ? "Closed and inactive tabs land here." : "Pages you visit appear here."))
+                                           description: Text(tab == 0 ? "Closed and inactive tabs appear here." : "Pages you visit appear here."))
                 }
             }
             .searchable(text: $query)
