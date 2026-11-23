@@ -372,6 +372,8 @@ private struct SpaceColumn: View {
     @AppStorage private var liveFoldersEnabled: Bool
     @State private var pinnedTargeted = false
     @State private var todayTargeted = false
+    /// Rows continue below the visible list (a short window): the last one fades so the list reads as scrollable.
+    @State private var moreBelow = false
 
     init(space: Space, tint: Color) {
         self.space = space
@@ -415,6 +417,19 @@ private struct SpaceColumn: View {
             .animation(SidebarStyle.motion, value: pinned.map(\.id) + today.map(\.id))
         }
         .scrollIndicators(.never)
+        // The 80 pt drop area under the last row doesn't count as more.
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            geometry.contentOffset.y + geometry.containerSize.height < geometry.contentSize.height - 80
+        } action: { _, more in
+            moreBelow = more
+        }
+        .mask {
+            VStack(spacing: 0) {
+                Rectangle()
+                LinearGradient(colors: [.black, .black.opacity(moreBelow ? 0 : 1)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 28)
+            }
+        }
     }
 }
 

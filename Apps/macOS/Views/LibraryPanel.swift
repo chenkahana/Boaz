@@ -55,7 +55,8 @@ struct LibraryPanel: View {
             }
             .frame(width: Self.paneWidth)
         }
-        .frame(width: Self.paneWidth + Self.columnWidth, height: 630)
+        // 630 pt, or less in a short window so the popover still fits beside the sidebar.
+        .frame(width: Self.paneWidth + Self.columnWidth, height: min(630, max(380, (browser.window?.frame.height ?? 630) - 60)))
         .background(style.background)
         .environment(\.colorScheme, SpaceStyle.colorScheme(of: browser.currentSpace) ?? scheme)
         .onExitCommand { browser.libraryPanelPresented = false }
