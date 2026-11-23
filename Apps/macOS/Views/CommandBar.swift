@@ -349,9 +349,11 @@ private struct SuggestionRow: View {
                 Image(systemName: "clock").frame(width: 20)
                 Text(visit.title ?? visit.url.absoluteString).lineLimit(1)
                 Spacer()
-                Text(visit.url.host() ?? "").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                // Safari's word: a history row is told apart from a typed address, which also shows a host.
+                Text("History · \(visit.url.host() ?? "")").font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
         }
+        .accessibilityElement(children: .combine)
         .font(ChromeType(base: textSize).commandRow)
         .padding(.horizontal, 12).frame(height: 36)
         .background(selected ? tint.opacity(0.22) : .clear, in: .rect(cornerRadius: Radius.row, style: .continuous))

@@ -91,6 +91,7 @@ struct SearchPanel: View {
                 .background(Theme.brand.opacity(0.12), in: .rect(cornerRadius: 18))
             }
             .buttonStyle(.plain)
+            .accessibilityValue("Open Address")
         } else {
             // What was typed, as typed: the list is never empty while there's text.
             Button(action: submit) {
@@ -103,6 +104,7 @@ struct SearchPanel: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityValue(SearchSuggestions.looksLikeAddress(query) ? "Open Address" : "Search")
         }
         ForEach(tabSuggestions) { item in
             Button {
@@ -124,6 +126,7 @@ struct SearchPanel: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityValue(model.isOpen(item) ? "Switch to Tab" : "Open Tab")
         }
         ForEach(historySuggestions(besides: tabSuggestions)) { visit in
             Button {
@@ -138,6 +141,7 @@ struct SearchPanel: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityValue("History")
         }
         ForEach(remoteSuggestions, id: \.self) { suggestion in
             HStack(spacing: 0) {
@@ -149,6 +153,7 @@ struct SearchPanel: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .accessibilityValue("Search")
                 Button { model.searchText = suggestion + " " } label: {
                     Image(systemName: "arrow.up.left")
                         .foregroundStyle(Theme.textSecondary)
