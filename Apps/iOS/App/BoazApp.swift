@@ -26,6 +26,11 @@ struct BoazApp: App {
                 .environment(model)
                 .task { await model.start() }
                 .onOpenURL { url in DeepLink.handle(url, model: model) }
+                // A page handed off from the Mac opens as a new tab on top (web addresses only, as `boaz://open`).
+                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                    guard let url = activity.webpageURL else { return }
+                    DeepLink.handle(url, model: model)
+                }
         }
         .onChange(of: scenePhase) { _, phase in
             // On the way out the page is still drawn; once in the background it can't render a preview.

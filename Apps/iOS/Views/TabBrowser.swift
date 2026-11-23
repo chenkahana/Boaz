@@ -121,6 +121,15 @@ struct TabBrowser: View {
             .environment(\.chromeTint, edges?.top.color)
             .environment(\.siteEdges, edges)
             .animation(SiteEdges.fade(reduceMotion: reduceMotion), value: edges)
+            // Handoff: the focused page shows on the user's Mac (in Boaz there, or its default browser). Only a normal
+            // tab's web page; never Incognito, never history (must-have 11).
+            .userActivity(NSUserActivityTypeBrowsingWeb, isActive: handoffURL(page) != nil) { activity in
+                activity.webpageURL = handoffURL(page)
+                activity.title = page.title.isEmpty ? handoffURL(page)?.host() : page.title
+                activity.isEligibleForHandoff = true
+                activity.isEligibleForSearch = false
+                activity.isEligibleForPublicIndexing = false
+            }
             .sensoryFeedback(Haptics.pageTurned.feedback, trigger: model.backForwardHaptic)
             .sensoryFeedback(Haptics.refreshArmed.feedback, trigger: pullArmed) { old, new in new && !old }
             .onChange(of: page.url) { model.didChangeURL(tab) }
@@ -149,6 +158,12 @@ struct TabBrowser: View {
         let insets = proxy.safeAreaInsets
         if insets.top > 0, insets.leading == 0, insets.trailing == 0 { return true }
         return proxy.reservedRegions(kind: .occlusion).contains { $0.frame.maxY <= 1 && $0.frame.width > $0.frame.height }
+    }
+
+    private func handoffURL(_ page: WebPage) -> URL? {
+        guard model.activeTabID == tab.id, !model.isPrivate(tab), loadFailure == nil,
+              let url = page.url ?? tab.url, ["http", "https"].contains(url.scheme?.lowercased() ?? "") else { return nil }
+        return url
     }
 
     private var edges: SiteEdges? { tintWithSiteColors ? model.siteEdges[tab.id] : nil }
