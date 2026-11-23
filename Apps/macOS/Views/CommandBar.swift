@@ -353,7 +353,6 @@ private struct SuggestionRow: View {
                 Text("History · \(visit.url.host() ?? "")").font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
         }
-        .accessibilityElement(children: .combine)
         .font(ChromeType(base: textSize).commandRow)
         .padding(.horizontal, 12).frame(height: 36)
         .background(selected ? tint.opacity(0.22) : .clear, in: .rect(cornerRadius: Radius.row, style: .continuous))
