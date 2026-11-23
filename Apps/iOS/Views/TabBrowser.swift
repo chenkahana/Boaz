@@ -454,6 +454,7 @@ private struct BrowserBar: View {
 
     var body: some View {
         bar.onChange(of: tabCount, initial: true) { SwipeTabsTip.openTabs = tabCount }
+            .onChange(of: page.isLoading, initial: true) { SwipeTabsTip.pageLoaded = !page.isLoading }
     }
 
     /// On the rail, top to bottom: the tabs, New Tab, then the page settings. The bottom bar has a layout of its own.
