@@ -113,9 +113,6 @@ private struct ChromiumTabPane: View {
                                 Image(nsImage: preview).resizable().scaledToFit()
                                     .frame(width: geometry.size.width, height: geometry.size.height)
                                     .background(.background)
-                                    .overlay(alignment: .bottomTrailing) {
-                                        Text("Saved preview").font(.caption).padding(6).background(.regularMaterial)
-                                    }
                             }
                             .contentShape(Rectangle()).onTapGesture {}.accessibilityHidden(true)
                         }
@@ -159,13 +156,15 @@ private struct ChromiumTabPane: View {
                 return
             }
         }
+        .task(id: tab.id) { await browser.restoreChromiumPreview(tabID: tab.id, url: tab.url) }
         .task(id: surfaceDocument) {
             guard let expected = surfaceDocument,
                   let adapter = engine?.adapter as? ChromiumEnginePageAdapter,
                   let url = adapter.state.url else { return }
             let navigation = adapter.state.navigationID
             do {
-                let data = try await adapter.captureVisible()
+                let size = previewPixelSize
+                let data = try await adapter.captureVisible(maxWidth: size.width, maxHeight: size.height)
                 guard !Task.isCancelled, surfaceDocument == expected else { return }
                 _ = browser.cacheChromiumPreview(data, tabID: tab.id, adapter: adapter,
                                                 url: url, navigation: navigation)
@@ -182,6 +181,16 @@ private struct ChromiumTabPane: View {
               adapter.state.lifecycle == .active, !adapter.state.isLoading,
               let failure = adapter.state.loadFailure, failure.code == -106 else { return nil }
         return OfflineFailure(page: adapter.handle, navigation: adapter.state.navigationID, url: failure.url)
+    }
+
+    /// The window at its backing scale, within the capture's 2048 px and 2 MP limits, so the saved look is as sharp
+    /// as the host allows rather than a 1024 × 768 image stretched across the pane.
+    private var previewPixelSize: (width: Int, height: Int) {
+        let scale = browser.window?.backingScaleFactor ?? 2
+        let points = browser.window?.contentLayoutRect.size ?? CGSize(width: 1024, height: 768)
+        let width = max(points.width * scale, 1), height = max(points.height * scale, 1)
+        let fit = min(1, 2048 / width, 2048 / height, (2 * 1024 * 1024 / (width * height)).squareRoot())
+        return (Int(width * fit), Int(height * fit))
     }
 
     private var surfaceDocument: String? {
