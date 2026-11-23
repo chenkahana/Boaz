@@ -181,6 +181,7 @@ final class AppModel {
                     failures = 0
                     sidebar = snapshot
                     sidebarGeneration += 1
+                    SpotlightIndex.update(snapshot)
                     // Also how the stale-tab sweep's archived tabs lose their previews: the sweep lands as an update.
                     pruneSnapshots()
                     if sidebarGeneration == 1 {

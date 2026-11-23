@@ -1,5 +1,6 @@
 import BackgroundTasks
 import CloudKit
+import CoreSpotlight
 import BoazKit
 import SwiftUI
 import TipKit
@@ -26,6 +27,12 @@ struct BoazApp: App {
                 .environment(model)
                 .task { await model.start() }
                 .onOpenURL { url in DeepLink.handle(url, model: model) }
+                // A pinned tab or favorite picked in Spotlight opens as a new tab.
+                .onContinueUserActivity(CSSearchableItemActionType) { activity in
+                    guard let id = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
+                          let url = model.sidebar.items.first(where: { $0.id == id })?.url else { return }
+                    DeepLink.handle(url, model: model)
+                }
         }
         .onChange(of: scenePhase) { _, phase in
             // On the way out the page is still drawn; once in the background it can't render a preview.
