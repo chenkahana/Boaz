@@ -478,7 +478,8 @@ private struct SplitDivider: View {
 
     var body: some View {
         Capsule()
-            .fill(.white.opacity(hovering ? 0.7 : 0))
+            // Visible at rest, so a split always shows where to drag; brighter under the pointer.
+            .fill(.white.opacity(hovering ? 0.7 : 0.25))
             .frame(width: 3, height: 44)
             .frame(width: 8)
             .frame(maxHeight: .infinity)
