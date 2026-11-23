@@ -27,6 +27,13 @@ struct BoazApp: App {
                 .task { await model.start() }
                 .onOpenURL { url in DeepLink.handle(url, model: model) }
         }
+        // With a hardware keyboard: the Mac's shortcuts for a new tab and the address.
+        .commands {
+            CommandGroup(replacing: .newItem) {
+                Button("New Tab") { model.beginSearch(.newTab) }.keyboardShortcut("t")
+                Button("Open Location") { model.beginSearch(.currentTab) }.keyboardShortcut("l")
+            }
+        }
         .onChange(of: scenePhase) { _, phase in
             // On the way out the page is still drawn; once in the background it can't render a preview.
             if phase == .inactive { model.captureActiveSnapshot() }
