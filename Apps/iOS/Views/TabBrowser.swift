@@ -191,8 +191,9 @@ struct TabBrowser: View {
             }
             .animation(.easeOut(duration: 0.2), value: model.restoringTabs.contains(tab.id))
             .onDisappear { [tab, hostID] in model.releasePage(tab.id, host: hostID) }
-            .onChange(of: loadFailure == nil, initial: true) { _, loaded in
-                if loaded { model.failedTabs.remove(tab.id) } else { model.failedTabs.insert(tab.id) }
+            // A tab stays failed until a load commits, so reopening it shows the failure at once, not a blank page.
+            .onChange(of: loadFailure == nil) { _, loaded in
+                if !loaded { model.failedTabs.insert(tab.id) }
             }
             .overlay {
                 // WebKit draws no error page of its own, so a failed load would otherwise stay blank.
@@ -206,6 +207,15 @@ struct TabBrowser: View {
                             .buttonStyle(.glassProminent)
                     }
                     .tint(Theme.brand)
+                    .background(Color(.systemBackground).ignoresSafeArea())
+                } else if model.failedTabs.contains(tab.id), page.isLoading {
+                    ContentUnavailableView {
+                        Label("Can't Open This Page", systemImage: "exclamationmark.circle")
+                    } description: {
+                        Text("Trying again…")
+                    } actions: {
+                        ProgressView()
+                    }
                     .background(Color(.systemBackground).ignoresSafeArea())
                 }
             }
@@ -339,6 +349,7 @@ struct TabBrowser: View {
                         requested = page.url
                     case .committed:
                         loadFailure = LoadFailure(blocked: requested, committed: page.url)
+                        if loadFailure == nil { model.failedTabs.remove(tab.id) }
                         requested = nil
                         model.didCommitLoad(tab)
                         applyTextSize(to: page)
