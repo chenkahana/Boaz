@@ -4,6 +4,28 @@ All notable changes to Boaz are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.41] - 2026-11-23
+
+### Added
+
+- iPhone: Incognito looks different: dark violet chrome, "Private" on the bar's new-tab button, and its own empty
+  page.
+- iPhone: a New Tab control for Control Center, the Lock Screen and the Action button.
+- iPhone: pinned tabs and favorites show up in Spotlight (nothing else is indexed; the index stays on the iPhone).
+- iPhone: press and hold a tab card for Copy Link, Share and Archive Tab; press and hold the tab fan for New Tab,
+  Incognito and Archive Tab.
+- iPhone with a hardware keyboard: ⌘T opens a new tab and ⌘L the address.
+- Mac: VoiceOver's rotor can jump between pinned tabs and between Today tabs.
+
+### Fixed
+
+- The medium widget shows your favorites' real site icons instead of letters.
+- Mac: with Reduce Transparency on, a translucent space theme turns solid instead of washing out to grey.
+
+Crash reports reviewed: no GitHub issues opened since 0.4.37; no Boaz crash reports on the build Mac since
+2026-11-19 (one disk-writes resource report for a Chromium helper on 2026-11-23, as on 2026-11-20; not a crash).
+App Store Connect and Xcode Organizer crashes were not checked (not signed in on this Mac).
+
 ## [0.4.37] - 2026-11-22
 
 ### Fixed
