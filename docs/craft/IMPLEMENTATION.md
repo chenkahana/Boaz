@@ -1,4 +1,4 @@
-RESUME HERE: DONE for non-gated Wave A and B: all merged, last release v0.4.36 (appcast 0.4.36). Next: runtime checks owed below (need a session with nobody on the Mac), Chen's yes on the waiting items, then Wave C non-gated items.
+RESUME HERE (2026-11-23): round 2 in progress. Branch craft/batch-2-gated (pushed, 53d9959, merges cleanly on master 54690f5) holds #7, #2, #3, #16, #18. It touches Apps/macOS/Engine, so it is a soak release under docs/release.md (0.4.37 touched sync; next risky release after 2026-11-23 20:05 and Chen's soak checks). Split polish vs engine commits. Remaining round 2: #11, #13, #19, #26, #31, #78, Wave C (41), Wave D (4). Every release: crash-report check line in the notes.
 
 # Implementation
 
