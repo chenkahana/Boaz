@@ -7,6 +7,7 @@ import WebKit
 struct PageSettingsPanel: View {
     @Environment(AppModel.self) private var model
     @Environment(\.chromeTint) private var tint
+    @Environment(\.dynamicTypeSize) private var typeSize
     let tab: SidebarItem
     let page: WebPage
     /// The address the page failed to load, which Reload retries as Try Again does.
@@ -85,7 +86,7 @@ struct PageSettingsPanel: View {
             HStack(spacing: 12) {
                 Monogram(url: page.url ?? tab.url, tint: Theme.brand, size: 32)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                    Text(title).font(.subheadline.weight(.semibold)).lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
                     HStack(spacing: 4) {
                         if page.url?.scheme == "https", page.serverTrust != nil { Image(systemName: "lock.fill").imageScale(.small) }
                         Text(host).lineLimit(1)
@@ -217,14 +218,18 @@ struct PageSettingsPanel: View {
 /// One of the four navigation buttons across the top of the panel.
 private struct NavTile: View {
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.dynamicTypeSize) private var typeSize
     let symbol: String
     let title: String
 
     var body: some View {
         VStack(spacing: 4) {
             Image(systemName: symbol).font(.body.weight(.semibold)).contentTransition(.symbolEffect(.replace))
-            // Four tiles share the row, so a caption shrinks to fit at large sizes instead of clipping.
-            Text(title).font(.caption2.weight(.medium)).lineLimit(1).minimumScaleFactor(0.6)
+            // Four tiles share the row, so a caption shrinks to fit at large sizes instead of clipping; at
+            // accessibility sizes it can't fit at all, and the symbol stands alone (a long press shows the name).
+            if !typeSize.isAccessibilitySize {
+                Text(title).font(.caption2.weight(.medium)).lineLimit(1).minimumScaleFactor(0.6)
+            }
         }
         .frame(maxWidth: .infinity, minHeight: 56)
         .background(.background.opacity(0.55), in: .rect(cornerRadius: 16))
@@ -232,6 +237,7 @@ private struct NavTile: View {
         .opacity(isEnabled ? 1 : 0.4)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
+        .accessibilityShowsLargeContentViewer { Label(title, systemImage: symbol) }
     }
 }
 
@@ -259,15 +265,25 @@ private struct PanelRowStyle: ButtonStyle {
 
 private struct PanelLabelStyle: LabelStyle {
     func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 14) {
-            configuration.icon
-                .font(.body.weight(.medium))
-                .frame(width: 22)
-            configuration.title
-                .font(.body)
-                .lineLimit(1)
+        Row(configuration: configuration)
+    }
+
+    private struct Row: View {
+        @Environment(\.dynamicTypeSize) private var typeSize
+        let configuration: Configuration
+
+        var body: some View {
+            HStack(spacing: 14) {
+                configuration.icon
+                    .font(.body.weight(.medium))
+                    .frame(width: 22)
+                // At accessibility sizes a title wraps rather than truncating to its first letters.
+                configuration.title
+                    .font(.body)
+                    .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
+            }
+            .foregroundStyle(.primary)
         }
-        .foregroundStyle(.primary)
     }
 }
 
