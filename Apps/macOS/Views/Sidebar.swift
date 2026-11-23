@@ -606,6 +606,18 @@ struct ItemRow: View {
             .accessibilityAddTraits(active ? .isSelected : [])
             .accessibilityIdentifier(item.kind == .folder ? "sidebar.folder.\(title)"
                                      : liveStatus.map { LivePullIcon.identifier($0) } ?? "")
+            // The row's everyday actions in VoiceOver's Actions rotor, not only behind the context menu.
+            .accessibilityActions {
+                if item.kind == .tab {
+                    let pinned = model.isPinned(item)
+                    Button(pinned ? "Unload" : "Archive") { browser.close(item) }
+                    if !browser.isPrivate(item) {
+                        Button(pinned && !model.isFavorite(item) ? "Unpin Tab" : "Pin Tab") { browser.togglePin(item) }
+                        Button("Rename") { browser.rename = .init(target: .item(item), text: item.title ?? "") }
+                    }
+                    Button("Open in Split View") { browser.openInSplit(item) }
+                }
+            }
             .help(liveStatus??.detail ?? "")
             if item.kind == .tab, browser.hasWandered(item) {
                 HoverIconButton(symbol: "arrow.uturn.backward", help: "Back to Pinned Page", size: 20) {
