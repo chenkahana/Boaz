@@ -648,6 +648,13 @@ struct ItemRow: View {
             }
             return dropItems(payloads, into: item.parentID ?? "", before: item.id, model: model, browser: browser)
         } isTargeted: { targeted = $0; if $0 { Haptics.slotChanged.play() } }
+        // Spring-loaded, as in Finder: a dragged tab held over a closed folder opens it.
+        .task(id: targeted) {
+            guard targeted, item.kind == .folder, !item.isExpanded else { return }
+            try? await Task.sleep(for: .milliseconds(700))
+            guard !Task.isCancelled, targeted, !item.isExpanded else { return }
+            withAnimation(SidebarStyle.motion) { model.toggleExpanded(item) }
+        }
         .contextMenu {
             if item.kind == .folder {
                 FolderMenu(folder: item) { choosingIcon = true }
