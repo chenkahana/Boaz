@@ -40,7 +40,7 @@ struct AppIconPicker: View {
             .disabled(!UIApplication.shared.supportsAlternateIcons)
             .animation(reduceMotion ? nil : .snappy(duration: 0.25), value: current)
         } header: {
-            Text("App icon")
+            Text("App Icon")
         } footer: {
             if let error { Text(error) }
         }
