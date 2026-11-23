@@ -1,4 +1,4 @@
-RESUME HERE (2026-11-23 16:40 IST): round 2. Polish PR #168 (0.4.38: #7 #2 #3 #16 #11 #13 #26) and Wave C batch 1 PR #169 (0.4.39) in CI. Engine batch (#18 + engine halves of #16/#36/#37) waits for the 0.4.37 soak: merge no earlier than 2026-11-23 22:05 IST (0.4.37 published 20:05 UTC). Then #78, Wave C rest, Wave D (each risky one soaks 24 h). Decisions log at the end of this file.
+RESUME HERE (2026-11-23 20:45 IST): polish #168 (0.4.38) and Wave C #169 (0.4.39) re-running CI (first runs timed out at 60 min with 3 PRs queued); #170 (0.4.40) and #171 (0.4.41) wait to rebase after #168 (it carries the testToast fix). Engine batch craft/engine-1 (#18 + DMG halves of #36/#37) merges after #168/#169, soak window open since 22:05 IST 2026-11-23... see Soak below. #78 slice 1 on craft/snapshots-1 (pushed, no PR yet): next risky release, ≥ 24 h after the engine batch.
 
 # Implementation
 
@@ -59,6 +59,63 @@ behaviour and wait for Chen's yes (R5.3 "Chen's yes" column).
 - [ ] #43 One iCloud sign-in message (OB-5, ST-3) — PR #169
 - [ ] #45 Share extension labels (WX-5) — PR #169
 
+## Wave C, batch 2 — PR https://github.com/chenkahana/Boaz/pull/170 (0.4.40)
+
+- [ ] #48 Split: holds at 50 %, double-click evens, slider to VoiceOver (MW-7)
+- [ ] #49 Split divider visible at rest (MS-12)
+- [ ] #50 Folders spring open during a drag (MS-11)
+- [ ] #51 Library panel ⌘1–⌘4, ⌘↑/⌘↓ (ML-5)
+- [ ] #54 Rubber band at sidebar/split limits (MS-5)
+- [ ] #56 Short window: Library panel fits, Today list fades (ML-2, MS-9)
+- [ ] #57 Materials: DMG split header focus tint, command bar solid under Reduce Transparency (MW-8, MC-4); DU-4 device check only
+- [ ] #64 Setup pages swipe (OB-4)
+- [ ] #67 Sidebar rows: VoiceOver custom actions (MS-3)
+- [ ] #68 Rail/bar Large Content Viewer + Voice Control names (AX-6, AX-7); AX-2 (iPhone UI-test hit areas) not done, test infra only
+- [ ] #71 Failed card spoken state (AX-3); OB-1 already fixed
+
+## Wave C batch 3 + Wave D polish — PR https://github.com/chenkahana/Boaz/pull/171 (0.4.41)
+
+- [ ] #60 Carousel card context menu (IB-6)
+- [ ] #61 Tab fan long-press menu (IB-10); … long-press unchanged
+- [ ] #63 ⌘T / ⌘L with a hardware keyboard (IS-3); arrow keys through suggestions not done
+- [ ] #69 Reduce Transparency: solid space theme (AX-13); AX-14 after #168
+- [ ] #70 Mac sidebar Pinned/Today rotors (AX-5)
+- [ ] #73 Widget favicons from the App Group (WX-3)
+- [ ] #74 iPhone Incognito look (IB-1) — Duo simulator checked
+- [ ] #76 Spotlight: pinned tabs + favorites, iPhone only (WX-1)
+- [ ] #77 Control Center / Lock Screen New Tab control (WX-2)
+
+## Engine batch (risky) — branch craft/engine-1, PR after #168/#169
+
+- [ ] #18 unloaded tab keeps its snapshot (MW-4)
+- [ ] #37 DMG find bar title case (MW-6)
+- [ ] #36 DMG load-failure view uses `PageFailureKind` (after #169)
+
+## Wave C not shipped (decided)
+
+- #44 sync last-synced/error state: already on master (`LibrarySync.Status.summary`: "Up to date · time", "Couldn't sync: …").
+- #46 ⌘Z Undo Close Tab: skipped. A global ⌘Z competes with text undo in pages (MH 1); ⇧⌘T and the toast's Undo cover it.
+- #47 sidebar keyboard focus: deferred to the GUI session: focusable rows may take first responder from Chromium on click; needs a real-app keyboard check.
+- #52 Settings regrouped: skipped, no clear win, moves settings people know.
+- #53 interactive space swipe, #55 command bar grows from the address: not started (M effort, gesture/MH 2,5 needs real-app check).
+- #58 page menu grouped: after #168 (same file).
+- #59 scrim over the rail: skipped; the rail stays tappable by design (README 2026-11-13).
+- #62 ST-4, #66 DU-2: device-only measurements, no code.
+- #65 command bar focus without polling: skipped; the polling is the safety net for Chromium focus (MH 1), needs DMG runtime work.
+- #72 onboarding contrast: needs a measured contrast on the rendered glass; not changed blind.
+
+## Wave D
+
+- [ ] #74, #76 (iPhone Spotlight), #77 — PR #171
+- [ ] #75 Handoff: not started; DMG continuation lives in the AppKit delegate (`Apps/macOS/Engine`) → risky, after #78 slice 1.
+- [-] #76 Focus filter + Mac Spotlight: waits on a spike: the DMG's executable is Chromium's, so App Intents metadata in the UI dylib may not be discovered.
+
+## #78 Live tab snapshots
+
+- Spike (2026-11-23): the host has no freeze or MHTML API (`Tools/chromium/host`: no `Freeze`/`GenerateMHTML`), so steps 1-3 of tab-snapshots.md need host C++ and a Chromium rebuild; capture is capped at 2048 px and 2 MP by the host (`visible_page_capture.cc`).
+- [ ] Slice 1 (Swift only, branch craft/snapshots-1): last look kept on disk per profile under Caches (200 MB LRU), deleted on close/archive/removal and lazily when the page changed, never for Incognito; capture sized to the window at backing scale within the host cap; "Saved preview" caption removed (MW-2, #17); docs/privacy.md line. Risky release ≥ 24 h after the engine batch.
+- [ ] Slice 2 (host): freeze past the live-page budget, MHTML on unload, live read-only snapshot page, 30-tab memory measurement.
+
 ## Not started
 
 - #78 Live tab snapshots (waiting: Chen's answers on on-disk snapshots and the frozen-page memory budget)
@@ -92,3 +149,7 @@ behaviour and wait for Chen's yes (R5.3 "Chen's yes" column).
 - #43: iPhone setup's primary button is Continue; Sign In to iCloud is the secondary button (`OnboardingView.primary/secondary`). Settings' signed-out line states "Not signed in to iCloud" next to the button.
 - #45: share sheet "Pin to Sidebar" / "Add to Tabs".
 - Soak clock: 0.4.37 published 2026-11-22 20:05 UTC (22:05 IST), so the next risky merge is ≥ 2026-11-23 22:05 IST.
+- Soak evidence for 0.4.37 on this Mac (2026-11-23 20:40): /Applications/Boaz.app replaced 2026-11-22 22:21 IST through Sparkle (PersistentDownloads touched then), running since 07:40 today; no "No pop-up host" (the only WebKit-internals fallback) in 23 h of unified log, so About reads "No problems seen"; no Boaz crash reports since 2026-11-19. Not checked: iPhone sync convergence, and tabs/sign-ins by eye (Chen's devices).
+- #74: Incognito violet = the Mac Incognito window's (`SiteEdges.incognito`).
+- #77: one New Tab control; Search would do the same thing.
+- #78 slice 1: snapshots live in Caches, not the library directory: a cache must never sit with data that can't be lost.
