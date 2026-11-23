@@ -151,7 +151,10 @@ struct TabBrowser: View {
         return proxy.reservedRegions(kind: .occlusion).contains { $0.frame.maxY <= 1 && $0.frame.width > $0.frame.height }
     }
 
-    private var edges: SiteEdges? { tintWithSiteColors ? model.siteEdges[tab.id] : nil }
+    private var edges: SiteEdges? {
+        if model.isPrivate(tab) { return .incognito }
+        return tintWithSiteColors ? model.siteEdges[tab.id] : nil
+    }
 
     /// The page's edge colors behind it, seen where the page doesn't reach (beside it while swiping tabs).
     private var siteBackdrop: some View {
@@ -493,8 +496,10 @@ private struct BrowserBar: View {
         HStack(spacing: 0) {
             tabsButton.frame(maxWidth: .infinity, alignment: .leading)
             Button(action: toggleSearch) {
-                HStack(spacing: 10) {
-                    if model.isPrivate(tab) { Image(systemName: "eyeglasses") }
+                HStack(spacing: 8) {
+                    if model.isPrivate(tab) {
+                        Text("Private").font(.headline).lineLimit(1).minimumScaleFactor(0.7)
+                    }
                     Image(systemName: "plus")
                 }
                     .font(.title3.weight(.semibold))

@@ -36,6 +36,10 @@ struct SiteEdges: Hashable {
     /// it doesn't change while scrolling past differently colored cards and sections.
     let page: SiteColor
 
+    /// Incognito's chrome on iPhone: a fixed dark violet in place of the page's colors, so a private tab never looks
+    /// like a normal one (the Mac's Incognito window uses the same violet).
+    static let incognito = SiteEdges([41, 31, 77, 41, 31, 77, 41, 31, 77])!
+
     /// The crossfade as the colors change (navigating, scrolling into a differently colored section).
     static func fade(reduceMotion: Bool) -> Animation { .easeInOut(duration: reduceMotion ? 0.15 : 0.25) }
 
