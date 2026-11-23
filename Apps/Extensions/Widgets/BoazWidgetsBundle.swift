@@ -5,5 +5,6 @@ import WidgetKit
 struct BoazWidgetsBundle: WidgetBundle {
     var body: some Widget {
         BoazSearchWidget()
+        NewTabControl()
     }
 }
