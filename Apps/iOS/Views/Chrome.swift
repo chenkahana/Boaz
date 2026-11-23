@@ -1,4 +1,5 @@
 import BoazKit
+import Network
 import SwiftUI
 
 /// Address and search entry: a panel in the page area, riding above the keyboard, with the field on top and
@@ -11,6 +12,8 @@ struct SearchPanel: View {
     @FocusState private var focused: Bool
     /// Off right after a deletion, so backspacing over a completion doesn't bring it straight back.
     @State private var completes = true
+    /// No network: the engine can't suggest anything, so the panel says why instead of growing for rows that won't come.
+    @State private var offline = false
 
     var body: some View {
         // Matched once per keystroke, however many times the rows are laid out.
@@ -33,6 +36,9 @@ struct SearchPanel: View {
             .padding(8)
         }
         .onAppear { focused = true }
+        .task {
+            for await path in NWPathMonitor() { offline = path.status != .satisfied }
+        }
         .onChange(of: model.searchText) { old, new in completes = new.count >= old.count }
         .animation(BottomPanelStyle.motion, value: expanded)
     }
@@ -41,7 +47,7 @@ struct SearchPanel: View {
     /// jump as suggestions come and go. Without engine suggestions (an address, Incognito, turned off) the panel
     /// fits its few local rows.
     private var expanded: Bool {
-        !query.isEmpty && model.asksSearchEngine && !SearchSuggestions.looksLikeAddress(query)
+        !query.isEmpty && model.asksSearchEngine && !offline && !SearchSuggestions.looksLikeAddress(query)
     }
 
     private var query: String { model.searchText.trimmingCharacters(in: .whitespaces) }
@@ -142,6 +148,15 @@ struct SearchPanel: View {
             }
             .buttonStyle(.plain)
             .accessibilityValue("History")
+        }
+        if offline, model.asksSearchEngine {
+            row {
+                Image(systemName: "wifi.slash").frame(width: 24)
+                Text("You're offline. Search suggestions return when you're connected.").font(.footnote)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(Theme.textSecondary)
+            .accessibilityElement(children: .combine)
         }
         ForEach(remoteSuggestions, id: \.self) { suggestion in
             HStack(spacing: 0) {

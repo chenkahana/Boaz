@@ -349,6 +349,9 @@ private struct EmptyBrowser: View {
             .padding(.top, 4)
         }
         .padding(24)
+        // The search panel is this button's answer; behind its scrim, a second "New Tab" would only compete.
+        .opacity(model.searchTarget == nil ? 1 : 0)
+        .accessibilityHidden(model.searchTarget != nil)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
             RadialGradient(colors: [style.tint.opacity(scheme == .dark ? 0.22 : 0.14), .clear],
