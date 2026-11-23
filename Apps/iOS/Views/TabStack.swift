@@ -486,7 +486,8 @@ private struct DeckCards: View, Animatable {
             .zIndex(Double(index))
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(tab.title ?? tab.url?.host() ?? "New Tab")
-            .accessibilityValue(tab.url?.host() ?? "")
+            .accessibilityValue([tab.url?.host(), model.failedTabs.contains(tab.id) ? "Can't open this page" : nil]
+                .compactMap { $0 }.joined(separator: ", "))
             .accessibilityAddTraits(.isButton)
             .accessibilityHint("Opens the tab")
             .accessibilityAction { open(tab.id) }
