@@ -87,7 +87,7 @@ struct BrowserWindow: View {
             .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: browser.zoomTag)
         }
         .overlay(alignment: .bottom) { ToastView() }
-        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: browser.commandMode)
+        .motion(.emphasized, value: browser.commandMode)
         .background { AlternateShortcuts() }
         .background(WindowAccessor { browser.attach($0) })
         .ignoresSafeArea()
@@ -335,6 +335,14 @@ private struct SidebarResizeHandle: View {
                     width = next
                 }
                 .onEnded { _ in start = nil })
+            // Double-click evens the panes, as in Finder's column dividers.
+            .onTapGesture(count: 2) {
+                withMotion(.standard) { browser.split?.fraction = 0.5 }
+                Haptics.snap.play()
+            }
+            .accessibilityElement()
+            .accessibilityLabel("Split Divider")
+            .accessibilityAction(named: "Even Panes") { browser.split?.fraction = 0.5 }
     }
 }
 
@@ -490,13 +498,23 @@ private struct SplitDivider: View {
                 .onChanged { value in
                     let origin = start ?? browser.split?.fraction ?? 0.5
                     start = origin
-                    let next = min(0.8, max(0.2, origin + value.translation.width / width))
+                    var next = min(0.8, max(0.2, origin + value.translation.width / width))
+                    // The middle holds the divider for a moment, so even halves are easy to land on.
+                    if abs(next - 0.5) < 0.02 { next = 0.5 }
                     // A tick at the limits and as the divider passes the middle.
                     if let old = browser.split?.fraction, next != old,
                        next == 0.2 || next == 0.8 || (old - 0.5) * (next - 0.5) < 0 { Haptics.snap.play() }
                     browser.split?.fraction = next
                 }
                 .onEnded { _ in start = nil })
+            // Double-click evens the panes, as in Finder's column dividers.
+            .onTapGesture(count: 2) {
+                withMotion(.standard) { browser.split?.fraction = 0.5 }
+                Haptics.snap.play()
+            }
+            .accessibilityElement()
+            .accessibilityLabel("Split Divider")
+            .accessibilityAction(named: "Even Panes") { browser.split?.fraction = 0.5 }
     }
 }
 

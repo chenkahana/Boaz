@@ -74,7 +74,7 @@ private struct ChromiumTabPane: View {
                     Spacer()
                     if hovering {
                         HoverIconButton(symbol: "rectangle.split.2x1.slash", help: "Separate", size: 20) {
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                            withMotion(.standard) {
                                 browser.split = nil
                                 browser.focusPane(tab.id)
                             }
@@ -413,7 +413,7 @@ private struct PaneHeader: View {
             Spacer()
             if hovering {
                 HoverIconButton(symbol: "rectangle.split.2x1.slash", help: "Separate", size: 20) {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { browser.split = nil; browser.focusPane(tab.id) }
+                    withMotion(.standard) { browser.split = nil; browser.focusPane(tab.id) }
                 }
                 HoverIconButton(symbol: "xmark", help: "Close", size: 20) { browser.close(tab) }
             }
