@@ -16,6 +16,8 @@ struct PageSettingsPanel: View {
     let onDownloads: () -> Void
     let onFind: () -> Void
     let onTranslate: () -> Void
+    /// Rows continue below the panel's edge, so the last visible one fades instead of reading as cut off.
+    @State private var moreBelow = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -52,6 +54,18 @@ struct PageSettingsPanel: View {
                 .buttonStyle(PanelRowStyle())
             }
             .scrollBounceBehavior(.basedOnSize)
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentOffset.y + geometry.containerSize.height < geometry.contentSize.height - 1
+            } action: { _, more in
+                moreBelow = more
+            }
+            .mask {
+                VStack(spacing: 0) {
+                    Rectangle()
+                    LinearGradient(colors: [.black, .black.opacity(moreBelow ? 0 : 1)], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 36)
+                }
+            }
         }
         // Rows scrolling past the panel's rounded bottom corners stay inside them.
         .clipShape(.rect(cornerRadius: BottomPanelStyle.cornerRadius))
