@@ -8,6 +8,7 @@ struct PageSettingsPanel: View {
     @Environment(AppModel.self) private var model
     @Environment(\.chromeTint) private var tint
     @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.colorSchemeContrast) private var contrast
     let tab: SidebarItem
     let page: WebPage
     /// The address the page failed to load, which Reload retries as Try Again does.
@@ -46,9 +47,12 @@ struct PageSettingsPanel: View {
                                 .id(settingsHost)
                         }
                     }
-                    group { tabActions }
-                    group { HomeMenuItems() }
-                        .simultaneousGesture(TapGesture().onEnded(close))
+                    section("This Tab") { group { tabActions } }
+                    // Not about this page: Boaz's own places, apart from the page's actions above.
+                    section("Boaz") {
+                        group { HomeMenuItems() }
+                            .simultaneousGesture(TapGesture().onEnded(close))
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.bottom, 12)
@@ -179,7 +183,19 @@ struct PageSettingsPanel: View {
 
     private func group(@ViewBuilder _ rows: () -> some View) -> some View {
         VStack(spacing: 0) { rows() }
-            .background(.background.opacity(0.55), in: .rect(cornerRadius: 18))
+            .background(.background.opacity(contrast == .increased ? 0.9 : 0.55), in: .rect(cornerRadius: 18))
+    }
+
+    /// A caption over a group, as "Website Settings" has.
+    private func section(_ title: String, @ViewBuilder _ content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Theme.textSecondary)
+                .padding(.horizontal, 16)
+                .accessibilityAddTraits(.isHeader)
+            content()
+        }
     }
 
     // MARK: Actions
@@ -218,6 +234,7 @@ struct PageSettingsPanel: View {
 /// One of the four navigation buttons across the top of the panel.
 private struct NavTile: View {
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.dynamicTypeSize) private var typeSize
     let symbol: String
     let title: String
@@ -232,7 +249,7 @@ private struct NavTile: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 56)
-        .background(.background.opacity(0.55), in: .rect(cornerRadius: 16))
+        .background(.background.opacity(contrast == .increased ? 0.9 : 0.55), in: .rect(cornerRadius: 16))
         .contentShape(.rect(cornerRadius: 16))
         .opacity(isEnabled ? 1 : 0.4)
         .accessibilityElement(children: .ignore)
