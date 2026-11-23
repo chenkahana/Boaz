@@ -436,6 +436,7 @@ private struct DeckMetrics {
 /// The visible cards, laid out for a position that animates frame by frame, so springs between cards and
 /// cards entering or leaving the deck move smoothly.
 private struct DeckCards: View, Animatable {
+    @Environment(AppModel.self) private var model
     let tabs: [SidebarItem]
     var position: Double
     let metrics: DeckMetrics
