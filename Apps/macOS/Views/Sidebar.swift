@@ -415,6 +415,13 @@ private struct SpaceColumn: View {
             .animation(SidebarStyle.motion, value: pinned.map(\.id) + today.map(\.id))
         }
         .scrollIndicators(.never)
+        // VoiceOver jumps straight to a pinned or a Today tab, as Safari's tab rotors do.
+        .accessibilityRotor("Pinned") {
+            ForEach(pinned) { AccessibilityRotorEntry($0.title ?? $0.url?.host() ?? "Folder", id: $0.id) }
+        }
+        .accessibilityRotor("Today") {
+            ForEach(today) { AccessibilityRotorEntry($0.title ?? $0.url?.host() ?? "New Tab", id: $0.id) }
+        }
     }
 }
 
