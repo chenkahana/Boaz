@@ -59,6 +59,14 @@ struct LibraryPanel: View {
         .background(style.background)
         .environment(\.colorScheme, SpaceStyle.colorScheme(of: browser.currentSpace) ?? scheme)
         .onExitCommand { browser.libraryPanelPresented = false }
+        // ⌘↑ and ⌘↓ step through the tab column, whatever the pane's own list has focus.
+        .onKeyPress(keys: [.upArrow, .downArrow], phases: .down) { press in
+            guard press.modifiers.contains(.command), let index = LibraryTab.allCases.firstIndex(of: tab) else { return .ignored }
+            let next = index + (press.key == .upArrow ? -1 : 1)
+            guard LibraryTab.allCases.indices.contains(next) else { return .handled }
+            tab = LibraryTab.allCases[next]
+            return .handled
+        }
         .task { downloads.start() }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen.libraryPanel")
@@ -71,7 +79,7 @@ private struct LibraryTabColumn: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            ForEach(LibraryTab.allCases) { item in
+            ForEach(Array(LibraryTab.allCases.enumerated()), id: \.element) { index, item in
                 Button { tab = item } label: {
                     VStack(spacing: 4) {
                         Image(systemName: item.symbol).font(.system(size: 16, weight: .medium))
@@ -83,6 +91,8 @@ private struct LibraryTabColumn: View {
                     }
                 }
                 .buttonStyle(LibraryTabButtonStyle(selected: tab == item, style: style))
+                .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .command)
+                .help("\(item.title) (⌘\(index + 1))")
                 .accessibilityIdentifier("control.library.tab.\(item.rawValue)")
                 .accessibilityLabel(item.title)
                 .accessibilityAddTraits(tab == item ? .isSelected : [])
