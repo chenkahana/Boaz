@@ -335,14 +335,6 @@ private struct SidebarResizeHandle: View {
                     width = next
                 }
                 .onEnded { _ in start = nil })
-            // Double-click evens the panes, as in Finder's column dividers.
-            .onTapGesture(count: 2) {
-                withMotion(.standard) { browser.split?.fraction = 0.5 }
-                Haptics.snap.play()
-            }
-            .accessibilityElement()
-            .accessibilityLabel("Split Divider")
-            .accessibilityAction(named: "Even Panes") { browser.split?.fraction = 0.5 }
     }
 }
 
@@ -501,9 +493,9 @@ private struct SplitDivider: View {
                     var next = min(0.8, max(0.2, origin + value.translation.width / width))
                     // The middle holds the divider for a moment, so even halves are easy to land on.
                     if abs(next - 0.5) < 0.02 { next = 0.5 }
-                    // A tick at the limits and as the divider passes the middle.
+                    // A tick at the limits and as the divider reaches or passes the middle.
                     if let old = browser.split?.fraction, next != old,
-                       next == 0.2 || next == 0.8 || (old - 0.5) * (next - 0.5) < 0 { Haptics.snap.play() }
+                       next == 0.2 || next == 0.8 || next == 0.5 || (old - 0.5) * (next - 0.5) < 0 { Haptics.snap.play() }
                     browser.split?.fraction = next
                 }
                 .onEnded { _ in start = nil })
