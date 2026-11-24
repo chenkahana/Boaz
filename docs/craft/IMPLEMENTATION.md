@@ -1,4 +1,4 @@
-RESUME HERE (2026-11-23 20:45 IST): polish #168 (0.4.38) and Wave C #169 (0.4.39) re-running CI (first runs timed out at 60 min with 3 PRs queued); #170 (0.4.40) and #171 (0.4.41) wait to rebase after #168 (it carries the testToast fix). Engine batch craft/engine-1 (#18 + DMG halves of #36/#37) merges after #168/#169, soak window open since 22:05 IST 2026-11-23... see Soak below. #78 slice 1 on craft/snapshots-1 (pushed, no PR yet): next risky release, ≥ 24 h after the engine batch.
+RESUME HERE (2026-11-24 02:20 IST): #168 merged, v0.4.38 released 00:18Z. #169 (0.4.39) merged master in, CI next; then #170 (0.4.40), #171 (0.4.41, + wave-c-4 AX-14/#58), one CI at a time (shared runner). Engine batch rebuilt as craft/engine-2 (#18, MW-6, #36 DMG; Chromium UI builds) — PR after #171, soak met (0.4.37 + 24 h passed 2026-11-23 22:05 IST). #78 slice 1 rebuilt as craft/snapshots-2 on engine-2: PR ≥ 24 h after the engine release. Handoff (craft/handoff) PR after the engine batch. CI now times out a stalled UI test after 5 min and uploads results on cancel (#168's first run stalled, by launch timing in testResetShortcutsConfirmation; same code passed on rerun).
 
 # Implementation
 
@@ -9,21 +9,21 @@ behaviour and wait for Chen's yes (R5.3 "Chen's yes" column).
 ## Wave A
 
 - [x] #1 iPhone carousel header: "N Tabs" and Done never overlap at AX sizes (AX-8) — batch PR https://github.com/chenkahana/Boaz/pull/158 — v0.4.36
-- [ ] #2 iPhone rail: one 48 pt control size (IB-2, IB-9) — polish PR https://github.com/chenkahana/Boaz/pull/168 — 0.4.38 (in CI)
-- [ ] #3 DMG: page-load progress in the address pill (MW-1) — polish PR https://github.com/chenkahana/Boaz/pull/168 — 0.4.38 (in CI)
+- [x] #2 iPhone rail: one 48 pt control size (IB-2, IB-9) — polish PR https://github.com/chenkahana/Boaz/pull/168 — v0.4.38
+- [x] #3 DMG: page-load progress in the address pill (MW-1) — polish PR https://github.com/chenkahana/Boaz/pull/168 — v0.4.38
 - [x] #4 Motion tokens, Reduce Motion inside the token (SY-1) — batch PR https://github.com/chenkahana/Boaz/pull/158 — v0.4.36
 - [x] #5 Mac: the 14 model springs fade under Reduce Motion (AX-12) — batch PR https://github.com/chenkahana/Boaz/pull/158 — v0.4.36
 - [x] #6 Mac command bar: selection follows pointer movement (MC-1) — PR https://github.com/chenkahana/Boaz/pull/151 — v0.4.30 (released v0.4.30)
-- [ ] #7 Mac toast UI test waits for the toast (AX-1) — polish PR https://github.com/chenkahana/Boaz/pull/168 — 0.4.38 (in CI)
+- [x] #7 Mac toast UI test waits for the toast (AX-1) — polish PR https://github.com/chenkahana/Boaz/pull/168 — v0.4.38
 - [x] #8 iPhone search field: 44 pt Clear Text button (IS-1) — PR https://github.com/chenkahana/Boaz/pull/149 — v0.4.28 (iPhone; shipped in release v0.4.30)
 - [x] #9 Mac peek and sidebar: three one-off curves become tokens (MS-6) — batch PR https://github.com/chenkahana/Boaz/pull/158 — v0.4.36
 - [x] #10 iPhone search panel: captions wrap by word at AX sizes (AX-10) — PR https://github.com/chenkahana/Boaz/pull/150 — v0.4.29 (iPhone; shipped in release v0.4.30)
-- [ ] #11 Duo half-open strip: 44 pt rows and close buttons (DU-1) — polish PR https://github.com/chenkahana/Boaz/pull/168 — 0.4.38 (in CI)
+- [x] #11 Duo half-open strip: 44 pt rows and close buttons (DU-1) — polish PR https://github.com/chenkahana/Boaz/pull/168 — v0.4.38
 - [x] #12 iPhone carousel: a failed tab gets a designed card (IB-3) — PR https://github.com/chenkahana/Boaz/pull/148 — v0.4.27 (iPhone; shipped in release v0.4.30)
-- [ ] #13 iPhone page menu ends on an edge fade (IM-1) — polish PR https://github.com/chenkahana/Boaz/pull/168 — 0.4.38 (in CI)
+- [x] #13 iPhone page menu ends on an edge fade (IM-1) — polish PR https://github.com/chenkahana/Boaz/pull/168 — v0.4.38
 - [x] #14 Mac library panel: tab labels at a readable size (ML-1) — batch PR https://github.com/chenkahana/Boaz/pull/158 — v0.4.36
 - [x] #15 Mac sidebar: dragging a tab out gives its URL (MS-1) — PR https://github.com/chenkahana/Boaz/pull/153 — v0.4.31 (in release v0.4.34)
-- [ ] #16 DMG windows titled after their page (MS-13) — polish PR https://github.com/chenkahana/Boaz/pull/168 — 0.4.38 (in CI)
+- [x] #16 DMG windows titled after their page (MS-13) — polish PR https://github.com/chenkahana/Boaz/pull/168 — v0.4.38
 - [ ] #17 Restored tab: no "Saved preview" caption (MW-2) (waiting: Chen's yes, MH 13; folds into #78)
 - [ ] #18 Mac: unloaded tab keeps its snapshot (MW-4) — engine batch, after the 0.4.37 soak (≥ 2026-11-23 22:05 IST)
 - [-] #19 Mac WebKit find bar without Replace (MW-9) — skipped: SwiftUI `WebPage` has no find API; a JS find would lose native match highlighting and count (Mac App Store build only)
@@ -36,7 +36,7 @@ behaviour and wait for Chen's yes (R5.3 "Chen's yes" column).
 - [x] #23 iPhone page menu: drag-to-dismiss keeps velocity (IM-3) — batch PR https://github.com/chenkahana/Boaz/pull/158 — v0.4.36
 - [x] #24 Mac trackpad haptics at sidebar limits, folder crossings and split snaps (MS-4) — batch PR https://github.com/chenkahana/Boaz/pull/158 — v0.4.36
 - [x] #25 Type ramp tokens (SY-3) — PR https://github.com/chenkahana/Boaz/pull/155 — v0.4.33 (in release v0.4.34)
-- [ ] #26 iPhone page menu usable at AX5 (AX-9) — polish PR https://github.com/chenkahana/Boaz/pull/168 — 0.4.38 (in CI)
+- [x] #26 iPhone page menu usable at AX5 (AX-9) — polish PR https://github.com/chenkahana/Boaz/pull/168 — v0.4.38
 - [x] #27 Mac sidebar glyphs and command bar follow Settings › Sidebar text size (MS-7, MC-5) — batch PR https://github.com/chenkahana/Boaz/pull/158 — v0.4.36
 - [x] #28 iPhone: page-menu tiles, onboarding button and Settings title scale with Dynamic Type (IM-4, OB-3, AX-11) — PR https://github.com/chenkahana/Boaz/pull/157 — v0.4.35 (iPhone; ships with v0.4.36)
 - [x] #29 Spacing and radius tokens (SY-4) — PR https://github.com/chenkahana/Boaz/pull/156 — v0.4.34
@@ -85,11 +85,11 @@ behaviour and wait for Chen's yes (R5.3 "Chen's yes" column).
 - [ ] #76 Spotlight: pinned tabs + favorites, iPhone only (WX-1)
 - [ ] #77 Control Center / Lock Screen New Tab control (WX-2)
 
-## Engine batch (risky) — branch craft/engine-1, PR after #168/#169
+## Engine batch (risky) — branch craft/engine-2 (rebuilt from engine-1), PR after #171
 
 - [ ] #18 unloaded tab keeps its snapshot (MW-4)
 - [ ] #37 DMG find bar title case (MW-6)
-- [ ] #36 DMG load-failure view uses `PageFailureKind` (after #169)
+- [ ] #36 DMG load-failure view uses `PageFailureKind` (on craft/engine-2, a241802)
 
 ## Wave C not shipped (decided)
 
