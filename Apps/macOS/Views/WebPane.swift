@@ -33,7 +33,7 @@ private struct RoutedWebKitPane: View {
         Group {
             if let page { WebKitTabPane(tab: tab, inSplit: inSplit, page: page) }
             else if failed {
-                ContentUnavailableView("Couldn't Open This Page", systemImage: "exclamationmark.triangle",
+                ContentUnavailableView(PageFailureKind.unreachable.title, systemImage: PageFailureKind.unreachable.symbol,
                     description: Text("Boaz couldn't open this page's video player."))
             } else { ProgressView("Opening page…") }
         }.task(id: tab.id) {
@@ -97,7 +97,7 @@ private struct ChromiumTabPane: View {
             }
             if let failure {
                 ContentUnavailableView {
-                    Label("Can't Open This Page", systemImage: "exclamationmark.triangle")
+                    Label(PageFailureKind.unreachable.title, systemImage: PageFailureKind.unreachable.symbol)
                 } description: {
                     Text(failure)
                 } actions: {
@@ -125,8 +125,14 @@ private struct ChromiumTabPane: View {
                             ChromiumLoadFailureView(adapter: adapter)
                         }
                     }
+            } else if let preview = browser.chromiumPreview(for: tab.id, url: tab.url) {
+                // The page is being created: keep the tab's last look rather than flash a spinner.
+                Image(nsImage: preview).resizable().scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(.background)
+                    .accessibilityHidden(true)
             } else {
-                ProgressView("Opening page…").frame(maxWidth: .infinity, maxHeight: .infinity)
+                Color.clear.frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .task(id: tab.id) { open() }
@@ -328,6 +334,7 @@ private struct WebKitTabPane: View {
 struct LoadFailure {
     let message: String
     let url: URL?
+    var kind = PageFailureKind.unreachable
     /// Whether it may well load on its own later: the connection was down or dropped, or the page's process ended.
     var passes = false
 
@@ -339,9 +346,13 @@ struct LoadFailure {
         if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled { return nil }
         // WebKitErrorFrameLoadInterruptedByPolicyChange and WebKitErrorPlugInWillHandleLoad.
         if nsError.domain == "WebKitErrorDomain" && [102, 204].contains(nsError.code) { return nil }
+        var kind = PageFailureKind(nsError)
+        if case WebPage.NavigationError.webContentProcessTerminated = error { kind = .crashed }
+        self.kind = kind
         message = switch error {
-        case WebPage.NavigationError.webContentProcessTerminated: "The page stopped working."
+        case WebPage.NavigationError.webContentProcessTerminated: "Reload the page to continue."
         case WebPage.NavigationError.invalidURL: "The address isn't valid."
+        case _ where kind == .offline: "Check your connection. The page loads again on its own when you're back online."
         default: nsError.localizedDescription
         }
         url = nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL
@@ -381,7 +392,7 @@ private struct LoadFailureView: View {
 
     var body: some View {
         ContentUnavailableView {
-            Label("Can't Open This Page", systemImage: "wifi.exclamationmark")
+            Label(failure.kind.title, systemImage: failure.kind.symbol)
         } description: {
             Text(failure.message)
         } actions: {

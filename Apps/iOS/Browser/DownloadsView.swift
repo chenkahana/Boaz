@@ -43,7 +43,7 @@ struct DownloadsView: View {
             }
             .overlay {
                 if files.isEmpty {
-                    ContentUnavailableView("No downloads", systemImage: "arrow.down.circle",
+                    ContentUnavailableView("No Downloads", systemImage: "arrow.down.circle",
                                            description: Text("Files you download appear here."))
                 }
             }

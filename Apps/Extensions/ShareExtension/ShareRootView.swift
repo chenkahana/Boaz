@@ -28,12 +28,12 @@ struct ShareRootView: View {
 
                 HStack(spacing: 12) {
                     Button { model.save(pinned: true) } label: {
-                        Label("Pin", systemImage: "pin.fill").frame(maxWidth: .infinity)
+                        Label("Pin to Sidebar", systemImage: "pin.fill").frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.glass)
 
                     Button { model.save(pinned: false) } label: {
-                        Label("Open on iPhone", systemImage: "plus").frame(maxWidth: .infinity)
+                        Label("Add to Tabs", systemImage: "plus").frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.glassProminent)
                 }

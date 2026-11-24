@@ -7,7 +7,8 @@ struct SyncStatusLabel: View {
 
     var body: some View {
         Label {
-            Text(status.summary)
+            // Signed out, the Sign In button beside this line says what to do; the line only says what's true.
+            Text(ICloudSignIn.needsSignIn(status) ? ICloudSignIn.title(status, folder: nil) : status.summary)
         } icon: {
             Image(systemName: status.systemImage)
                 .foregroundStyle(status.isUpToDate ? Color.green : Color.secondary)

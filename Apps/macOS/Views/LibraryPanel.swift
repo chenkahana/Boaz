@@ -13,7 +13,7 @@ enum LibraryTab: String, CaseIterable, Identifiable {
         case .media: "Media"
         case .downloads: "Downloads"
         case .spaces: "Spaces"
-        case .archive: "Archived Tabs"
+        case .archive: "Archive"
         }
     }
 
@@ -471,7 +471,7 @@ private struct LibrarySpaceRow: View {
     }
 }
 
-// MARK: Archived Tabs pane
+// MARK: Archive pane
 
 private struct LibraryArchivePane: View {
     @Environment(BrowserState.self) private var browser
@@ -481,7 +481,7 @@ private struct LibraryArchivePane: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            LibrarySearchBar(query: $query, placeholder: "Search Archive…", style: style)
+            LibrarySearchBar(query: $query, placeholder: "Search Archive", style: style)
             ArchiveListView(query: $query, isEmpty: $isEmpty) { _ in browser.libraryPanelPresented = false }
                 .scrollContentBackground(.hidden)
         }

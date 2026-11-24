@@ -1,4 +1,5 @@
 import BoazKit
+import Network
 import SwiftUI
 
 /// Address and search entry: a panel in the page area, riding above the keyboard, with the field on top and
@@ -11,6 +12,8 @@ struct SearchPanel: View {
     @FocusState private var focused: Bool
     /// Off right after a deletion, so backspacing over a completion doesn't bring it straight back.
     @State private var completes = true
+    /// No network: the engine can't suggest anything, so the panel says why instead of growing for rows that won't come.
+    @State private var offline = false
 
     var body: some View {
         // Matched once per keystroke, however many times the rows are laid out.
@@ -33,6 +36,9 @@ struct SearchPanel: View {
             .padding(8)
         }
         .onAppear { focused = true }
+        .task {
+            for await path in NWPathMonitor() { offline = path.status != .satisfied }
+        }
         .onChange(of: model.searchText) { old, new in completes = new.count >= old.count }
         .animation(BottomPanelStyle.motion, value: expanded)
     }
@@ -41,7 +47,7 @@ struct SearchPanel: View {
     /// jump as suggestions come and go. Without engine suggestions (an address, Incognito, turned off) the panel
     /// fits its few local rows.
     private var expanded: Bool {
-        !query.isEmpty && model.asksSearchEngine && !SearchSuggestions.looksLikeAddress(query)
+        !query.isEmpty && model.asksSearchEngine && !offline && !SearchSuggestions.looksLikeAddress(query)
     }
 
     private var query: String { model.searchText.trimmingCharacters(in: .whitespaces) }
@@ -91,6 +97,7 @@ struct SearchPanel: View {
                 .background(Theme.brand.opacity(0.12), in: .rect(cornerRadius: 18))
             }
             .buttonStyle(.plain)
+            .accessibilityValue("Open Address")
         } else {
             // What was typed, as typed: the list is never empty while there's text.
             Button(action: submit) {
@@ -103,6 +110,7 @@ struct SearchPanel: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityValue(SearchSuggestions.looksLikeAddress(query) ? "Open Address" : "Search")
         }
         ForEach(tabSuggestions) { item in
             Button {
@@ -124,6 +132,7 @@ struct SearchPanel: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityValue(model.isOpen(item) ? "Switch to Tab" : "Open Tab")
         }
         ForEach(historySuggestions(besides: tabSuggestions)) { visit in
             Button {
@@ -138,6 +147,16 @@ struct SearchPanel: View {
                 }
             }
             .buttonStyle(.plain)
+            .accessibilityValue("History")
+        }
+        if offline, model.asksSearchEngine {
+            row {
+                Image(systemName: "wifi.slash").frame(width: 24)
+                Text("You're offline. Search suggestions return when you're connected.").font(.footnote)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(Theme.textSecondary)
+            .accessibilityElement(children: .combine)
         }
         ForEach(remoteSuggestions, id: \.self) { suggestion in
             HStack(spacing: 0) {
@@ -149,6 +168,7 @@ struct SearchPanel: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .accessibilityValue("Search")
                 Button { model.searchText = suggestion + " " } label: {
                     Image(systemName: "arrow.up.left")
                         .foregroundStyle(Theme.textSecondary)
