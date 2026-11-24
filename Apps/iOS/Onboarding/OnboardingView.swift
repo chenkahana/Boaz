@@ -86,7 +86,7 @@ struct OnboardingView: View {
             }
             .controlSize(.large)
             if let secondary {
-                Button(secondary) { go(by: 1) }
+                Button(secondary, action: secondaryAction)
                     .foregroundStyle(.white.opacity(0.9))
             }
         }
@@ -98,18 +98,22 @@ struct OnboardingView: View {
 
     private var primary: String {
         switch step {
-        case .signIn: needsSignIn ? "Sign In to iCloud" : "Continue"
+        case .signIn: "Continue"
         case .done: "Start Browsing"
         }
     }
 
     private var secondary: String? {
-        step == .signIn && needsSignIn ? "Continue Without Syncing" : nil
+        step == .signIn && needsSignIn ? "Sign In to iCloud" : nil
+    }
+
+    /// Browsing comes first; without an iCloud account, syncing is the side path, not a wall before the first page.
+    private func secondaryAction() {
+        if let url = ICloudSignIn.settingsURL { UIApplication.shared.open(url) }
     }
 
     private func primaryAction() {
         switch step {
-        case .signIn where needsSignIn: if let url = ICloudSignIn.settingsURL { UIApplication.shared.open(url) }
         case .signIn: go(by: 1)
         case .done: finish()
         }

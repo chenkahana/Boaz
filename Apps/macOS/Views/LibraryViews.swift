@@ -4,7 +4,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// Closed and auto-archived tabs by day, searchable; double-click or Restore reopens one. Embeddable: shared by
-/// the standalone `ArchiveWindow` (⌥⌘A) and the Library panel's Archived Tabs pane.
+/// the standalone `ArchiveWindow` (⌥⌘A) and the Library panel's Archive pane.
 struct ArchiveListView: View {
     @Environment(MacModel.self) private var model
     @Binding var query: String
@@ -59,14 +59,14 @@ struct ArchiveListView: View {
                 }
             }
         }
-        .accessibilityLabel("Archived tabs")
+        .accessibilityLabel("Archive")
         .contextMenu(forSelectionType: ArchiveItem.ID.self) { _ in } primaryAction: { ids in
             for id in ids { if let item = filtered.first(where: { $0.id == id }) { restore(item) } }
         }
         .overlay {
             if items.isEmpty {
-                ContentUnavailableView("Archive is empty", systemImage: "archivebox",
-                                       description: Text("Closed and auto-archived tabs appear here."))
+                ContentUnavailableView("No Archived Tabs", systemImage: "archivebox",
+                                       description: Text("Closed and inactive tabs appear here."))
             }
         }
         .task(id: model.sidebar) {
@@ -117,7 +117,7 @@ struct ArchiveWindow: View {
     var body: some View {
         ArchiveListView(query: $query, isEmpty: $isEmpty)
             .id(clears)
-            .searchable(text: $query, prompt: "Search archive")
+            .searchable(text: $query, prompt: "Search Archive")
             .toolbar {
                 Button("Clear Archive", systemImage: "trash") { confirmClear = true }
                     .disabled(isEmpty)
@@ -305,10 +305,10 @@ private struct GeneralSettings: View {
                 Picker("Archive Inactive Tabs After", selection: $archiveAfter) {
                     ForEach(ArchiveInterval.allCases) { Text($0.label).tag($0.rawValue) }
                 }
-                Picker("Search engine", selection: $searchEngine) {
+                Picker("Search Engine", selection: $searchEngine) {
                     ForEach(SearchEngine.allCases) { Text($0.name).tag($0.rawValue) }
                 }
-                Picker("Sidebar text size", selection: $sidebarTextSize) {
+                Picker("Sidebar Text Size", selection: $sidebarTextSize) {
                     Text("Small").tag(14.0)
                     Text("Medium").tag(15.0)
                     Text("Large").tag(17.0)
@@ -340,7 +340,7 @@ private struct DefaultBrowserRow: View {
     @State private var requesting = false
 
     var body: some View {
-        LabeledContent("Default browser") {
+        LabeledContent("Default Browser") {
             if current.isBoaz {
                 Text("Boaz is your default browser")
             } else {
@@ -382,7 +382,7 @@ private struct PrivacySettings: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Block ads and trackers", isOn: $blockTrackers)
+                Toggle("Block Ads and Trackers", isOn: $blockTrackers)
                 Text("Applies to pages opened after you change it.")
                     .font(.caption).foregroundStyle(.secondary)
             }
@@ -476,7 +476,7 @@ private struct SyncSettings: View {
                         SyncStatusLabel(status: sync.status)
                     }
                     if sync.offersFolder {
-                        LabeledContent("Sync folder", value: sync.folderURL?.path(percentEncoded: false) ?? "None")
+                        LabeledContent("Sync Folder", value: sync.folderURL?.path(percentEncoded: false) ?? "None")
                         Button(sync.folderURL == nil ? "Sync Through a Folder…" : "Change Folder…") {
                             Task { syncMessage = await sync.chooseFolder() }
                         }
@@ -502,7 +502,7 @@ private struct ShortcutsSettings: View {
 
     var body: some View {
         Form {
-            Section("Keyboard shortcuts") {
+            Section("Keyboard Shortcuts") {
                 LabeledContent("Overrides", value: model.keyBindings.overrides.isEmpty
                                ? "Arc defaults" : "\(model.keyBindings.overrides.count) custom")
                 HStack {
