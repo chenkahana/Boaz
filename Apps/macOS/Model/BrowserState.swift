@@ -120,7 +120,7 @@ final class BrowserState {
     var ai: AIRequest?
     var showImport = false
     var onboarding: OnboardingView.Step?
-    /// The Library popover (Media, Downloads, Spaces, Archived Tabs), opened from the sidebar's bottom-left
+    /// The Library popover (Media, Downloads, Spaces, Archive), opened from the sidebar's bottom-left
     /// button or the Downloads… menu item; always opens on the Downloads pane.
     var libraryPanelPresented = false
     private(set) var incognitoTabs: [SidebarItem] = []

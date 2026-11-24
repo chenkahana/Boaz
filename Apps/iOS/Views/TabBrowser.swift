@@ -13,6 +13,7 @@ struct TabBrowser: View {
     @Environment(\.collapsesBar) private var collapsesBar
     @Environment(\.paneIndex) private var pane
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var typeSize
     @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
     let tab: SidebarItem
     /// The side the next tab slides in from, and a count of tab turns for the haptic; both outlive this tab's
@@ -97,8 +98,10 @@ struct TabBrowser: View {
             .overlay {
                 // In the page area: beside the rail, above the bottom bar. Half-open, in the focused pane only.
                 if model.showsPageSettings, model.activeTabID == tab.id {
-                    // A half-open pane is short: there the menu may take all of it, and scrolls.
-                    BottomPanel(site: edges?.bottom, maxHeight: model.isSplit ? 1 : 0.56, onDismiss: closePageSettings) {
+                    // A half-open pane is short, and accessibility text sizes need the room: there the menu may
+                    // take all of it, and scrolls.
+                    BottomPanel(site: edges?.bottom, maxHeight: model.isSplit || typeSize.isAccessibilitySize ? 1 : 0.56,
+                                onDismiss: closePageSettings) {
                         PageSettingsPanel(tab: tab, page: page, failedURL: loadFailure?.url,
                                           readableLength: readableLength,
                                           onReader: { Task { readerArticle = await Reader.extract(from: page) } },
@@ -206,14 +209,15 @@ struct TabBrowser: View {
             }
             .animation(.easeOut(duration: 0.2), value: model.restoringTabs.contains(tab.id))
             .onDisappear { [tab, hostID] in model.releasePage(tab.id, host: hostID) }
-            .onChange(of: loadFailure == nil, initial: true) { _, loaded in
-                if loaded { model.failedTabs.remove(tab.id) } else { model.failedTabs.insert(tab.id) }
+            // A tab stays failed until a load commits, so reopening it shows the failure at once, not a blank page.
+            .onChange(of: loadFailure == nil) { _, loaded in
+                if !loaded { model.failedTabs.insert(tab.id) }
             }
             .overlay {
                 // WebKit draws no error page of its own, so a failed load would otherwise stay blank.
                 if let loadFailure {
                     ContentUnavailableView {
-                        Label("Can't Open This Page", systemImage: "exclamationmark.circle")
+                        Label(loadFailure.kind.title, systemImage: loadFailure.kind.symbol)
                     } description: {
                         Text(loadFailure.message)
                     } actions: {
@@ -221,6 +225,15 @@ struct TabBrowser: View {
                             .buttonStyle(.glassProminent)
                     }
                     .tint(Theme.brand)
+                    .background(Color(.systemBackground).ignoresSafeArea())
+                } else if model.failedTabs.contains(tab.id), page.isLoading {
+                    ContentUnavailableView {
+                        Label(PageFailureKind.unreachable.title, systemImage: PageFailureKind.unreachable.symbol)
+                    } description: {
+                        Text("Trying again…")
+                    } actions: {
+                        ProgressView()
+                    }
                     .background(Color(.systemBackground).ignoresSafeArea())
                 }
             }
@@ -354,6 +367,7 @@ struct TabBrowser: View {
                         requested = page.url
                     case .committed:
                         loadFailure = LoadFailure(blocked: requested, committed: page.url)
+                        if loadFailure == nil { model.failedTabs.remove(tab.id) }
                         requested = nil
                         model.didCommitLoad(tab)
                         applyTextSize(to: page)
@@ -397,6 +411,7 @@ struct TabBrowser: View {
 private struct LoadFailure {
     let message: String
     let url: URL?
+    var kind = PageFailureKind.unreachable
     /// Whether it may well load on its own later: the connection was down or dropped, or the page's process ended.
     var passes = false
 
@@ -406,8 +421,9 @@ private struct LoadFailure {
         switch error as? WebPage.NavigationError {
         case .failedProvisionalNavigation(let inner): underlying = inner
         case .webContentProcessTerminated:
-            message = "The page stopped responding."
+            message = "Reload the page to continue."
             url = nil
+            kind = .crashed
             passes = true
             return
         case .invalidURL:
@@ -424,7 +440,7 @@ private struct LoadFailure {
         if nsError.domain == NSURLErrorDomain {
             switch nsError.code {
             case NSURLErrorNotConnectedToInternet, NSURLErrorDataNotAllowed:
-                message = "You're offline. Check your connection and try again."
+                message = "Check your connection. The page loads again on its own when you're back online."
             case NSURLErrorTimedOut, NSURLErrorNetworkConnectionLost:
                 message = "The connection was interrupted. Try again."
             case NSURLErrorCannotFindHost:
@@ -438,6 +454,7 @@ private struct LoadFailure {
             message = nsError.localizedDescription
         }
         url = nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL
+        kind = PageFailureKind(nsError)
         passes = nsError.domain == NSURLErrorDomain && [
             NSURLErrorNotConnectedToInternet, NSURLErrorNetworkConnectionLost, NSURLErrorTimedOut,
             NSURLErrorDataNotAllowed, NSURLErrorCannotFindHost, NSURLErrorCannotConnectToHost,
@@ -469,6 +486,7 @@ private struct BrowserBar: View {
 
     var body: some View {
         bar.onChange(of: tabCount, initial: true) { SwipeTabsTip.openTabs = tabCount }
+            .onChange(of: page.isLoading, initial: true) { SwipeTabsTip.pageLoaded = !page.isLoading }
     }
 
     /// On the rail, top to bottom: the tabs, New Tab, then the page settings. The bottom bar has a layout of its own.
@@ -494,7 +512,7 @@ private struct BrowserBar: View {
     @ViewBuilder private var tabsButton: some View {
         if !listsTabsElsewhere {
             if axis == .vertical {
-                TabStack(cardSize: CGSize(width: 26, height: 36)).padding(.vertical, 4)
+                TabStack(cardSize: CGSize(width: 26, height: 36), minimumSide: RailMetrics.control)
             } else {
                 TabStack(cardSize: collapsesBar ? CGSize(width: 30, height: 39) : CGSize(width: 34, height: 46))
             }
@@ -522,7 +540,7 @@ private struct BrowserBar: View {
             .accessibilityLabel("New Tab")
             .accessibilityAddTraits(searching ? .isSelected : [])
             RailButton(symbol: "ellipsis", label: "Page Settings", isSelected: showsPageSettings,
-                       size: collapsesBar ? 44 : 46,
+                       size: collapsesBar ? 44 : RailMetrics.barControl,
                        action: togglePageSettings)
                 .glassEffect(.regular.interactive(), in: .circle)
                 .frame(maxWidth: .infinity, alignment: .trailing)

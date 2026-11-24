@@ -72,6 +72,10 @@ private struct RendererView: NSViewRepresentable {
                 renderer.frame = container.bounds
                 renderer.autoresizingMask = [.width, .height]
                 message = nil
+            } catch ChromiumPageBridgeError.unavailable {
+                // A page just created has no view yet; its next view generation attaches it.
+                container.detach()
+                message = nil
             } catch {
                 container.detach()
                 message = "The page could not be displayed: \(String(describing: error))."
