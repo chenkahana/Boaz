@@ -1,4 +1,4 @@
-RESUME HERE (2026-11-24 07:17 IST): released v0.4.38 (#168), v0.4.39 (#169), v0.4.40 (#172, engine batch, risky; 04:41Z), v0.4.41 (#170; 05:15Z). #171 (0.4.42, with wave-c-4 AX-14 and #58) in CI; then craft/handoff as 0.4.43. #78 slice 1 (craft/snapshots-2) is the next risky release: eligible ≥ 2026-11-25 06:41 IST after 0.4.40's soak checks on this Mac. CI now fails a stalled UI test after 5 min and uploads results on cancel (#168's first run stalled, by launch timing in testResetShortcutsConfirmation; same code passed on rerun).
+RESUME HERE (2026-11-24 07:50 IST): released v0.4.38 (#168), v0.4.39 (#169), v0.4.40 (#172, engine batch, risky; 04:41Z), v0.4.41 (#170), v0.4.42 (#171 + wave-c-4; 05:46Z). Handoff PR #173 (0.4.43) in CI. #78 slice 1 (craft/snapshots-2) is the next risky release: eligible ≥ 2026-11-25 06:41 IST after 0.4.40's soak checks on this Mac (Sparkle must have installed ≥ 0.4.40). Runtime GUI checks still owed (Chen active at 07:40; dev DMG staged at /Volumes/BoazBuild/cef/direct/artifacts/finish-c3-signed). CI now fails a stalled UI test after 5 min and uploads results on cancel.
 
 # Implementation
 
@@ -73,18 +73,18 @@ behaviour and wait for Chen's yes (R5.3 "Chen's yes" column).
 - [x] #68 Rail/bar Large Content Viewer + Voice Control names (AX-6, AX-7); AX-2 (iPhone UI-test hit areas) not done, test infra only
 - [x] #71 Failed card spoken state (AX-3); OB-1 already fixed
 
-## Wave C batch 3 + Wave D polish — PR https://github.com/chenkahana/Boaz/pull/171 (0.4.42)
+## Wave C batch 3 + Wave D polish — PR https://github.com/chenkahana/Boaz/pull/171 — v0.4.42
 
-- [ ] #60 Carousel card context menu (IB-6)
-- [ ] #61 Tab fan long-press menu (IB-10); … long-press unchanged
-- [ ] #63 ⌘T / ⌘L with a hardware keyboard (IS-3); arrow keys through suggestions not done
-- [ ] #69 Reduce Transparency: solid space theme (AX-13); Increase Contrast: search highlight and page-menu fills (AX-14)
-- [ ] #58 Page menu groups captioned "This Tab" and "Boaz" (IM-2)
-- [ ] #70 Mac sidebar Pinned/Today rotors (AX-5)
-- [ ] #73 Widget favicons from the App Group (WX-3)
-- [ ] #74 iPhone Incognito look (IB-1) — Duo simulator checked
-- [ ] #76 Spotlight: pinned tabs + favorites, iPhone only (WX-1)
-- [ ] #77 Control Center / Lock Screen New Tab control (WX-2)
+- [x] #60 Carousel card context menu (IB-6)
+- [x] #61 Tab fan long-press menu (IB-10); … long-press unchanged
+- [x] #63 ⌘T / ⌘L with a hardware keyboard (IS-3); arrow keys through suggestions not done
+- [x] #69 Reduce Transparency: solid space theme (AX-13); Increase Contrast: search highlight and page-menu fills (AX-14)
+- [x] #58 Page menu groups captioned "This Tab" and "Boaz" (IM-2)
+- [x] #70 Mac sidebar Pinned/Today rotors (AX-5)
+- [x] #73 Widget favicons from the App Group (WX-3)
+- [x] #74 iPhone Incognito look (IB-1) — Duo simulator checked
+- [x] #76 Spotlight: pinned tabs + favorites, iPhone only (WX-1)
+- [x] #77 Control Center / Lock Screen New Tab control (WX-2)
 
 ## Engine batch (risky) — PR https://github.com/chenkahana/Boaz/pull/172 — v0.4.40 (published 2026-11-24 04:41Z)
 
@@ -106,9 +106,9 @@ behaviour and wait for Chen's yes (R5.3 "Chen's yes" column).
 
 ## Wave D
 
-- [ ] #74, #76 (iPhone Spotlight), #77 — PR #171
-- [ ] #75 Handoff: not started; DMG continuation lives in the AppKit delegate (`Apps/macOS/Engine`) → risky, after #78 slice 1.
-- [-] #76 Focus filter + Mac Spotlight: waits on a spike: the DMG's executable is Chromium's, so App Intents metadata in the UI dylib may not be discovered.
+- [x] #74, #76 (iPhone Spotlight), #77 — PR #171 — v0.4.42
+- [ ] #75 Handoff (SY-8): PR https://github.com/chenkahana/Boaz/pull/173 (0.4.43): focused normal tab only, never Incognito, history or failed pages; Swift only (DMG receive uses the host's own BrowsingWeb handler, unverified), so not risky. Two-device check owed.
+- [-] #76 Focus filter + Mac Spotlight: skipped. Spike 2026-11-24: the DMG bundle has no `Metadata.appintents` (the UI is a dylib inside Chromium's app, so App Intents are not extracted), and opening a Spotlight result needs the host's AppKit delegate (C++ host change + Chromium base rebuild). Revisit with a host-side App Intents extension.
 
 ## #78 Live tab snapshots
 
