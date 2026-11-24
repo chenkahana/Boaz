@@ -8,6 +8,12 @@ struct CommandBar: View {
     @Environment(MacModel.self) private var model
     @Environment(BrowserState.self) private var browser
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    #if BOAZ_CHROMIUM
+    private static let backing = 0.92
+    #else
+    private static let backing = 0.0
+    #endif
     let mode: BrowserState.CommandMode
     /// What the field shows: `query`, or the selected row's text while the arrow keys preview it.
     @State private var text = ""
@@ -115,10 +121,10 @@ struct CommandBar: View {
             }
             .frame(width: 620)
             .glassEffect(.regular, in: .rect(cornerRadius: Radius.panel))
-            #if BOAZ_CHROMIUM
-            // Glass can't sample Chromium's page layer, so without a backing the page reads straight through.
-            .background(RoundedRectangle(cornerRadius: Radius.panel, style: .continuous).fill(.background.opacity(0.92)))
-            #endif
+            // Glass can't sample Chromium's page layer, so without a backing the page reads straight through; with
+            // Reduce Transparency both builds show the same solid bar.
+            .background(RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)
+                .fill(.background.opacity(reduceTransparency ? 1 : Self.backing)))
             .overlay(RoundedRectangle(cornerRadius: Radius.panel, style: .continuous).strokeBorder(.white.opacity(0.35)))
             .shadow(color: tint.opacity(0.25), radius: 30)
             .shadow(color: .black.opacity(0.25), radius: 40, y: 20)

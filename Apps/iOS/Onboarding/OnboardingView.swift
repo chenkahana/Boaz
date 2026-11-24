@@ -26,6 +26,12 @@ struct OnboardingView: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .defaultScrollAnchor(.center)
+        // The page dots invite a swipe: sideways flicks turn the page, as the buttons do.
+        .simultaneousGesture(DragGesture(minimumDistance: 30).onEnded { drag in
+            let width = drag.translation.width
+            guard abs(width) > 60, abs(width) > abs(drag.translation.height) * 2 else { return }
+            go(by: width < 0 ? 1 : -1)
+        })
         .safeAreaInset(edge: .bottom) { footer }
         .background(Theme.hero.ignoresSafeArea())
         .environment(\.colorScheme, .dark)
