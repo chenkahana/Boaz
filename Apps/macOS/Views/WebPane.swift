@@ -118,6 +118,14 @@ private struct ChromiumTabPane: View {
                         }
                     }
                     .overlay {
+                        // The saved page, once it has drawn, over the image and the live page reloading underneath.
+                        if let snapshot = browser.chromiumSnapshots[tab.id]?.page {
+                            ChromiumPageView(adapter: snapshot)
+                                .opacity(snapshot.state.isLoading ? 0 : 1)
+                                .transition(.opacity)
+                        }
+                    }
+                    .overlay {
                         if adapter.state.loadFailure != nil || adapter.state.lifecycle == .crashed {
                             ChromiumLoadFailureView(adapter: adapter)
                         }
@@ -156,7 +164,12 @@ private struct ChromiumTabPane: View {
                 return
             }
         }
-        .task(id: tab.id) { await browser.restoreChromiumPreview(tabID: tab.id, url: tab.url) }
+        .task(id: tab.id) {
+            await browser.restoreChromiumPreview(tabID: tab.id, url: tab.url)
+            if let adapter = engine?.adapter as? ChromiumEnginePageAdapter {
+                await browser.showChromiumSnapshot(for: tab, live: adapter)
+            }
+        }
         .task(id: surfaceDocument) {
             guard let expected = surfaceDocument,
                   let adapter = engine?.adapter as? ChromiumEnginePageAdapter,
@@ -173,6 +186,7 @@ private struct ChromiumTabPane: View {
                 guard !Task.isCancelled, surfaceDocument == expected else { return }
                 revealedSurface = expected
             }
+            await browser.handOverChromiumSnapshot(tab.id, to: adapter)
         }
     }
 

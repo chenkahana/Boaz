@@ -98,6 +98,15 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
             guard let self, !finished, handle != 0 else { throw EnginePageError.closed }
             return try runtime.createPage(window: handle, url: url, profile: self.profile.identity)
         }
+        browser.createChromiumSnapshotPage = { [weak self] tab, url in
+            guard let self, !finished, handle != 0 else { throw EnginePageError.closed }
+            guard !profile.identity.isPrivate,
+                  let host = hosts.first(where: { $0.profile.identity.id == tab.profileID }), host.handle != 0 else {
+                throw EnginePageError.invalidRequest
+            }
+            return try runtime.createPage(window: host.handle, url: url, profile: host.profile.identity,
+                                          javaScriptDisabled: true)
+        }
         if preparedForNativeCreation { return }
         var options = makeOptions()
         do {
@@ -484,6 +493,7 @@ final class ChromiumAppWindow: NSObject, NSWindowDelegate {
         browser.chromiumExtensions = nil
         sidePanel.show(nil, title: "")
         browser.createChromiumPeekPage = nil
+        browser.createChromiumSnapshotPage = nil
         browser.createChromiumPage = nil
         browser.openChromiumProfile = nil
         browser.chromiumSpaceChanged = nil
