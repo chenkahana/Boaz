@@ -13,6 +13,7 @@ struct TabBrowser: View {
     @Environment(\.collapsesBar) private var collapsesBar
     @Environment(\.paneIndex) private var pane
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var typeSize
     @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
     let tab: SidebarItem
     /// The side the next tab slides in from, and a count of tab turns for the haptic; both outlive this tab's
@@ -97,8 +98,10 @@ struct TabBrowser: View {
             .overlay {
                 // In the page area: beside the rail, above the bottom bar. Half-open, in the focused pane only.
                 if model.showsPageSettings, model.activeTabID == tab.id {
-                    // A half-open pane is short: there the menu may take all of it, and scrolls.
-                    BottomPanel(site: edges?.bottom, maxHeight: model.isSplit ? 1 : 0.56, onDismiss: closePageSettings) {
+                    // A half-open pane is short, and accessibility text sizes need the room: there the menu may
+                    // take all of it, and scrolls.
+                    BottomPanel(site: edges?.bottom, maxHeight: model.isSplit || typeSize.isAccessibilitySize ? 1 : 0.56,
+                                onDismiss: closePageSettings) {
                         PageSettingsPanel(tab: tab, page: page, failedURL: loadFailure?.url,
                                           readableLength: readableLength,
                                           onReader: { Task { readerArticle = await Reader.extract(from: page) } },
@@ -479,7 +482,7 @@ private struct BrowserBar: View {
     @ViewBuilder private var tabsButton: some View {
         if !listsTabsElsewhere {
             if axis == .vertical {
-                TabStack(cardSize: CGSize(width: 26, height: 36)).padding(.vertical, 4)
+                TabStack(cardSize: CGSize(width: 26, height: 36), minimumSide: RailMetrics.control)
             } else {
                 TabStack(cardSize: collapsesBar ? CGSize(width: 30, height: 39) : CGSize(width: 34, height: 46))
             }
@@ -508,7 +511,7 @@ private struct BrowserBar: View {
             .accessibilityShowsLargeContentViewer { Label("New Tab", systemImage: "plus") }
             .accessibilityAddTraits(searching ? .isSelected : [])
             RailButton(symbol: "ellipsis", label: "Page Settings", isSelected: showsPageSettings,
-                       size: collapsesBar ? 44 : 46,
+                       size: collapsesBar ? 44 : RailMetrics.barControl,
                        action: togglePageSettings)
                 .glassEffect(.regular.interactive(), in: .circle)
                 .frame(maxWidth: .infinity, alignment: .trailing)

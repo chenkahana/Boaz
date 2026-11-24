@@ -15,7 +15,6 @@ struct HomeBar: View {
                     RailGlyph(symbol: searchSymbol)
                         .foregroundStyle(.white)
                         .background(Theme.brand.gradient, in: .circle)
-                        .padding(2)
                 }
                 .buttonStyle(PressableStyle())
                 .accessibilityLabel("Search")

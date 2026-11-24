@@ -212,15 +212,18 @@ final class ScreenTests: BoazUITestCase {
     }
 
     func testToast() {
-        launch()
+        // The audit takes longer than a toast's five seconds, so the toast stays up until Undo takes it down.
+        launch(arguments: ["-BoazUITestToastSeconds", "120"])
         openSidebarTab("Today Tab")
-        // Closing a Today tab archives it and offers Undo for five seconds.
+        // Closing a Today tab archives it and offers Undo.
         app.typeKey("w", modifierFlags: .command)
         let toast = element("screen.toast")
         XCTAssertTrue(toast.waitForExistence(timeout: 3), "Closing a Today tab didn't show a toast")
         XCTAssertTrue(toast.buttons["Undo"].exists, "The archive toast has no Undo")
         assertScreenIntact(toast, name: "toast")
-        XCTAssertTrue(waitForDisappearance(toast, timeout: 8), "The toast never went away")
+        toast.buttons["Undo"].click()
+        XCTAssertTrue(waitForDisappearance(toast, timeout: 3), "Undo didn't take the toast down")
+        XCTAssertTrue(sidebar.buttons["Today Tab"].firstMatch.waitForExistence(timeout: 3), "Undo didn't bring the tab back")
     }
 
     // MARK: Sheets
