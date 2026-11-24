@@ -21,6 +21,11 @@ All notable changes to Boaz are recorded here. The format follows
 
 - The medium widget shows your favorites' real site icons instead of letters.
 - Mac: with Reduce Transparency on, a translucent space theme turns solid instead of washing out to grey.
+- iPhone: with Increase Contrast on, the highlighted search suggestion and the page menu's tiles stand out more.
+
+### Changed
+
+- iPhone: the page menu labels its two groups, "This Tab" and "Boaz".
 
 Crash reports reviewed: no GitHub issues opened since 0.4.37; no Boaz crash reports on the build Mac since
 2026-11-19 (one disk-writes resource report for a Chromium helper on 2026-11-23, as on 2026-11-20; not a crash).
