@@ -12,7 +12,7 @@ struct TabStrip: View {
         ScrollViewReader { proxy in
             List {
                 Button { model.beginSearch(.newTab) } label: {
-                    Label("New Tab", systemImage: "plus").frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+                    Label("New Tab", systemImage: "plus").frame(maxWidth: .infinity, minHeight: HitTarget.minimum, alignment: .leading)
                 }
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
@@ -51,7 +51,7 @@ private struct TabStripRow: View {
                     Text(title).lineLimit(1).fontWeight(selected ? .semibold : .regular)
                     Spacer(minLength: 0)
                 }
-                .frame(minHeight: 36)
+                .frame(minHeight: HitTarget.minimum)
                 .contentShape(.rect)
             }
             .accessibilityAddTraits(selected ? .isSelected : [])
@@ -59,7 +59,7 @@ private struct TabStripRow: View {
                 .labelStyle(.iconOnly)
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
-                .frame(width: 28, height: 36)
+                .frame(width: HitTarget.minimum, height: HitTarget.minimum)
                 .contentShape(.rect)
         }
         .listRowBackground(

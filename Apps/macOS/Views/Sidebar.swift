@@ -242,6 +242,13 @@ private struct AddressPill: View {
     @Environment(BrowserState.self) private var browser
     @Environment(\.sidebarTextSize) private var textSize
     @State private var hovering = false
+    @State private var showsProgress = false
+
+    /// A Chromium page is loading (the WebKit pane has its own glow along the page's top edge).
+    private var loading: Bool {
+        guard let engine = browser.activeEnginePage, engine.kind == .chromium else { return false }
+        return engine.state.isLoading
+    }
 
     var body: some View {
         let url = browser.activeURL
@@ -264,11 +271,47 @@ private struct AddressPill: View {
             .padding(.horizontal, 8).frame(height: SidebarStyle.rowHeight)
             .background(hovering ? SidebarStyle.selection() : SidebarStyle.hover,
                         in: .rect(cornerRadius: Radius.row, style: .continuous))
+            .overlay(alignment: .bottom) {
+                if showsProgress { PillProgress().transition(.opacity) }
+            }
+            .clipShape(.rect(cornerRadius: Radius.row, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityValue(showsProgress ? "Loading" : "")
         .onHover { hovering = $0 }
         .animation(SidebarStyle.motion, value: hovering)
+        // Loads that finish within 300 ms show nothing.
+        .task(id: loading) {
+            guard loading else { return withMotion(.quick) { showsProgress = false } }
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            withMotion(.quick) { showsProgress = true }
+        }
+    }
+}
+
+/// Page loading, shown in the chrome: a short line sweeps along the address pill's bottom edge. Under Reduce Motion
+/// the line stays still.
+private struct PillProgress: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            if reduceMotion {
+                Capsule().fill(Theme.glow).opacity(0.6)
+            } else {
+                TimelineView(.animation) { context in
+                    let phase = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.2) / 1.2
+                    Capsule().fill(Theme.glow)
+                        .frame(width: width * 0.35)
+                        .offset(x: width * 1.35 * phase - width * 0.35)
+                }
+            }
+        }
+        .frame(height: 2)
+        .allowsHitTesting(false)
     }
 }
 

@@ -125,9 +125,6 @@ private struct ChromiumTabPane: View {
                             ChromiumLoadFailureView(adapter: adapter)
                         }
                     }
-                    .overlay(alignment: .top) {
-                        if engine.state.isLoading { ProgressView().padding(8) }
-                    }
             } else {
                 ProgressView("Opening page…").frame(maxWidth: .infinity, maxHeight: .infinity)
             }
