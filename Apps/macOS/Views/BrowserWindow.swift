@@ -89,13 +89,14 @@ struct BrowserWindow: View {
         .overlay(alignment: .bottom) { ToastView() }
         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: browser.commandMode)
         .background { AlternateShortcuts() }
-        .background(WindowAccessor { browser.attach($0) })
+        .background(WindowAccessor { browser.attach($0); nameWindow() })
         .ignoresSafeArea()
         .frame(minWidth: 720, minHeight: 460)
         .environment(browser)
         .focusedSceneValue(browser)
         // Names the window in the Window menu, Mission Control and VoiceOver; the title bar itself stays hidden.
         .navigationTitle(windowTitle)
+        .onChange(of: windowTitle) { nameWindow() }
         .preferredColorScheme(browser.isIncognito ? .dark : nil)
         .environment(\.isPrivateBrowsing, browser.isIncognito)
         .sheet(item: $browser.spaceEditor) { request in MacSpaceEditor(request: request).environment(model).environment(browser) }
@@ -200,6 +201,13 @@ struct BrowserWindow: View {
             }
             #endif
         }
+    }
+
+    /// The DMG's window is AppKit's own, which `navigationTitle` doesn't reach.
+    private func nameWindow() {
+        #if BOAZ_CHROMIUM
+        browser.window?.title = windowTitle
+        #endif
     }
 
     /// Private tabs keep their titles out of system UI, as the sidebar does.

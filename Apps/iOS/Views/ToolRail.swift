@@ -128,13 +128,20 @@ struct BarDock<Content: View>: View {
     }
 }
 
+/// Control sizes: every control on the rail is one size, as in Safari, so the column reads as one set of buttons.
+enum RailMetrics {
+    static let control: CGFloat = 48
+    /// The bottom bar's docks, which have their own layout (must-have 7).
+    static let barControl: CGFloat = 46
+}
+
 /// A button inside a rail dock (the dock supplies the glass).
 struct RailButton: View {
     let symbol: String
     var label: String?
     /// Shown pressed: the panel or screen this button opens is up.
     var isSelected = false
-    var size: CGFloat = 46
+    var size: CGFloat = RailMetrics.control
     let action: () -> Void
 
     var body: some View {
@@ -160,7 +167,7 @@ extension View {
 /// Bare rail icon with a full circular hit area.
 struct RailGlyph: View {
     let symbol: String
-    var size: CGFloat = 46
+    var size: CGFloat = RailMetrics.control
     @ScaledMetric(relativeTo: .body) private var glyph: CGFloat = 18
 
     var body: some View {

@@ -8,6 +8,8 @@ struct TabStack: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.paneIndex) private var pane
     let cardSize: CGSize
+    /// The smallest side of the tap area, whatever the cards' size.
+    var minimumSide: CGFloat = 44
 
     var body: some View {
         let tabs = model.phoneTabs
@@ -31,7 +33,7 @@ struct TabStack: View {
                         .offset(x: index == 0 ? 0 : -cardSize.width * 0.14, y: index == 0 ? 0 : -cardSize.height * 0.05)
                 }
             }
-            .frame(width: cardSize.width * 1.3, height: cardSize.height * 1.12)
+            .frame(width: max(cardSize.width * 1.3, minimumSide), height: max(cardSize.height * 1.12, minimumSide))
             .contentShape(.rect)
         }
         .buttonStyle(PressableStyle())
@@ -581,13 +583,16 @@ private struct CarouselRail: View {
         } else {
             HStack(spacing: 10) {
                 BarDock {
-                    RailButton(symbol: "desktopcomputer", label: "Tabs on Your Mac", action: onMacTabs)
+                    RailButton(symbol: "desktopcomputer", label: "Tabs on Your Mac", size: RailMetrics.barControl,
+                               action: onMacTabs)
                         .disabled(!hasMac)
                         .opacity(hasMac ? 1 : 0.4)
-                    RailButton(symbol: "plus", label: "New Tab", action: onNewTab)
+                    RailButton(symbol: "plus", label: "New Tab", size: RailMetrics.barControl, action: onNewTab)
                 }
                 Spacer(minLength: 0)
-                BarDock { RailButton(symbol: "gearshape", label: "Settings", action: onSettings) }
+                BarDock {
+                    RailButton(symbol: "gearshape", label: "Settings", size: RailMetrics.barControl, action: onSettings)
+                }
             }
             .padding(.horizontal, 12)
             .padding(.top, collapsesBar ? 2 : 6)

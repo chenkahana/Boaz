@@ -43,6 +43,12 @@ enum UITestMode {
         }
     }
 
+    /// `-BoazUITestToastSeconds N` keeps toasts up for N seconds, so a test can audit one before it goes.
+    static var toastSeconds: Double? {
+        let seconds = UserDefaults.standard.double(forKey: "BoazUITestToastSeconds")
+        return isActive && seconds > 0 ? seconds : nil
+    }
+
     private static func path(_ key: String) -> URL? {
         guard isActive, let value = ProcessInfo.processInfo.environment[key], !value.isEmpty else { return nil }
         return URL(fileURLWithPath: value)

@@ -71,7 +71,8 @@ dmg: ## Prepare an unpublished Chromium DMG: VERSION and RELEASE_ARGS required (
 
 uitest: project ## Run the BoazUITests suite (set BOAZ_UITEST_APP=<path to .app> to target another build)
 	rm -rf $(RESULTS)
-	$(XCB) -scheme Boaz-macOS -destination 'platform=macOS' -resultBundlePath $(RESULTS) $(ADHOC) test
+	$(XCB) -scheme Boaz-macOS -destination 'platform=macOS' -resultBundlePath $(RESULTS) $(ADHOC) \
+		-test-timeouts-enabled YES -default-test-execution-time-allowance 300 test
 
 clean: ## Remove build output (keeps release archives)
 	rm -rf "$(DERIVED)" Packages/BoazKit/.build
