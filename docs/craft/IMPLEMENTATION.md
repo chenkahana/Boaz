@@ -1,4 +1,4 @@
-RESUME HERE (2026-11-24 02:20 IST): #168 merged, v0.4.38 released 00:18Z. #169 (0.4.39) merged master in, CI next; then #170 (0.4.40), #171 (0.4.41, + wave-c-4 AX-14/#58), one CI at a time (shared runner). Engine batch rebuilt as craft/engine-2 (#18, MW-6, #36 DMG; Chromium UI builds) — PR after #171, soak met (0.4.37 + 24 h passed 2026-11-23 22:05 IST). #78 slice 1 rebuilt as craft/snapshots-2 on engine-2: PR ≥ 24 h after the engine release. Handoff (craft/handoff) PR after the engine batch. CI now times out a stalled UI test after 5 min and uploads results on cancel (#168's first run stalled, by launch timing in testResetShortcutsConfirmation; same code passed on rerun).
+RESUME HERE (2026-11-24 06:45 IST): merged and released v0.4.38 (#168), v0.4.39 (#169), v0.4.40 (#172, engine batch, risky; published 04:41Z). #170 (0.4.41) in CI, then #171 (0.4.42, includes wave-c-4: AX-14, #58; merged with master locally, push after #170 merges). Then craft/handoff as 0.4.43. #78 slice 1 (craft/snapshots-2) is the next risky release: eligible ≥ 2026-11-25 06:41 IST after 0.4.40's soak checks on this Mac. CI now fails a stalled UI test after 5 min and uploads results on cancel (#168's first run stalled, by launch timing in testResetShortcutsConfirmation; same code passed on rerun).
 
 # Implementation
 
@@ -25,7 +25,7 @@ behaviour and wait for Chen's yes (R5.3 "Chen's yes" column).
 - [x] #15 Mac sidebar: dragging a tab out gives its URL (MS-1) — PR https://github.com/chenkahana/Boaz/pull/153 — v0.4.31 (in release v0.4.34)
 - [x] #16 DMG windows titled after their page (MS-13) — polish PR https://github.com/chenkahana/Boaz/pull/168 — v0.4.38
 - [ ] #17 Restored tab: no "Saved preview" caption (MW-2) (waiting: Chen's yes, MH 13; folds into #78)
-- [ ] #18 Mac: unloaded tab keeps its snapshot (MW-4) — engine batch, after the 0.4.37 soak (≥ 2026-11-23 22:05 IST)
+- [x] #18 Mac: unloaded tab keeps its snapshot (MW-4) — engine PR https://github.com/chenkahana/Boaz/pull/172 — v0.4.40
 - [-] #19 Mac WebKit find bar without Replace (MW-9) — skipped: SwiftUI `WebPage` has no find API; a JS find would lose native match highlighting and count (Mac App Store build only)
 
 ## Wave B
@@ -46,20 +46,20 @@ behaviour and wait for Chen's yes (R5.3 "Chen's yes" column).
 
 ## Wave C
 
-- [ ] #33 Search suggestions say what each row does (AX-4, MC-6) — PR https://github.com/chenkahana/Boaz/pull/169 — 0.4.39 (in CI)
-- [ ] #34 One name for the Archive, one empty-state voice (ML-3) — PR #169
-- [ ] #35 iPhone: reopened failed tab shows its failure at once (IB-8) — PR #169
-- [ ] #36 One load-failure page (MW-3, MW-5) — WebKit builds in PR #169; DMG view in the engine batch
-- [ ] #37 Settings title case, no doubled "After" (ST-1, ST-2) — PR #169; find bar (MW-6) in the engine batch
-- [ ] #38 iPhone search: offline hint; empty state hidden behind the panel (IS-4, IS-2) — PR #169
-- [ ] #39 Swipe-toolbar tip waits for the page (IB-7) — PR #169
+- [x] #33 Search suggestions say what each row does (AX-4, MC-6) — PR https://github.com/chenkahana/Boaz/pull/169 — v0.4.39
+- [x] #34 One name for the Archive, one empty-state voice (ML-3) — PR #169 — v0.4.39
+- [x] #35 iPhone: reopened failed tab shows its failure at once (IB-8) — PR #169 — v0.4.39
+- [x] #36 One load-failure page (MW-3, MW-5) — WebKit builds PR #169 v0.4.39; DMG view PR #172 v0.4.40
+- [x] #37 Settings title case, no doubled "After" (ST-1, ST-2) — PR #169 v0.4.39; find bar (MW-6) PR #172 v0.4.40
+- [x] #38 iPhone search: offline hint; empty state hidden behind the panel (IS-4, IS-2) — PR #169 — v0.4.39
+- [x] #39 Swipe-toolbar tip waits for the page (IB-7) — PR #169 — v0.4.39
 - [x] #40 Duo status pill `.percent` (DU-3) — already in 0.4.36 (#32)
-- [ ] #41 Plain-language errors (MS-14, WX-4) — PR #169
+- [x] #41 Plain-language errors (MS-14, WX-4) — PR #169 — v0.4.39
 - [x] #42 Mac empty space New Tab row (MS-8) — already on master: the sidebar always shows New Tab, the page area a search hint
-- [ ] #43 One iCloud sign-in message (OB-5, ST-3) — PR #169
-- [ ] #45 Share extension labels (WX-5) — PR #169
+- [x] #43 One iCloud sign-in message (OB-5, ST-3) — PR #169 — v0.4.39
+- [x] #45 Share extension labels (WX-5) — PR #169 — v0.4.39
 
-## Wave C, batch 2 — PR https://github.com/chenkahana/Boaz/pull/170 (0.4.40)
+## Wave C, batch 2 — PR https://github.com/chenkahana/Boaz/pull/170 (0.4.41)
 
 - [ ] #48 Split: holds at 50 %, double-click evens, slider to VoiceOver (MW-7)
 - [ ] #49 Split divider visible at rest (MS-12)
@@ -73,23 +73,24 @@ behaviour and wait for Chen's yes (R5.3 "Chen's yes" column).
 - [ ] #68 Rail/bar Large Content Viewer + Voice Control names (AX-6, AX-7); AX-2 (iPhone UI-test hit areas) not done, test infra only
 - [ ] #71 Failed card spoken state (AX-3); OB-1 already fixed
 
-## Wave C batch 3 + Wave D polish — PR https://github.com/chenkahana/Boaz/pull/171 (0.4.41)
+## Wave C batch 3 + Wave D polish — PR https://github.com/chenkahana/Boaz/pull/171 (0.4.42)
 
 - [ ] #60 Carousel card context menu (IB-6)
 - [ ] #61 Tab fan long-press menu (IB-10); … long-press unchanged
 - [ ] #63 ⌘T / ⌘L with a hardware keyboard (IS-3); arrow keys through suggestions not done
-- [ ] #69 Reduce Transparency: solid space theme (AX-13); AX-14 after #168
+- [ ] #69 Reduce Transparency: solid space theme (AX-13); Increase Contrast: search highlight and page-menu fills (AX-14)
+- [ ] #58 Page menu groups captioned "This Tab" and "Boaz" (IM-2)
 - [ ] #70 Mac sidebar Pinned/Today rotors (AX-5)
 - [ ] #73 Widget favicons from the App Group (WX-3)
 - [ ] #74 iPhone Incognito look (IB-1) — Duo simulator checked
 - [ ] #76 Spotlight: pinned tabs + favorites, iPhone only (WX-1)
 - [ ] #77 Control Center / Lock Screen New Tab control (WX-2)
 
-## Engine batch (risky) — branch craft/engine-2 (rebuilt from engine-1), PR after #171
+## Engine batch (risky) — PR https://github.com/chenkahana/Boaz/pull/172 — v0.4.40 (published 2026-11-24 04:41Z)
 
-- [ ] #18 unloaded tab keeps its snapshot (MW-4)
-- [ ] #37 DMG find bar title case (MW-6)
-- [ ] #36 DMG load-failure view uses `PageFailureKind` (on craft/engine-2, a241802)
+- [x] #18 unloaded tab keeps its snapshot (MW-4)
+- [x] #37 DMG find bar title case (MW-6)
+- [x] #36 DMG load-failure view uses `PageFailureKind`
 
 ## Wave C not shipped (decided)
 
@@ -98,7 +99,6 @@ behaviour and wait for Chen's yes (R5.3 "Chen's yes" column).
 - #47 sidebar keyboard focus: deferred to the GUI session: focusable rows may take first responder from Chromium on click; needs a real-app keyboard check.
 - #52 Settings regrouped: skipped, no clear win, moves settings people know.
 - #53 interactive space swipe, #55 command bar grows from the address: not started (M effort, gesture/MH 2,5 needs real-app check).
-- #58 page menu grouped: after #168 (same file).
 - #59 scrim over the rail: skipped; the rail stays tappable by design (README 2026-11-13).
 - #62 ST-4, #66 DU-2: device-only measurements, no code.
 - #65 command bar focus without polling: skipped; the polling is the safety net for Chromium focus (MH 1), needs DMG runtime work.
