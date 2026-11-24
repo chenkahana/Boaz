@@ -39,6 +39,7 @@ struct TabStack: View {
         .buttonStyle(PressableStyle())
         .animation(reduceMotion ? .easeOut(duration: 0.2) : .bouncy(duration: 0.35), value: recent.map(\.id))
         .accessibilityLabel("Tabs")
+        .accessibilityShowsLargeContentViewer { Label("Tabs", systemImage: "square.on.square") }
         .accessibilityValue("\(tabs.count) open")
         .accessibilityHint("Shows your tabs side by side")
     }
@@ -437,6 +438,7 @@ private struct DeckMetrics {
 /// The visible cards, laid out for a position that animates frame by frame, so springs between cards and
 /// cards entering or leaving the deck move smoothly.
 private struct DeckCards: View, Animatable {
+    @Environment(AppModel.self) private var model
     let tabs: [SidebarItem]
     var position: Double
     let metrics: DeckMetrics
@@ -488,7 +490,8 @@ private struct DeckCards: View, Animatable {
             .zIndex(Double(index))
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(tab.title ?? tab.url?.host() ?? "New Tab")
-            .accessibilityValue(tab.url?.host() ?? "")
+            .accessibilityValue([tab.url?.host(), model.failedTabs.contains(tab.id) ? "Can't open this page" : nil]
+                .compactMap { $0 }.joined(separator: ", "))
             .accessibilityAddTraits(.isButton)
             .accessibilityHint("Opens the tab")
             .accessibilityAction { open(tab.id) }

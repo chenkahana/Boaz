@@ -87,7 +87,7 @@ struct BrowserWindow: View {
             .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: browser.zoomTag)
         }
         .overlay(alignment: .bottom) { ToastView() }
-        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: browser.commandMode)
+        .motion(.emphasized, value: browser.commandMode)
         .background { AlternateShortcuts() }
         .background(WindowAccessor { browser.attach($0); nameWindow() })
         .ignoresSafeArea()
@@ -338,11 +338,16 @@ private struct SidebarResizeHandle: View {
                 .onChanged { value in
                     let origin = start ?? width
                     start = origin
-                    let next = min(420, max(200, origin + value.translation.width))
-                    if next != width, next == 200 || next == 420 { Haptics.snap.play() }
+                    let next = rubberBand(origin + value.translation.width, in: 200...420, stretch: 24)
+                    if (width - 200) * (next - 200) <= 0 || (width - 420) * (next - 420) <= 0, next != width {
+                        Haptics.snap.play()
+                    }
                     width = next
                 }
-                .onEnded { _ in start = nil })
+                .onEnded { _ in
+                    start = nil
+                    withMotion(.gesture(velocity: 0)) { width = min(420, max(200, width)) }
+                })
     }
 }
 
@@ -478,6 +483,14 @@ private struct EmptyContent: View {
     }
 }
 
+/// Past a limit the drag still moves, a little and with growing resistance, up to `stretch`; letting go settles back.
+private func rubberBand(_ value: CGFloat, in limits: ClosedRange<CGFloat>, stretch: CGFloat) -> CGFloat {
+    let over = value > limits.upperBound ? value - limits.upperBound : value < limits.lowerBound ? value - limits.lowerBound : 0
+    guard over != 0 else { return value }
+    let pulled = stretch * (1 - 1 / (abs(over) / stretch + 1))
+    return (over > 0 ? limits.upperBound : limits.lowerBound) + (over > 0 ? pulled : -pulled)
+}
+
 private struct SplitDivider: View {
     @Environment(BrowserState.self) private var browser
     let width: CGFloat
@@ -486,7 +499,8 @@ private struct SplitDivider: View {
 
     var body: some View {
         Capsule()
-            .fill(.white.opacity(hovering ? 0.7 : 0))
+            // Visible at rest, so a split always shows where to drag; brighter under the pointer.
+            .fill(.white.opacity(hovering ? 0.7 : 0.25))
             .frame(width: 3, height: 44)
             .frame(width: 8)
             .frame(maxHeight: .infinity)
@@ -497,13 +511,29 @@ private struct SplitDivider: View {
                 .onChanged { value in
                     let origin = start ?? browser.split?.fraction ?? 0.5
                     start = origin
-                    let next = min(0.8, max(0.2, origin + value.translation.width / width))
-                    // A tick at the limits and as the divider passes the middle.
+                    var next = rubberBand(origin + value.translation.width / width, in: 0.2...0.8, stretch: 0.03)
+                    // The middle holds the divider for a moment, so even halves are easy to land on.
+                    if abs(next - 0.5) < 0.02 { next = 0.5 }
+                    // A tick at the limits and as the divider reaches or passes the middle.
                     if let old = browser.split?.fraction, next != old,
-                       next == 0.2 || next == 0.8 || (old - 0.5) * (next - 0.5) < 0 { Haptics.snap.play() }
+                       [0.2, 0.5, 0.8].contains(where: { (old - $0) * (next - $0) <= 0 }) { Haptics.snap.play() }
                     browser.split?.fraction = next
                 }
-                .onEnded { _ in start = nil })
+                .onEnded { _ in
+                    start = nil
+                    withMotion(.gesture(velocity: 0)) { browser.split?.fraction = min(0.8, max(0.2, browser.split?.fraction ?? 0.5)) }
+                })
+            // Double-click evens the panes, as in Finder's column dividers.
+            .onTapGesture(count: 2) {
+                withMotion(.standard) { browser.split?.fraction = 0.5 }
+                Haptics.snap.play()
+            }
+            // A slider to VoiceOver: it reads the split and adjusts it.
+            .accessibilityRepresentation {
+                Slider(value: Binding { browser.split?.fraction ?? 0.5 } set: { browser.split?.fraction = $0 },
+                       in: 0.2...0.8) { Text("Split Divider") }
+            }
+            .accessibilityAction(named: "Even Panes") { browser.split?.fraction = 0.5 }
     }
 }
 

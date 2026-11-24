@@ -4,6 +4,32 @@ All notable changes to Boaz are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.41] - 2026-11-24
+
+### Added
+
+- Mac: double-click the split divider to even the panes; the divider holds at the middle while dragging, with a
+  tap on a trackpad.
+- Mac: folders spring open when a dragged tab rests over them.
+- Mac: in the Library panel, ⌘1–⌘4 and ⌘↑/⌘↓ move between Media, Downloads, Spaces and Archive.
+- Mac: VoiceOver's Actions rotor on a sidebar tab offers Archive (or Unload), Pin, Rename and Open in Split View.
+- iPhone: setup pages turn with a swipe.
+- iPhone: press and hold a rail or bar button at accessibility text sizes to see it large; Voice Control also
+  answers to "Menu" and "More" for the … button.
+
+### Fixed
+
+- Mac: the split divider shows at rest, not only under the pointer.
+- Mac: the sidebar and split divider stretch a little past their limits and settle back, instead of stopping dead.
+- Mac: in a short window the Library panel fits beside the sidebar, and a Today list cut off at the bottom fades
+  there.
+- Mac: the command bar is solid with Reduce Transparency on, and a split's focused pane is easier to tell on the
+  DMG.
+- VoiceOver on iPhone says when a tab's card is a page that couldn't open.
+
+Crash reports reviewed: no GitHub issues opened since 0.4.37; no Boaz crash reports on the build Mac since
+2026-11-19. App Store Connect and Xcode Organizer crashes were not checked (not signed in on this Mac).
+
 ## [0.4.40] - 2026-11-24
 
 ### Fixed

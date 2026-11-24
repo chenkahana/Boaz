@@ -523,6 +523,7 @@ private struct BrowserBar: View {
             .buttonStyle(PressableStyle())
             .glassEffect(.regular.interactive(), in: .capsule)
             .accessibilityLabel("New Tab")
+            .accessibilityShowsLargeContentViewer { Label("New Tab", systemImage: "plus") }
             .accessibilityAddTraits(searching ? .isSelected : [])
             RailButton(symbol: "ellipsis", label: "Page Settings", isSelected: showsPageSettings,
                        size: collapsesBar ? 44 : RailMetrics.barControl,
