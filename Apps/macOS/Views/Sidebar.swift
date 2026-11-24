@@ -242,6 +242,13 @@ private struct AddressPill: View {
     @Environment(BrowserState.self) private var browser
     @Environment(\.sidebarTextSize) private var textSize
     @State private var hovering = false
+    @State private var showsProgress = false
+
+    /// A Chromium page is loading (the WebKit pane has its own glow along the page's top edge).
+    private var loading: Bool {
+        guard let engine = browser.activeEnginePage, engine.kind == .chromium else { return false }
+        return engine.state.isLoading
+    }
 
     var body: some View {
         let url = browser.activeURL
@@ -264,11 +271,47 @@ private struct AddressPill: View {
             .padding(.horizontal, 8).frame(height: SidebarStyle.rowHeight)
             .background(hovering ? SidebarStyle.selection() : SidebarStyle.hover,
                         in: .rect(cornerRadius: Radius.row, style: .continuous))
+            .overlay(alignment: .bottom) {
+                if showsProgress { PillProgress().transition(.opacity) }
+            }
+            .clipShape(.rect(cornerRadius: Radius.row, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityValue(showsProgress ? "Loading" : "")
         .onHover { hovering = $0 }
         .animation(SidebarStyle.motion, value: hovering)
+        // Loads that finish within 300 ms show nothing.
+        .task(id: loading) {
+            guard loading else { return withMotion(.quick) { showsProgress = false } }
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            withMotion(.quick) { showsProgress = true }
+        }
+    }
+}
+
+/// Page loading, shown in the chrome: a short line sweeps along the address pill's bottom edge. Under Reduce Motion
+/// the line stays still.
+private struct PillProgress: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            if reduceMotion {
+                Capsule().fill(Theme.glow).opacity(0.6)
+            } else {
+                TimelineView(.animation) { context in
+                    let phase = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.2) / 1.2
+                    Capsule().fill(Theme.glow)
+                        .frame(width: width * 0.35)
+                        .offset(x: width * 1.35 * phase - width * 0.35)
+                }
+            }
+        }
+        .frame(height: 2)
+        .allowsHitTesting(false)
     }
 }
 
@@ -372,6 +415,8 @@ private struct SpaceColumn: View {
     @AppStorage private var liveFoldersEnabled: Bool
     @State private var pinnedTargeted = false
     @State private var todayTargeted = false
+    /// Rows continue below the visible list (a short window): the last one fades so the list reads as scrollable.
+    @State private var moreBelow = false
 
     init(space: Space, tint: Color) {
         self.space = space
@@ -415,6 +460,26 @@ private struct SpaceColumn: View {
             .animation(SidebarStyle.motion, value: pinned.map(\.id) + today.map(\.id))
         }
         .scrollIndicators(.never)
+        // The 80 pt drop area under the last row doesn't count as more.
+        .onScrollGeometryChange(for: Bool.self) { geometry in
+            geometry.contentOffset.y + geometry.containerSize.height < geometry.contentSize.height - 80
+        } action: { _, more in
+            moreBelow = more
+        }
+        .mask {
+            VStack(spacing: 0) {
+                Rectangle()
+                LinearGradient(colors: [.black, .black.opacity(moreBelow ? 0 : 1)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 28)
+            }
+        }
+        // VoiceOver jumps straight to a pinned or a Today tab, as Safari's tab rotors do.
+        .accessibilityRotor("Pinned") {
+            ForEach(pinned) { AccessibilityRotorEntry($0.title ?? $0.url?.host() ?? "Folder", id: $0.id) }
+        }
+        .accessibilityRotor("Today") {
+            ForEach(today) { AccessibilityRotorEntry($0.title ?? $0.url?.host() ?? "New Tab", id: $0.id) }
+        }
     }
 }
 
@@ -591,6 +656,18 @@ struct ItemRow: View {
             .accessibilityAddTraits(active ? .isSelected : [])
             .accessibilityIdentifier(item.kind == .folder ? "sidebar.folder.\(title)"
                                      : liveStatus.map { LivePullIcon.identifier($0) } ?? "")
+            // The row's everyday actions in VoiceOver's Actions rotor, not only behind the context menu.
+            .accessibilityActions {
+                if item.kind == .tab {
+                    let pinned = model.isPinned(item)
+                    Button(pinned ? "Unload" : "Archive") { browser.close(item) }
+                    if !browser.isPrivate(item) {
+                        Button(pinned && !model.isFavorite(item) ? "Unpin Tab" : "Pin Tab") { browser.togglePin(item) }
+                        Button("Rename") { browser.rename = .init(target: .item(item), text: item.title ?? "") }
+                    }
+                    Button("Open in Split View") { browser.openInSplit(item) }
+                }
+            }
             .help(liveStatus??.detail ?? "")
             if item.kind == .tab, browser.hasWandered(item) {
                 HoverIconButton(symbol: "arrow.uturn.backward", help: "Back to Pinned Page", size: 20) {
@@ -648,6 +725,13 @@ struct ItemRow: View {
             }
             return dropItems(payloads, into: item.parentID ?? "", before: item.id, model: model, browser: browser)
         } isTargeted: { targeted = $0; if $0 { Haptics.slotChanged.play() } }
+        // Spring-loaded, as in Finder: a dragged tab held over a closed folder opens it.
+        .task(id: targeted) {
+            guard targeted, item.kind == .folder, !item.isExpanded else { return }
+            try? await Task.sleep(for: .milliseconds(700))
+            guard !Task.isCancelled, targeted, !item.isExpanded else { return }
+            withAnimation(SidebarStyle.motion) { model.toggleExpanded(item) }
+        }
         .contextMenu {
             if item.kind == .folder {
                 FolderMenu(folder: item) { choosingIcon = true }

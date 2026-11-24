@@ -8,6 +8,8 @@ struct TabStack: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.paneIndex) private var pane
     let cardSize: CGSize
+    /// The smallest side of the tap area, whatever the cards' size.
+    var minimumSide: CGFloat = 44
 
     var body: some View {
         let tabs = model.phoneTabs
@@ -31,12 +33,27 @@ struct TabStack: View {
                         .offset(x: index == 0 ? 0 : -cardSize.width * 0.14, y: index == 0 ? 0 : -cardSize.height * 0.05)
                 }
             }
-            .frame(width: cardSize.width * 1.3, height: cardSize.height * 1.12)
+            .frame(width: max(cardSize.width * 1.3, minimumSide), height: max(cardSize.height * 1.12, minimumSide))
             .contentShape(.rect)
         }
         .buttonStyle(PressableStyle())
         .animation(reduceMotion ? .easeOut(duration: 0.2) : .bouncy(duration: 0.35), value: recent.map(\.id))
+        // Press and hold: a new tab, Incognito, or archiving the tab on screen, as Safari's tab button offers.
+        .contextMenu {
+            Button("New Tab", systemImage: "plus") {
+                model.focusPane(pane)
+                model.beginSearch(.newTab)
+            }
+            Button(model.isIncognito ? "Leave Incognito" : "Incognito", systemImage: "eyeglasses") {
+                model.setIncognito(!model.isIncognito)
+            }
+            if let showing, let tab = tabs.first(where: { $0.id == showing }) {
+                Divider()
+                Button("Archive Tab", systemImage: "archivebox") { withAnimation(.snappy) { model.close(tab) } }
+            }
+        }
         .accessibilityLabel("Tabs")
+        .accessibilityShowsLargeContentViewer { Label("Tabs", systemImage: "square.on.square") }
         .accessibilityValue("\(tabs.count) open")
         .accessibilityHint("Shows your tabs side by side")
     }
@@ -435,6 +452,7 @@ private struct DeckMetrics {
 /// The visible cards, laid out for a position that animates frame by frame, so springs between cards and
 /// cards entering or leaving the deck move smoothly.
 private struct DeckCards: View, Animatable {
+    @Environment(AppModel.self) private var model
     let tabs: [SidebarItem]
     var position: Double
     let metrics: DeckMetrics
@@ -484,9 +502,18 @@ private struct DeckCards: View, Animatable {
             .opacity(isLifted ? opacity * Double(max(0.3, 1 + lift / 600)) : opacity)
             .position(x: center.x, y: center.y + (isLifted ? lift : 0))
             .zIndex(Double(index))
+            // Safari's card menu: the everyday actions without opening the tab.
+            .contextMenu {
+                if let url = tab.url {
+                    Button("Copy Link", systemImage: "link") { UIPasteboard.general.url = url }
+                    ShareLink(item: url) { Label("Share", systemImage: "square.and.arrow.up") }
+                }
+                Button("Archive Tab", systemImage: "archivebox") { archive(tab.id) }
+            }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(tab.title ?? tab.url?.host() ?? "New Tab")
-            .accessibilityValue(tab.url?.host() ?? "")
+            .accessibilityValue([tab.url?.host(), model.failedTabs.contains(tab.id) ? "Can't open this page" : nil]
+                .compactMap { $0 }.joined(separator: ", "))
             .accessibilityAddTraits(.isButton)
             .accessibilityHint("Opens the tab")
             .accessibilityAction { open(tab.id) }
@@ -559,13 +586,16 @@ private struct CarouselRail: View {
         } else {
             HStack(spacing: 10) {
                 BarDock {
-                    RailButton(symbol: "desktopcomputer", label: "Tabs on Your Mac", action: onMacTabs)
+                    RailButton(symbol: "desktopcomputer", label: "Tabs on Your Mac", size: RailMetrics.barControl,
+                               action: onMacTabs)
                         .disabled(!hasMac)
                         .opacity(hasMac ? 1 : 0.4)
-                    RailButton(symbol: "plus", label: "New Tab", action: onNewTab)
+                    RailButton(symbol: "plus", label: "New Tab", size: RailMetrics.barControl, action: onNewTab)
                 }
                 Spacer(minLength: 0)
-                BarDock { RailButton(symbol: "gearshape", label: "Settings", action: onSettings) }
+                BarDock {
+                    RailButton(symbol: "gearshape", label: "Settings", size: RailMetrics.barControl, action: onSettings)
+                }
             }
             .padding(.horizontal, 12)
             .padding(.top, collapsesBar ? 2 : 6)

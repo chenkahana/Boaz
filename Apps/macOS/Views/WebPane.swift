@@ -74,7 +74,7 @@ private struct ChromiumTabPane: View {
                     Spacer()
                     if hovering {
                         HoverIconButton(symbol: "rectangle.split.2x1.slash", help: "Separate", size: 20) {
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                            withMotion(.standard) {
                                 browser.split = nil
                                 browser.focusPane(tab.id)
                             }
@@ -83,7 +83,7 @@ private struct ChromiumTabPane: View {
                     }
                 }
                 .padding(.horizontal, 10).frame(height: 26)
-                .background(.primary.opacity(focused ? 0.06 : 0.02))
+                .background(.primary.opacity(focused ? 0.1 : 0.02)) // The DMG's clearest focus cue.
                 .contentShape(Rectangle())
                 .onTapGesture { browser.focusPane(tab.id) }
                 .onHover { hovering = $0 }
@@ -430,7 +430,7 @@ private struct PaneHeader: View {
             Spacer()
             if hovering {
                 HoverIconButton(symbol: "rectangle.split.2x1.slash", help: "Separate", size: 20) {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { browser.split = nil; browser.focusPane(tab.id) }
+                    withMotion(.standard) { browser.split = nil; browser.focusPane(tab.id) }
                 }
                 HoverIconButton(symbol: "xmark", help: "Close", size: 20) { browser.close(tab) }
             }

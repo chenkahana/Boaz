@@ -114,9 +114,7 @@ final class Favicons {
     private let negativeCacheLifetime: TimeInterval = 86_400
 
     private init() {
-        diskDirectory = (try? FileManager.default.url(for: .cachesDirectory, in: .userDomainMask,
-                                                        appropriateFor: nil, create: true))
-            .map { $0.appendingPathComponent("Favicons", isDirectory: true) }
+        diskDirectory = FaviconFiles.directory
         if let diskDirectory {
             try? FileManager.default.createDirectory(at: diskDirectory, withIntermediateDirectories: true)
         }
@@ -272,7 +270,7 @@ final class Favicons {
     // MARK: Disk cache
 
     private func diskURL(host: String) -> URL? {
-        diskDirectory?.appendingPathComponent(host.replacingOccurrences(of: "/", with: "_")).appendingPathExtension("png")
+        diskDirectory == nil ? nil : FaviconFiles.file(host: host)
     }
 
     private func loadFromDisk(host: String) async -> Favicon? {

@@ -4,6 +4,77 @@ All notable changes to Boaz are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.42] - 2026-11-24
+
+### Added
+
+- iPhone: Incognito looks different: dark violet chrome, "Private" on the bar's new-tab button, and its own empty
+  page.
+- iPhone: a New Tab control for Control Center, the Lock Screen and the Action button.
+- iPhone: pinned tabs and favorites show up in Spotlight (nothing else is indexed; the index stays on the iPhone).
+- iPhone: press and hold a tab card for Copy Link, Share and Archive Tab; press and hold the tab fan for New Tab,
+  Incognito and Archive Tab.
+- iPhone with a hardware keyboard: ⌘T opens a new tab and ⌘L the address.
+- Mac: VoiceOver's rotor can jump between pinned tabs and between Today tabs.
+
+### Fixed
+
+- The medium widget shows your favorites' real site icons instead of letters.
+- Mac: with Reduce Transparency on, a translucent space theme turns solid instead of washing out to grey.
+- iPhone: with Increase Contrast on, the highlighted search suggestion and the page menu's tiles stand out more.
+
+### Changed
+
+- iPhone: the page menu labels its two groups, "This Tab" and "Boaz".
+
+Crash reports reviewed: no GitHub issues opened since 0.4.37; no Boaz crash reports on the build Mac since
+2026-11-19 (one disk-writes resource report for a Chromium helper on 2026-11-23, as on 2026-11-20; not a crash).
+App Store Connect and Xcode Organizer crashes were not checked (not signed in on this Mac).
+
+## [0.4.41] - 2026-11-24
+
+### Added
+
+- Mac: double-click the split divider to even the panes; the divider holds at the middle while dragging, with a
+  tap on a trackpad.
+- Mac: folders spring open when a dragged tab rests over them.
+- Mac: in the Library panel, ⌘1–⌘4 and ⌘↑/⌘↓ move between Media, Downloads, Spaces and Archive.
+- Mac: VoiceOver's Actions rotor on a sidebar tab offers Archive (or Unload), Pin, Rename and Open in Split View.
+- iPhone: setup pages turn with a swipe.
+- iPhone: press and hold a rail or bar button at accessibility text sizes to see it large; Voice Control also
+  answers to "Menu" and "More" for the … button.
+
+### Fixed
+
+- Mac: the split divider shows at rest, not only under the pointer.
+- Mac: the sidebar and split divider stretch a little past their limits and settle back, instead of stopping dead.
+- Mac: in a short window the Library panel fits beside the sidebar, and a Today list cut off at the bottom fades
+  there.
+- Mac: the command bar is solid with Reduce Transparency on, and a split's focused pane is easier to tell on the
+  DMG.
+- VoiceOver on iPhone says when a tab's card is a page that couldn't open.
+
+Crash reports reviewed: no GitHub issues opened since 0.4.37; no Boaz crash reports on the build Mac since
+2026-11-19. App Store Connect and Xcode Organizer crashes were not checked (not signed in on this Mac).
+
+## [0.4.40] - 2026-11-24
+
+### Fixed
+
+- Mac: switching to a tab whose page was unloaded keeps showing its last look while the page reopens, instead of a
+  blank "Opening page…" spinner, and no error flashes while the page attaches.
+- Mac: a page that won't load uses the same titles and symbols as the iPhone: "Can't Open This Page", "You're
+  Offline" or "This Page Stopped Responding".
+- Mac: the find bar's buttons read "Previous Match", "Next Match" and "Close Find Bar".
+
+Soak: 0.4.37, the last engine release, ran for 28 hours on the build Mac (installed through Sparkle 2026-11-22
+22:21 IST, running since 2026-11-23 07:40) with no WebKit-internals fallbacks logged and no Boaz crash reports.
+iPhone sync convergence was not checked.
+
+Crash reports reviewed: no GitHub issues opened since 0.4.37; no Boaz crash reports on the build Mac since
+2026-11-19 (tonight's crashpad reports belong to another app). App Store Connect and Xcode Organizer crashes were
+not checked (not signed in on this Mac).
+
 ## [0.4.39] - 2026-11-23
 
 ### Fixed
@@ -25,6 +96,21 @@ All notable changes to Boaz are recorded here. The format follows
 - Settings labels are title case on both platforms, and "Archive Inactive Tabs After" no longer repeats "After".
 - iPhone setup leads with browsing: Continue is the main button, and Sign In to iCloud is offered beside it.
 - Share sheet buttons read "Pin to Sidebar" and "Add to Tabs".
+
+## [0.4.38] - 2026-11-23
+
+### Fixed
+
+- Mac: page loading shows as a thin bar in the address field after a short pause, instead of a spinner over the
+  page.
+- Mac: each window is named after its page in the Window menu, Mission Control and the Dock; Incognito windows
+  are named "Incognito".
+- iPhone: the tab fan, + and … are one 48 pt size, so the tab fan is easier to hit.
+- iPhone Duo: rows and close buttons in the half-open tab strip are 44 pt tall.
+- iPhone: the page menu fades its last visible row when more rows sit below, instead of cutting it in half.
+- iPhone: at accessibility text sizes the page menu opens full height, its Back, Forward, Reload and Share tiles
+  show only their symbols (press and hold to read the name), and row titles wrap instead of truncating.
+- The Mac toast UI test waits for the toast instead of racing it.
 
 Crash reports reviewed: no GitHub issues opened since 0.4.37; no Boaz crash reports on the build Mac. App Store
 Connect and Xcode Organizer crashes were not checked (not signed in on this Mac).

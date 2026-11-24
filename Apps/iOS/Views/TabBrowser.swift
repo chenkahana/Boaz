@@ -13,6 +13,7 @@ struct TabBrowser: View {
     @Environment(\.collapsesBar) private var collapsesBar
     @Environment(\.paneIndex) private var pane
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.dynamicTypeSize) private var typeSize
     @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
     let tab: SidebarItem
     /// The side the next tab slides in from, and a count of tab turns for the haptic; both outlive this tab's
@@ -97,8 +98,10 @@ struct TabBrowser: View {
             .overlay {
                 // In the page area: beside the rail, above the bottom bar. Half-open, in the focused pane only.
                 if model.showsPageSettings, model.activeTabID == tab.id {
-                    // A half-open pane is short: there the menu may take all of it, and scrolls.
-                    BottomPanel(site: edges?.bottom, maxHeight: model.isSplit ? 1 : 0.56, onDismiss: closePageSettings) {
+                    // A half-open pane is short, and accessibility text sizes need the room: there the menu may
+                    // take all of it, and scrolls.
+                    BottomPanel(site: edges?.bottom, maxHeight: model.isSplit || typeSize.isAccessibilitySize ? 1 : 0.56,
+                                onDismiss: closePageSettings) {
                         PageSettingsPanel(tab: tab, page: page, failedURL: loadFailure?.url,
                                           readableLength: readableLength,
                                           onReader: { Task { readerArticle = await Reader.extract(from: page) } },
@@ -151,7 +154,10 @@ struct TabBrowser: View {
         return proxy.reservedRegions(kind: .occlusion).contains { $0.frame.maxY <= 1 && $0.frame.width > $0.frame.height }
     }
 
-    private var edges: SiteEdges? { tintWithSiteColors ? model.siteEdges[tab.id] : nil }
+    private var edges: SiteEdges? {
+        if model.isPrivate(tab) { return .incognito }
+        return tintWithSiteColors ? model.siteEdges[tab.id] : nil
+    }
 
     /// The page's edge colors behind it, seen where the page doesn't reach (beside it while swiping tabs).
     private var siteBackdrop: some View {
@@ -494,7 +500,7 @@ private struct BrowserBar: View {
     @ViewBuilder private var tabsButton: some View {
         if !listsTabsElsewhere {
             if axis == .vertical {
-                TabStack(cardSize: CGSize(width: 26, height: 36)).padding(.vertical, 4)
+                TabStack(cardSize: CGSize(width: 26, height: 36), minimumSide: RailMetrics.control)
             } else {
                 TabStack(cardSize: collapsesBar ? CGSize(width: 30, height: 39) : CGSize(width: 34, height: 46))
             }
@@ -508,8 +514,10 @@ private struct BrowserBar: View {
         HStack(spacing: 0) {
             tabsButton.frame(maxWidth: .infinity, alignment: .leading)
             Button(action: toggleSearch) {
-                HStack(spacing: 10) {
-                    if model.isPrivate(tab) { Image(systemName: "eyeglasses") }
+                HStack(spacing: 8) {
+                    if model.isPrivate(tab) {
+                        Text("Private").font(.headline).lineLimit(1).minimumScaleFactor(0.7)
+                    }
                     Image(systemName: "plus")
                 }
                     .font(.title3.weight(.semibold))
@@ -520,9 +528,10 @@ private struct BrowserBar: View {
             .buttonStyle(PressableStyle())
             .glassEffect(.regular.interactive(), in: .capsule)
             .accessibilityLabel("New Tab")
+            .accessibilityShowsLargeContentViewer { Label("New Tab", systemImage: "plus") }
             .accessibilityAddTraits(searching ? .isSelected : [])
             RailButton(symbol: "ellipsis", label: "Page Settings", isSelected: showsPageSettings,
-                       size: collapsesBar ? 44 : 46,
+                       size: collapsesBar ? 44 : RailMetrics.barControl,
                        action: togglePageSettings)
                 .glassEffect(.regular.interactive(), in: .circle)
                 .frame(maxWidth: .infinity, alignment: .trailing)

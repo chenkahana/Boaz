@@ -7,6 +7,8 @@ import WebKit
 struct PageSettingsPanel: View {
     @Environment(AppModel.self) private var model
     @Environment(\.chromeTint) private var tint
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.colorSchemeContrast) private var contrast
     let tab: SidebarItem
     let page: WebPage
     /// The address the page failed to load, which Reload retries as Try Again does.
@@ -16,6 +18,8 @@ struct PageSettingsPanel: View {
     let onDownloads: () -> Void
     let onFind: () -> Void
     let onTranslate: () -> Void
+    /// Rows continue below the panel's edge, so the last visible one fades instead of reading as cut off.
+    @State private var moreBelow = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -43,15 +47,30 @@ struct PageSettingsPanel: View {
                                 .id(settingsHost)
                         }
                     }
-                    group { tabActions }
-                    group { HomeMenuItems() }
-                        .simultaneousGesture(TapGesture().onEnded(close))
+                    section("This Tab") { group { tabActions } }
+                    // Not about this page: Boaz's own places, apart from the page's actions above.
+                    section("Boaz") {
+                        group { HomeMenuItems() }
+                            .simultaneousGesture(TapGesture().onEnded(close))
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.bottom, 12)
                 .buttonStyle(PanelRowStyle())
             }
             .scrollBounceBehavior(.basedOnSize)
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentOffset.y + geometry.containerSize.height < geometry.contentSize.height - 1
+            } action: { _, more in
+                moreBelow = more
+            }
+            .mask {
+                VStack(spacing: 0) {
+                    Rectangle()
+                    LinearGradient(colors: [.black, .black.opacity(moreBelow ? 0 : 1)], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 36)
+                }
+            }
         }
         // Rows scrolling past the panel's rounded bottom corners stay inside them.
         .clipShape(.rect(cornerRadius: BottomPanelStyle.cornerRadius))
@@ -71,7 +90,7 @@ struct PageSettingsPanel: View {
             HStack(spacing: 12) {
                 Monogram(url: page.url ?? tab.url, tint: Theme.brand, size: 32)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                    Text(title).font(.subheadline.weight(.semibold)).lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
                     HStack(spacing: 4) {
                         if page.url?.scheme == "https", page.serverTrust != nil { Image(systemName: "lock.fill").imageScale(.small) }
                         Text(host).lineLimit(1)
@@ -164,7 +183,19 @@ struct PageSettingsPanel: View {
 
     private func group(@ViewBuilder _ rows: () -> some View) -> some View {
         VStack(spacing: 0) { rows() }
-            .background(.background.opacity(0.55), in: .rect(cornerRadius: 18))
+            .background(.background.opacity(contrast == .increased ? 0.9 : 0.55), in: .rect(cornerRadius: 18))
+    }
+
+    /// A caption over a group, as "Website Settings" has.
+    private func section(_ title: String, @ViewBuilder _ content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Theme.textSecondary)
+                .padding(.horizontal, 16)
+                .accessibilityAddTraits(.isHeader)
+            content()
+        }
     }
 
     // MARK: Actions
@@ -203,21 +234,27 @@ struct PageSettingsPanel: View {
 /// One of the four navigation buttons across the top of the panel.
 private struct NavTile: View {
     @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.dynamicTypeSize) private var typeSize
     let symbol: String
     let title: String
 
     var body: some View {
         VStack(spacing: 4) {
             Image(systemName: symbol).font(.body.weight(.semibold)).contentTransition(.symbolEffect(.replace))
-            // Four tiles share the row, so a caption shrinks to fit at large sizes instead of clipping.
-            Text(title).font(.caption2.weight(.medium)).lineLimit(1).minimumScaleFactor(0.6)
+            // Four tiles share the row, so a caption shrinks to fit at large sizes instead of clipping; at
+            // accessibility sizes it can't fit at all, and the symbol stands alone (a long press shows the name).
+            if !typeSize.isAccessibilitySize {
+                Text(title).font(.caption2.weight(.medium)).lineLimit(1).minimumScaleFactor(0.6)
+            }
         }
         .frame(maxWidth: .infinity, minHeight: 56)
-        .background(.background.opacity(0.55), in: .rect(cornerRadius: 16))
+        .background(.background.opacity(contrast == .increased ? 0.9 : 0.55), in: .rect(cornerRadius: 16))
         .contentShape(.rect(cornerRadius: 16))
         .opacity(isEnabled ? 1 : 0.4)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
+        .accessibilityShowsLargeContentViewer { Label(title, systemImage: symbol) }
     }
 }
 
@@ -245,15 +282,25 @@ private struct PanelRowStyle: ButtonStyle {
 
 private struct PanelLabelStyle: LabelStyle {
     func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 14) {
-            configuration.icon
-                .font(.body.weight(.medium))
-                .frame(width: 22)
-            configuration.title
-                .font(.body)
-                .lineLimit(1)
+        Row(configuration: configuration)
+    }
+
+    private struct Row: View {
+        @Environment(\.dynamicTypeSize) private var typeSize
+        let configuration: Configuration
+
+        var body: some View {
+            HStack(spacing: 14) {
+                configuration.icon
+                    .font(.body.weight(.medium))
+                    .frame(width: 22)
+                // At accessibility sizes a title wraps rather than truncating to its first letters.
+                configuration.title
+                    .font(.body)
+                    .lineLimit(typeSize.isAccessibilitySize ? 3 : 1)
+            }
+            .foregroundStyle(.primary)
         }
-        .foregroundStyle(.primary)
     }
 }
 

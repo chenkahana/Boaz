@@ -16,6 +16,8 @@ collect, see or sell any of it.
   never synced or uploaded. On the Mac, the last look of each tab is kept as an image in Boaz's cache folder (at
   most 200 MB per profile) so it can show while the page reloads; it's deleted when the tab is closed, and Incognito
   tabs never write one to disk.
+- **Spotlight.** On iPhone, your pinned tabs and favorites (their titles and addresses) are added to the device's
+  own Spotlight index so a system search finds them. Nothing else is indexed, and the index never leaves the device.
 - **Optional sync folder.** If iCloud isn't available you can choose a folder (for example in iCloud Drive) to sync
   through. Boaz writes your library there and nowhere else.
 
