@@ -222,7 +222,7 @@ final class ChromiumEnginePageAdapter: EnginePageAdapter {
         javaScriptDisabled = disabled
     }
 
-    private func requireOpen() throws {
+    func requireOpen() throws {
         if state.lifecycle == .closed || state.lifecycle == .closing { throw EnginePageError.closed }
     }
     func check(_ result: BoazHostResult) throws {
