@@ -11,6 +11,56 @@ All notable changes to Boaz are recorded here. The format follows
 - Handoff between the iPhone and the Mac: the page in the tab you're looking at can be picked up on your other
   device. Incognito tabs, history and failed pages are never offered.
 
+## [0.4.42] - 2026-11-24
+
+### Added
+
+- iPhone: Incognito looks different: dark violet chrome, "Private" on the bar's new-tab button, and its own empty
+  page.
+- iPhone: a New Tab control for Control Center, the Lock Screen and the Action button.
+- iPhone: pinned tabs and favorites show up in Spotlight (nothing else is indexed; the index stays on the iPhone).
+- iPhone: press and hold a tab card for Copy Link, Share and Archive Tab; press and hold the tab fan for New Tab,
+  Incognito and Archive Tab.
+- iPhone with a hardware keyboard: ⌘T opens a new tab and ⌘L the address.
+- Mac: VoiceOver's rotor can jump between pinned tabs and between Today tabs.
+
+### Fixed
+
+- The medium widget shows your favorites' real site icons instead of letters.
+- Mac: with Reduce Transparency on, a translucent space theme turns solid instead of washing out to grey.
+- iPhone: with Increase Contrast on, the highlighted search suggestion and the page menu's tiles stand out more.
+
+### Changed
+
+- iPhone: the page menu labels its two groups, "This Tab" and "Boaz".
+
+Crash reports reviewed: no GitHub issues opened since 0.4.37; no Boaz crash reports on the build Mac since
+2026-11-19 (one disk-writes resource report for a Chromium helper on 2026-11-23, as on 2026-11-20; not a crash).
+App Store Connect and Xcode Organizer crashes were not checked (not signed in on this Mac).
+
+## [0.4.41] - 2026-11-24
+
+### Added
+
+- Mac: double-click the split divider to even the panes; the divider holds at the middle while dragging, with a
+  tap on a trackpad.
+- Mac: folders spring open when a dragged tab rests over them.
+- Mac: in the Library panel, ⌘1–⌘4 and ⌘↑/⌘↓ move between Media, Downloads, Spaces and Archive.
+- Mac: VoiceOver's Actions rotor on a sidebar tab offers Archive (or Unload), Pin, Rename and Open in Split View.
+- iPhone: setup pages turn with a swipe.
+- iPhone: press and hold a rail or bar button at accessibility text sizes to see it large; Voice Control also
+  answers to "Menu" and "More" for the … button.
+
+### Fixed
+
+- Mac: the split divider shows at rest, not only under the pointer.
+- Mac: the sidebar and split divider stretch a little past their limits and settle back, instead of stopping dead.
+- Mac: in a short window the Library panel fits beside the sidebar, and a Today list cut off at the bottom fades
+  there.
+- Mac: the command bar is solid with Reduce Transparency on, and a split's focused pane is easier to tell on the
+  DMG.
+- VoiceOver on iPhone says when a tab's card is a page that couldn't open.
+
 Crash reports reviewed: no GitHub issues opened since 0.4.37; no Boaz crash reports on the build Mac since
 2026-11-19. App Store Connect and Xcode Organizer crashes were not checked (not signed in on this Mac).
 
