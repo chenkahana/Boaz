@@ -427,7 +427,8 @@ final class BrowserState {
     @ObservationIgnored private var pendingRestores: [String: PageState] = [:]
     private let maxLivePages = 10
     #if BOAZ_CHROMIUM
-    private let maxResidentPages = 40
+    /// A frozen page keeps its memory: 30 Wikipedia articles measured 3.6 GB across Boaz's processes (~110 MB each).
+    private let maxResidentPages = 20
     #endif
 
     init(incognito: Bool) {
