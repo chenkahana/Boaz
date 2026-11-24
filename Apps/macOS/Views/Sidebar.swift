@@ -473,6 +473,13 @@ private struct SpaceColumn: View {
                     .frame(height: 28)
             }
         }
+        // VoiceOver jumps straight to a pinned or a Today tab, as Safari's tab rotors do.
+        .accessibilityRotor("Pinned") {
+            ForEach(pinned) { AccessibilityRotorEntry($0.title ?? $0.url?.host() ?? "Folder", id: $0.id) }
+        }
+        .accessibilityRotor("Today") {
+            ForEach(today) { AccessibilityRotorEntry($0.title ?? $0.url?.host() ?? "New Tab", id: $0.id) }
+        }
     }
 }
 

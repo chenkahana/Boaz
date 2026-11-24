@@ -334,13 +334,15 @@ private struct EmptyBrowser: View {
 
     var body: some View {
         let style = SpaceStyle(nil, scheme: scheme)
+        let incognito = model.isIncognito
         VStack(spacing: 18) {
-            Image(systemName: "square.on.square")
+            Image(systemName: incognito ? "eyeglasses" : "square.on.square")
                 .font(.system(size: 44, weight: .light))
                 .foregroundStyle(style.tint.gradient)
-            Text("No tab open").font(.system(.title2, design: .rounded, weight: .bold))
-            Text("Search or enter an address to open one.")
-                .font(.callout).foregroundStyle(Theme.textSecondary)
+            Text(incognito ? "Incognito" : "No tab open").font(.system(.title2, design: .rounded, weight: .bold))
+            Text(incognito ? "Pages you open here leave no history on this iPhone, and close when you leave Incognito."
+                 : "Search or enter an address to open one.")
+                .font(.callout).foregroundStyle(Theme.textSecondary).multilineTextAlignment(.center)
             Button("New Tab", systemImage: "plus") {
                 model.focusPane(pane)
                 model.beginSearch(.newTab)
@@ -354,9 +356,14 @@ private struct EmptyBrowser: View {
         .accessibilityHidden(model.searchTarget != nil)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
-            RadialGradient(colors: [style.tint.opacity(scheme == .dark ? 0.22 : 0.14), .clear],
-                           center: .center, startRadius: 0, endRadius: 420)
-                .ignoresSafeArea()
+            if incognito {
+                SiteEdges.incognito.page.color.ignoresSafeArea()
+            } else {
+                RadialGradient(colors: [style.tint.opacity(scheme == .dark ? 0.22 : 0.14), .clear],
+                               center: .center, startRadius: 0, endRadius: 420)
+                    .ignoresSafeArea()
+            }
         }
+        .environment(\.colorScheme, incognito ? .dark : scheme)
     }
 }

@@ -14,6 +14,8 @@ collect, see or sell any of it.
   show which Mac a tab is open on.
 - **Browsing history, private (Incognito) tabs and page snapshots** stay on the device they were made on. They are
   never synced or uploaded.
+- **Spotlight.** On iPhone, your pinned tabs and favorites (their titles and addresses) are added to the device's
+  own Spotlight index so a system search finds them. Nothing else is indexed, and the index never leaves the device.
 - **Optional sync folder.** If iCloud isn't available you can choose a folder (for example in iCloud Drive) to sync
   through. Boaz writes your library there and nowhere else.
 

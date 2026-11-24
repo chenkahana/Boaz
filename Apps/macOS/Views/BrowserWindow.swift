@@ -265,6 +265,7 @@ struct WindowBackdrop: View {
 /// A space's backdrop: its gradient, texture and light streak. In the window it lets as much of the desktop show
 /// through as the theme asks, over the blur.
 struct SpaceBackdrop: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     let style: SpaceStyle
     var streakRadius: CGFloat = 520
     var translucent = false
@@ -276,7 +277,8 @@ struct SpaceBackdrop: View {
             if style.lightStreak { LightStreak(radius: streakRadius) }
         }
         .compositingGroup()
-        .opacity(translucent ? style.opacity : 1)
+        // Reduce Transparency turns the system blur a flat grey: the theme turns solid rather than wash out over it.
+        .opacity(translucent && !reduceTransparency ? style.opacity : 1)
     }
 }
 

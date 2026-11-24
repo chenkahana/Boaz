@@ -104,11 +104,15 @@ struct BoazWidgetView: View {
     }
 }
 
-/// A letter tile per favorite: favicons are cached in the app's own container, which the widget can't read.
+/// A favorite's icon, from the favicons the app keeps in the App Group; a letter tile until the app has one.
 private struct FavoriteTile: View {
     let item: SidebarItem
 
     private var name: String { item.title ?? item.url?.host() ?? "Site" }
+    private var icon: UIImage? {
+        guard let host = item.url?.host()?.lowercased(), let file = FaviconFiles.file(host: host) else { return nil }
+        return UIImage(contentsOfFile: file.path)
+    }
     private var letter: String {
         let host = item.url?.host() ?? name
         let trimmed = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
@@ -117,11 +121,16 @@ private struct FavoriteTile: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            Text(letter)
-                .font(.system(.headline, design: .rounded, weight: .bold))
+            Group {
+                if let icon {
+                    Image(uiImage: icon).resizable().widgetAccentedRenderingMode(.fullColor)
+                        .scaledToFit().frame(width: 24, height: 24)
+                } else {
+                    Text(letter).font(.system(.headline, design: .rounded, weight: .bold)).widgetAccentable()
+                }
+            }
                 .frame(width: 36, height: 36)
                 .background(.white.opacity(0.22), in: .rect(cornerRadius: Radius.row, style: .continuous))
-                .widgetAccentable()
             Text(name).font(.caption2).lineLimit(1)
         }
         .frame(maxWidth: .infinity)

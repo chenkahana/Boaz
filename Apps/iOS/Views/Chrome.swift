@@ -8,6 +8,7 @@ import SwiftUI
 struct SearchPanel: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(\.colorSchemeContrast) private var contrast
     @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
     @FocusState private var focused: Bool
     /// Off right after a deletion, so backspacing over a completion doesn't bring it straight back.
@@ -94,7 +95,7 @@ struct SearchPanel: View {
                     Spacer(minLength: 0)
                     Image(systemName: "return").font(.caption.weight(.semibold)).foregroundStyle(Theme.textSecondary)
                 }
-                .background(Theme.brand.opacity(0.12), in: .rect(cornerRadius: 18))
+                .background(Theme.brand.opacity(contrast == .increased ? 0.3 : 0.12), in: .rect(cornerRadius: 18))
             }
             .buttonStyle(.plain)
             .accessibilityValue("Open Address")
