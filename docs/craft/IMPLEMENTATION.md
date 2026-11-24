@@ -1,4 +1,4 @@
-RESUME HERE (2026-11-24 06:45 IST): merged and released v0.4.38 (#168), v0.4.39 (#169), v0.4.40 (#172, engine batch, risky; published 04:41Z). #170 (0.4.41) in CI, then #171 (0.4.42, includes wave-c-4: AX-14, #58; merged with master locally, push after #170 merges). Then craft/handoff as 0.4.43. #78 slice 1 (craft/snapshots-2) is the next risky release: eligible ≥ 2026-11-25 06:41 IST after 0.4.40's soak checks on this Mac. CI now fails a stalled UI test after 5 min and uploads results on cancel (#168's first run stalled, by launch timing in testResetShortcutsConfirmation; same code passed on rerun).
+RESUME HERE (2026-11-24 07:17 IST): released v0.4.38 (#168), v0.4.39 (#169), v0.4.40 (#172, engine batch, risky; 04:41Z), v0.4.41 (#170; 05:15Z). #171 (0.4.42, with wave-c-4 AX-14 and #58) in CI; then craft/handoff as 0.4.43. #78 slice 1 (craft/snapshots-2) is the next risky release: eligible ≥ 2026-11-25 06:41 IST after 0.4.40's soak checks on this Mac. CI now fails a stalled UI test after 5 min and uploads results on cancel (#168's first run stalled, by launch timing in testResetShortcutsConfirmation; same code passed on rerun).
 
 # Implementation
 
@@ -59,19 +59,19 @@ behaviour and wait for Chen's yes (R5.3 "Chen's yes" column).
 - [x] #43 One iCloud sign-in message (OB-5, ST-3) — PR #169 — v0.4.39
 - [x] #45 Share extension labels (WX-5) — PR #169 — v0.4.39
 
-## Wave C, batch 2 — PR https://github.com/chenkahana/Boaz/pull/170 (0.4.41)
+## Wave C, batch 2 — PR https://github.com/chenkahana/Boaz/pull/170 — v0.4.41
 
-- [ ] #48 Split: holds at 50 %, double-click evens, slider to VoiceOver (MW-7)
-- [ ] #49 Split divider visible at rest (MS-12)
-- [ ] #50 Folders spring open during a drag (MS-11)
-- [ ] #51 Library panel ⌘1–⌘4, ⌘↑/⌘↓ (ML-5)
-- [ ] #54 Rubber band at sidebar/split limits (MS-5)
-- [ ] #56 Short window: Library panel fits, Today list fades (ML-2, MS-9)
-- [ ] #57 Materials: DMG split header focus tint, command bar solid under Reduce Transparency (MW-8, MC-4); DU-4 device check only
-- [ ] #64 Setup pages swipe (OB-4)
-- [ ] #67 Sidebar rows: VoiceOver custom actions (MS-3)
-- [ ] #68 Rail/bar Large Content Viewer + Voice Control names (AX-6, AX-7); AX-2 (iPhone UI-test hit areas) not done, test infra only
-- [ ] #71 Failed card spoken state (AX-3); OB-1 already fixed
+- [x] #48 Split: holds at 50 %, double-click evens, slider to VoiceOver (MW-7)
+- [x] #49 Split divider visible at rest (MS-12)
+- [x] #50 Folders spring open during a drag (MS-11)
+- [x] #51 Library panel ⌘1–⌘4, ⌘↑/⌘↓ (ML-5)
+- [x] #54 Rubber band at sidebar/split limits (MS-5)
+- [x] #56 Short window: Library panel fits, Today list fades (ML-2, MS-9)
+- [x] #57 Materials: DMG split header focus tint, command bar solid under Reduce Transparency (MW-8, MC-4); DU-4 device check only
+- [x] #64 Setup pages swipe (OB-4)
+- [x] #67 Sidebar rows: VoiceOver custom actions (MS-3)
+- [x] #68 Rail/bar Large Content Viewer + Voice Control names (AX-6, AX-7); AX-2 (iPhone UI-test hit areas) not done, test infra only
+- [x] #71 Failed card spoken state (AX-3); OB-1 already fixed
 
 ## Wave C batch 3 + Wave D polish — PR https://github.com/chenkahana/Boaz/pull/171 (0.4.42)
 
