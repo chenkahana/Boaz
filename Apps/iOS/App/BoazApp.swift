@@ -27,6 +27,11 @@ struct BoazApp: App {
                 .environment(model)
                 .task { await model.start() }
                 .onOpenURL { url in DeepLink.handle(url, model: model) }
+                // A page handed off from the Mac opens as a new tab on top (web addresses only, as `boaz://open`).
+                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+                    guard let url = activity.webpageURL else { return }
+                    DeepLink.handle(url, model: model)
+                }
                 // A pinned tab or favorite picked in Spotlight opens as a new tab.
                 .onContinueUserActivity(CSSearchableItemActionType) { activity in
                     guard let id = activity.userInfo?[CSSearchableItemActivityIdentifier] as? String,

@@ -96,6 +96,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Task { await MacModel.shared.sync?.syncNow() }
     }
 
+    /// A page handed off from the iPhone opens as a Today tab in the most recent main window.
+    func application(_ application: NSApplication, continue userActivity: NSUserActivity,
+                     restorationHandler: @escaping ([any NSUserActivityRestoring]) -> Void) -> Bool {
+        guard userActivity.activityType == NSUserActivityTypeBrowsingWeb, let url = userActivity.webpageURL,
+              ["http", "https"].contains(url.scheme?.lowercased() ?? ""), url.host() != nil else { return false }
+        MacModel.shared.openInMainWindow(url)
+        return true
+    }
+
     /// Links opened from other apps (Boaz as the target of `open -a` or as default browser) go to a Quick Window.
     func application(_ application: NSApplication, open urls: [URL]) {
         MacModel.shared.openExternal(urls)

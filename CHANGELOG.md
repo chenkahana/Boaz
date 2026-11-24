@@ -4,6 +4,13 @@ All notable changes to Boaz are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.43] - 2026-11-24
+
+### Added
+
+- Handoff between the iPhone and the Mac: the page in the tab you're looking at can be picked up on your other
+  device. Incognito tabs, history and failed pages are never offered.
+
 ## [0.4.42] - 2026-11-24
 
 ### Added
