@@ -4,6 +4,16 @@ All notable changes to Boaz are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.43] - 2026-11-24
+
+### Added
+
+- Handoff between the iPhone and the Mac: the page in the tab you're looking at can be picked up on your other
+  device. Incognito tabs, history and failed pages are never offered.
+
+Crash reports reviewed: no GitHub issues opened since 0.4.37; no Boaz crash reports on the build Mac since
+2026-11-19. App Store Connect and Xcode Organizer crashes were not checked (not signed in on this Mac).
+
 ## [0.4.40] - 2026-11-24
 
 ### Fixed
