@@ -273,6 +273,8 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver, find_in_page::Fin
   std::unique_ptr<VisiblePageCapture> capture;
   std::unique_ptr<PageEmulation> emulation;
   std::unique_ptr<PagePDF> pdf;
+  std::unique_ptr<PageMHTML> mhtml;
+  std::unique_ptr<PageScroll> scroll;
   raw_ptr<find_in_page::FindTabHelper> find_helper = nullptr;
   find_in_page::FindNotificationDetails find_result;
   bool find_active = false;
@@ -454,6 +456,8 @@ void TabRegistry::Impl::Closing(Page& page) {
   if (page.capture) page.capture->Close();
   if (page.emulation) page.emulation->Close();
   if (page.pdf) page.pdf->Close();
+  if (page.mhtml) page.mhtml->Close();
+  if (page.scroll) page.scroll->Close();
   auto snapshot = Capture(page);
   page.final_snapshot = snapshot;
   snapshot.state.url = snapshot.url.c_str();
@@ -640,6 +644,25 @@ BoazHostResult TabRegistry::CapturePDF(BoazHostPage id, uint64_t request, PagePD
   BOAZ_FIND_PAGE();
   if (!page->pdf) page->pdf = std::make_unique<PagePDF>(page->web_contents());
   return page->pdf->Capture(request, std::move(completion));
+}
+BoazHostResult TabRegistry::SetPageFrozen(BoazHostPage id, bool frozen) {
+  BOAZ_FIND_PAGE();
+  // A visible page is never frozen; showing a frozen page thaws it.
+  if (page->web_contents()->GetVisibility() == content::Visibility::VISIBLE) return BOAZ_HOST_UNAVAILABLE;
+  page->web_contents()->SetPageFrozen(frozen);
+  return BOAZ_HOST_OK;
+}
+BoazHostResult TabRegistry::SaveMHTML(BoazHostPage id, uint64_t request, const base::FilePath& path,
+    PageMHTML::Completion completion) {
+  BOAZ_FIND_PAGE();
+  if (!page->mhtml) page->mhtml = std::make_unique<PageMHTML>(page->web_contents());
+  return page->mhtml->Save(request, path, std::move(completion));
+}
+BoazHostResult TabRegistry::ReadScrollPosition(BoazHostPage id, PageScroll::Completion completion) {
+  BOAZ_FIND_PAGE();
+  if (!page->scroll) page->scroll = std::make_unique<PageScroll>(page->web_contents());
+  page->scroll->Read(std::move(completion));
+  return BOAZ_HOST_OK;
 }
 BoazHostResult TabRegistry::CancelPDF(BoazHostPage id, uint64_t request) {
   BOAZ_FIND_PAGE();

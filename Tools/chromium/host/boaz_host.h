@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-#define BOAZ_HOST_ABI_VERSION 56u
+#define BOAZ_HOST_ABI_VERSION 57u
 
 typedef enum BoazHostDevToolsAction {
   BOAZ_DEVTOOLS_SHOW, BOAZ_DEVTOOLS_CONSOLE, BOAZ_DEVTOOLS_INSPECT,
@@ -92,6 +92,12 @@ typedef enum BoazHostCaptureStatus {
  * during this callback only, at most 8 MiB. Failure supplies no bytes. */
 typedef void (*BoazHostCaptureCompletion)(void* context, BoazHostPage page,
     uint64_t request, BoazHostCaptureStatus status, const uint8_t* png, size_t size);
+/* save_mhtml: the file's size on success, 0 otherwise. */
+typedef void (*BoazHostFileCompletion)(void* context, BoazHostPage page,
+    uint64_t request, BoazHostCaptureStatus status, int64_t size);
+/* read_scroll_position: CSS pixels; 0, 0 on failure. */
+typedef void (*BoazHostScrollCompletion)(void* context, BoazHostPage page,
+    uint64_t request, BoazHostCaptureStatus status, double x, double y);
 typedef enum BoazHostScriptStatus {
   BOAZ_SCRIPT_SUCCESS, BOAZ_SCRIPT_INVALID_TARGET, BOAZ_SCRIPT_NAVIGATION,
   BOAZ_SCRIPT_CLOSED, BOAZ_SCRIPT_RENDERER_FAILED, BOAZ_SCRIPT_TIMEOUT,
@@ -471,6 +477,18 @@ typedef struct BoazHostAPI {
    * sharing its NSWindow: it alone reports active and visible, sets the title, and moves, orders or resizes the
    * NSWindow when Chromium asks. A window created on an NSWindow that already has a host window starts behind. */
   BoazHostResult (*bring_window_forward)(BoazHostWindow window);
+  /* Freezes a hidden page (Chromium's page lifecycle: its tasks stop, its DOM stays) or thaws it; showing a page
+   * thaws it. UNAVAILABLE while the page is visible. */
+  BoazHostResult (*set_page_frozen)(BoazHostPage page, uint8_t frozen);
+  /* Writes an http(s) page's primary document, as presented, as MHTML to absolute_path (UTF-8, ".mhtml", in an
+   * existing directory; an existing file is replaced). Thaw a frozen page first. Accepted requests complete once on
+   * the UI thread, 30-second deadline; a failure may leave a partial file for the caller to remove. */
+  BoazHostResult (*save_mhtml)(BoazHostPage page, uint64_t request, const char* absolute_path,
+      BoazHostFileCompletion completion, void* context);
+  /* Where the primary document is scrolled, from its layout rather than page script, so it also reads a loaded MHTML
+   * archive (scripts off). Accepted requests complete once on the UI thread, 5-second deadline. */
+  BoazHostResult (*read_scroll_position)(BoazHostPage page, uint64_t request,
+      BoazHostScrollCompletion completion, void* context);
 } BoazHostAPI;
 
 /* Called once by the prototype host after its isolated profile is ready.

@@ -6,7 +6,9 @@
 #include "boaz_host.h"
 #include "visible_page_capture.h"
 #include "page_emulation.h"
+#include "page_mhtml.h"
 #include "page_pdf.h"
+#include "page_scroll.h"
 #include "trusted_execution.h"
 
 class Browser;
@@ -39,6 +41,10 @@ class TabRegistry {
   BoazHostResult Reload(BoazHostPage page);
   BoazHostResult ReloadFromOrigin(BoazHostPage page);
   BoazHostResult CapturePDF(BoazHostPage page, uint64_t request, PagePDF::Completion completion);
+  BoazHostResult SetPageFrozen(BoazHostPage page, bool frozen);
+  BoazHostResult SaveMHTML(BoazHostPage page, uint64_t request, const base::FilePath& path,
+      PageMHTML::Completion completion);
+  BoazHostResult ReadScrollPosition(BoazHostPage page, PageScroll::Completion completion);
   BoazHostResult CancelPDF(BoazHostPage page, uint64_t request);
   bool TakeProtectedMediaRequest(content::RenderFrameHost* frame, BoazHostPage* page, uint64_t* navigation);
   BoazHostPage PageFor(content::WebContents* contents);
