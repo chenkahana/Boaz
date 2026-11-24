@@ -1,4 +1,4 @@
-RESUME HERE (2026-11-24 07:50 IST): released v0.4.38 (#168), v0.4.39 (#169), v0.4.40 (#172, engine batch, risky; 04:41Z), v0.4.41 (#170), v0.4.42 (#171 + wave-c-4; 05:46Z). Handoff PR #173 (0.4.43) in CI. #78 slice 1 (craft/snapshots-2) is the next risky release: eligible ≥ 2026-11-25 06:41 IST after 0.4.40's soak checks on this Mac (Sparkle must have installed ≥ 0.4.40). Runtime GUI checks still owed (Chen active at 07:40; dev DMG staged at /Volumes/BoazBuild/cef/direct/artifacts/finish-c3-signed). CI now fails a stalled UI test after 5 min and uploads results on cancel.
+RESUME HERE (2026-11-24 08:20 IST): released v0.4.38 (#168), v0.4.39 (#169), v0.4.40 (#172, engine batch, risky; 04:41Z), v0.4.41 (#170), v0.4.42 (#171 + wave-c-4), v0.4.43 (#173 Handoff; 06:18Z). Only soak waits remain: #78 slice 1 (craft/snapshots-2, merged with master, builds) is the next risky release, eligible ≥ 2026-11-25 06:41 IST after 0.4.40's soak checks on this Mac (Sparkle must have installed ≥ 0.4.40). Runtime GUI checks still owed (Chen active at 07:40; dev DMG staged at /Volumes/BoazBuild/cef/direct/artifacts/finish-c3-signed). CI now fails a stalled UI test after 5 min and uploads results on cancel.
 
 # Implementation
 
@@ -107,7 +107,7 @@ behaviour and wait for Chen's yes (R5.3 "Chen's yes" column).
 ## Wave D
 
 - [x] #74, #76 (iPhone Spotlight), #77 — PR #171 — v0.4.42
-- [ ] #75 Handoff (SY-8): PR https://github.com/chenkahana/Boaz/pull/173 (0.4.43): focused normal tab only, never Incognito, history or failed pages; Swift only (DMG receive uses the host's own BrowsingWeb handler, unverified), so not risky. Two-device check owed.
+- [x] #75 Handoff (SY-8): PR https://github.com/chenkahana/Boaz/pull/173 — v0.4.43: focused normal tab only, never Incognito, history or failed pages; Swift only (DMG receive uses the host's own BrowsingWeb handler, unverified), so not risky. Two-device check owed.
 - [-] #76 Focus filter + Mac Spotlight: skipped. Spike 2026-11-24: the DMG bundle has no `Metadata.appintents` (the UI is a dylib inside Chromium's app, so App Intents are not extracted), and opening a Spotlight result needs the host's AppKit delegate (C++ host change + Chromium base rebuild). Revisit with a host-side App Intents extension.
 
 ## #78 Live tab snapshots
