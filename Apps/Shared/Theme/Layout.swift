@@ -13,6 +13,11 @@ enum Spacing {
     static let section: CGFloat = 32
 }
 
+/// Apple's minimum touch target: anything tapped on iPhone is at least this tall and wide.
+enum HitTarget {
+    static let minimum: CGFloat = 44
+}
+
 /// Corner radii, smallest to largest, so icons, rows, tiles, cards and panels nest consistently. Sheets keep the
 /// system's corners. Always drawn `.continuous`.
 enum Radius {

@@ -26,6 +26,21 @@ All notable changes to Boaz are recorded here. The format follows
 - iPhone setup leads with browsing: Continue is the main button, and Sign In to iCloud is offered beside it.
 - Share sheet buttons read "Pin to Sidebar" and "Add to Tabs".
 
+## [0.4.38] - 2026-11-23
+
+### Fixed
+
+- Mac: page loading shows as a thin bar in the address field after a short pause, instead of a spinner over the
+  page.
+- Mac: each window is named after its page in the Window menu, Mission Control and the Dock; Incognito windows
+  are named "Incognito".
+- iPhone: the tab fan, + and … are one 48 pt size, so the tab fan is easier to hit.
+- iPhone Duo: rows and close buttons in the half-open tab strip are 44 pt tall.
+- iPhone: the page menu fades its last visible row when more rows sit below, instead of cutting it in half.
+- iPhone: at accessibility text sizes the page menu opens full height, its Back, Forward, Reload and Share tiles
+  show only their symbols (press and hold to read the name), and row titles wrap instead of truncating.
+- The Mac toast UI test waits for the toast instead of racing it.
+
 Crash reports reviewed: no GitHub issues opened since 0.4.37; no Boaz crash reports on the build Mac. App Store
 Connect and Xcode Organizer crashes were not checked (not signed in on this Mac).
 
