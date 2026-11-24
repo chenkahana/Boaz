@@ -1,4 +1,4 @@
-RESUME HERE (2026-11-24 12:10 IST): released v0.4.38–v0.4.43 (#168–#173; engine batch #172 = v0.4.40, risky, 04:41Z). Next risky: #78 slice 1 (craft/snapshots-2, builds) ≥ 2026-11-25 06:41 IST after 0.4.40's soak checks, as 0.4.44. Then #78 slice 2 (craft/snapshots-3, on slice 1: host ABI 57 + Swift; Chromium base and Chromium UI build green; base not uploaded yet) ≥ 24 h after slice 1's release; upload the base (chromium-base.py pack --upload) at its PR. Slice 2 runtime pass and 30-tab measurement done 2026-11-24 (cap 20, see #78). 0.4.42 dev app still staged at finish-c3-signed for its GUI checks.
+RESUME HERE (2026-11-24 12:10 IST): released v0.4.38–v0.4.43 (#168–#173; engine batch #172 = v0.4.40, risky, 04:41Z). Next risky: #78 slice 1 (craft/snapshots-2, builds) ≥ 2026-11-25 06:41 IST after 0.4.40's soak checks, as 0.4.44. Then #78 slice 2 (craft/snapshots-3, on slice 1: host ABI 57 + Swift; Chromium base and Chromium UI build green; base not uploaded yet) ≥ 24 h after slice 1's release; upload the base (chromium-base.py pack --upload) at its PR. Slice 2 runtime pass and 30-tab measurement done 2026-11-24 (cap 20, see #78). 0.4.42 GUI checks done where no real input is needed (see Runtime checks owed); staged finish-c3/finish-s3 apps deleted, finish-s3b-signed (slice 2, cap 20) kept.
 
 # Implementation
 
@@ -125,14 +125,19 @@ behaviour and wait for Chen's yes (R5.3 "Chen's yes" column).
 
 ## Runtime checks owed
 
-- #5 Reduce Motion (Mac system setting): new tab, close, pin, split, sidebar toggle, space switch, peek fade instead of slide.
-- #24 trackpad: haptic at sidebar 200/420 pt, split 20/50/80 %, drop slot entered, drop accepted.
-- #27 Settings › Sidebar text size 17: glyphs and command bar field/rows grow.
-- #30 web card corner beside the window corner on a 2× display.
-- #28 setup "Sign In to iCloud" label on an iCloud-capable signed build.
+Done 2026-11-24 on the 0.4.42 dev app (own HOME, `--use-mock-keychain`, driven by AX press and DevTools, window-only captures):
+- #3: while a page loads, a progress line runs along the bottom inside the address pill (caught at ~0.1–0.3 s); it's gone once loaded.
+- #18: a tab scrolled to 15000 px, then pushed out by 10 newer tabs, shows its last-seen spot within 0.3 s of coming back and the reloaded page lands at 15000 px. (A scroll made while the tab is hidden isn't recorded, as expected.)
+- #27: at Sidebar Text Size 17 the row titles, the "+" glyph and the command bar field text are larger than at the default.
+- #30: at 1× the web card's corner sits concentric inside the window corner. No 2× display was attached, so the 2× check stays owed.
 
+Still owed (need real input or a system setting):
+- #5 Reduce Motion (Mac system setting, not changed on Chen's Mac): new tab, close, pin, split, sidebar toggle, space switch, peek fade instead of slide.
 - #6 command bar (pointer): ⌘T with the pointer resting over the list area, type: top hit stays selected; move over row 3: it selects.
 - #15 drag out (pointer): drag a tab into TextEdit (gets the URL) and into a sidebar folder (moves).
+- #24 trackpad: haptic at sidebar 200/420 pt, split 20/50/80 %, drop slot entered, drop accepted.
+- #28 setup "Sign In to iCloud" label on an iCloud-capable signed build.
+- #30 at 2×.
 
 ## Decisions (2026-11-23, Chen delegated; each is reversible in the named place)
 
