@@ -4,6 +4,24 @@ All notable changes to Boaz are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.40] - 2026-11-24
+
+### Fixed
+
+- Mac: switching to a tab whose page was unloaded keeps showing its last look while the page reopens, instead of a
+  blank "Opening page…" spinner, and no error flashes while the page attaches.
+- Mac: a page that won't load uses the same titles and symbols as the iPhone: "Can't Open This Page", "You're
+  Offline" or "This Page Stopped Responding".
+- Mac: the find bar's buttons read "Previous Match", "Next Match" and "Close Find Bar".
+
+Soak: 0.4.37, the last engine release, ran for 28 hours on the build Mac (installed through Sparkle 2026-11-22
+22:21 IST, running since 2026-11-23 07:40) with no WebKit-internals fallbacks logged and no Boaz crash reports.
+iPhone sync convergence was not checked.
+
+Crash reports reviewed: no GitHub issues opened since 0.4.37; no Boaz crash reports on the build Mac since
+2026-11-19 (tonight's crashpad reports belong to another app). App Store Connect and Xcode Organizer crashes were
+not checked (not signed in on this Mac).
+
 ## [0.4.39] - 2026-11-23
 
 ### Fixed

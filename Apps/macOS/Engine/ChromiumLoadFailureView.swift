@@ -8,16 +8,14 @@ struct ChromiumLoadFailureView: View {
 
     private var crashed: Bool { adapter.state.lifecycle == .crashed }
     private var offline: Bool { adapter.state.loadFailure?.code == -106 }
+    private var kind: PageFailureKind { crashed ? .crashed : (offline ? .offline : .unreachable) }
     private var canRetry: Bool {
         adapter.state.lifecycle == .active || crashed
     }
 
     var body: some View {
         ContentUnavailableView {
-            Label(crashed ? "This Page Stopped Responding" :
-                  (offline ? "You're Offline" : "Couldn't Load This Page"),
-                  systemImage: crashed ? "exclamationmark.triangle" :
-                    (offline ? "wifi.slash" : "globe"))
+            Label(kind.title, systemImage: kind.symbol)
         } description: {
             VStack(spacing: 8) {
                 if crashed {
