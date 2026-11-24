@@ -25,15 +25,15 @@ struct ChromiumFindBar: View {
                 Text(status).font(.caption).foregroundStyle(.secondary)
                     .accessibilityLabel(status)
                 Button { find(forward: false) } label: { Image(systemName: "chevron.up") }
-                    .accessibilityLabel("Previous match").help("Previous match")
+                    .accessibilityLabel("Previous Match").help("Previous Match")
                     .keyboardShortcut("g", modifiers: [.command, .shift])
                     .disabled(query.isEmpty || adapter.state.lifecycle != .active)
                 Button { find(forward: true) } label: { Image(systemName: "chevron.down") }
-                    .accessibilityLabel("Next match").help("Next match")
+                    .accessibilityLabel("Next Match").help("Next Match")
                     .keyboardShortcut("g", modifiers: .command)
                     .disabled(query.isEmpty || adapter.state.lifecycle != .active)
                 Button(action: dismiss) { Image(systemName: "xmark") }
-                    .accessibilityLabel("Close find bar").help("Close find bar")
+                    .accessibilityLabel("Close Find Bar").help("Close Find Bar")
             }
             if let error { Text(error).font(.caption).foregroundStyle(.red).accessibilityLabel(error) }
         }

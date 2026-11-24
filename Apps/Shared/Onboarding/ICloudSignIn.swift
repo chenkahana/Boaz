@@ -58,7 +58,7 @@ enum ICloudSignIn {
             #if os(macOS)
             "Sign in with your Apple Account in System Settings, then come back here."
             #else
-            "In Settings, tap Apple Account at the top and sign in, then come back to Boaz."
+            "You can browse now. To sync with your Mac, sign in with your Apple Account in Settings."
             #endif
         case .unavailable(let reason): reason
         case .error(let message): message

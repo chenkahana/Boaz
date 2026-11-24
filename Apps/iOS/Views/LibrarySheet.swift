@@ -56,9 +56,9 @@ struct LibrarySheet: View {
                 if !query.isEmpty, (tab == 0 ? filteredArchive.isEmpty : history.isEmpty) {
                     ContentUnavailableView.search(text: query)
                 } else if (tab == 0 ? archive.isEmpty : history.isEmpty) {
-                    ContentUnavailableView(tab == 0 ? "Archive is empty" : "No history",
+                    ContentUnavailableView(tab == 0 ? "No Archived Tabs" : "No History",
                                            systemImage: tab == 0 ? "archivebox" : "clock",
-                                           description: Text(tab == 0 ? "Closed and inactive tabs land here." : "Pages you visit appear here."))
+                                           description: Text(tab == 0 ? "Closed and inactive tabs appear here." : "Pages you visit appear here."))
                 }
             }
             .searchable(text: $query)
@@ -188,7 +188,7 @@ struct SettingsSheet: View {
                     Text("Tabs you haven't opened in this long move to the Archive. Pinned tabs and favorites stay put.")
                 }
                 Section {
-                    Picker("Search engine", selection: $searchEngine) {
+                    Picker("Search Engine", selection: $searchEngine) {
                         ForEach(SearchEngine.allCases) { Text($0.name).tag($0.rawValue) }
                     }
                     Toggle("Search Engine Suggestions", isOn: $searchSuggestions)
@@ -198,15 +198,15 @@ struct SettingsSheet: View {
                     Text("As you type, what you've typed so far is sent to your search engine to suggest searches. Never in Incognito, and never for web addresses.")
                 }
                 Section {
-                    Toggle("Block ads and trackers", isOn: $blockTrackers)
-                    Toggle("Hide cookie banners", isOn: $hideCookieBanners)
+                    Toggle("Block Ads and Trackers", isOn: $blockTrackers)
+                    Toggle("Hide Cookie Banners", isOn: $hideCookieBanners)
                 } header: {
                     Text("Content")
                 } footer: {
                     Text("Boaz blocks known ad and tracking requests, and dismisses cookie consent pop-ups by declining non-essential cookies where the site allows it. Turn either off if a site breaks.")
                 }
                 Section {
-                    Toggle("Tint chrome with site colors", isOn: $tintWithSiteColors)
+                    Toggle("Tint Chrome with Site Colors", isOn: $tintWithSiteColors)
                 } header: {
                     Text("Appearance")
                 } footer: {

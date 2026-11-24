@@ -197,14 +197,15 @@ struct TabBrowser: View {
             }
             .animation(.easeOut(duration: 0.2), value: model.restoringTabs.contains(tab.id))
             .onDisappear { [tab, hostID] in model.releasePage(tab.id, host: hostID) }
-            .onChange(of: loadFailure == nil, initial: true) { _, loaded in
-                if loaded { model.failedTabs.remove(tab.id) } else { model.failedTabs.insert(tab.id) }
+            // A tab stays failed until a load commits, so reopening it shows the failure at once, not a blank page.
+            .onChange(of: loadFailure == nil) { _, loaded in
+                if !loaded { model.failedTabs.insert(tab.id) }
             }
             .overlay {
                 // WebKit draws no error page of its own, so a failed load would otherwise stay blank.
                 if let loadFailure {
                     ContentUnavailableView {
-                        Label("Can't Open This Page", systemImage: "exclamationmark.circle")
+                        Label(loadFailure.kind.title, systemImage: loadFailure.kind.symbol)
                     } description: {
                         Text(loadFailure.message)
                     } actions: {
@@ -212,6 +213,15 @@ struct TabBrowser: View {
                             .buttonStyle(.glassProminent)
                     }
                     .tint(Theme.brand)
+                    .background(Color(.systemBackground).ignoresSafeArea())
+                } else if model.failedTabs.contains(tab.id), page.isLoading {
+                    ContentUnavailableView {
+                        Label(PageFailureKind.unreachable.title, systemImage: PageFailureKind.unreachable.symbol)
+                    } description: {
+                        Text("Trying again…")
+                    } actions: {
+                        ProgressView()
+                    }
                     .background(Color(.systemBackground).ignoresSafeArea())
                 }
             }
@@ -345,6 +355,7 @@ struct TabBrowser: View {
                         requested = page.url
                     case .committed:
                         loadFailure = LoadFailure(blocked: requested, committed: page.url)
+                        if loadFailure == nil { model.failedTabs.remove(tab.id) }
                         requested = nil
                         model.didCommitLoad(tab)
                         applyTextSize(to: page)
@@ -388,6 +399,7 @@ struct TabBrowser: View {
 private struct LoadFailure {
     let message: String
     let url: URL?
+    var kind = PageFailureKind.unreachable
     /// Whether it may well load on its own later: the connection was down or dropped, or the page's process ended.
     var passes = false
 
@@ -397,8 +409,9 @@ private struct LoadFailure {
         switch error as? WebPage.NavigationError {
         case .failedProvisionalNavigation(let inner): underlying = inner
         case .webContentProcessTerminated:
-            message = "The page stopped responding."
+            message = "Reload the page to continue."
             url = nil
+            kind = .crashed
             passes = true
             return
         case .invalidURL:
@@ -415,7 +428,7 @@ private struct LoadFailure {
         if nsError.domain == NSURLErrorDomain {
             switch nsError.code {
             case NSURLErrorNotConnectedToInternet, NSURLErrorDataNotAllowed:
-                message = "You're offline. Check your connection and try again."
+                message = "Check your connection. The page loads again on its own when you're back online."
             case NSURLErrorTimedOut, NSURLErrorNetworkConnectionLost:
                 message = "The connection was interrupted. Try again."
             case NSURLErrorCannotFindHost:
@@ -429,6 +442,7 @@ private struct LoadFailure {
             message = nsError.localizedDescription
         }
         url = nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL
+        kind = PageFailureKind(nsError)
         passes = nsError.domain == NSURLErrorDomain && [
             NSURLErrorNotConnectedToInternet, NSURLErrorNetworkConnectionLost, NSURLErrorTimedOut,
             NSURLErrorDataNotAllowed, NSURLErrorCannotFindHost, NSURLErrorCannotConnectToHost,
@@ -460,6 +474,7 @@ private struct BrowserBar: View {
 
     var body: some View {
         bar.onChange(of: tabCount, initial: true) { SwipeTabsTip.openTabs = tabCount }
+            .onChange(of: page.isLoading, initial: true) { SwipeTabsTip.pageLoaded = !page.isLoading }
     }
 
     /// On the rail, top to bottom: the tabs, New Tab, then the page settings. The bottom bar has a layout of its own.
