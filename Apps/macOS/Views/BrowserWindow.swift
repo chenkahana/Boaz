@@ -97,6 +97,10 @@ struct BrowserWindow: View {
         // Names the window in the Window menu, Mission Control and VoiceOver; the title bar itself stays hidden.
         .navigationTitle(windowTitle)
         .onChange(of: windowTitle) { nameWindow() }
+        .onChange(of: browser.activeURL, initial: true) { browser.advertiseHandoff() }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { note in
+            if (note.object as? NSWindow) === browser.window { browser.advertiseHandoff() }
+        }
         .preferredColorScheme(browser.isIncognito ? .dark : nil)
         .environment(\.isPrivateBrowsing, browser.isIncognito)
         .sheet(item: $browser.spaceEditor) { request in MacSpaceEditor(request: request).environment(model).environment(browser) }

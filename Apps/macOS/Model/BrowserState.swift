@@ -538,6 +538,26 @@ final class BrowserState {
     }
 
     var activeTab: SidebarItem? { tab(activeTabID) }
+
+    @ObservationIgnored private var handoff: NSUserActivity?
+    /// Handoff: this window's page shows on the user's iPhone (in Boaz there, or its default browser). A normal tab's
+    /// web page only; never Incognito, never history (must-have 11).
+    func advertiseHandoff() {
+        guard !isIncognito, activeFailure == nil, let url = activeURL,
+              ["http", "https"].contains(url.scheme?.lowercased() ?? "") else {
+            handoff?.invalidate()
+            handoff = nil
+            return
+        }
+        let activity = handoff ?? NSUserActivity(activityType: NSUserActivityTypeBrowsingWeb)
+        activity.webpageURL = url
+        activity.title = activeTab?.title ?? url.host()
+        activity.isEligibleForHandoff = true
+        activity.isEligibleForSearch = false
+        activity.isEligibleForPublicIndexing = false
+        activity.becomeCurrent()
+        handoff = activity
+    }
     var activePage: WebPage? {
         #if BOAZ_CHROMIUM
         if createChromiumPage != nil {
