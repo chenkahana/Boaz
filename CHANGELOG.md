@@ -4,6 +4,13 @@ All notable changes to Boaz are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.47] - 2026-11-25
+
+### Fixed
+
+- Mac: local files that other apps open in Boaz, such as GlobalProtect's VPN sign-in page and HTML files you
+  double-click, now open in a Quick Window. Before, Boaz came to the front and showed nothing.
+
 ## [0.4.46] - 2026-11-25
 
 ### Added
