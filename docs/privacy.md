@@ -13,7 +13,9 @@ collect, see or sell any of it.
   records each of your devices' names (such as "MacBook Pro") and when Boaz was last used on it, so your iPhone can
   show which Mac a tab is open on.
 - **Browsing history, private (Incognito) tabs and page snapshots** stay on the device they were made on. They are
-  never synced or uploaded.
+  never synced or uploaded. On the Mac, the last look of each tab is kept as an image in Boaz's cache folder (at
+  most 200 MB per profile) so it can show while the page reloads; it's deleted when the tab is closed, and Incognito
+  tabs never write one to disk.
 - **Spotlight.** On iPhone, your pinned tabs and favorites (their titles and addresses) are added to the device's
   own Spotlight index so a system search finds them. Nothing else is indexed, and the index never leaves the device.
 - **Optional sync folder.** If iCloud isn't available you can choose a folder (for example in iCloud Drive) to sync
