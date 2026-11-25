@@ -1,0 +1,19 @@
+--- a/base/check.cc
++++ b/base/check.cc
+@@ -56,14 +56,9 @@ constexpr char kCheckFailureMessageSeparator[] =
+     ;
+ 
+ LogSeverity GetDumpSeverity() {
+-#if defined(OFFICIAL_BUILD)
++  // Boaz ships a non-official build to users, so DUMP_WILL_BE_CHECK reports
++  // without crashing, as it does in official Chrome.
+   return DCHECK_IS_ON() ? LOGGING_DCHECK : LOGGING_ERROR;
+-#else
+-  // Crash outside official builds (outside user-facing builds) to detect
+-  // invariant violations early in release-build testing like fuzzing, etc.
+-  // These should eventually be migrated to fatal CHECKs.
+-  return LOGGING_FATAL;
+-#endif
+ }
+ 
+ LogSeverity GetNotFatalUntilSeverity(base::NotFatalUntil fatal_milestone) {
