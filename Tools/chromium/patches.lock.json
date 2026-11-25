@@ -971,6 +971,17 @@
           "after": "a979dd428c76bc8f5a75840dd97d81ea265243a3a23882365f4f679dc580c017"
         }
       ]
+    },
+    {
+      "file": "patches/boaz-dump-will-be-check.patch",
+      "sha256": "5b0164b0146181b833c9d12b46817c25b6505efe85945e33a1b5398ecdb2d617",
+      "files": [
+        {
+          "path": "base/check.cc",
+          "before": "cead9bd6bad693693d767b42c9f144f369ee2af7ab064f9e5c9a010f76f627eb",
+          "after": "6e9924230b93ace6b4519d729e708576bf891fac8a6f3dc989597263c2a8fd07"
+        }
+      ]
     }
   ]
 }

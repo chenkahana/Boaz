@@ -4,6 +4,14 @@ All notable changes to Boaz are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.45] - 2026-11-25
+
+### Fixed
+
+- Mac: maps and other WebGL pages (yad2's map, for one) stay working. A Chromium diagnostic check meant only to
+  report a problem kept crashing Boaz's graphics process, and after a few crashes Chromium turned WebGL off until the
+  next relaunch. The check now reports without crashing, as it does in Chrome.
+
 ## [0.4.44] - 2026-11-25
 
 ### Changed
