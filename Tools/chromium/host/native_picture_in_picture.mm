@@ -74,6 +74,13 @@ NSShadow* ControlShadow() {
 - (BOOL)isFlipped { return YES; }
 @end
 
+// Shows without taking clicks.
+@interface BoazPiPPassthroughView : NSView
+@end
+@implementation BoazPiPPassthroughView
+- (NSView*)hitTest:(NSPoint)point { return nil; }
+@end
+
 // A white, borderless control that lights a round plate under the pointer.
 @interface BoazPiPButton : NSButton
 @end
@@ -340,7 +347,7 @@ NSShadow* ControlShadow() {
   _seekBubble.hidden = YES;
   [_chrome addSubview:_seekBubble];
 
-  _flash = [[NSView alloc] initWithFrame:NSZeroRect];
+  _flash = [[BoazPiPPassthroughView alloc] initWithFrame:NSZeroRect];
   _flash.wantsLayer = YES;
   _flash.layer.backgroundColor = [NSColor colorWithWhite:0 alpha:0.55].CGColor;
   _flash.alphaValue = 0;
@@ -427,10 +434,7 @@ NSShadow* ControlShadow() {
   _mute.hidden = !_available;
   _time.hidden = !_available;
 
-  _flash.frame = NSMakeRect(std::round((w - 76) / 2), std::round((h - 76) / 2), 76, 76);
-  _flash.layer.cornerRadius = 38;
-  _flashImage.frame = NSMakeRect(18, 14, 40, 34);
-  _flashText.frame = NSMakeRect(0, 48, 76, 18);
+  [self layoutFlash];
 }
 
 #pragma mark State
@@ -608,7 +612,7 @@ NSShadow* ControlShadow() {
   const NSPoint local = [self convertPoint:point fromView:self.superview];
   if (!NSPointInRect(local, NSInsetRect(self.bounds, 5, 5))) return nil;
   NSView* hit = [super hitTest:point];
-  return hit == _chrome || hit == _flash || [hit isDescendantOf:_flash] ? self : hit;
+  return hit == _chrome ? self : hit;
 }
 
 #pragma mark Pointer on the video
@@ -684,7 +688,6 @@ NSShadow* ControlShadow() {
   _paused = !_paused;
   [self updatePlay];
   [self send:BoazPiPActionTogglePlay value:0];
-  if (!sender) [self flashSymbol:_paused ? @"pause.fill" : @"play.fill" text:nil];
   [self updateChromeVisibility];
 }
 - (void)replay:(id)sender { [self seekBy:-10]; }
@@ -756,14 +759,16 @@ NSShadow* ControlShadow() {
                                  width, 18);
 }
 
+// A small pill at the top that confirms a key, as YouTube's player does, clear of the controls in the middle.
 - (void)flashSymbol:(NSString*)symbol text:(NSString*)text {
   NSImage* image = symbol ? [NSImage imageWithSystemSymbolName:symbol accessibilityDescription:nil] : nil;
-  _flashImage.image = [image
-      imageWithSymbolConfiguration:[NSImageSymbolConfiguration configurationWithPointSize:text ? 22 : 28
-                                                                                    weight:NSFontWeightSemibold]];
-  _flashImage.frame = text ? NSMakeRect(18, 12, 40, 30) : NSMakeRect(18, 18, 40, 40);
+  _flashImage.image = [image imageWithSymbolConfiguration:[NSImageSymbolConfiguration
+                                                              configurationWithPointSize:14
+                                                                                  weight:NSFontWeightSemibold]];
+  _flashImage.hidden = !image;
   _flashText.stringValue = text ?: @"";
   _flashText.hidden = !text;
+  [self layoutFlash];
   // Show at once, hold, then fade; setting and fading in one transaction would fade from the old value.
   [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(fadeFlash) object:nil];
   [NSAnimationContext runAnimationGroup:^(NSAnimationContext* context) {
@@ -771,6 +776,16 @@ NSShadow* ControlShadow() {
     self->_flash.animator.alphaValue = 1;
   }];
   [self performSelector:@selector(fadeFlash) withObject:nil afterDelay:0.45];
+}
+
+- (void)layoutFlash {
+  const CGFloat text = _flashText.hidden ? 0 : std::ceil(_flashText.intrinsicContentSize.width);
+  const CGFloat icon = _flashImage.hidden ? 0 : 20;
+  const CGFloat width = 12 + icon + (icon && text ? 4 : 0) + text + 12, height = 30;
+  _flash.frame = NSMakeRect(std::round((NSWidth(self.bounds) - width) / 2), 8, width, height);
+  _flash.layer.cornerRadius = height / 2;
+  _flashImage.frame = NSMakeRect(12, 5, icon, 20);
+  _flashText.frame = NSMakeRect(12 + icon + (icon ? 4 : 0), 6, text, 18);
 }
 
 - (void)fadeFlash {
