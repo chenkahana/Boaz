@@ -431,9 +431,99 @@ let bubblegum = Variant(
     },
     shadow: RGB(0x6A2A8A), shadowAlpha: 0.32)
 
+// MARK: Sunset Drive (special edition)
+
+/// A palm silhouette: a trunk leaning from `base` to `crown` (fractions of the icon) and a burst of fronds.
+func palm(_ ctx: CGContext, _ s: CGFloat, base: CGPoint, crown: CGPoint, lean: CGFloat, size: CGFloat, color: RGB) {
+    let b = CGPoint(x: base.x * s, y: base.y * s), c = CGPoint(x: crown.x * s, y: crown.y * s), r = size * s
+    let bend = CGPoint(x: (b.x + c.x) / 2 + lean * s, y: (b.y + c.y) / 2)
+    ctx.setFillColor(color.cg())
+    // Trunk: a tapered curve, wide at the foot.
+    let foot = r * 0.13, top = r * 0.05
+    let trunk = CGMutablePath()
+    trunk.move(to: CGPoint(x: b.x - foot, y: b.y))
+    trunk.addQuadCurve(to: CGPoint(x: c.x - top, y: c.y), control: CGPoint(x: bend.x - (foot + top) / 2, y: bend.y))
+    trunk.addLine(to: CGPoint(x: c.x + top, y: c.y))
+    trunk.addQuadCurve(to: CGPoint(x: b.x + foot, y: b.y), control: CGPoint(x: bend.x + (foot + top) / 2, y: bend.y))
+    trunk.closeSubpath()
+    ctx.addPath(trunk); ctx.fillPath()
+    // Fronds: long drooping leaves, each a crescent from the crown out to its tip.
+    for (angle, length, droop) in [(0.25, 1.0, 0.55), (0.95, 0.9, 0.4), (1.6, 0.7, 0.15), (2.25, 0.92, -0.4),
+                                   (2.95, 1.0, -0.55), (-0.35, 0.75, 0.7), (3.5, 0.72, -0.7)] as [(CGFloat, CGFloat, CGFloat)] {
+        let tip = CGPoint(x: c.x + cos(angle) * r * length, y: c.y + sin(angle) * r * length - r * 0.35 * abs(cos(angle)))
+        let mid = CGPoint(x: (c.x + tip.x) / 2, y: (c.y + tip.y) / 2)
+        let normal = CGPoint(x: -sin(angle), y: cos(angle))
+        let lift = r * 0.32 * (droop >= 0 ? 1 : -1) * (0.6 + abs(droop) * 0.4), width = r * 0.16
+        let leaf = CGMutablePath()
+        leaf.move(to: c)
+        leaf.addQuadCurve(to: tip, control: CGPoint(x: mid.x + normal.x * (lift + width), y: mid.y + normal.y * (lift + width) + r * 0.12))
+        leaf.addQuadCurve(to: c, control: CGPoint(x: mid.x + normal.x * (lift - width), y: mid.y + normal.y * (lift - width) - r * 0.02))
+        ctx.addPath(leaf); ctx.fillPath()
+    }
+}
+
+/// Glossy Miami teal, blushing hot pink where the strands cross; the sunset studio puts a pink rim on it.
+func driveColor(_ s: Surface) -> RGB {
+    toned(s, RGB(0x5CF5E6), RGB(0x0B8FB0)).mix(RGB(0xFF4FA8), crossing(s) * 0.9)
+}
+
+let drive = Variant(
+    id: "Drive", title: "Sunset Drive", caption: "Special edition: palms, a neon sun and the top down",
+    look: Look(finish: .satin(0.24), color: driveColor,
+               studio: Studio(top: RGB(0xFFF0F8), horizon: RGB(0xFF5FA0), floor: RGB(0x2A0A4A), key: 1.1,
+                              warm: RGB(0xFF8A3D), warmth: 0.6)),
+    ground: { ctx, s in
+        // Sky: violet overhead, magenta, then orange at the horizon.
+        let horizon: CGFloat = 0.3
+        linear(ctx, s, [RGB(0x1E0B4A), RGB(0x5A1A8C), RGB(0xD8337F), RGB(0xFF7A45), RGB(0xFFB45A)])
+        dots(ctx, s, seed: 43, count: 26, size: 0.0015...0.004, colors: [RGB(0xFFFFFF), RGB(0xFFD2EC)],
+             alpha: 0.4...0.9, avoidCentre: 0.42)
+        // A banded retro sun sitting on the horizon.
+        let sun = canvas(Int(s)), c = CGPoint(x: 0.5 * s, y: 0.52 * s), r = 0.36 * s
+        sun.addEllipse(in: CGRect(x: c.x - r, y: c.y - r, width: 2 * r, height: 2 * r)); sun.clip()
+        sun.drawLinearGradient(gradient([RGB(0xFFF27A).cg(), RGB(0xFFB13B).cg(), RGB(0xFF3E8A).cg()]),
+                               start: CGPoint(x: 0, y: c.y + r), end: CGPoint(x: 0, y: c.y - r), options: [])
+        sun.setBlendMode(.clear)
+        for i in 0..<6 {
+            let t = CGFloat(i) / 6, y = c.y - r * 0.05 - t * r * 0.9, h = r * (0.025 + t * 0.07)
+            sun.fill(CGRect(x: 0, y: y - h, width: s, height: h))
+        }
+        let disc = sun.makeImage()!
+        pool(ctx, s, at: CGPoint(x: 0.5, y: 0.45), radius: 0.55, RGB(0xFF5FA0), 0.55, blend: .screen)
+        ctx.saveGState(); ctx.clip(to: CGRect(x: 0, y: horizon * s, width: s, height: s))
+        ctx.setShadow(offset: .zero, blur: s * 0.06, color: RGB(0xFF6A9A).cg(0.9))
+        ctx.draw(disc, in: CGRect(x: 0, y: 0, width: s, height: s))
+        ctx.restoreGState()
+        // The sea: deep violet, with the sun's light breaking up on the swell.
+        let sea = CGRect(x: 0, y: 0, width: s, height: s * horizon)
+        ctx.saveGState(); ctx.clip(to: sea)
+        ctx.drawLinearGradient(gradient([RGB(0x6A1F8A).cg(), RGB(0x2A0D52).cg(), RGB(0x14072E).cg()]),
+                               start: CGPoint(x: 0, y: s * horizon), end: .zero, options: [])
+        for i in 0..<7 {
+            let f = CGFloat(i + 1) / 8, y = s * horizon * (1 - pow(f, 1.3)), w = s * (0.42 - CGFloat(i) * 0.045)
+            ctx.setFillColor(RGB(0xFFB45A).mix(RGB(0xFF3E8A), Double(f)).cg(0.75 - Double(i) * 0.08))
+            ctx.fill(CGRect(x: s / 2 - w / 2, y: y, width: w, height: s * 0.011))
+        }
+        ctx.restoreGState()
+        // A neon line along the horizon.
+        ctx.saveGState()
+        ctx.setShadow(offset: .zero, blur: s * 0.02, color: RGB(0xFF4FB0).cg(1))
+        ctx.setFillColor(RGB(0xFFD0EA).cg()); ctx.fill(CGRect(x: 0, y: s * horizon - s * 0.003, width: s, height: s * 0.006))
+        ctx.restoreGState()
+        // Palms framing the scene, rimmed in pink by the sunset.
+        let shade = RGB(0x160631)
+        ctx.saveGState()
+        ctx.setShadow(offset: .zero, blur: s * 0.012, color: RGB(0xFF4FB0).cg(0.8))
+        palm(ctx, s, base: CGPoint(x: 0.1, y: -0.02), crown: CGPoint(x: 0.13, y: 0.78), lean: -0.05, size: 0.19, color: shade)
+        palm(ctx, s, base: CGPoint(x: 0.95, y: -0.02), crown: CGPoint(x: 0.89, y: 0.64), lean: 0.04, size: 0.15, color: shade)
+        ctx.restoreGState()
+    },
+    shadow: RGB(0x1A0533), shadowAlpha: 0.5, glow: RGB(0xFF3FA4), glowAlpha: 0.45,
+    scale: 0.66)
+
 /// The whole family, in picker order. The first is the primary icon.
 let variants: [Variant] = [classic, flatDarkVariant, glossy, midnight, noir, neon, wood, salted, chocolate, glass, chrome, gold, marble, clay,
-                           sunset, ocean, matcha, holo, candy, graphite, bubblegum]
+                           sunset, ocean, matcha, holo, candy, graphite, bubblegum, drive]
 
 /// iOS dark appearance of the primary icon: the same flat knot on black.
 let classicDark = flatDarkVariant

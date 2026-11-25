@@ -38,7 +38,7 @@ within thumb reach and a layout that follows every posture of iPhone Duo. On the
 | **On-device AI** | Summarize Page, Ask This Page and Tidy Tabs, using only Apple's on-device model. Nothing goes to a server. |
 | **iCloud sync** | Spaces, pins, folders, favorites and Today sync between iPhone and Mac through your **private** CloudKit database (`CKSyncEngine`). When iCloud is unavailable, a folder you choose works as a fallback. History and Incognito tabs never leave the device. |
 | **Built for iPhone Duo** | Folded: the page with the rail beside it, its edges tinted to match the site. Open: a sidebar with search and Today next to the page. Book: sidebar on the left half, page on the right. Laptop: page on top, controls on the lower half. The page is never reloaded as the hinge moves. Standard iPhones get the page with the bar across the bottom. |
-| **Pick a pretzel** | The icon is a soft 3D knot, and it comes in 19 finishes: Classic blue on cream, Midnight Snack, Film Noir, Neon Night, Woodshop, Fresh Baked (salted), Choco Dip, Glassblower, Chrome, 24 Karat, Museum Piece, Claymation, Golden Hour, Deep Sea, Matcha Latte, Holo Foil, Candy Cane, Graphite and Bubblegum. Choose one in Settings › App Icon on iPhone and Mac; on the Mac it becomes the Dock icon. |
+| **Pick a pretzel** | The icon is a soft 3D knot, and it comes in 20 finishes: Classic blue on cream, Midnight Snack, Film Noir, Neon Night, Woodshop, Fresh Baked (salted), Choco Dip, Glassblower, Chrome, 24 Karat, Museum Piece, Claymation, Golden Hour, Deep Sea, Matcha Latte, Holo Foil, Candy Cane, Graphite, Bubblegum and the special-edition Sunset Drive. Choose one in Settings › App Icon on iPhone and Mac; on the Mac it becomes the Dock icon. |
 | **Chromium on the Mac** | The DMG from GitHub is built on Chromium. Chrome Web Store extensions sit beside the address: pin the ones you use and open the rest from the puzzle button. Chromium's DevTools dock beside the page, and right-click gives a short native menu. Upgrading from an earlier version keeps your library, settings, saved passwords and signed-in sites. The Mac App Store and iPhone apps use WebKit. |
 | **A full Mac browser** | Sidebar with spaces, command bar (⌘T / ⌘L), split view, rebindable shortcuts, downloads, a native Settings window, and a small Quick Window for links opened from other apps. |
 | **Bring Arc with you** | On Mac, import Arc's spaces, pinned folders, favorites, themes, keyboard shortcuts and, if you opt in, cookies as they are. Chrome, Brave, Edge and Safari bookmarks import too. |
@@ -47,7 +47,7 @@ within thumb reach and a layout that follows every posture of iPhone Duo. On the
 
 ## Screenshots
 
-<p align="center"><img src="docs/assets/icon-parade.png" alt="The Boaz app icons: nineteen pretzels in different finishes" width="900"></p>
+<p align="center"><img src="docs/assets/icon-parade.png" alt="The Boaz app icons: twenty pretzels in different finishes" width="900"></p>
 
 iPhone Duo, folded:
 

@@ -25,10 +25,12 @@ func parade(_ arts: [(Variant, CGImage)]) -> CGImage {
                            end: CGPoint(x: 0, y: 0), options: [])
     pool(ctx, W, at: CGPoint(x: 0.5, y: 0.5), radius: 0.4, RGB(0xFFFFFF), 0.8)
     let perRow = (arts.count + 1) / 2, side: CGFloat = 150
+    // Spacing shrinks as the family grows, so every icon stays inside the frame.
+    let pitch = min(176, (W - side - 60) / CGFloat(max(perRow - 1, 1)))
     for (i, item) in arts.enumerated() {
         let row = i / perRow, col = i % perRow
         let n = row == 0 ? perRow : arts.count - perRow
-        let x = W / 2 + (CGFloat(col) - CGFloat(n - 1) / 2) * 176 + (row == 0 ? 0 : 0)
+        let x = W / 2 + (CGFloat(col) - CGFloat(n - 1) / 2) * pitch
         let y = H * (row == 0 ? 0.66 : 0.3) + sin(CGFloat(col) * 0.9 + CGFloat(row) * 1.7) * 26
         let angle = sin(CGFloat(col) * 1.3 + CGFloat(row)) * 0.08
         placeIcon(ctx, item.1, at: CGPoint(x: x, y: y), side: side, angle: angle)
