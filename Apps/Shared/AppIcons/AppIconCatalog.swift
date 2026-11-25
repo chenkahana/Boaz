@@ -39,6 +39,7 @@ struct AppIconChoice: Identifiable, Hashable, Sendable {
         AppIconChoice(id: "Candy", title: "Candy Cane", caption: "Peppermint stripes, all twisted up"),
         AppIconChoice(id: "Graphite", title: "Graphite", caption: "Quiet charcoal on brushed silver"),
         AppIconChoice(id: "Bubblegum", title: "Bubblegum", caption: "Pink, chewy and about to pop"),
+        AppIconChoice(id: "Drive", title: "Sunset Drive", caption: "Special edition: palms, a neon sun and the top down"),
     ]
 
     static var classic: AppIconChoice { all[0] }

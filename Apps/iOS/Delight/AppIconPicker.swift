@@ -16,10 +16,10 @@ struct AppIconPicker: View {
     @State private var gridWidth: CGFloat = 0
     @AppStorage(AppIconChoice.selectionKey) private var selection = AppIconChoice.classic.id
 
-    /// 18 alternates divide evenly into 3 or 6 columns, so no row is left with an orphan.
+    /// 21 alternates divide evenly into 3 or 7 columns, so no row is left with an orphan.
     private var columnCount: Int {
         let tile: CGFloat = 68 + 12
-        return gridWidth >= tile * 6 ? 6 : 3
+        return gridWidth >= tile * 7 ? 7 : 3
     }
 
     var body: some View {

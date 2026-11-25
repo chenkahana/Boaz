@@ -4,6 +4,13 @@ All notable changes to Boaz are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.46] - 2026-11-25
+
+### Added
+
+- A special-edition app icon, Sunset Drive: a teal pretzel in front of a banded neon sun, palm trees and a violet sea.
+  Pick it in Settings › App Icon on the iPhone and the Mac; on the Mac it becomes the Dock icon.
+
 ## [0.4.45] - 2026-11-25
 
 ### Fixed
