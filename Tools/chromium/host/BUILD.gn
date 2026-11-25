@@ -17,7 +17,7 @@ buildflag_header("buildflags") {
 }
 
 source_set("headers") {
-  public = [ "adblock_popup.h", "adblock_popup_host.h", "adblock_navigation.h", "adblock_browser_client.h", "native_http_warning.h", "extension_optional_permissions.h", "native_extension_store_dialogs.h", "native_extension_uninstall_dialog.h", "native_external_protocol_dialog.h", "native_extension_prompt.h", "native_extension_dialogs.h", "native_password_submission.h", "native_devtools.h", "bootstrap.h", "context_menu_style.h", "native_permission_prompt.h", "protected_media.h" ]
+  public = [ "adblock_popup.h", "adblock_popup_host.h", "adblock_navigation.h", "adblock_browser_client.h", "native_http_warning.h", "extension_optional_permissions.h", "native_extension_store_dialogs.h", "native_extension_uninstall_dialog.h", "native_external_protocol_dialog.h", "native_extension_prompt.h", "native_extension_dialogs.h", "native_password_submission.h", "native_devtools.h", "bootstrap.h", "context_menu_style.h", "native_permission_prompt.h", "native_picture_in_picture.h", "protected_media.h" ]
   public_deps = [
     "//base",
     "//extensions/browser",
@@ -94,6 +94,8 @@ source_set("host") {
     "native_location_bar.mm",
     "native_permission_prompt.h",
     "native_permission_prompt.mm",
+    "native_picture_in_picture.h",
+    "native_picture_in_picture.mm",
     "native_site_permissions.h",
     "native_site_permissions.cc",
     "native_downloads.h",
@@ -133,6 +135,7 @@ source_set("host") {
     "//chrome/browser/external_protocol",
     "//chrome/browser/supervised_user",
     "//chrome/browser/media/webrtc",
+    "//chrome/browser/picture_in_picture",
     "//chrome/browser/printing",
     "//chrome/browser/printing:impl",
     "//components/printing/browser/print_to_pdf",
@@ -173,10 +176,11 @@ source_set("host") {
     "//ui/native_theme",
     "//ui/menus",
     "//ui/events",
+    "//ui/views",
   ]
   assert(boaz_adblock_library != "", "Build the pinned content-blocking library first.")
   libs = [ boaz_adblock_library ]
-  frameworks = [ "AppKit.framework", "Security.framework", "SystemConfiguration.framework" ]
+  frameworks = [ "AppKit.framework", "QuartzCore.framework", "Security.framework", "SystemConfiguration.framework" ]
 }
 
 source_set("launch") {

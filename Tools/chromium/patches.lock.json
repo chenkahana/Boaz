@@ -982,6 +982,22 @@
           "after": "6e9924230b93ace6b4519d729e708576bf891fac8a6f3dc989597263c2a8fd07"
         }
       ]
+    },
+    {
+      "file": "patches/native-picture-in-picture-controls.patch",
+      "sha256": "ebcaae6ad6d4016dd16ccfdffa6178626c76f303490304ceefd3ac1f4945f116",
+      "files": [
+        {
+          "path": "chrome/browser/ui/views/overlay/BUILD.gn",
+          "before": "dfc16a0d82921502948521ea5362d73420c6ede29a247391fc97e0b952fc9a18",
+          "after": "2247ecb006902c9642ff20e1ffd1fb2a1f29c25035048babf605a0efa62bef15"
+        },
+        {
+          "path": "chrome/browser/ui/views/overlay/video_overlay_window_views.cc",
+          "before": "a33dfde44770c24aa7c41a6e59a1fdc6e90b11b59ef0967d331ad496fd2e107b",
+          "after": "5ec30ceb4905dba9d654adaf97b5f97110a6d42dbd7ad850d17eb8b97aa890ae"
+        }
+      ]
     }
   ]
 }
