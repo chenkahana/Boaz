@@ -1,5 +1,6 @@
 #import <AppKit/AppKit.h>
 #import <QuartzCore/QuartzCore.h>
+#include <dlfcn.h>
 #include "native_picture_in_picture.h"
 
 #include <algorithm>
@@ -301,14 +302,14 @@ NSShadow* ControlShadow() {
   [self addSubview:_chrome];
 
   _back = [self button:17 action:@selector(backToTab:)];
-  [_back setSymbol:@"arrow.up.left.and.arrow.down.right" label:@"Back to tab (f)"];
+  [_back setSymbol:@"arrow.up.left.and.arrow.down.right" label:@"Back to Tab (F)"];
   _close = [self button:16 action:@selector(close:)];
   [_close setSymbol:@"xmark" label:@"Close"];
   _replay = [self button:22 action:@selector(replay:)];
-  [_replay setSymbol:@"gobackward.10" label:@"Back 10 seconds (j)"];
+  [_replay setSymbol:@"gobackward.10" label:@"Back 10 Seconds (J)"];
   _play = [self button:30 action:@selector(togglePlay:)];
   _forward = [self button:22 action:@selector(forward:)];
-  [_forward setSymbol:@"goforward.10" label:@"Forward 10 seconds (l)"];
+  [_forward setSymbol:@"goforward.10" label:@"Forward 10 Seconds (L)"];
   _mute = [self button:15 action:@selector(toggleMute:)];
   _rateButton = [self button:12 action:@selector(showRates:)];
 
@@ -474,7 +475,7 @@ NSShadow* ControlShadow() {
 }
 
 - (void)updatePlay {
-  [_play setSymbol:_paused ? @"play.fill" : @"pause.fill" label:_paused ? @"Play (k)" : @"Pause (k)"];
+  [_play setSymbol:_paused ? @"play.fill" : @"pause.fill" label:_paused ? @"Play (K)" : @"Pause (K)"];
 }
 
 - (void)updateTime {
@@ -500,11 +501,11 @@ NSShadow* ControlShadow() {
                      : _volume < 0.34       ? @"speaker.wave.1.fill"
                      : _volume < 0.67       ? @"speaker.wave.2.fill"
                                             : @"speaker.wave.3.fill";
-  [_mute setSymbol:symbol label:_muted ? @"Unmute (m)" : @"Mute (m)"];
+  [_mute setSymbol:symbol label:_muted ? @"Unmute (M)" : @"Mute (M)"];
 }
 
 - (void)updateRate {
-  [_rateButton setText:RateText(_rate) label:@"Playback speed"];
+  [_rateButton setText:RateText(_rate) label:@"Playback Speed"];
 }
 
 #pragma mark Visibility
@@ -706,7 +707,7 @@ NSShadow* ControlShadow() {
 - (void)close:(id)sender { [self send:BoazPiPActionClose value:0]; }
 
 - (void)showRates:(id)sender {
-  NSMenu* menu = [[NSMenu alloc] initWithTitle:@"Playback speed"];
+  NSMenu* menu = [[NSMenu alloc] initWithTitle:@"Playback Speed"];
   NSMenuItem* current = nil;
   for (double rate : kRates) {
     NSMenuItem* item = [menu addItemWithTitle:rate == 1 ? @"Normal" : RateText(rate)
@@ -804,7 +805,8 @@ NSShadow* ControlShadow() {
     [self updateVolume];
     [self send:BoazPiPActionSetVolume value:volume];
     [self flashSymbol:volume == 0 ? @"speaker.slash.fill" : @"speaker.wave.2.fill"
-                 text:[NSString stringWithFormat:@"%d%%", static_cast<int>(std::lround(volume * 100))]];
+                 text:[NSNumberFormatter localizedStringFromNumber:@(volume)
+                                                     numberStyle:NSNumberFormatterPercentStyle]];
   } else if (c == 'm') {
     [self toggleMute:nil];
     [self flashSymbol:_muted ? @"speaker.slash.fill" : @"speaker.wave.2.fill" text:nil];
@@ -874,46 +876,19 @@ class Controls final : public views::WidgetObserver {
                                                            if (!view || event.window != view.window) return event;
                                                            return [view handleKey:event] ? nil : event;
                                                          }];
-    space_observer_ = [NSWorkspace.sharedWorkspace.notificationCenter
-        addObserverForName:NSWorkspaceActiveSpaceDidChangeNotification
-                    object:nil
-                     queue:nil
-                usingBlock:^(NSNotification*) {
-                  if (weak) weak->FollowActiveSpace();
-                }];
     ApplyWindowBehavior();
     timer_.Start(FROM_HERE, base::Milliseconds(250), base::BindRepeating(&Controls::Poll, weak));
   }
   ~Controls() override {
     timer_.Stop();
     if (key_monitor_) [NSEvent removeMonitor:key_monitor_];
-    if (space_observer_) [NSWorkspace.sharedWorkspace.notificationCenter removeObserver:space_observer_];
     [view_ stop];
     [view_ removeFromSuperview];
   }
 
  private:
   void OnWidgetVisibilityChanged(views::Widget*, bool visible) override {
-    if (!visible) return;
-    ApplyWindowBehavior();
-    FollowActiveSpace();
-  }
-
-  // A window on every Space still stays out of other apps' full-screen Spaces until it is moved into one, as
-  // Chromium does for its own floating windows. Wait for the switch to settle, then check.
-  void FollowActiveSpace() {
-    follow_timer_.Start(FROM_HERE, base::Milliseconds(300), base::BindOnce(&Controls::JoinActiveSpace,
-                                                                          weak_factory_.GetWeakPtr()));
-  }
-  void JoinActiveSpace() {
-    if (!widget_->IsVisible()) return;
-    NSWindow* window = widget_->GetNativeWindow().GetNativeNSWindow();
-    CFArrayRef info = CGWindowListCopyWindowInfo(kCGWindowListOptionIncludingWindow,
-                                                 static_cast<CGWindowID>(window.windowNumber));
-    NSArray* windows = CFBridgingRelease(info);
-    NSDictionary* entry = windows.firstObject;
-    if ([entry[(__bridge NSString*)kCGWindowIsOnscreen] boolValue]) return;
-    widget_->MoveToActiveFullscreenSpace();
+    if (visible) ApplyWindowBehavior();
   }
   void OnWidgetDestroying(views::Widget*) override {
     observation_.Reset();
@@ -930,6 +905,22 @@ class Controls final : public views::WidgetObserver {
     window.collectionBehavior = behavior;
     window.hidesOnDeactivate = NO;
     if (window.level < NSFloatingWindowLevel) window.level = NSFloatingWindowLevel;
+    AllowOverOtherAppsFullScreen(window);
+  }
+
+  // The window server keeps other apps' windows out of a full-screen Space, except AppKit's non-activating panels.
+  // Chromium's window is an NSWindow, so give it the window-server tag those panels carry besides "prevents
+  // activation", which would stop the window taking keys. Without SkyLight's setter, it stays on ordinary Spaces.
+  static void AllowOverOtherAppsFullScreen(NSWindow* window) {
+    using Connection = int32_t (*)();
+    using SetTags = int32_t (*)(int32_t, uint32_t, uint64_t*, int32_t);
+    static void* const skylight =
+        dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_LAZY | RTLD_NOLOAD);
+    static const auto connection = skylight ? reinterpret_cast<Connection>(dlsym(skylight, "SLSMainConnectionID")) : nullptr;
+    static const auto set_tags = skylight ? reinterpret_cast<SetTags>(dlsym(skylight, "SLSSetWindowTags")) : nullptr;
+    if (!connection || !set_tags || window.windowNumber <= 0) return;
+    uint64_t tags = uint64_t{1} << 45;
+    set_tags(connection(), static_cast<uint32_t>(window.windowNumber), &tags, 64);
   }
 
   void Poll() {
@@ -1042,8 +1033,6 @@ class Controls final : public views::WidgetObserver {
   base::ScopedObservation<views::Widget, views::WidgetObserver> observation_{this};
   BoazPiPControlsView* __strong view_ = nil;
   id __strong key_monitor_ = nil;
-  id __strong space_observer_ = nil;
-  base::OneShotTimer follow_timer_;
   base::RepeatingTimer timer_;
   content::GlobalRenderFrameHostId media_frame_;
   size_t pending_ = 0;
