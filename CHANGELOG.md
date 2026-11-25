@@ -4,6 +4,21 @@ All notable changes to Boaz are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.44] - 2026-11-25
+
+### Changed
+
+- Mac: coming back to a tab whose page was unloaded shows how you last left it, sharp and at full size, while the page
+  reloads, even after a relaunch. The image is kept in Boaz's cache folder (at most 200 MB per profile), deleted when
+  the tab is closed, never written for Incognito tabs and never synced. The "Saved preview" caption is gone.
+
+Crash reports reviewed: no GitHub issues opened since 0.4.37; no Boaz crash reports on the build Mac since 0.4.40
+(two renderer reports on 2026-11-24 came from local development builds, not the released app). Known, pre-existing and
+not from this release: since 2026-11-24 a live folder created on the Mac fails to upload to iCloud ("Cannot create or
+modify field 'liveSource' in record 'SidebarItem' in production schema"); the rest of the library syncs, and the fix is
+deploying the iCloud schema to production, not an app change. App Store Connect and Xcode Organizer crashes were not
+checked (not signed in on this Mac).
+
 ## [0.4.43] - 2026-11-24
 
 ### Added
