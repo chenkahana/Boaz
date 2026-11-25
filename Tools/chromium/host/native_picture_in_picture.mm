@@ -764,10 +764,18 @@ NSShadow* ControlShadow() {
   _flashImage.frame = text ? NSMakeRect(18, 12, 40, 30) : NSMakeRect(18, 18, 40, 40);
   _flashText.stringValue = text ?: @"";
   _flashText.hidden = !text;
-  [_flash.layer removeAllAnimations];
-  _flash.alphaValue = 1;
+  // Show at once, hold, then fade; setting and fading in one transaction would fade from the old value.
+  [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(fadeFlash) object:nil];
   [NSAnimationContext runAnimationGroup:^(NSAnimationContext* context) {
-    context.duration = 0.6;
+    context.duration = 0;
+    self->_flash.animator.alphaValue = 1;
+  }];
+  [self performSelector:@selector(fadeFlash) withObject:nil afterDelay:0.45];
+}
+
+- (void)fadeFlash {
+  [NSAnimationContext runAnimationGroup:^(NSAnimationContext* context) {
+    context.duration = 0.35;
     context.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseIn];
     self->_flash.animator.alphaValue = 0;
   }];
@@ -863,13 +871,16 @@ class Controls final : public views::WidgetObserver {
       : widget_(widget), controller_(controller), overlay_shown_(std::move(overlay_shown)) {
     observation_.Observe(widget);
     NSWindow* window = widget->GetNativeWindow().GetNativeNSWindow();
-    NSView* host_view = window.contentView;
-    view_ = [[BoazPiPControlsView alloc] initWithFrame:host_view.bounds];
+    // Chromium's content view hit-tests itself and never its subviews, so the controls sit beside it in the window's
+    // frame view, on top.
+    NSView* content = window.contentView;
+    NSView* frame_view = content.superview ?: content;
+    view_ = [[BoazPiPControlsView alloc] initWithFrame:frame_view == content ? content.bounds : content.frame];
     base::WeakPtr<Controls> weak = weak_factory_.GetWeakPtr();
     view_.handler = ^(BoazPiPAction action, double value) {
       if (weak) weak->Run(action, value);
     };
-    [host_view addSubview:view_ positioned:NSWindowAbove relativeTo:nil];
+    [frame_view addSubview:view_ positioned:NSWindowAbove relativeTo:frame_view == content ? nil : content];
     __weak BoazPiPControlsView* view = view_;
     key_monitor_ = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown
                                                          handler:^NSEvent*(NSEvent* event) {
