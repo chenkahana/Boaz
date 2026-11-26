@@ -148,30 +148,41 @@ until `Tools/perf/` below produces a dated, comparable Chromium-engine column to
 ### Method (PLAN-04): `Tools/perf/`
 
 `Tools/perf/perf.py` re-runs every row above against the *published* release DMG — never a local build, and never
-the installed Boaz — on an ad-hoc re-signed copy with no entitlements, launched under a throwaway `HOME` +
+the installed Boaz — on a copy re-branded as the development identity (`com.chenkahana.boaz.chromium.dev`,
+the same one `make device`'s dev builds use) with no entitlements, launched under a throwaway `HOME` +
 `CFFIXED_USER_HOME`, with Sparkle and iCloud sync off. Must-have #13 (Chen's real library and CloudKit are
-untouchable) is enforced by guards that abort the whole run — a Boaz process already running, non-empty
-entitlements on the copy, or any change to Chen's real `~/Library/Application Support/Boaz` or
-`~/Library/Containers/com.chenkahana.boaz` measured before and after each row — rather than by hoping the
-isolation holds.
+untouchable) is enforced by guards that abort the whole run — the copy's identity, non-empty entitlements on it,
+another dev-identity process already running, or any change to Chen's real `~/Library/Application Support/Boaz`,
+`~/Library/Containers/com.chenkahana.boaz` or its defaults domain, measured before and after each row — rather
+than by hoping the isolation holds.
 
-- **Run it:** `Tools/perf/run.sh [dmg-tag] [N]` (default `v0.4.48`, `N=7`). Only on the orchestrator's go, with
-  Chen's own Boaz quit, the Mac idle and on AC power, and never while Chen is screen-sharing — every row opens a
-  real window and drives the keyboard. Takes about 25 minutes. Writes `results.json` and `results.md` (the table
-  below's format) under `~/tmp/codex/boaz-perf/<UTC timestamp>/`.
+- **Run it:** `Tools/perf/run.sh [dmg-tag] [N]` (default `v0.4.48`, `N=7`). Only on the orchestrator's go, with the
+  Mac idle and on AC power, and never while Chen is screen-sharing — every row opens a real window and drives the
+  keyboard. Chen's own production Boaz may stay running (different bundle id); no other `com.chenkahana.boaz.
+  chromium.dev` process may be, PLAN-16 dev builds included. Takes about 25 minutes. Writes `results.json` and
+  `results.md` (the table below's format) under `~/tmp/codex/boaz-perf/<UTC timestamp>/`.
 - **Fixtures:** `Tools/perf/seed` (SwiftPM, `BoazKit`'s public API only — `recordVisit`, `save`, `updateSpace`)
-  seeds each row's throwaway `HOME` with the 50,000-visit history or the 10/150 Today-tab variants it needs.
+  seeds each row's throwaway `HOME` with the 50,000-visit history or the 10/150 Today-tab variants it needs, at
+  the path the dev identity actually resolves (`.../Application Support/com.chenkahana.boaz.chromium.dev/Boaz/`).
+- **Isolation history**: the first version of this harness kept the copy's bundle id as production and relied on
+  `CFFIXED_USER_HOME` to confine `defaults`/`NSUserDefaults` to the throwaway HOME. Confirmed live that this
+  doesn't hold on an unsandboxed process (cfprefsd resolves the real UID's home regardless of the environment),
+  and that wrapping the launch in `sandbox-exec` doesn't fix it either (cfprefsd writes on the client's behalf, so
+  the client's own sandbox doesn't redirect it) — a plain `defaults write` landed in the real
+  `~/Library/Preferences` either way. The fix re-brands the copy as the development identity instead of fighting
+  cfprefsd: any prefs write that still escapes HOME redirection lands in that identity's own domain, never Chen's
+  production one. In-process path resolution (`FileManager`, `NSHomeDirectory`) does honor the fixed HOME, so the
+  store and the Chromium profile stay isolated as before; see plan/items/04-performance-baselines.md's Approach
+  for the full writeup, including why a dedicated macOS user (the gold standard) is offered to Chen rather than
+  required.
 - **What needs Chen first:** the ⌘T/typing/archive rows drive the keyboard through System Events, which needs an
   Accessibility grant for whatever runs the harness; `Tools/perf/perf.py guard-check` reports whether the
-  isolation guards currently pass without launching anything. As of this writing, `guard-check`'s cfprefsd probe
-  **aborts on this host**: a plain `defaults write` under a fixed `HOME`/`CFFIXED_USER_HOME` still lands in the
-  real `~/Library/Preferences`, so `com.chenkahana.boaz`'s own preference writes are not yet proven isolated by
-  environment variables alone (the harness itself never performs such a write — see `launch_app`'s comment — but
-  the running app might). Re-check `guard-check` on the actual run host before a live session; if it still aborts,
-  this needs `sandbox-exec` confinement of the app's own executable (bypassing LaunchServices) before proceeding.
-  The iPhone columns stay "not measured (needs device)" until Chen picks a spare or disposable device.
-- **Status:** tooling built and self-tested (`swift build` on the seed tool with a verified store, `window-wait.swift`
-  against a window-less pid, `perf.py`'s guards, isolation staging and page server exercised for real; see
+  isolation guards currently pass without launching anything. The iPhone columns stay "not measured (needs
+  device)" until Chen picks a spare or disposable device.
+- **Status:** tooling built and self-tested without launching any GUI app (`swift build` on the seed tool with a
+  verified store at the dev-identity path, `window-wait.swift` against a window-less pid, `perf.py`'s guards —
+  including a live run that correctly caught a real PLAN-16 dev build already running — isolation staging
+  (download, verify, mount, re-brand, re-sign, verify) and the page server exercised for real; see
   plan/items/04-performance-baselines.md's Progress log). No GUI row has been run yet — this table's baseline
   column is unchanged until a live session produces one.
 

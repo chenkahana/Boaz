@@ -6,8 +6,14 @@ import GRDB
 // resolves in a fresh HOME (`BoazStore.onDisk(applicationSupportDirectory:)`), then writes through BoazKit's public
 // API only — never the schema directly — so seeded data looks like anything a real device could have written.
 //
-// Usage: seed --home <dir> [--visits N] [--today-tabs N] [--space-title TITLE] [--verify]
-//   --home        Required. A throwaway HOME; the store lands at <home>/Library/Application Support/Boaz.
+// Usage: seed --home <dir> [--bundle-id ID] [--visits N] [--today-tabs N] [--space-title TITLE] [--verify]
+//   --home        Required. A throwaway HOME. The store lands at
+//                 <home>/Library/Application Support/<bundle-id>/Boaz/boaz.sqlite — matching
+//                 ChromiumLegacyStore.applicationSupportDirectory()'s "development" branch, which namespaces
+//                 Application Support by CFBundleIdentifier so a dev-identity build never shares production's
+//                 library even on a real, non-redirected HOME.
+//   --bundle-id   The identity perf.py's isolated copy runs as (default com.chenkahana.boaz.chromium.dev — the
+//                 revised isolation's dev identity; see plan/items/04-performance-baselines.md's Approach).
 //   --visits      History rows to write via `recordVisit`, Zipf-weighted over ~8,000 hosts, spread over 90 days.
 //   --today-tabs  Tabs to add to the Personal space's Today (unpinned) container.
 //   --space-title Renames the Personal space (public `updateSpace`), so perf.py's UI automation can find a known
@@ -16,6 +22,7 @@ import GRDB
 //                 other flags are 0), for perf.py's and this tool's own self-test to check without opening SQLite.
 struct Options {
     var home: String?
+    var bundleID = "com.chenkahana.boaz.chromium.dev"
     var visits = 0
     var todayTabs = 0
     var spaceTitle: String?
@@ -28,6 +35,7 @@ func parseArguments(_ arguments: [String]) -> Options {
     while let flag = iterator.next() {
         switch flag {
         case "--home": options.home = iterator.next()
+        case "--bundle-id": options.bundleID = iterator.next() ?? options.bundleID
         case "--visits": options.visits = iterator.next().flatMap(Int.init) ?? 0
         case "--today-tabs": options.todayTabs = iterator.next().flatMap(Int.init) ?? 0
         case "--space-title": options.spaceTitle = iterator.next()
@@ -99,6 +107,7 @@ struct Seed {
         guard let home = options.home else { fail("--home is required") }
         let homeURL = URL(fileURLWithPath: home, isDirectory: true)
         let appSupport = homeURL.appendingPathComponent("Library/Application Support", isDirectory: true)
+            .appendingPathComponent(options.bundleID, isDirectory: true)
         try FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
 
         let store = try BoazStore.onDisk(applicationSupportDirectory: appSupport)
