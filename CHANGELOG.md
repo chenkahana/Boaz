@@ -27,7 +27,7 @@ All notable changes to Boaz are recorded here. The format follows
   tab), Move to Group and Remove from Group, and the space and + menus have New Group. A group opens named "New
   Group", ready to rename; click it to collapse or expand, drag tabs in and out, and it comes back as you left it
   after a relaunch. Groups are this Mac's, like its Today tabs; drag one into Pinned to make it a folder on every
-  device. VoiceOver reads a group's name, tab count and state, with Collapse, Rename, Ungroup and Archive Group in
+  device, and a folder dragged into Today becomes a group, with the tabs of any folders inside it. VoiceOver reads a group's name, tab count and state, with Collapse, Rename, Ungroup and Archive Group in
   its Actions. The iPhone shows a Mac's groups as folders under its Today tabs.
 - Report a Problem: Help › Report a Problem… on Mac, and Settings › About › Report a Problem on Mac and iPhone,
   open a GitHub bug report in a Boaz tab with your Boaz version, build, commit, device and OS filled in. Nothing

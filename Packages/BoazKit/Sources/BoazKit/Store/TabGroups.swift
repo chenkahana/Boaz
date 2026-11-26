@@ -50,6 +50,27 @@ extension Sidebar {
                            deviceID: deviceID)
     }
 
+    /// A folder becoming a group stays one level deep: the tabs in its subfolders join it where they showed, in
+    /// sidebar order, and the subfolders go (tombstones, last). No tab is lost. Empty when there's nothing to flatten.
+    public func flattened(_ folder: SidebarItem, at date: Date = .now) -> [SidebarItem] {
+        guard children(of: folder.id).contains(where: { $0.kind == .folder }) else { return [] }
+        func tabs(under id: String) -> [SidebarItem] {
+            children(of: id).flatMap { $0.kind == .folder ? tabs(under: $0.id) : [$0] }
+        }
+        func folders(under id: String) -> [SidebarItem] {
+            children(of: id).filter { $0.kind == .folder }.flatMap { [$0] + folders(under: $0.id) }
+        }
+        var records = tabs(under: folder.id).enumerated().map { index, item in
+            var item = item
+            item.parentID = folder.id
+            item.position = Double(index)
+            item.modifiedAt = date
+            return item
+        }
+        records += folders(under: folder.id).map { var sub = $0; sub.deletedAt = date; sub.modifiedAt = date; return sub }
+        return records
+    }
+
     /// Ungrouping: the group's items, in their order, take the group's slot between its neighbours, and the group
     /// goes (a tombstone, last). Nothing closes.
     public func ungrouped(_ group: SidebarItem, at date: Date = .now) -> [SidebarItem] {

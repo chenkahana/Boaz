@@ -899,7 +899,10 @@ final class MacModel {
         // Moved or dragged to another space by hand: site rules leave this tab alone from now on.
         if item.spaceID != nil, spaceID != nil, item.spaceID != spaceID { setSpaceOverride(item) }
         if item.kind == .folder, item.spaceID != spaceID || entersToday || leavesToday {
-            changed += descendants(of: id).map { var d = $0; d.spaceID = spaceID; if let device { d.deviceID = device }; return d }
+            // A group is one level deep: a folder coming into Today takes its subfolders' tabs in and drops them.
+            let flattened = entersToday ? sidebar.flattened(item) : []
+            let inside = flattened.isEmpty ? descendants(of: id) : flattened
+            changed += inside.map { var d = $0; d.spaceID = spaceID; if let device { d.deviceID = device }; return d }
         }
         changed[0].spaceID = spaceID
         commit(changed)

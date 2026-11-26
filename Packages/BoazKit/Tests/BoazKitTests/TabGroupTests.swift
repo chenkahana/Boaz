@@ -106,6 +106,34 @@ struct TabGroupTests {
         #expect(after.items.filter { $0.kind == .tab }.count == 5)
     }
 
+    /// A Pinned folder with subfolders coming into Today stays one level deep: every tab, in sidebar order, and
+    /// no folder inside.
+    @Test func folderEnteringTodayFlattensItsSubfolders() throws {
+        let library = try makeLibrary()
+        func folder(_ id: String, in parent: String, position: Double) -> SidebarItem {
+            SidebarItem(id: id, spaceID: library.space.id, profileID: "p1", parentID: parent, kind: .folder,
+                        title: id, position: position, modifiedAt: t0)
+        }
+        let top = folder("top", in: library.pinned.id, position: 0)
+        try library.store.save([
+            top,
+            tab("a", in: "top", library, position: 0, device: nil),
+            folder("sub", in: "top", position: 1),
+            tab("b", in: "sub", library, position: 0, device: nil),
+            folder("deeper", in: "sub", position: 1),
+            tab("c", in: "deeper", library, position: 0, device: nil),
+            tab("d", in: "top", library, position: 2, device: nil),
+        ])
+        let records = try library.store.sidebar().flattened(top, at: t1)
+        try library.store.save(records)
+
+        let after = try library.store.sidebar()
+        #expect(after.children(of: "top").map(\.id) == ["a", "b", "c", "d"])
+        #expect(!after.items.contains { $0.id == "sub" || $0.id == "deeper" })
+        #expect(after.items.filter { $0.kind == .tab }.count == 4)
+        #expect(after.flattened(try #require(after.items.first { $0.id == "top" })).isEmpty)
+    }
+
     /// Archive Group sends every tab to the Archive and the group with them; restoring brings the group back with
     /// its tabs inside and takes them out of the Archive.
     @Test func archivedGroupRestoresWhole() throws {
