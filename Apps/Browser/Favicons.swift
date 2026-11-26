@@ -216,13 +216,27 @@ final class Favicons {
         return nil
     }
 
+    #if BOAZ_CHROMIUM
+    /// The user agent Boaz's Chromium sends (Chrome's reduced one, from the bundled Chromium's version), so the DMG
+    /// never presents itself to a site as Safari. Without that version, URLSession's own.
+    nonisolated private static let browserUserAgent: String? = {
+        let framework = Bundle.main.privateFrameworksURL?.appendingPathComponent("Chromium Framework.framework")
+        guard let version = framework.flatMap(Bundle.init(url:))?.object(forInfoDictionaryKey: "CFBundleShortVersionString")
+                as? String, let major = version.split(separator: ".").first, Int(major) != nil else { return nil }
+        return "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) "
+            + "Chrome/\(major).0.0.0 Safari/537.36"
+    }()
+    #else
+    nonisolated private static let browserUserAgent: String? =
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15"
+    #endif
+
     nonisolated private static func declaredIcons(of page: URL, gate: FetchGate) async -> [URL] {
         await gate.wait()
         defer { gate.signal() }
         var request = URLRequest(url: page)
         // Some sites turn away a request that doesn't look like a browser's.
-        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) "
-                         + "Version/26.0 Safari/605.1.15", forHTTPHeaderField: "User-Agent")
+        request.setValue(browserUserAgent, forHTTPHeaderField: "User-Agent")
         guard let (data, response) = try? await session.data(for: request),
               let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return [] }
         let base = http.url ?? page

@@ -52,8 +52,9 @@ All notable changes to Boaz are recorded here. The format follows
   profile and never replace a sign-in Boaz already has. (#188)
 - Mac: If macOS's Keychain prompt was denied while Boaz brought over your previous sign-ins, they were kept only until
   Boaz quit. Boaz now checks on the next launch that they were saved, and brings them over again if not.
-- Mac: A tab could quietly load in WebKit instead of Chromium after an upgrade and on later launches. Boaz now opens
-  tabs only in Chromium, and in WebKit only for protected video Chromium can't play. (#191)
+- Mac: Looking up a tab's icon, Boaz fetched the tab's page itself while telling the site it was Safari. It now
+  identifies as Boaz's Chromium, as every other request does. A window closing also can no longer open a tab in
+  WebKit; WebKit stays only for protected video Chromium can't play. (#191)
 - The Mac live folder UI test moves into the Pull Requests submenu before choosing a filter, so the submenu no
   longer closes under the pointer and fails the run.
 - iPhone: switching back to a tab no longer reloads it. Boaz keeps more pages open (up to 16, by how much memory the
