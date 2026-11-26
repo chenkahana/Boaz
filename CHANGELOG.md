@@ -10,6 +10,8 @@ All notable changes to Boaz are recorded here. The format follows
 
 - Mac: Boaz no longer puts a magnifying glass in the menu bar. It was Chromium's experimental "search from anywhere"
   box, switched on because Boaz's Chromium build used Chromium's test settings; Boaz now turns it off.
+- Mac: the history page no longer shows Google's "Sync history" sign-in card, which the same test settings
+  switched on.
 - Mac: macOS prompts for the microphone, camera, location, Bluetooth and passkeys, Finder's Get Info, and
   notifications name Boaz, with Boaz's icon, instead of Chromium.
 
