@@ -24,7 +24,9 @@ All notable changes to Boaz are recorded here. The format follows
   closed shows the page as you last saw it, at the same spot, while it reloads underneath. You can scroll, select
   and copy, and a link you click opens in the tab. Never for Incognito tabs.
 - Dev tooling: `Tools/perf/` re-measures docs/qa.md §4's speed baselines against the published release DMG, under
-  guarded isolation that never touches the installed Boaz or Chen's real library.
+  guarded isolation that never touches the installed Boaz or Chen's real library. Launch, new-tab, many-tabs and
+  memory drive the app through the automation channel or `open -a <copy> <url>`, with no Accessibility grant
+  needed; only typing and archive still need one and are skipped by default.
 
 ### Fixed
 

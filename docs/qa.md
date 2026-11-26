@@ -135,7 +135,7 @@ than the previous cycle is a bug.
 | What | How | Baseline (Mac, Debug, before #12) |
 |---|---|---|
 | Launch to first window | Time from launch until the window is drawn, warm | 1.7–2.9 s |
-| New tab to page title | ⌘T, type an address, Return, until the title shows | 0.7–3.1 s, depending on the site |
+| New tab to page title | `open -a <copy> <url>` (the 150-tabs row's own mechanism), until the title shows | 0.7–3.1 s, depending on the site |
 | Typing in the command bar with a large history | Import or load about 50,000 visits, then type; each keystroke must feel instant | ~14 ms of main-thread time per keystroke |
 | Many tabs | Open 150 tabs. The time to open the next one must stay flat | Grew from 1.1 s to 1.8 s |
 | Archive Today's Tabs with 150+ tabs | Time until the sidebar settles | 2.9 s |
@@ -157,10 +157,11 @@ another dev-identity process already running, or any change to Chen's real `~/Li
 than by hoping the isolation holds.
 
 - **Run it:** `Tools/perf/run.sh [dmg-tag] [N]` (default `v0.4.48`, `N=7`). Only on the orchestrator's go, with the
-  Mac idle and on AC power, and never while Chen is screen-sharing — every row opens a real window and drives the
-  keyboard. Chen's own production Boaz may stay running (different bundle id); no other `com.chenkahana.boaz.
-  chromium.dev` process may be, PLAN-16 dev builds included. Takes about 25 minutes. Writes `results.json` and
-  `results.md` (the table below's format) under `~/tmp/codex/boaz-perf/<UTC timestamp>/`.
+  Mac idle and on AC power, and never while Chen is screen-sharing — every row opens a real window, and typing/
+  archive (skipped by default; see below) also drive the keyboard. Chen's own production Boaz may stay running
+  (different bundle id); no other `com.chenkahana.boaz.chromium.dev` process may be, PLAN-16 dev builds included.
+  Takes about 25 minutes. Writes `results.json` and `results.md` (the table below's format) under
+  `~/tmp/codex/boaz-perf/<UTC timestamp>/`.
 - **Fixtures:** `Tools/perf/seed` (SwiftPM, `BoazKit`'s public API only — `recordVisit`, `save`, `updateSpace`)
   seeds each row's throwaway `HOME` with the 50,000-visit history or the 10/150 Today-tab variants it needs, at
   the path the dev identity actually resolves (`.../Application Support/com.chenkahana.boaz.chromium.dev/Boaz/`).
@@ -175,10 +176,16 @@ than by hoping the isolation holds.
   store and the Chromium profile stay isolated as before; see plan/items/04-performance-baselines.md's Approach
   for the full writeup, including why a dedicated macOS user (the gold standard) is offered to Chen rather than
   required.
-- **What needs Chen first:** the ⌘T/typing/archive rows drive the keyboard through System Events, which needs an
-  Accessibility grant for whatever runs the harness; `Tools/perf/perf.py guard-check` reports whether the
-  isolation guards currently pass without launching anything. The iPhone columns stay "not measured (needs
-  device)" until Chen picks a spare or disposable device.
+- **Reworked (2026-11-26):** launch, new tab, many-tabs and memory now drive the app only through the automation
+  channel (`Tools/chromium/automation_client.py`, same as PLAN-16) or `open -a <copy> <url>` — the OS's own
+  URL-open-in-app mechanism, not CDP and not synthetic input — so none of them need an Accessibility grant any
+  more. The omnibox (typing) and the sidebar's context menu (archive) are native chrome that CDP can't reach and
+  Boaz has no scripting dictionary or URL scheme for, so those two still drive System Events and are skipped by
+  default (`perf.py all --include-accessibility-rows` to include them once granted; reported as
+  "needs Accessibility grant (Chen)" otherwise).
+- **What needs Chen first:** typing/archive need an Accessibility grant for whatever runs the harness, per above.
+  `Tools/perf/perf.py guard-check` reports whether the isolation guards currently pass without launching anything.
+  The iPhone columns stay "not measured (needs device)" until Chen picks a spare or disposable device.
 - **Status:** tooling built and self-tested without launching any GUI app (`swift build` on the seed tool with a
   verified store at the dev-identity path, `window-wait.swift` against a window-less pid, `perf.py`'s guards —
   including a live run that correctly caught a real PLAN-16 dev build already running — isolation staging

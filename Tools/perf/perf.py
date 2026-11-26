@@ -6,9 +6,13 @@ identity (com.chenkahana.boaz.chromium.dev) and ad-hoc re-signed with no entitle
 Never touches the installed Boaz or Chen's real library (must-have #13): see `run_precheck_guards` /
 `run_postcheck_guards` below, which abort the whole run rather than risk it.
 
-Every row that drives the UI (newtab, typing, archive) needs an Accessibility grant for the process running this
-script, and every row launches a real GUI window — never start a session while Chen is screen-sharing, and only on
-the orchestrator's go. See docs/qa.md §4 for the one-command invocation and what each flag means operationally.
+Every row launches a real GUI window — never start a session while Chen is screen-sharing, and only on the
+orchestrator's go. Reworked 2026-11-26 (dev-04) to drop System Events / Accessibility wherever the automation
+channel or the OS's own `open -a <app> <url>` can do the job instead (see ACCESSIBILITY_ROWS below): `launch`,
+`newtab`, `tabs` and `memory` need no Accessibility grant. `typing` (keystrokes into the native omnibox, which CDP
+can't reach — it's browser chrome, not a page) and `archive` (a sidebar context-menu click) still drive the native
+UI through System Events and genuinely need one; `all` skips both by default (pass --include-accessibility-rows
+once the grant exists) and reports them as "needs Accessibility grant (Chen)".
 
 Stdlib only. Subcommands: prepare, guard-check, launch, newtab, typing, tabs, archive, memory, all.
 """
@@ -56,6 +60,12 @@ REAL_WATCHED_DIRS = [
     Path.home() / "Library" / "Application Support" / "Boaz",
     Path.home() / "Library" / "Containers" / PROD_BUNDLE_ID,
 ]
+NEEDS_ACCESSIBILITY = "needs Accessibility grant (Chen)"
+# Rows that still drive native (non-web) UI through System Events and so still need an Accessibility grant for
+# whatever host runs this script. Everything else (launch, newtab, tabs, memory) was reworked 2026-11-26 to use
+# only the automation channel or `open -a <app> <url>` (the OS's own URL-open-in-app mechanism) — see
+# measure_newtab's docstring for why `newtab` moved out of this set.
+ACCESSIBILITY_ROWS = ("typing", "archive")
 REAL_SITES = [
     "https://en.wikipedia.org/wiki/Special:Random",
     "https://www.apple.com",
@@ -468,7 +478,9 @@ def quit_app(app_path: Path, pid: int, timeout: float = 20.0) -> None:
 
 def keystroke(pid: int, script: str) -> None:
     """Drives `pid` through System Events, targeted by unix id (not bundle id, not "frontmost") so it can never
-    reach a different Boaz process even if one existed. Needs an Accessibility grant for this script's host."""
+    reach a different Boaz process even if one existed. Needs an Accessibility grant for this script's host.
+    Only `measure_typing` and `measure_archive` still call this (see ACCESSIBILITY_ROWS) — every other row drives
+    the app through the automation channel or `open -a <app> <url>` instead."""
     wrapped = f'tell application "System Events" to tell (first process whose unix id is {pid})\n{script}\nend tell'
     result = subprocess.run(["osascript", "-e", wrapped], capture_output=True, text=True)
     if result.returncode != 0:
@@ -527,6 +539,13 @@ def measure_launch(app_path: Path, run_root: Path, n: int) -> dict:
 
 
 def measure_newtab(app_path: Path, run_root: Path, n: int, *, include_real_sites: bool) -> dict:
+    """Reworked (2026-11-26, dev-04): the ⌘T + type-address + Return version drove the native omnibox through
+    System Events, which needs an Accessibility grant. The omnibox itself isn't reachable from CDP (it's browser
+    chrome, not a page — Input.dispatchKeyEvent only reaches a renderer), so this no longer measures typing into
+    it; it now opens the new tab the same way `measure_tabs` does — `open -a <copy> <url>`, the OS's own
+    URL-open-in-app mechanism (the http/https CFBundleURLSchemes registration in Info.plist, handled by
+    launch.mm), not CDP and not synthetic input — and times from that call until the automation channel's
+    `/json/list` shows the new title. No Accessibility grant needed for this row any more."""
     home = run_root / "homes" / "newtab"
     seed_home(home, today_tabs=10)
     before, dev_prefs_backup = run_precheck_guards(app_path)
@@ -538,15 +557,14 @@ def measure_newtab(app_path: Path, run_root: Path, n: int, *, include_real_sites
             url = pages.url(i)
             expected_title = f"Perf {i}"
             t0 = time.monotonic()
-            keystroke(pid, 'keystroke "t" using command down\n'
-                           f'keystroke "{url}"\nkey code 36')  # 36 = Return
+            subprocess.run(["open", "-a", str(app_path), url], check=True)
             local_samples.append(_wait_for_title(home, expected_title, t0))
             log(f"newtab (local) sample {i}: {local_samples[-1]:.3f}s")
         if include_real_sites:
             for i, url in enumerate(REAL_SITES):
-                before_titles = set(page_titles(home))  # snapshot BEFORE the keystroke, so "new" means new
+                before_titles = set(page_titles(home))  # snapshot BEFORE opening, so "new" means new
                 t0 = time.monotonic()
-                keystroke(pid, f'keystroke "t" using command down\nkeystroke "{url}"\nkey code 36')
+                subprocess.run(["open", "-a", str(app_path), url], check=True)
                 real_samples.append(_wait_for_new_title(home, before_titles, t0))
                 log(f"newtab (real site {url}) sample {i}: {real_samples[-1]:.3f}s")
     finally:
@@ -579,6 +597,11 @@ def _wait_for_new_title(home: Path, before_titles: set[str], t0: float, timeout:
 
 
 def measure_typing(app_path: Path, run_root: Path, n: int) -> dict:
+    """Still drives the native omnibox through System Events (Accessibility grant required): the omnibox is
+    browser chrome (an NSTextField in the Mac UI layer), not a page, so CDP's Input domain — which only reaches a
+    renderer — can't type into it, and there's no automation-channel command for it either (automation_client.py
+    only navigates/evaluates in an already-open page). Left as-is; `all` skips this row unless
+    --include-accessibility-rows is passed. See ACCESSIBILITY_ROWS."""
     home = run_root / "homes" / "typing"
     seed_home(home, visits=50_000, today_tabs=10)
     before, dev_prefs_backup = run_precheck_guards(app_path)
@@ -685,6 +708,10 @@ def measure_tabs(app_path: Path, run_root: Path, n: int, *, total_tabs: int = 15
 
 
 def measure_archive(app_path: Path, run_root: Path, n: int) -> dict:
+    """Still drives a right-click + menu-item click on the sidebar's space row through System Events (Accessibility
+    grant required): that's native sidebar chrome, not a page or a DevTools target, and Boaz has no scripting
+    dictionary (no .sdef) or URL scheme for it (checked: macOS Info.plist registers only http/https). Left as-is;
+    `all` skips this row unless --include-accessibility-rows is passed. See ACCESSIBILITY_ROWS."""
     home = run_root / "homes" / "archive"
     samples = []
     for i in range(n + 1):
@@ -830,7 +857,9 @@ def cmd_memory(args): print(json.dumps(measure_memory(_require_app(Path(args.run
 
 
 def render_markdown(build_label: str, results: dict) -> str:
-    def fmt(row: dict | None, unit: str = "s") -> str:
+    def fmt(row, unit: str = "s") -> str:
+        if row == NEEDS_ACCESSIBILITY:
+            return NEEDS_ACCESSIBILITY
         if not row:
             return "n/a"
         return f"{row['median']:.2f}{unit} (min {row['min']:.2f}, max {row['max']:.2f}, n={row['n']})"
@@ -844,15 +873,17 @@ def render_markdown(build_label: str, results: dict) -> str:
 
     tabs = results.get("tabs", {})
     memory = results.get("memory", {})
+    typing_row = results.get("typing")
+    typing_cell = (NEEDS_ACCESSIBILITY if typing_row == NEEDS_ACCESSIBILITY
+                   else f"{fmt(typing_row, unit='ms')} of main-thread time per keystroke")
     lines = [
         f"| What | How | {build_label} |",
         "|---|---|---|",
         f"| Launch to first window | Time from launch until the window is drawn, warm | {fmt(results.get('launch'))} |",
-        f"| New tab to page title | ⌘T, type an address, Return, until the title shows | "
-        f"local: {fmt(results.get('newtab', {}).get('local'))}; "
+        f"| New tab to page title | `open -a <copy> <url>` (same mechanism as the 150-tabs row), until the title "
+        f"shows | local: {fmt(results.get('newtab', {}).get('local'))}; "
         f"real sites: {fmt(results.get('newtab', {}).get('real_sites'))} |",
-        f"| Typing in the command bar with a large history | 50,000 seeded visits, ⌘L then type | "
-        f"{fmt(results.get('typing'), unit='ms')} of main-thread time per keystroke |",
+        f"| Typing in the command bar with a large history | 50,000 seeded visits, ⌘L then type | {typing_cell} |",
         f"| Many tabs | Open 150 tabs | first 10 median {tabs.get('first_10_median', 'n/a')}s, "
         f"last 10 median {tabs.get('last_10_median', 'n/a')}s |",
         f"| Archive Today's Tabs with 150+ tabs | Time until the sidebar settles | {fmt(results.get('archive'))} |",
@@ -866,6 +897,12 @@ def cmd_all(args: argparse.Namespace) -> None:
     run_root = Path(args.run_dir)
     cmd_prepare(args)
     app_path = _require_app(run_root)
+    if args.include_accessibility_rows:
+        typing_result = measure_typing(app_path, run_root, args.n)
+        archive_result = measure_archive(app_path, run_root, args.n)
+    else:
+        log(f"skipping typing, archive: {NEEDS_ACCESSIBILITY} — pass --include-accessibility-rows once granted")
+        typing_result = archive_result = NEEDS_ACCESSIBILITY
     results = {
         "meta": {
             "dmg_tag": args.dmg_tag,
@@ -875,9 +912,9 @@ def cmd_all(args: argparse.Namespace) -> None:
         },
         "launch": measure_launch(app_path, run_root, args.n),
         "newtab": measure_newtab(app_path, run_root, args.n, include_real_sites=not args.local_only),
-        "typing": measure_typing(app_path, run_root, args.n),
+        "typing": typing_result,
         "tabs": measure_tabs(app_path, run_root, args.n),
-        "archive": measure_archive(app_path, run_root, args.n),
+        "archive": archive_result,
         "memory": measure_memory(app_path, run_root),
     }
     out_json = run_root / "results.json"
@@ -922,6 +959,9 @@ def main() -> None:
     all_p = add("all", cmd_all, needs_n=True)
     all_p.add_argument("--dmg-tag", default="v0.4.48")
     all_p.add_argument("--local-only", action="store_true")
+    all_p.add_argument("--include-accessibility-rows", action="store_true",
+                        help=f"also run typing/archive (needs an Accessibility grant for this host; "
+                             f"omitted by default, reported as {NEEDS_ACCESSIBILITY!r})")
 
     args = parser.parse_args()
     args.func(args)
