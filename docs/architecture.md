@@ -175,10 +175,11 @@ Every open posture uses the same view tree (`UnfoldedShell`), so the web view is
 The fold position comes from the system's reserved regions rather than from hard-coded sizes. Standard iPhones use
 the folded layout.
 
-Status (time, cellular, Wi-Fi, battery) is the system's own cluster, live by definition: unfolded portrait shows it
-in the column the screen reserves for it, with the tool rail stacked below; unfolded landscape hides it for a
-floating, collapsible pill (`LandscapeStatusPill`). A hand-drawn status bar can only fake signal strength, so Boaz
-doesn't draw one.
+Unfolded, the system squeezes its status into a ring in the top corner, so Boaz hides it and draws its own:
+upright, a bar across the top like other iPhones' (`PortraitStatusBar`: time and network left, battery right);
+landscape, a floating, collapsible pill (`LandscapeStatusPill`). Both read `DeviceStatus`, which follows the
+battery's charge and charging state, Low Power Mode, the network path (Wi-Fi, cellular) and the cellular technology
+from the system's notifications. iOS exposes no signal strength, so the bars and the Wi-Fi fan always show full.
 
 ## Importers (Mac)
 
