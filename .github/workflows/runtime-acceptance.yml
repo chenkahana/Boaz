@@ -9,6 +9,7 @@ on:
       - .github/workflows/runtime-acceptance.yml
       - Tools/acceptance/**
       - Tools/chromium/automation_client.py
+      - Tests/BoazUITests/BoazAcceptanceUITests.swift
   workflow_dispatch:
     inputs:
       tag:
@@ -26,12 +27,35 @@ jobs:
   runtime:
     name: Runtime ${{ inputs.tag || 'v0.4.48' }}
     runs-on: xcode-27
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       TAG: ${{ inputs.tag || 'v0.4.48' }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Select the newest Xcode 27
+        run: |
+          xcode=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$xcode" ]; then sudo xcode-select -s "$xcode"; fi
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        env:
+          VERSION: "2.46.0"
+          SHA256: 4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/xcodegen.zip" "https://github.com/yonaskolb/XcodeGen/releases/download/$VERSION/xcodegen.zip"
+          echo "$SHA256  $RUNNER_TEMP/xcodegen.zip" | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/xcodegen/bin" >> "$GITHUB_PATH"
+
+      - name: Allow XCUITest to drive the Mac
+        run: sudo automationmodetool enable-automationmode-without-authentication
+
+      - name: Build the native-UI steps
+        # With no BOAZ_ACCEPTANCE_APP the step skips, so this only builds them before Boaz is installed.
+        run: make acceptance-uitest TEST=testMenusNameNoEngine
 
       - name: Download the release
         run: |

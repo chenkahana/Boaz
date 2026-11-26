@@ -19,7 +19,7 @@ ADHOC    := CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=YE
 XCB      := xcodebuild -project $(PROJECT) -derivedDataPath $(DERIVED) -quiet
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap project kit kit-test ios mac mac-dmg mac-webkit-dmg build device archive dmg uitest clean
+.PHONY: help bootstrap project kit kit-test ios mac mac-dmg mac-webkit-dmg build device archive dmg uitest acceptance-uitest clean
 
 help: ## List the available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "  %-10s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -73,6 +73,12 @@ uitest: project ## Run the BoazUITests suite (set BOAZ_UITEST_APP=<path to .app>
 	rm -rf $(RESULTS)
 	$(XCB) -scheme Boaz-macOS -destination 'platform=macOS' -resultBundlePath $(RESULTS) $(ADHOC) \
 		-test-timeouts-enabled YES -default-test-execution-time-allowance 300 test
+
+acceptance-uitest: project ## One BoazAcceptanceUITests step (TEST=name) against BOAZ_ACCEPTANCE_APP; throwaway Macs only
+	rm -rf build/Acceptance-$(TEST).xcresult
+	TEST_RUNNER_BOAZ_ACCEPTANCE_APP=$(BOAZ_ACCEPTANCE_APP) $(XCB) -scheme Boaz-macOS -destination 'platform=macOS' \
+		-resultBundlePath build/Acceptance-$(TEST).xcresult $(ADHOC) \
+		-only-testing:BoazUITests/BoazAcceptanceUITests/$(TEST) test
 
 clean: ## Remove build output (keeps release archives)
 	rm -rf "$(DERIVED)" Packages/BoazKit/.build

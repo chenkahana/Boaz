@@ -2,7 +2,7 @@
 /Applications/Boaz.app and the current user's Boaz data. Pages are driven through Boaz's own opt-in Local
 Automation (authenticated DevTools protocol on 127.0.0.1); tabs are opened with `open -a`, as another app would.
 
-  runtime.py <Boaz.dmg> <output dir> [check ...]     checks: probe, reopen (default: all)
+  runtime.py <Boaz.dmg> <output dir> [check ...]     checks: probe, reopen, menus (default: all)
 """
 import json
 import os
@@ -216,6 +216,23 @@ def reopen(run):
     quit_app(run, 'popup-quit')
 
 
+def native(run, test):
+    """Runs one BoazAcceptanceUITests step against the installed, running Boaz; its result bundle goes in `out`."""
+    result = subprocess.run(['make', '-C', str(HERE.parent.parent), 'acceptance-uitest', f'TEST={test}',
+                             f'BOAZ_ACCEPTANCE_APP={APP}'], capture_output=True, text=True)
+    (run.out / f'{test}.log').write_text(result.stdout + result.stderr)
+    bundle = HERE.parent.parent / f'build/Acceptance-{test}.xcresult'
+    if bundle.exists():
+        shutil.copytree(bundle, run.out / bundle.name, dirs_exist_ok=True)
+    return result.returncode == 0
+
+
+def menus(run):
+    """Row 4, must-have #1: no menu names WebKit or a browser engine."""
+    run.heading('No engine in the UI')
+    run.check(native(run, 'testMenusNameNoEngine'), 'no menu names WebKit or a browser engine (XCUITest, by path)')
+
+
 def main():
     dmg, out, *checks = sys.argv[1:]
     out = pathlib.Path(out)
@@ -233,8 +250,8 @@ def main():
         defaults('boaz.chromium.automation.enabled', '-bool', 'YES')
         launch(SITE + '/probe')
         wait(60, lambda: any(e['path'] == '/probe' for e in run.logged()))
-        for check in checks or ['probe', 'reopen']:
-            {'probe': probe, 'reopen': reopen}[check](run)
+        for check in checks or ['probe', 'menus', 'reopen']:
+            {'probe': probe, 'reopen': reopen, 'menus': menus}[check](run)
         if boaz_pids():
             quit_app(run, 'end')
     finally:
