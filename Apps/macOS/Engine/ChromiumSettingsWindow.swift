@@ -4,9 +4,7 @@ import SwiftUI
 
 /// Boaz ▸ Settings in the DMG: a standard Mac settings window with one toolbar tab per pane, titled after the pane
 /// and sized to it.
-final class ChromiumSettingsWindow: NSWindowController {
-    private var resizeObserver: NSObjectProtocol?
-
+final class ChromiumSettingsWindow: NSWindowController, NSWindowDelegate {
     init(model: MacModel) {
         let tabs = PaneTabs()
         tabs.tabStyle = .toolbar
@@ -27,17 +25,14 @@ final class ChromiumSettingsWindow: NSWindowController {
         super.init(window: window)
         tabs.fitWindow(animate: false)
         window.center()
-        // The tab controller resizes the window to each pane, growing it downward; keep it on screen.
-        resizeObserver = NotificationCenter.default.addObserver(forName: NSWindow.didResizeNotification, object: window,
-                                                                queue: .main) { [weak window] _ in
-            MainActor.assumeIsolated { window.map(PaneTabs.keepOnScreen) }
-        }
+        window.delegate = self
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
 
-    deinit {
-        if let resizeObserver { NotificationCenter.default.removeObserver(resizeObserver) }
+    /// The tab controller resizes the window to each pane, growing it downward; keep it on screen.
+    func windowDidResize(_ notification: Notification) {
+        if let window { PaneTabs.keepOnScreen(window) }
     }
 
     override func showWindow(_ sender: Any?) {

@@ -223,16 +223,15 @@ private func dayTitle(_ day: Date) -> String {
 /// Boaz ▸ Settings: same preferences as iOS, plus keyboard shortcut overrides. The App Store build shows the panes in
 /// SwiftUI's Settings scene; the DMG shows them in `ChromiumSettingsWindow`.
 enum MacSettingsPane: CaseIterable {
-    case general, appIcon, privacy, sync, passwords, accounts, sites, shortcuts
+    case general, theme, privacy, accountsAndSync, passwords, sites, shortcuts
 
     var title: String {
         switch self {
         case .general: "General"
-        case .appIcon: "App Icon"
+        case .theme: "Theme"
         case .privacy: "Privacy"
-        case .sync: "Sync"
+        case .accountsAndSync: "Accounts & Sync"
         case .passwords: "Passwords"
-        case .accounts: "Accounts"
         case .sites: "Sites"
         case .shortcuts: "Shortcuts"
         }
@@ -241,11 +240,10 @@ enum MacSettingsPane: CaseIterable {
     var symbol: String {
         switch self {
         case .general: "gearshape"
-        case .appIcon: "app.badge.checkmark"
+        case .theme: "paintpalette"
         case .privacy: "hand.raised"
-        case .sync: "icloud"
+        case .accountsAndSync: "person.crop.circle"
         case .passwords: "key"
-        case .accounts: "person.crop.circle"
         case .sites: "arrow.triangle.branch"
         case .shortcuts: "keyboard"
         }
@@ -272,11 +270,10 @@ struct MacSettingsPaneView: View {
         Group {
             switch pane {
             case .general: GeneralSettings()
-            case .appIcon: AppIconSettings()
+            case .theme: ThemeSettings()
             case .privacy: PrivacySettings()
-            case .sync: SyncSettings()
+            case .accountsAndSync: AccountsSyncSettings()
             case .passwords: PasswordsSettings().frame(minHeight: 460)
-            case .accounts: AccountsSettings()
             case .sites: SiteRulesSettings()
             case .shortcuts: ShortcutsSettings()
             }
@@ -295,7 +292,6 @@ private struct GeneralSettings: View {
     @Environment(MacModel.self) private var model
     @AppStorage(Preferences.archiveAfterKey) private var archiveAfter = ArchiveInterval.week.rawValue
     @AppStorage(Preferences.searchEngineKey) private var searchEngine = SearchEngine.duckDuckGo.rawValue
-    @AppStorage(Preferences.sidebarTextSizeKey) private var sidebarTextSize = SidebarStyle.defaultTextSize
     @AppStorage(PictureInPicture.whenLeavingKey) private var pictureInPictureWhenLeaving = true
 
     var body: some View {
@@ -307,11 +303,6 @@ private struct GeneralSettings: View {
                 }
                 Picker("Search Engine", selection: $searchEngine) {
                     ForEach(SearchEngine.allCases) { Text($0.name).tag($0.rawValue) }
-                }
-                Picker("Sidebar Text Size", selection: $sidebarTextSize) {
-                    Text("Small").tag(14.0)
-                    Text("Medium").tag(15.0)
-                    Text("Large").tag(17.0)
                 }
                 if PictureInPicture.isSupported {
                     Toggle(isOn: $pictureInPictureWhenLeaving) {
@@ -456,7 +447,8 @@ private struct SiteRulesSettings: View {
     }
 }
 
-private struct SyncSettings: View {
+/// Settings ▸ Accounts & Sync: iCloud sync, then which profiles have live folders.
+private struct AccountsSyncSettings: View {
     @Environment(MacModel.self) private var model
     @Environment(\.openURL) private var openURL
     @State private var syncMessage: String?
@@ -488,8 +480,9 @@ private struct SyncSettings: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             } else {
-                Text("Sync starts once your library has loaded.")
+                Section("iCloud Sync") { Text("Sync starts once your library has loaded.") }
             }
+            LiveFoldersSection()
         }
         .formStyle(.grouped)
     }
