@@ -8,6 +8,12 @@ All notable changes to Boaz are recorded here. The format follows
 
 ### Added
 
+- Mac: SECURITY.md says how fast Chromium security fixes reach you: when Google ships a Chrome stable update with
+  security fixes, Boaz aims to ship an update on the same Chromium version within 72 hours, through Sparkle.
+- A check every six hours compares Boaz's Chromium with Chrome stable and keeps one GitHub issue open while Boaz is
+  behind. `Tools/chromium/security-update.py VERSION` runs the update on the build Mac, from the new source pin to
+  the uploaded Chromium base, and times every step ([runbook](docs/chromium/security-update.md)).
+
 ### Changed
 
 - CI finishes the run of every push to master and release branches instead of cancelling it for the next push, and
