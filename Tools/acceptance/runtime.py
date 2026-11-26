@@ -260,9 +260,30 @@ def native(run, test, **environment):
                              f'BOAZ_ACCEPTANCE_APP={APP}', *extra], capture_output=True, text=True)
     (run.out / f'{test}.log').write_text(result.stdout + result.stderr)
     bundle = HERE.parent.parent / f'build/Acceptance-{test}.xcresult'
+    kept = run.out / bundle.name
+    shutil.rmtree(kept, ignore_errors=True)
     if bundle.exists():
-        shutil.copytree(bundle, run.out / bundle.name, dirs_exist_ok=True)
+        shutil.copytree(bundle, kept)
     return result.returncode == 0
+
+
+def failures(run, test):
+    """The failure messages in the last run of `test`, from its result bundle (a test's own output isn't in the log)."""
+    result = subprocess.run(['xcrun', 'xcresulttool', 'get', 'test-results', 'tests', '--path',
+                             str(run.out / f'Acceptance-{test}.xcresult')], capture_output=True, text=True)
+    messages = []
+
+    def walk(node):
+        if node.get('nodeType') == 'Failure Message':
+            messages.append(node.get('name', ''))
+        for child in node.get('children', []):
+            walk(child)
+    try:
+        for node in json.loads(result.stdout)['testNodes']:
+            walk(node)
+    except (ValueError, KeyError):
+        return ['no readable result bundle']
+    return messages
 
 
 def menus(run):
@@ -271,28 +292,75 @@ def menus(run):
     run.check(native(run, 'testMenusNameNoEngine'), 'no menu names WebKit or a browser engine (XCUITest, by path)')
 
 
+STORE = 'https://chromewebstore.google.com/detail/{id}'
+# The store's own "Add to Chrome" button, scrolled into view: where a trusted click lands, and whether anything (a
+# store promo, say) covers it there. Nothing on the page is clicked through: a covered button is reported.
+STORE_BUTTON = """Promise.resolve(JSON.stringify((() => {
+  const button = [...document.querySelectorAll('button, [role="button"]')].find(b => /add to chrome/i.test(b.textContent)
+    && !b.disabled && b.getClientRects().length);
+  if (!button) return null;
+  button.scrollIntoView({block: 'center'});
+  const r = button.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+  const hit = document.elementFromPoint(x, y);
+  return {x, y, covered: !(hit && button.contains(hit))};
+})()))"""
+
+
+def store_click(run, port, token, id):
+    """Opens the extension's store page as a tab and clicks its button with a trusted mouse event, 3 tries:
+    'clicked', 'covered' or None (the store didn't answer with the button: inconclusive)."""
+    url = STORE.format(id=id)
+    result = None
+    for attempt in range(1, 4):
+        native(run, 'testOpenTabs', BOAZ_ACCEPTANCE_URLS=url)
+        end = time.time() + 30
+        while time.time() < end:
+            try:
+                page = next((t for t in targets(port, token) if t['type'] == 'page' and t['url'].startswith(url)), None)
+                found = page and automation_client.run(target_socket(port, token, page), STORE_BUTTON)
+                if found and not found['covered']:
+                    socket = target_socket(port, token, page)
+                    for kind in ('mousePressed', 'mouseReleased'):
+                        socket.call('Input.dispatchMouseEvent', type=kind, x=found['x'], y=found['y'],
+                                    button='left', clickCount=1)
+                    return 'clicked'
+                result = 'covered' if found else result
+            except Exception as error:  # the page navigating mid-call; the next poll retries
+                run.note(f'store page {COHORT[id]}, try {attempt}: {error}')
+            time.sleep(2)
+        run.shot(f'store-{id}-try-{attempt}')
+    return result
+
+
 def webstore(run):
-    """Row 3, part A: live Chrome Web Store installs through the store's button and Boaz's sheet."""
+    """Row 3, part A: live Chrome Web Store installs through the store's own button and Boaz's sheet."""
     run.heading('Chrome Web Store installs')
     ids = list(COHORT) if os.environ.get('COHORT') == 'all' else ['ddkjiahejlhfcafbddmgiahcphecmpfh']
     if not boaz_pids():
         launch()
         automation()
         time.sleep(5)
-    passed = native(run, 'testWebStoreInstall', BOAZ_ACCEPTANCE_EXTENSIONS=','.join(ids))
-    log = (run.out / 'testWebStoreInstall.log').read_text()
-    unreachable = sorted(set(re.findall(r'inconclusive: store unreachable for ([a-p]{32})', log)))
-    for id in unreachable:
-        run.check(False, f'inconclusive: store unreachable for {COHORT[id]} (infra: re-run to settle)')
-    run.check(passed, 'the store button, Boaz\'s sheet, the toolbar button and the popup (XCUITest)')
+    port_token = automation()
+    if not run.check(port_token is not None, 'Local Automation published its record'):
+        return
+    reached = []
+    for id in ids:
+        clicked = store_click(run, *port_token, id)
+        if clicked is None:
+            run.check(False, f'inconclusive: store unreachable for {COHORT[id]} (infra: re-run to settle)')
+            continue
+        if not run.check(clicked == 'clicked', f'{COHORT[id]}: clicked the store\'s Add to Chrome button'
+                         + ('' if clicked == 'clicked' else ' (something on the page covers it)')):
+            continue
+        reached.append(id)
+        run.check(native(run, 'testWebStoreInstallSheet', BOAZ_ACCEPTANCE_EXTENSIONS=id),
+                  f'{COHORT[id]}: Boaz\'s sheet, the confirmation, the toolbar button and the popup (XCUITest)'
+                  + ''.join(f'; {m}' for m in failures(run, 'testWebStoreInstallSheet')))
     time.sleep(5)
     settings = extension_settings()
-    port_token = automation()
     workers = {t['url'].split('/')[2] for t in targets(*port_token) if t['type'] == 'service_worker'
-               and t['url'].startswith('chrome-extension://')} if port_token else set()
-    for id in ids:
-        if id in unreachable:
-            continue
+               and t['url'].startswith('chrome-extension://')}
+    for id in reached:
         entry = settings.get(id, {})
         version = entry.get('manifest', {}).get('version') or entry.get('version', '?')
         run.check(entry.get('state', 1) == 1 and entry.get('from_webstore') is True and not entry.get('disable_reasons'),
@@ -304,9 +372,8 @@ def webstore(run):
     time.sleep(8)
     workers = {t['url'].split('/')[2] for t in targets(*port_token) if t['type'] == 'service_worker'} if port_token else set()
     settings = extension_settings()
-    for id in ids:
-        if id not in unreachable:
-            run.check(id in settings and id in workers, f'{COHORT[id]}: still installed and running after a relaunch')
+    for id in reached:
+        run.check(id in settings and id in workers, f'{COHORT[id]}: still installed and running after a relaunch')
 
 
 def second_profile(run):
@@ -538,10 +605,11 @@ def passwords(run):
         time.sleep(5)
     since = time.time()
     native(run, 'testOpenTabs', BOAZ_ACCEPTANCE_URLS=f'{SITE}/login')
-    native(run, 'testPasswordPrompt', BOAZ_ACCEPTANCE_LOGIN=f'acceptance:{PASSWORD}')
-    log = (run.out / 'testPasswordPrompt.log').read_text()
+    shown = native(run, 'testPasswordPrompt', BOAZ_ACCEPTANCE_LOGIN=f'acceptance:{PASSWORD}', BOAZ_ACCEPTANCE_EXPECT_PROMPT='1')
+    problems = [m for m in failures(run, 'testPasswordPrompt') if 'No save offer' not in m]
+    run.check(not problems, 'signed in on the login page (XCUITest)' + ''.join(f'; {m}' for m in problems))
     run.check(any(e['path'] == '/signed-in' and e['time'] >= since for e in run.logged()), 'the login form submitted')
-    if 'BoazAcceptance: password prompt shown' in log:
+    if shown:
         run.note('P3 probe: Boaz offered to save the sign-in on this runner, so the offer (and none in private) is '
                  'automated. Saving needs Touch ID or the login password, so Save, fill and iCloud sync stay manual.')
     else:

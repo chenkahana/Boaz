@@ -76,7 +76,7 @@ final class BoazAcceptanceUITests: XCTestCase {
     /// Row 2's password probe: signs in on the fixture's /login page (open in the front tab) with
     /// `BOAZ_ACCEPTANCE_LOGIN`'s run-generated test credentials ("user:password"), then reports whether Boaz offered
     /// to save them. The offer is always declined; saving needs the person's own authentication (manual P3). With
-    /// `BOAZ_ACCEPTANCE_EXPECT_PROMPT=0` (a private window) an offer fails the test.
+    /// `BOAZ_ACCEPTANCE_EXPECT_PROMPT=0` (a private window) an offer fails the test, with `1` its absence does.
     func testPasswordPrompt() throws {
         let login = try required("BOAZ_ACCEPTANCE_LOGIN").split(separator: ":", maxSplits: 1).map(String.init)
         let user = app.textFields.matching(labelContaining: "Username").firstMatch
@@ -93,8 +93,10 @@ final class BoazAcceptanceUITests: XCTestCase {
         if shown {
             app.sheets.buttons["Not Now"].firstMatch.click()
         }
-        if ProcessInfo.processInfo.environment["BOAZ_ACCEPTANCE_EXPECT_PROMPT"] == "0" {
-            XCTAssertFalse(shown, "Boaz offered to save a password typed in a private window")
+        switch ProcessInfo.processInfo.environment["BOAZ_ACCEPTANCE_EXPECT_PROMPT"] {
+        case "0": XCTAssertFalse(shown, "Boaz offered to save a password typed in a private window")
+        case "1": XCTAssertTrue(shown, "No save offer")
+        default: break
         }
     }
 
@@ -199,59 +201,27 @@ final class BoazAcceptanceUITests: XCTestCase {
         return value
     }
 
-    /// Row 3, part A: each extension in `BOAZ_ACCEPTANCE_EXTENSIONS` (comma-separated IDs) installs from its live
-    /// Chrome Web Store page with the store's own button and Boaz's sheet, lands in the toolbar and opens its popup.
-    /// A consent, CAPTCHA or missing-listing page is never clicked through: after 3 tries the result is
-    /// "inconclusive: store unreachable", which a re-run settles.
-    func testWebStoreInstall() throws {
-        let ids = (ProcessInfo.processInfo.environment["BOAZ_ACCEPTANCE_EXTENSIONS"] ?? "")
-            .split(separator: ",").map(String.init)
-        guard !ids.isEmpty else { throw XCTSkip("Set BOAZ_ACCEPTANCE_EXTENSIONS to the extension IDs to install.") }
+    /// Row 3, part A, after runtime.py clicked the live Chrome Web Store's own button through Local Automation (a
+    /// trusted click there: the store's button is often clipped or covered for an accessibility click): Boaz's
+    /// install sheet for the extension in `BOAZ_ACCEPTANCE_EXTENSIONS`, its confirmation, its pin and its popup.
+    func testWebStoreInstallSheet() throws {
+        let id = try required("BOAZ_ACCEPTANCE_EXTENSIONS")
+        let confirm = app.sheets.buttons.matching(labelContaining: "Add extension").firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 30), "Boaz's install sheet didn't appear for \(id)")
+        confirm.click()
+        let installed = app.popovers.staticTexts.matching(NSPredicate(format: "value CONTAINS[c] 'added'")).firstMatch
+        XCTAssertTrue(installed.waitForExistence(timeout: 60), "No post-install confirmation for \(id)")
         let window = app.windows.firstMatch
-        for id in ids {
-            var reached = false
-            for _ in 1...3 where !reached {
-                window.typeKey("l", modifierFlags: .command)
-                app.typeText("https://chromewebstore.google.com/detail/\(id)\n")
-                // The store lays out wider than a small window; zoomed out, its button is on screen.
-                window.typeKey("-", modifierFlags: .command)
-                window.typeKey("-", modifierFlags: .command)
-                let add = app.buttons.matching(labelContaining: "Add to Chrome").firstMatch
-                reached = add.waitForExistence(timeout: 30)
-                if reached {
-                    sleep(1)
-                    add.click()
-                }
-                window.typeKey("0", modifierFlags: .command)
-            }
-            guard reached else {
-                record("inconclusive: store unreachable for \(id)")
-                XCTFail("inconclusive: store unreachable for \(id)")
-                continue
-            }
-            let confirm = app.sheets.buttons.matching(labelContaining: "Add extension").firstMatch
-            XCTAssertTrue(confirm.waitForExistence(timeout: 30), "Boaz's install sheet didn't appear for \(id)")
-            confirm.click()
-            let installed = app.popovers.staticTexts.matching(NSPredicate(format: "value CONTAINS[c] 'added'")).firstMatch
-            XCTAssertTrue(installed.waitForExistence(timeout: 60), "No post-install confirmation for \(id)")
-            window.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.6)).click()
-
-            let extensions = window.buttons["control.extensions"]
-            XCTAssertTrue(extensions.waitForExistence(timeout: 10), "No extensions button")
-            extensions.click()
-            let pin = app.descendants(matching: .any)["control.extensionPin.\(id)"]
-            XCTAssertTrue(pin.waitForExistence(timeout: 10), "\(id) isn't in the extensions menu")
-            pin.click()
-            app.typeKey(.escape, modifierFlags: [])
-            let action = app.buttons["control.extensionAction.\(id)"].firstMatch
-            XCTAssertTrue(action.waitForExistence(timeout: 10), "Pinning \(id) didn't add its toolbar button")
-            let before = app.popovers.count + app.windows.count
-            action.click()
-            XCTAssertTrue(waitUntil(15) { self.app.popovers.count + self.app.windows.count > before },
-                          "\(id)'s popup didn't open")
-            app.typeKey(.escape, modifierFlags: [])
-            record("installed \(id)")
-        }
+        window.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.6)).click()
+        setPinned(id, true)
+        let action = app.buttons["control.extensionAction.\(id)"].firstMatch
+        XCTAssertTrue(action.waitForExistence(timeout: 10), "Pinning \(id) didn't add its toolbar button")
+        let before = app.popovers.count + app.windows.count
+        action.click()
+        XCTAssertTrue(waitUntil(15) { self.app.popovers.count + self.app.windows.count > before },
+                      "\(id)'s popup didn't open")
+        app.typeKey(.escape, modifierFlags: [])
+        record("installed \(id)")
     }
 
     private func record(_ text: String) {
