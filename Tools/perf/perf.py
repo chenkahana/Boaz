@@ -659,12 +659,47 @@ def _wait_for_archive_settled(home: Path, t0: float, timeout: float = 30.0) -> f
     raise Abort(f"archive never cleared Today's tabs within {timeout}s")
 
 
-def footprint_for(pid: int) -> dict:
-    result = subprocess.run(["footprint", "-p", str(pid)], capture_output=True, text=True)
-    return {"pid": pid, "raw": result.stdout.strip()}
+_FOOTPRINT_PROCESS_HEADER = re.compile(r"^(?P<name>.+) \[(?P<pid>\d+)\]: ")
+_FOOTPRINT_PEAK = re.compile(r"phys_footprint_peak:\s*(?P<bytes>\d+)\s*B")
 
 
-def all_boaz_helper_pids(app_path: Path) -> list[int]:
+def footprint_snapshot(pids: list[int]) -> dict:
+    """One `footprint -j` call across every pid (confirmed live: positional pids work and the JSON's top-level
+    "total footprint" already sums them). `-f bytes` so nothing is pre-rounded to MB. Peak isn't in the JSON
+    (checked: only the human-readable "Auxiliary data" text has `phys_footprint_peak`), so this pairs each
+    process's peak from stdout by the "<name> [<pid>]:" header that precedes its block."""
+    if not pids:
+        return {"current_bytes": 0, "peak_bytes": 0, "per_process": []}
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as handle:
+        json_path = Path(handle.name)
+    try:
+        result = subprocess.run(["footprint", "-j", str(json_path), "-f", "bytes", *map(str, pids)],
+                                capture_output=True, text=True)
+        data = json.loads(json_path.read_text()) if json_path.exists() else {"processes": []}
+    finally:
+        json_path.unlink(missing_ok=True)
+
+    peaks: dict[int, int] = {}
+    current_pid = None
+    for line in result.stdout.splitlines():
+        header = _FOOTPRINT_PROCESS_HEADER.match(line)
+        if header:
+            current_pid = int(header.group("pid"))
+            continue
+        peak = _FOOTPRINT_PEAK.search(line)
+        if peak and current_pid is not None:
+            peaks[current_pid] = int(peak.group("bytes"))
+
+    per_process = [{"pid": p["pid"], "name": p["name"], "footprint_bytes": p["footprint"],
+                    "peak_bytes": peaks.get(p["pid"])} for p in data.get("processes", [])]
+    return {
+        "current_bytes": data.get("total footprint", sum(p["footprint_bytes"] for p in per_process)),
+        "peak_bytes": sum(p["peak_bytes"] for p in per_process if p["peak_bytes"] is not None) or None,
+        "per_process": per_process,
+    }
+
+
+def all_boaz_pids(app_path: Path) -> list[int]:
     out = subprocess.run(["pgrep", "-f", str(app_path)], capture_output=True, text=True).stdout.split()
     return [int(p) for p in out]
 
@@ -677,10 +712,11 @@ def measure_memory(app_path: Path, run_root: Path) -> dict:
         before = run_precheck_guards(app_path)
         pid = launch_app(app_path, home)
         try:
-            time.sleep(30)
-            pids = all_boaz_helper_pids(app_path)
-            footprints = [footprint_for(p) for p in pids]
-            results[label] = {"pid_count": len(pids), "footprints": footprints}
+            time.sleep(30)  # let the process tree settle before sampling, per the Approach
+            pids = all_boaz_pids(app_path)
+            snapshot = footprint_snapshot(pids)
+            results[label] = {"pid_count": len(pids), **snapshot}
+            log(f"memory ({label}): {snapshot['current_bytes'] / 1e6:.1f} MB across {len(pids)} processes")
         finally:
             quit_app(app_path, pid)
             run_postcheck_guards(before)
@@ -734,10 +770,17 @@ def cmd_memory(args): print(json.dumps(measure_memory(_require_app(Path(args.run
 
 
 def render_markdown(build_label: str, results: dict) -> str:
-    def fmt(row: dict | None) -> str:
+    def fmt(row: dict | None, unit: str = "s") -> str:
         if not row:
             return "n/a"
-        return f"{row['median']:.2f}s (min {row['min']:.2f}, max {row['max']:.2f}, n={row['n']})"
+        return f"{row['median']:.2f}{unit} (min {row['min']:.2f}, max {row['max']:.2f}, n={row['n']})"
+
+    def fmt_memory(row: dict | None) -> str:
+        if not row:
+            return "n/a"
+        current = row["current_bytes"] / 1e6
+        peak = f"{row['peak_bytes'] / 1e6:.0f}" if row.get("peak_bytes") else "n/a"
+        return f"{current:.0f} MB across {row['pid_count']} processes, peak {peak} MB"
 
     tabs = results.get("tabs", {})
     memory = results.get("memory", {})
@@ -749,13 +792,12 @@ def render_markdown(build_label: str, results: dict) -> str:
         f"local: {fmt(results.get('newtab', {}).get('local'))}; "
         f"real sites: {fmt(results.get('newtab', {}).get('real_sites'))} |",
         f"| Typing in the command bar with a large history | 50,000 seeded visits, ⌘L then type | "
-        f"{fmt(results.get('typing'))} ms/keystroke-equivalent |",
+        f"{fmt(results.get('typing'), unit='ms')} of main-thread time per keystroke |",
         f"| Many tabs | Open 150 tabs | first 10 median {tabs.get('first_10_median', 'n/a')}s, "
         f"last 10 median {tabs.get('last_10_median', 'n/a')}s |",
         f"| Archive Today's Tabs with 150+ tabs | Time until the sidebar settles | {fmt(results.get('archive'))} |",
         f"| Memory | `footprint` with 10 and with 150 tabs | "
-        f"see raw JSON ({memory.get('10_tabs', {}).get('pid_count', '?')} / "
-        f"{memory.get('150_tabs', {}).get('pid_count', '?')} processes) |",
+        f"10 tabs: {fmt_memory(memory.get('10_tabs'))}; 150 tabs: {fmt_memory(memory.get('150_tabs'))} |",
     ]
     return "\n".join(lines)
 
