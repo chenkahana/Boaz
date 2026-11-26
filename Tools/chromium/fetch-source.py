@@ -15,6 +15,11 @@ import urllib.request
 LOCK = Path(__file__).with_name("source.lock.json")
 GUARD = Path(__file__).resolve().parents[1] / "cef/run-build.py"
 MAX_ARCHIVE_BYTES = 8 * 1024**3
+# Everything under the storage root that describes one source tree. A new version moves these to
+# previous/VERSION, keeping the shipped tree until its successor ships. The tree moves last, so an interrupted
+# move resumes on the next fetch.
+TREE_STATE = ("patches-applied.json", "patch-history", "host-installed.json", "host-history",
+              "native-built.json", "toolchains", "chromium")
 
 
 class HTTPSOnly(urllib.request.HTTPRedirectHandler):
@@ -64,6 +69,23 @@ def download(lock, archive):
         raise ValueError(f"SHA256 mismatch; preserving {archive}")
 
 
+def tree_version(source):
+    parts = dict(line.split("=", 1) for line in (source / "chrome/VERSION").read_text().splitlines() if "=" in line)
+    return ".".join(parts[key] for key in ("MAJOR", "MINOR", "BUILD", "PATCH"))
+
+
+def retire(root, version):
+    keep = root / "previous" / version
+    keep.mkdir(parents=True, exist_ok=True)
+    confined(keep)
+    for name in TREE_STATE:
+        if os.path.lexists(root / name):
+            if os.path.lexists(keep / name):
+                raise ValueError(f"Both {root / name} and {keep / name} exist; preserving both")
+            (root / name).rename(keep / name)
+    print(f"Kept Chromium {version} and its receipts at {keep}", flush=True)
+
+
 def extract(lock, archive, stage, destination):
     stage.mkdir()
     expected = lock["archive_root"]
@@ -92,8 +114,7 @@ def extract(lock, archive, stage, destination):
     source = stage / expected
     if not (source / "chrome/VERSION").is_file():
         raise ValueError("Extracted source lacks chrome/VERSION")
-    parts = dict(line.split("=", 1) for line in (source / "chrome/VERSION").read_text().splitlines() if "=" in line)
-    version = ".".join(parts[key] for key in ("MAJOR", "MINOR", "BUILD", "PATCH"))
+    version = tree_version(source)
     if version != lock["chromium_version"]:
         raise ValueError(f"Unexpected extracted version: {version}")
     if os.path.lexists(destination):
@@ -115,12 +136,15 @@ def guarded_fetch(lock, root, archive, destination):
     stage = destination.with_name("src.extracting")
     for path in (root, archive.parent, archive, destination.parent, destination, stage):
         confined(path)
-    if os.path.lexists(destination) or os.path.lexists(stage):
+    previous = tree_version(destination) if os.path.lexists(destination) else None
+    if previous == lock["chromium_version"] or os.path.lexists(stage):
         raise ValueError("Source or extraction stage already exists; preserving it")
     archive.parent.mkdir(parents=True, exist_ok=True)
-    destination.parent.mkdir(parents=True, exist_ok=True)
     print(f"Fetching {lock['archive_url']}", flush=True)
     download(lock, archive)
+    if previous:
+        retire(root, previous)
+    destination.parent.mkdir(parents=True, exist_ok=True)
     print(f"Verified SHA256; extracting into {stage}", flush=True)
     extract(lock, archive, stage, destination)
     print(f"Verified Chromium {lock['chromium_version']} source: {destination}", flush=True)
@@ -143,9 +167,11 @@ def main():
     elif args.fetch:
         return subprocess.call(command)
     else:
+        current = tree_version(destination) if destination.exists() else lock["chromium_version"]
         print(json.dumps({"version": lock["chromium_version"], "archive": str(archive),
                           "source": str(destination), "sha256": lock["archive_sha256"],
                           "archiveExists": archive.exists(), "sourceExists": destination.exists(),
+                          "keepsPrevious": None if current == lock["chromium_version"] else str(root / "previous" / current),
                           "command": command}, indent=2))
     return 0
 

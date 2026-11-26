@@ -1,0 +1,64 @@
+name: Chromium update check
+
+# Step D of docs/chromium/security-update.md: compare the pinned Chromium with Mac stable on chromiumdash and keep
+# one open issue while Boaz is behind. It never changes the pins or starts a release.
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: chromium-update
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Compare the pin with Mac stable
+        # A feed error fails the job instead of reading as up to date.
+        run: |
+          set -o pipefail
+          python3 Tools/chromium/check-update.py | tee "$RUNNER_TEMP/check.json"
+
+      - name: Open, update or close the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITLE_PREFIX: "Chromium security update:"
+          DOCS: ${{ github.server_url }}/${{ github.repository }}/blob/master
+        run: |
+          read -r available current latest released < <(jq -r \
+            '[.updateAvailable, .currentVersion, .latestVersion, (.releaseDate // "unknown")] | @tsv' "$RUNNER_TEMP/check.json")
+          issue=$(gh issue list --state open --search "in:title \"$TITLE_PREFIX\"" --json number,title \
+            --jq "map(select(.title | startswith(\"$TITLE_PREFIX\"))) | .[0].number // empty")
+          if [ "$available" != "true" ]; then
+            if [ -n "$issue" ]; then
+              gh issue close "$issue" --comment "Boaz now pins Chromium $current, the current Mac stable."
+            fi
+            exit 0
+          fi
+          title="$TITLE_PREFIX Chromium $latest is out, Boaz pins $current"
+          cat > "$RUNNER_TEMP/body.md" <<EOF
+          Mac stable Chromium **$latest** was published $released (chromiumdash). Boaz pins **$current**.
+          That publish time is T0 for the 72-hour target in [SECURITY.md]($DOCS/SECURITY.md).
+
+          1. Triage (T): read the [Chrome Releases](https://chromereleases.googleblog.com/) post for $latest:
+             security fixes, severity, any "exploit exists in the wild". Go or no-go is Chen's.
+          2. On the build Mac: \`Tools/chromium/security-update.py $latest --dry-run\`, then without
+             \`--dry-run\`. Steps and owners: [docs/chromium/security-update.md]($DOCS/docs/chromium/security-update.md).
+
+          This issue is updated while Boaz is behind and closed when the pin catches up.
+          EOF
+          if [ -n "$issue" ]; then
+            gh issue edit "$issue" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh issue create --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          fi

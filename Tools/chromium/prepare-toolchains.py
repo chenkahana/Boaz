@@ -14,6 +14,8 @@ import urllib.request
 
 HERE = Path(__file__).resolve().parent
 LOCK = HERE / "toolchains.lock.json"
+# The recipe stays valid across Chromium versions while the new source's DEPS still pin these exact artifacts.
+DEPS_FILES = ("DEPS", "third_party/devtools-frontend/src/DEPS", "third_party/dawn/DEPS")
 
 
 def sha(path):
@@ -103,6 +105,28 @@ def download(entry, archive):
         raise ValueError(f"Cached archive integrity failure: {archive}")
 
 
+def source_version(source):
+    version = dict(line.split("=", 1) for line in (source / "chrome/VERSION").read_text().splitlines() if "=" in line)
+    return ".".join(version[k] for k in ("MAJOR", "MINOR", "BUILD", "PATCH"))
+
+
+def deps_drift(lock, source):
+    """Pins the source's DEPS no longer name: a moved toolchain that needs a re-pin before building."""
+    deps = "".join((source / name).read_text() for name in DEPS_FILES)
+    return [f"{entry['id']}: {value}" for entry in lock["gcs"] + lock["cipd"]
+            for value in ((entry["object"], entry["sha256"]) if "bucket" in entry else (entry["version"],))
+            if value not in deps]
+
+
+def check_source(lock, source):
+    pinned = json.loads((HERE / "source.lock.json").read_text())["chromium_version"]
+    if source_version(source) != pinned:
+        raise ValueError("Source version differs from the source lock")
+    drift = deps_drift(lock, source)
+    if drift:
+        raise ValueError("Toolchains moved in DEPS; re-pin toolchains.lock.json: " + ", ".join(drift))
+
+
 def prepare(lock):
     root = Path(lock["root"])
     if Path.cwd() != root.parent or os.environ.get("TMPDIR") != str(root.parent / "tmp"):
@@ -121,9 +145,7 @@ def prepare(lock):
     source = root / "chromium/src"
     if not (source / "chrome/VERSION").is_file():
         raise ValueError("Verified source is missing")
-    version = dict(line.split("=", 1) for line in (source / "chrome/VERSION").read_text().splitlines() if "=" in line)
-    if ".".join(version[k] for k in ("MAJOR", "MINOR", "BUILD", "PATCH")) != lock["chromium_version"]:
-        raise ValueError("Source version differs from toolchain recipe")
+    check_source(lock, source)
     state = root / "toolchains"
     for path in [source, state, root / "downloads", root / "cache/cipd", root / "tmp"]:
         if path.resolve() != path:
@@ -213,9 +235,14 @@ def main():
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--dry-run", action="store_true")
     group.add_argument("--prepare", action="store_true")
+    group.add_argument("--check-deps", action="store_true", help="Check the source's DEPS still pin this recipe")
     group.add_argument("--guarded", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
     lock = json.loads(LOCK.read_text())
+    if args.check_deps:
+        check_source(lock, Path(lock["root"]) / "chromium/src")
+        print("Toolchain pins match the source's DEPS")
+        return 0
     command = [lock["python"], str(HERE.parent / "cef/run-build.py"), "--", lock["python"], str(Path(__file__).resolve()), "--guarded"]
     if args.guarded:
         prepare(lock)
