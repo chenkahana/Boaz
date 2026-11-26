@@ -50,6 +50,9 @@ import WebKit
     func reload() {
         do {
             saved = try SavedPasswords.all()
+            #if AUTOFILL_EXTENSION
+            Task { [saved] in await AutoFillIdentities.replace(with: saved) }
+            #endif
         } catch {
             Self.log.error("Reading saved passwords failed: \(String(describing: error))")
         }

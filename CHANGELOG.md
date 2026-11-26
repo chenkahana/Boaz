@@ -12,6 +12,12 @@ All notable changes to Boaz are recorded here. The format follows
   on any web page, type CSS or start from Dark, Hide Cookie Banners or Bigger Text, and see it on the page as you
   type. It applies every time the site loads, in that profile only, and stays on this Mac. Settings › Site Styles
   lists them to edit or delete.
+- iPhone: Boaz passwords fill in Safari and other apps. Turn it on in Settings › Passwords › Use Boaz Passwords in
+  Other Apps; then the key above the keyboard lists your Boaz passwords (the site's first, with search), and the
+  suggestions above the keyboard offer them, each filled after Face ID. Read-only: nothing is edited or deleted
+  from there. Builds without the extension's App ID leave it out (autofill.yml).
+- Settings › Passwords says where passwords live: in your iCloud Keychain, reaching Boaz on your other devices when
+  it's on. The privacy policy now says so too, and that deleting Boaz leaves saved passwords in iCloud Keychain.
 - Mac: SECURITY.md says how fast Chromium security fixes reach you: when Google ships a Chrome stable update with
   security fixes, Boaz aims to ship an update on the same Chromium version within 72 hours, through Sparkle.
 - A check every six hours compares Boaz's Chromium with Chrome stable and keeps one GitHub issue open while Boaz is
@@ -51,6 +57,10 @@ All notable changes to Boaz are recorded here. The format follows
 
 ### Fixed
 
+- Deleting a saved password asks first, on iPhone and Mac: it's removed from Boaz on all your devices.
+- iPhone: the locked Passwords screen points to Use Boaz Passwords in Other Apps instead of Apple's Passwords app.
+  Mac: the DMG's save prompt reads like the iPhone's and the App Store app's
+  ("Boaz keeps it in your iCloud Keychain and offers it when you sign in again").
 - Mac: Upgrading from the sandboxed Boaz no longer risks losing your sign-ins. Boaz copied the old cookies only if
   WebKit listed them right away; when it answered empty before it had loaded them, Boaz stopped looking for good. It
   now also checks the old cookie file, and if WebKit hasn't handed the cookies over yet, it tries again next launch.

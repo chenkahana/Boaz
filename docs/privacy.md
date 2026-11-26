@@ -12,6 +12,14 @@ collect, see or sell any of it.
   database**. Apple stores it under your Apple Account; the developer has no access to it. The library also
   records each of your devices' names (such as "MacBook Pro") and when Boaz was last used on it, so your iPhone can
   show which Mac a tab is open on.
+- **Passwords** you save in Boaz, or import from a file, are kept in your **iCloud Keychain**, which Apple
+  encrypts end to end. Only Boaz can read them, on your own devices: it asks for Face ID, Touch ID or your device
+  passcode before it fills or shows one, and puts a password into a page only when you pick it. With iCloud
+  Keychain on, they reach Boaz on your other iPhone and Mac; with it off, they stay on the device. They never go
+  to the developer or any server of Boaz's. An imported file is read once on your device; delete it afterwards.
+- **AutoFill on iPhone.** If you turn on Boaz for AutoFill, iOS keeps the site and username of each saved
+  password (never the password) on your iPhone to suggest them above the keyboard. A password goes to Safari or
+  another app only when you pick it and confirm it's you.
 - **Browsing history, private (Incognito) tabs and page snapshots** stay on the device they were made on. They are
   never synced or uploaded. On the Mac, the last look of each tab is kept in Boaz's cache folder (at most 200 MB per
   profile) so it can show while the page reloads: an image, and for a page Boaz had to close to save memory, the page
@@ -56,7 +64,9 @@ reads the key Arc uses to protect them. Imported cookies stay on that Mac and ar
 
 ## Deleting your data
 
-Delete Boaz to remove everything it stored on a device. To remove the synced library, delete Boaz's data in
+Delete Boaz to remove everything it stored on a device, except saved passwords: they stay in your iCloud Keychain.
+Delete them first in Boaz › Settings › Passwords; on a device with iCloud Keychain on, that removes them from
+your other devices too. To remove the synced library, delete Boaz's data in
 Settings › [your name] › iCloud › Manage Account Storage on iPhone, or System Settings › [your name] › iCloud on
 Mac.
 

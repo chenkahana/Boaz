@@ -38,6 +38,8 @@ kit: ## Build the BoazKit package
 kit-test: ## Run the BoazKit unit tests
 	swift test --package-path Packages/BoazKit
 
+# Unsigned, so it builds the AutoFill extension too, whose App ID doesn't exist yet (autofill.yml).
+ios: export BOAZ_AUTOFILL := YES
 ios: project ## Build the iPhone app and extensions (unsigned)
 	$(XCB) -scheme Boaz-iOS -configuration Debug -destination 'generic/platform=iOS' $(UNSIGNED) build
 

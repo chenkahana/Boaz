@@ -56,6 +56,10 @@ struct BoazApp: App {
             } else {
                 BoazStore.resumeDatabases()
             }
+            #if AUTOFILL_EXTENSION
+            // Passwords that arrived through iCloud Keychain, for the suggestions above the keyboard in other apps.
+            if phase == .active { Task { await AutoFillIdentities.refresh() } }
+            #endif
         }
         .backgroundTask(.appRefresh(Self.syncTaskID)) {
             await Self.scheduleSyncRefresh()

@@ -214,7 +214,7 @@ struct SettingsSheet: View {
                     Text("The toolbar and the strip around the page take on the color of the site you're on.")
                 }
                 Section {
-                    NavigationLink { PasswordsSettings() } label: { Label("Passwords", systemImage: "key") }
+                    NavigationLink { PasswordsSettings(signedOutOfICloud: model.sync?.status == .signedOut) } label: { Label("Passwords", systemImage: "key") }
                 }
                 AISettingsSection()
                 SyncSettingsSection()

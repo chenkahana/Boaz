@@ -107,23 +107,25 @@ struct SavePasswordPrompt: View {
 
 /// Settings › Passwords: the saved sign-ins, shown once the user authenticates, with import from another browser.
 struct PasswordsSettings: View {
+    /// Signed out of iCloud on this device, so new passwords can't sync (`LibrarySync.Status.signedOut`).
+    var signedOutOfICloud = false
+
     @State private var unlocked = false
     @State private var search = ""
     @State private var revealed: (id: SavedPassword.ID, password: String)?
     @State private var importing = false
     @State private var message: String?
+    @State private var deleting: SavedPassword?
 
     private var autofill: PasswordAutofill { .shared }
 
-    private var shown: [SavedPassword] {
-        let query = search.trimmingCharacters(in: .whitespaces).lowercased()
-        return autofill.saved
-            .filter { query.isEmpty || $0.site.contains(query) || $0.username.lowercased().contains(query) }
-            .sorted { ($0.host, $0.username) < ($1.host, $1.username) }
-    }
+    private var shown: [SavedPassword] { autofill.saved.matching(search) }
 
     var body: some View {
         Form {
+            #if AUTOFILL_EXTENSION
+            AutoFillSection()
+            #endif
             if unlocked {
                 Section {
                     Button("Import Passwords from a CSV File…") { importing = true }
@@ -131,7 +133,7 @@ struct PasswordsSettings: View {
                 } footer: {
                     Text("Export your passwords as a CSV file from Chrome, Edge, Brave, Arc, Firefox, Safari or the Passwords app, then choose it here. The file isn't encrypted: delete it once it's imported.")
                 }
-                Section("Saved Passwords") {
+                Section {
                     #if os(macOS)
                     TextField("Search", text: $search)
                     #endif
@@ -139,14 +141,22 @@ struct PasswordsSettings: View {
                         Text(search.isEmpty ? "No saved passwords" : "No matches").foregroundStyle(.secondary)
                     }
                     ForEach(shown) { entry in row(entry) }
-                        .onDelete { offsets in offsets.map { shown[$0] }.forEach(delete) }
+                        .onDelete { offsets in deleting = offsets.first.map { shown[$0] } }
+                } header: {
+                    Text("Saved Passwords")
+                } footer: {
+                    syncFooter
                 }
             } else {
                 Section {
                     Label("Passwords are locked", systemImage: "lock.fill")
                     Button("Unlock…") { Task { await unlock() } }
                 } footer: {
-                    Text("Boaz offers saved passwords on the sites they belong to. On iPhone, the key above the keyboard also opens the passwords in Apple's Passwords.")
+                    #if AUTOFILL_EXTENSION
+                    Text("Boaz offers saved passwords on the sites they belong to. To use them in other apps, turn on Use Boaz Passwords in Other Apps.")
+                    #else
+                    Text("Boaz offers saved passwords on the sites they belong to.")
+                    #endif
                 }
             }
         }
@@ -155,6 +165,15 @@ struct PasswordsSettings: View {
         .searchable(text: $search)
         .navigationTitle("Passwords")
         #endif
+        // Deleting reaches every device through iCloud Keychain, and can't be undone: ask once.
+        .alert("Delete the password for \(deleting?.site ?? "")?", isPresented: Binding(
+            get: { deleting != nil }, set: { if !$0 { deleting = nil } }
+        ), presenting: deleting) { entry in
+            Button("Delete", role: .destructive) { delete(entry) }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("It's removed from Boaz on all your devices.")
+        }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.commaSeparatedText, .plainText]) { result in
             Task { await importFile(result) }
         }
@@ -164,6 +183,23 @@ struct PasswordsSettings: View {
             unlocked = false
             revealed = nil
         }
+    }
+
+    /// Boaz can't see whether iCloud Keychain is on, so it states the rule instead of a status.
+    @ViewBuilder private var syncFooter: some View {
+        #if os(iOS)
+        if signedOutOfICloud {
+            Text("Boaz keeps your passwords in your iCloud Keychain. With Passwords and Keychain on in Settings › [your name] › iCloud, they reach Boaz on your other devices; with it off, they stay on this iPhone. You're signed out of iCloud, so new passwords stay on this iPhone.")
+        } else {
+            Text("Boaz keeps your passwords in your iCloud Keychain. With Passwords and Keychain on in Settings › [your name] › iCloud, they reach Boaz on your other devices; with it off, they stay on this iPhone.")
+        }
+        #else
+        if signedOutOfICloud {
+            Text("Boaz keeps your passwords in your iCloud Keychain. With Passwords and Keychain on in System Settings › [your name] › iCloud, they reach Boaz on your other devices; with it off, they stay on this Mac. You're signed out of iCloud, so new passwords stay on this Mac.")
+        } else {
+            Text("Boaz keeps your passwords in your iCloud Keychain. With Passwords and Keychain on in System Settings › [your name] › iCloud, they reach Boaz on your other devices; with it off, they stay on this Mac.")
+        }
+        #endif
     }
 
     private func row(_ entry: SavedPassword) -> some View {
@@ -189,7 +225,7 @@ struct PasswordsSettings: View {
             .buttonStyle(.borderless)
             .accessibilityLabel(revealed?.id == entry.id ? "Hide Password" : "Show Password")
             #if os(macOS)
-            Button(role: .destructive) { delete(entry) } label: { Image(systemName: "trash") }
+            Button(role: .destructive) { deleting = entry } label: { Image(systemName: "trash") }
                 .buttonStyle(.borderless)
                 .accessibilityLabel("Delete")
             #endif

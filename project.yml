@@ -6,6 +6,10 @@ include:
   # Default browser on iPhone: a managed entitlement Apple has granted to com.chenkahana.boaz (web-browser.yml).
   - path: web-browser.yml
     enable: true
+  # Boaz passwords in AutoFill on iPhone: an extension whose App ID doesn't exist yet, so only unsigned and simulator
+  # builds include it (autofill.yml).
+  - path: autofill.yml
+    enable: ${BOAZ_AUTOFILL}
 options:
   bundleIdPrefix: com.chenkahana
   deploymentTarget:

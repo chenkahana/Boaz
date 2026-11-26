@@ -31,8 +31,8 @@ final class ChromiumPasswordSave {
         self.window = window
         let current = generation
         let prompt = NSAlert()
-        prompt.messageText = "Save Password?"
-        prompt.informativeText = "Save this sign-in for \(entry.site) in your passwords?"
+        prompt.messageText = "Save the password for \(entry.site)?"
+        prompt.informativeText = "Boaz keeps it in your iCloud Keychain and offers it when you sign in again."
         prompt.addButton(withTitle: "Save Password")
         prompt.addButton(withTitle: "Not Now")
         alert = prompt

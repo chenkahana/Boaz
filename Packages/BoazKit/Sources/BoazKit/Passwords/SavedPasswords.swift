@@ -31,6 +31,18 @@ public struct SavedPassword: Identifiable, Hashable, Sendable {
 
     /// The host, with its port when it has one.
     public var site: String { port.map { "\(host):\($0)" } ?? host }
+
+    /// The site's address, as AutoFill matches it against the app or web page asking: scheme, host and port.
+    public var serviceURL: String { "\(isSecure ? "https" : "http")://\(site)" }
+
+    /// The page AutoFill is filling for, from its service identifier: a bare domain (an app's associated domain, or
+    /// a site) is taken as its https address.
+    public static func pageURL(serviceIdentifier: String, isDomain: Bool) -> URL? {
+        let identifier = serviceIdentifier.trimmingCharacters(in: .whitespaces)
+        guard !identifier.isEmpty else { return nil }
+        let url = isDomain || !identifier.contains("://") ? URL(string: "https://\(identifier)") : URL(string: identifier)
+        return url?.host() == nil ? nil : url
+    }
 }
 
 /// Boaz's own passwords, in the Keychain: in iCloud Keychain, so they reach Boaz on the user's other devices, and
@@ -137,6 +149,19 @@ public enum SavedPasswords {
 }
 
 extension [SavedPassword] {
+    /// The sign-ins whose site or username contains `query` (all of them for an empty one), by site, then username.
+    public func matching(_ query: String) -> [SavedPassword] {
+        let query = query.trimmingCharacters(in: .whitespaces).lowercased()
+        return filter { query.isEmpty || $0.site.contains(query) || $0.username.lowercased().contains(query) }
+            .sorted { ($0.site, $0.username) < ($1.site, $1.username) }
+    }
+
+    /// The sign-ins to offer for any of `urls`, the first one's first, each once.
+    public func offered(at urls: [URL]) -> [SavedPassword] {
+        var seen = Set<SavedPassword.ID>()
+        return urls.flatMap { offered(at: $0) }.filter { seen.insert($0.id).inserted }
+    }
+
     /// The sign-ins to offer on a page at `url`: on a secure page, those for any host of its site
     /// (accounts.example.com's on example.com), its own host first; on an insecure page, only that host's own.
     public func offered(at url: URL) -> [SavedPassword] {

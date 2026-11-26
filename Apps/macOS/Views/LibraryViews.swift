@@ -284,7 +284,7 @@ struct MacSettingsPaneView: View {
             case .theme: ThemeSettings()
             case .privacy: PrivacySettings()
             case .accountsAndSync: AccountsSyncSettings()
-            case .passwords: PasswordsSettings().frame(minHeight: 460)
+            case .passwords: PasswordsSettings(signedOutOfICloud: MacModel.shared.sync?.status == .signedOut).frame(minHeight: 460)
             case .sites: SiteRulesSettings()
             case .siteStyles: SiteStylesSettings()
             case .shortcuts: ShortcutsSettings()

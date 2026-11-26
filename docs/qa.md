@@ -119,6 +119,15 @@ and error states look intentional. Check RTL text too (for example ynet.co.il).
 - [ ] **Sync** (two devices on the test Apple Account): pin, favorite, rename and delete on one device and see each
       change on the other. Each device keeps its own Today list, and the iPhone can open the Mac's tabs. Then turn on
       Airplane Mode, make changes, turn it off, and check that nothing is lost or duplicated.
+- [ ] **Password sync** (team-signed builds on the test Apple Account, iCloud Keychain on both): save a password on
+      the DMG and fill it on the iPhone, then the reverse. Change the password on one device and fill the new one on
+      the other; delete it on one (one confirmation) and it's gone from the other. Turn iCloud Keychain off on one
+      device: what it saves stays there. On one Mac, the DMG and the App Store app list the same passwords. The
+      dev-signed DMG (`com.chenkahana.boaz.chromium.dev`) sees none, by design.
+- [ ] **AutoFill (iPhone)**: Settings › Passwords › Use Boaz Passwords in Other Apps, accept iOS's prompt, and the row
+      reads Used in Other Apps. In Safari, a login field's key icon › Boaz asks for Face ID, lists the site's
+      sign-ins first, searches, and fills the one picked. The suggestion above the keyboard fills after Face ID too;
+      Cancel at Face ID fills nothing. With no saved passwords the list says No Saved Passwords.
 - [ ] **Load errors**: an unknown host (`https://nonexistent.invalid`), connection refused (`http://localhost:9`),
       offline. Each shows an error page with the address kept, no padlock, and Reload retries it.
 - [ ] **Redirects**: a site that redirects (for example `http://ynet.co.il`) leaves one History entry, not two.

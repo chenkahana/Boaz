@@ -1,0 +1,50 @@
+# Boaz passwords in AutoFill on iPhone: the AutoFill Credential Provider extension, which lists and fills Boaz's saved
+# passwords in Safari and other apps, and Settings › Passwords' "Use Boaz Passwords in Other Apps" (AUTOFILL_EXTENSION).
+# Signing it needs an App ID for com.chenkahana.boaz.autofill with the AutoFill Credential Provider capability and its
+# profiles, which don't exist yet. Until they do, project.yml includes this file only when BOAZ_AUTOFILL is set:
+# `make ios` (unsigned, CI) and simulator builds set it; `make device`, `make archive` and Xcode Cloud don't, so their
+# signed builds are unchanged. Once the App ID and profiles exist, set `enable: true` on the include in project.yml.
+# The extension reads the app's own Keychain items through keychain-access-groups, listing the app's identifier, which
+# is the group those items are in today. The app itself must not get a keychain-access-groups entitlement: its first
+# entry would become the group new saves go to.
+targets:
+  Boaz-iOS:
+    dependencies:
+      - target: AutoFill
+        embed: true
+    settings:
+      base:
+        OTHER_SWIFT_FLAGS: $(inherited) -DAUTOFILL_EXTENSION
+  AutoFill:
+    type: app-extension
+    platform: iOS
+    sources: [Apps/Extensions/AutoFill]
+    dependencies:
+      - package: BoazKit
+      - sdk: AuthenticationServices.framework
+    entitlements:
+      path: Apps/Extensions/AutoFill/AutoFill.entitlements
+      properties:
+        com.apple.developer.authentication-services.autofill-credential-provider: true
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)com.chenkahana.boaz
+    info:
+      path: Apps/Extensions/AutoFill/Info.plist
+      properties:
+        CFBundleDisplayName: Boaz
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSFaceIDUsageDescription: Boaz asks for Face ID before it fills a saved password or shows your passwords.
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.authentication-services-credential-provider-ui
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).CredentialProviderViewController
+          NSExtensionAttributes:
+            ASCredentialProviderExtensionCapabilities:
+              ProvidesPasswords: true
+              ShowsConfigurationUI: true
+    settings:
+      base:
+        PRODUCT_NAME: AutoFill
+        PRODUCT_BUNDLE_IDENTIFIER: com.chenkahana.boaz.autofill
+        TARGETED_DEVICE_FAMILY: "1"
+        SKIP_INSTALL: YES
