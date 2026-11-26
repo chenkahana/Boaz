@@ -35,11 +35,12 @@ check(try! parse(#"{"command":"open","url":"https://example.com/a","space":"S1"}
       == .open(URL(string: "https://example.com/a")!, space: "S1"), "open in a space")
 check(try! parse(#"{"command":"open","url":"about:blank"}"#).get() == .open(URL(string: "about:blank")!, space: nil),
       "open in the current space")
-for url in ["http://127.0.0.1:8080/", "file:///tmp/a.html", "chrome://extensions"] {
+for url in ["http://127.0.0.1:8080/", "file:///tmp/a.html", "chrome://extensions", "chrome://extensions/?id=abc"] {
     check(!rejects(#"{"command":"open","url":"\#(url)"}"#), "allows \(url)")
 }
 for url in ["javascript:alert(1)", "data:text/html,x", "about:settings", "boaz://open", "https:///nohost", "ftp://a/b",
-            "notaurl"] {
+            "notaurl", "chrome://quit", "chrome://restart", "chrome://crash", "chrome://settings",
+            "file://server/share/a.html", "file://localhost/tmp/a.html"] {
     check(rejects(#"{"command":"open","url":"\#(url)"}"#), "refuses \(url)")
 }
 for text in ["", "list", "[]", #"{"cmd":"list"}"#, #"{"command":"reload"}"#, #"{"command":"select"}"#,
@@ -49,6 +50,20 @@ for text in ["", "list", "[]", #"{"cmd":"list"}"#, #"{"command":"reload"}"#, #"{
 }
 check(rejects(#"{"command":"list","pad":"\#(String(repeating: "x", count: AutomationControlProtocol.maxLine))"}"#),
       "refuses a line over 64 KiB")
+
+// A connection gets one absolute deadline: a client that trickles bytes can't hold the queue past it.
+var pair: [Int32] = [0, 0]
+check(socketpair(AF_UNIX, SOCK_STREAM, 0, &pair) == 0, "socketpair")
+let (server, client) = (pair[0], pair[1])
+_ = Darwin.write(client, "{\"command\":\"list\"}\n", 19)
+check(AutomationControlProtocol.readLine(server, until: .now() + 2) == Data(#"{"command":"list"}"#.utf8), "reads one line")
+let dripper = Thread { for _ in 0..<12 { _ = Darwin.write(client, "x", 1); Thread.sleep(forTimeInterval: 0.25) } }
+dripper.start()
+let started = Date()
+check(AutomationControlProtocol.readLine(server, until: .now() + 1) == nil, "a trickling client times out")
+check(Date().timeIntervalSince(started) < 1.5, "within the deadline, not per read")
+Thread.sleep(forTimeInterval: 2.5)
+close(server); close(client)
 
 // Replies are one line.
 let reply = AutomationControlProtocol.reply(["ok": true, "spaces": [["name": "a\nb"]]])

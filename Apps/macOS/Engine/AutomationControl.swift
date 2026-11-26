@@ -48,14 +48,52 @@ nonisolated enum AutomationControlProtocol {
         }
     }
 
-    /// http(s) with a host, file, about:blank, and chrome:// pages (chrome://extensions).
+    /// http(s) with a host, file with no host, about:blank, and chrome://extensions (no other chrome:// page, so never
+    /// chrome://quit, restart or crash).
     static func allowedURL(_ text: String) -> URL? {
         guard let url = URL(string: text), let scheme = url.scheme?.lowercased() else { return nil }
         switch scheme {
         case "http", "https": return url.host()?.isEmpty == false ? url : nil
-        case "file", "chrome": return url
+        case "file": return (url.host() ?? "").isEmpty ? url : nil
+        case "chrome": return url.host()?.lowercased() == "extensions" ? url : nil
         case "about": return text == "about:blank" ? url : nil
         default: return nil
+        }
+    }
+
+    /// Arms `option` with the time left before `deadline`, so a client that trickles bytes still can't hold the queue
+    /// past it. False once the deadline has passed.
+    // Socket I/O, bounded by an absolute deadline per connection.
+    static func arm(_ fd: Int32, _ option: Int32, until deadline: DispatchTime) -> Bool {
+        let now = DispatchTime.now()
+        guard deadline > now else { return false }
+        let left = deadline.uptimeNanoseconds - now.uptimeNanoseconds
+        var timeout = timeval(tv_sec: Int(left / 1_000_000_000), tv_usec: Int32(max(1, left % 1_000_000_000 / 1000)))
+        return setsockopt(fd, SOL_SOCKET, option, &timeout, socklen_t(MemoryLayout<timeval>.size)) == 0
+    }
+
+    static func readLine(_ fd: Int32, until deadline: DispatchTime) -> Data? {
+        var data = Data()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        while data.count <= AutomationControlProtocol.maxLine, arm(fd, SO_RCVTIMEO, until: deadline) {
+            let count = read(fd, &buffer, buffer.count)
+            guard count > 0 else { return nil }
+            data.append(contentsOf: buffer[0..<count])
+            if let end = data.firstIndex(of: 0x0A) {
+                return end <= AutomationControlProtocol.maxLine ? data[..<end] : nil
+            }
+        }
+        return nil
+    }
+
+    static func write(_ fd: Int32, _ data: Data, until deadline: DispatchTime) {
+        data.withUnsafeBytes { bytes in
+            var offset = 0
+            while offset < bytes.count, arm(fd, SO_SNDTIMEO, until: deadline) {
+                let written = Darwin.write(fd, bytes.baseAddress! + offset, bytes.count - offset)
+                guard written > 0 else { return }
+                offset += written
+            }
         }
     }
 
@@ -202,11 +240,9 @@ final class AutomationControl {
             _ = fcntl(client, F_SETFD, FD_CLOEXEC)
             var on: Int32 = 1
             setsockopt(client, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
-            var timeout = timeval(tv_sec: 5, tv_usec: 0)
-            setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
-            setsockopt(client, SOL_SOCKET, SO_SNDTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
-            guard let line = readLine(client) else {
-                write(client, AutomationControlProtocol.reply(["ok": false, "error": "Expected one line of at most 64 KiB"]))
+            guard let line = AutomationControlProtocol.readLine(client, until: .now() + 5) else {
+                let refusal = AutomationControlProtocol.reply(["ok": false, "error": "Expected one line of at most 64 KiB"])
+                AutomationControlProtocol.write(client, refusal, until: .now() + 5)
                 close(client)
                 return
             }
@@ -222,34 +258,9 @@ final class AutomationControl {
     private nonisolated static func respond(_ client: Int32, _ reply: Data, after: (@MainActor @Sendable () -> Void)?,
                                             on queue: DispatchQueue) {
         queue.async {
-            write(client, reply)
+            AutomationControlProtocol.write(client, reply, until: .now() + 5)
             close(client)
             if let after { Task { @MainActor in after() } }
-        }
-    }
-
-    private nonisolated static func readLine(_ fd: Int32) -> Data? {
-        var data = Data()
-        var buffer = [UInt8](repeating: 0, count: 4096)
-        while data.count <= AutomationControlProtocol.maxLine {
-            let count = read(fd, &buffer, buffer.count)
-            guard count > 0 else { return nil }
-            data.append(contentsOf: buffer[0..<count])
-            if let end = data.firstIndex(of: 0x0A) {
-                return end <= AutomationControlProtocol.maxLine ? data[..<end] : nil
-            }
-        }
-        return nil
-    }
-
-    private nonisolated static func write(_ fd: Int32, _ data: Data) {
-        data.withUnsafeBytes { bytes in
-            var offset = 0
-            while offset < bytes.count {
-                let written = Darwin.write(fd, bytes.baseAddress! + offset, bytes.count - offset)
-                guard written > 0 else { return }
-                offset += written
-            }
         }
     }
 
