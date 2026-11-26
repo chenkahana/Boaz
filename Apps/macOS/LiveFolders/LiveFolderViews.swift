@@ -219,24 +219,20 @@ private struct PullRequestsMenu: View {
     }
 }
 
-/// Settings › Accounts: which profiles have live folders.
-struct AccountsSettings: View {
+/// Settings › Accounts & Sync: which profiles have live folders.
+struct LiveFoldersSection: View {
     @Environment(MacModel.self) private var model
 
     var body: some View {
-        Form {
-            Section {
-                ForEach(model.sidebar.profiles) { profile in ProfileLiveFoldersToggle(profile: profile) }
-            } header: {
-                Text("Live Folders")
-            } footer: {
-                Text("Lists a profile's GitHub pull requests as a sidebar folder, refreshed every minute, as whoever is "
-                     + "signed in to github.com in that profile. Off until you turn it on.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
+        Section {
+            ForEach(model.sidebar.profiles) { profile in ProfileLiveFoldersToggle(profile: profile) }
+        } header: {
+            Text("Live Folders")
+        } footer: {
+            Text("Lists a profile's GitHub pull requests as a sidebar folder, refreshed every minute, as whoever is "
+                 + "signed in to github.com in that profile. Off until you turn it on.")
+                .font(.caption).foregroundStyle(.secondary)
         }
-        .formStyle(.grouped)
-        .frame(minHeight: 200)
     }
 }
 

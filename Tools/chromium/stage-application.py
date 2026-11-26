@@ -52,6 +52,46 @@ def blocking_assets(blocker_receipt):
     return result
 
 
+def load_strings(path):
+    """Any .strings file (text, XML or binary) as a dictionary."""
+    return json.loads(subprocess.run(['/usr/bin/plutil', '-convert', 'json', '-o', '-', str(path)],
+                                     check=True, capture_output=True).stdout)
+
+
+def rebrand_localized_strings(app, distribution):
+    """Localized InfoPlist.strings override Info.plist, so macOS permission prompts, Finder's Get Info and file types
+    said Chromium. Boaz's own usage descriptions win, the Chromium copyright stays in chrome://credits, and the rest
+    names Boaz."""
+    for path in (app / 'Contents/Resources').glob('*.lproj/InfoPlist.strings'):
+        dropped = {'CFBundleGetInfoString', 'NSHumanReadableCopyright', *distribution}
+        localized = {key.replace('Chromium', 'Boaz'): value.replace('Chromium', 'Boaz')
+                     for key, value in load_strings(path).items() if key not in dropped}
+        with path.open('wb') as stream:
+            plistlib.dump(localized, stream, fmt=plistlib.FMT_BINARY)
+
+
+def rebrand_notification_helpers(app, icon):
+    """The alerts helpers post Boaz's notifications; macOS shows their name and icon on each one and in Settings."""
+    helpers = sorted((app / 'Contents/Frameworks/Chromium Framework.framework/Helpers').glob('* (*Alerts).app'))
+    if not helpers:
+        raise RuntimeError('Expected the Chromium notification helpers')
+    for helper in helpers:
+        contents = helper / 'Contents'
+        with (contents / 'Info.plist').open('rb') as stream:
+            metadata = plistlib.load(stream)
+        metadata['CFBundleDisplayName'] = 'Boaz'
+        metadata['CFBundleIconFile'] = 'Boaz.icns'
+        metadata.pop('CFBundleIconName', None)
+        with (contents / 'Info.plist').open('wb') as stream:
+            plistlib.dump(metadata, stream)
+        for path in (contents / 'Resources').glob('*.lproj/InfoPlist.strings'):
+            localized = load_strings(path)
+            localized['CFBundleDisplayName'] = 'Boaz'
+            with path.open('wb') as stream:
+                plistlib.dump(localized, stream, fmt=plistlib.FMT_BINARY)
+        shutil.copy2(icon, contents / 'Resources/Boaz.icns')
+
+
 def assemble(base, receipt, output, native_launch=False, production_version=None, production_build=None):
     base, receipt, output = map(checked, (base, receipt, output))
     expected_name = 'Boaz.app' if production_version else 'Chromium.app'
@@ -143,8 +183,13 @@ def assemble(base, receipt, output, native_launch=False, production_version=None
         url_types = metadata['CFBundleURLTypes']
         url_types.append({'CFBundleURLName': 'Boaz commands', 'CFBundleTypeRole': 'Viewer',
                           'CFBundleURLSchemes': ['boaz']})
+        for declaration in metadata.get('UTExportedTypeDeclarations', []):
+            if 'UTTypeDescription' in declaration:
+                declaration['UTTypeDescription'] = declaration['UTTypeDescription'].replace('Chromium', 'Boaz')
         with info.open('wb') as stream:
             plistlib.dump(metadata, stream)
+        rebrand_localized_strings(output, distribution)
+        rebrand_notification_helpers(output, next(item for item in resources if item.name == 'Boaz.icns'))
     cli_target = output / 'Contents/MacOS/boaz'
     if cli_target.exists() or cli_target.is_symlink():
         raise RuntimeError('CLI conflicts with base application')

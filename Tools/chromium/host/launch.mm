@@ -2,6 +2,8 @@
 
 #import <Foundation/Foundation.h>
 
+#include <string>
+
 #include "base/apple/bundle_locations.h"
 #include "base/check.h"
 #include "base/check_op.h"
@@ -57,5 +59,12 @@ void ConfigurePackagedApplicationLaunch() {
   command->AppendSwitch("no-first-run");
   command->AppendSwitchASCII("profile-directory", "Default");
   command->AppendSwitchPath("user-data-dir", *expected);
+  // The field-trial testing config that unofficial builds apply turns these on; Chrome ships them off. Omnibox
+  // Everywhere puts Chromium's magnifying glass in the menu bar, and UnoPhase2FollowUp shows Google's "Sync history"
+  // sign-in card on chrome://history.
+  constexpr char kTestingConfigFeatures[] = "OmniboxEverywhere,UnoPhase2FollowUp";
+  std::string disabled = command->GetSwitchValueASCII("disable-features");
+  command->AppendSwitchASCII("disable-features",
+                             disabled.empty() ? kTestingConfigFeatures : disabled + "," + kTestingConfigFeatures);
 }
 }  // namespace boaz

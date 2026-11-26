@@ -94,7 +94,9 @@ class BoazUITestCase: XCTestCase {
         // so membership is keyed by type and frame instead of the element itself.
         func key(_ control: XCUIElement) -> String { "\(control.elementType.rawValue)|\(control.frame)" }
         var scrollViewFrames: [String: CGRect] = [:]
-        for scrollView in element.descendants(matching: .scrollView).allElementsBoundByIndex where scrollView.exists {
+        // A screen can itself sit inside a scroll view (a Settings pane is a scrolling Form), so look at every scroll
+        // view in the app, not only the screen's own descendants.
+        for scrollView in app.descendants(matching: .scrollView).allElementsBoundByIndex where scrollView.exists {
             let viewport = scrollView.frame
             for kind in [XCUIElement.ElementType.button, .staticText, .textField] {
                 for control in scrollView.descendants(matching: kind).allElementsBoundByIndex {
@@ -262,8 +264,8 @@ class BoazUITestCase: XCTestCase {
         return false
     }
 
-    /// Opens Boaz ▸ Settings… and selects the pane titled `tab` ("General", "App Icon", "Privacy", "Sync",
-    /// "Passwords", "Accounts", "Sites" or "Shortcuts"), returning that pane (`screen.settings.<pane>`).
+    /// Opens Boaz ▸ Settings… and selects the pane titled `tab` ("General", "Theme", "Privacy",
+    /// "Accounts & Sync", "Passwords", "Sites" or "Shortcuts"), returning that pane (`screen.settings.<pane>`).
     ///
     /// The Settings window is found by its toolbar, not its title: a tabbed Settings scene titles its window after
     /// the selected pane ("General"), never "Settings".
@@ -287,8 +289,8 @@ class BoazUITestCase: XCTestCase {
         return pane
     }
 
-    private static let settingsPaneIDs = ["General": "general", "App Icon": "appIcon", "Privacy": "privacy",
-                                          "Sync": "sync", "Passwords": "passwords", "Accounts": "accounts",
+    private static let settingsPaneIDs = ["General": "general", "Theme": "theme", "Privacy": "privacy",
+                                          "Accounts & Sync": "accountsAndSync", "Passwords": "passwords",
                                           "Sites": "sites", "Shortcuts": "shortcuts"]
 
     /// The first element anywhere in the app with accessibility identifier `id` (the `screen.*` convention).

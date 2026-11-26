@@ -4,6 +4,35 @@ All notable changes to Boaz are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.48] - 2026-11-26
+
+### Changed
+
+- Mac: Picture in Picture floats above every window, on every Space and display, including over full-screen apps,
+  whichever app is active. Drag it anywhere, onto any display, and it settles neatly against the nearest edge or
+  corner. It keeps its video's shape as you resize it.
+- Mac: Picture in Picture has new controls, modeled on YouTube's player. They appear when the pointer is over the
+  video and fade when it's still: play and pause, 10 seconds back and forward, a seek bar with the buffered range and
+  a time preview, current time and length, volume and mute, playback speed, back to tab and close. Click the video to
+  play or pause. YouTube's keys work too: space or K, J and L, the arrows, M, F (back to tab), 0–9, and < and > for
+  speed.
+- Mac: Settings has a Theme pane with every design choice in one place. Each space's background (its colors,
+  gradient, pattern such as Clean or Matte, translucency and light streak), the sidebar's text size and the app icon.
+- Mac: Accounts and Sync are one pane, Accounts & Sync.
+- Mac: History ▸ Show All History opens Chromium's history page for the space's profile. Passwords ▸ Show All
+  Passwords opens your saved passwords in their own window instead of a Settings pane.
+
+### Fixed
+
+- Mac: Boaz no longer puts a magnifying glass in the menu bar. It was Chromium's experimental "search from anywhere"
+  box, switched on because Boaz's Chromium build used Chromium's test settings; Boaz now turns it off.
+- Mac: the history page no longer shows Google's "Sync history" sign-in card, which the same test settings
+  switched on.
+- Mac: macOS prompts for the microphone, camera, location, Bluetooth and passkeys, Finder's Get Info, and
+  notifications name Boaz, with Boaz's icon, instead of Chromium.
+- Mac: Settings buttons read clearly again (they were white text on light grey), the window is wider, and it no
+  longer opens partly below the bottom of the screen; a tall pane scrolls instead.
+
 ## [0.4.47] - 2026-11-25
 
 ### Fixed

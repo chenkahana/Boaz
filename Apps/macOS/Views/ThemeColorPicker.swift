@@ -36,9 +36,10 @@ struct ThemeColorPicker: View {
             swatches
             HStack(alignment: .center, spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Picker("Texture", selection: $options.texture) {
-                        ForEach(WindowTheme.Texture.allCases) { Text($0.rawValue.capitalized).tag($0) }
+                    Picker("Pattern", selection: $options.texture) {
+                        ForEach(WindowTheme.Texture.allCases) { Text(Self.patternName($0)).tag($0) }
                     }
+                    .help("The background's pattern; the wave below sets how strongly it shows")
                     // Labeled, a Form lays the menu out across its row, wider than the sheet.
                     .labelsHidden()
                     .fixedSize()
@@ -49,6 +50,17 @@ struct ThemeColorPicker: View {
                 TranslucencyDial(value: $options.translucency)
             }
             Toggle("Light Streak", isOn: $options.lightStreak).frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// What the background's texture is called here: no texture reads as a clean background, grain as matte.
+    static func patternName(_ texture: WindowTheme.Texture) -> String {
+        switch texture {
+        case .none: "Clean"
+        case .grain: "Matte"
+        case .paper: "Paper"
+        case .dots: "Dots"
+        case .linen: "Linen"
         }
     }
 
