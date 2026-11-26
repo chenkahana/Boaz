@@ -1,6 +1,7 @@
 #!/opt/homebrew/bin/python3.12
 """Prepare pinned direct-Chromium toolchains under the existing volume guard."""
 import argparse
+import ast
 import fcntl
 import hashlib
 import json
@@ -14,8 +15,13 @@ import urllib.request
 
 HERE = Path(__file__).resolve().parent
 LOCK = HERE / "toolchains.lock.json"
-# The recipe stays valid across Chromium versions while the new source's DEPS still pin these exact artifacts.
-DEPS_FILES = ("DEPS", "third_party/devtools-frontend/src/DEPS", "third_party/dawn/DEPS")
+# The recipe stays valid across Chromium versions while the DEPS entry that owns each destination still pins the
+# exact artifact. Each file lists the dependencies under its directory; root DEPS keys them as src/PATH, the others
+# relative to their own directory.
+DEPS_FILES = {"DEPS": ("", "src/"), "third_party/devtools-frontend/src/DEPS": ("third_party/devtools-frontend/src/", ""),
+              "third_party/dawn/DEPS": ("third_party/dawn/", "")}
+CIPD_PLATFORM = {"${{platform}}": "mac-arm64", "${{os}}": "mac", "${{arch}}": "arm64"}
+UNKNOWN = object()  # a DEPS expression outside the literal subset; never equal to a pin
 
 
 def sha(path):
@@ -110,12 +116,74 @@ def source_version(source):
     return ".".join(version[k] for k in ("MAJOR", "MINOR", "BUILD", "PATCH"))
 
 
+def read_deps(text):
+    """The vars and deps of a DEPS file, evaluated as literals with Var() resolved. Never executes the file."""
+    scope = {}
+
+    def value(node):
+        if isinstance(node, ast.Constant):
+            return node.value
+        if isinstance(node, ast.Dict):
+            return {value(k): value(v) for k, v in zip(node.keys, node.values)}
+        if isinstance(node, (ast.List, ast.Tuple)):
+            return [value(item) for item in node.elts]
+        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+            left, right = value(node.left), value(node.right)
+            return left + right if isinstance(left, str) and isinstance(right, str) else UNKNOWN
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and len(node.args) == 1
+                and not node.keywords):
+            argument = value(node.args[0])
+            if node.func.id == "Var":
+                return scope.get("vars", {}).get(argument, UNKNOWN)
+            if node.func.id == "Str":
+                return argument
+        return UNKNOWN
+
+    for statement in ast.parse(text).body:
+        if (isinstance(statement, ast.Assign) and len(statement.targets) == 1
+                and isinstance(statement.targets[0], ast.Name) and statement.targets[0].id in ("vars", "deps")):
+            scope[statement.targets[0].id] = value(statement.value)
+    deps = scope.get("deps")
+    return deps if isinstance(deps, dict) else {}
+
+
+def owner(files, destination):
+    """The one DEPS entry for a destination under src, or None if no file or more than one file lists it."""
+    found = [deps[key + destination[len(directory):]] for directory, key, deps in files
+             if destination.startswith(directory) and key + destination[len(directory):] in deps]
+    return found[0] if len(found) == 1 and isinstance(found[0], dict) else None
+
+
+def pinned(entry, dep):
+    """Whether the owning DEPS entry pins exactly this lock entry's artifact."""
+    if "bucket" in entry:
+        objects = dep.get("objects") if dep.get("dep_type") == "gcs" and dep.get("bucket") == entry["bucket"] else None
+        return any(isinstance(item, dict) and item.get("object_name") == entry["object"]
+                   and item.get("sha256sum") == entry["sha256"] and item.get("size_bytes") == entry["size_bytes"]
+                   for item in objects or [])
+    packages = dep.get("packages") if dep.get("dep_type") == "cipd" else None
+    for item in packages or []:
+        if isinstance(item, dict) and isinstance(item.get("package"), str):
+            package = item["package"]
+            for token, replacement in CIPD_PLATFORM.items():
+                package = package.replace(token, replacement)
+            if package == entry["package"]:
+                return item.get("version") == entry["version"]
+    return False
+
+
 def deps_drift(lock, source):
-    """Pins the source's DEPS no longer name: a moved toolchain that needs a re-pin before building."""
-    deps = "".join((source / name).read_text() for name in DEPS_FILES)
-    return [f"{entry['id']}: {value}" for entry in lock["gcs"] + lock["cipd"]
-            for value in ((entry["object"], entry["sha256"]) if "bucket" in entry else (entry["version"],))
-            if value not in deps]
+    """Lock entries whose owning DEPS entry no longer pins them: moved toolchains that need a re-pin."""
+    files = [(directory, key, read_deps((source / name).read_text()))
+             for name, (directory, key) in DEPS_FILES.items()]
+    drift = []
+    for entry in lock["gcs"] + lock["cipd"]:
+        dep = owner(files, entry["destination"])
+        if dep is None:
+            drift.append(f"{entry['id']}: no single DEPS entry owns {entry['destination']}")
+        elif not pinned(entry, dep):
+            drift.append(f"{entry['id']}: DEPS no longer pins {entry.get('object') or entry['version']}")
+    return drift
 
 
 def check_source(lock, source):

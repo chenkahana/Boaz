@@ -2,8 +2,9 @@
 """Rebase the pinned patch series onto a freshly fetched, unpatched Chromium tree.
 
 Applies the series in order to copies of the files it touches, never to the tree. Every patch that applies cleanly
-gets new before/after hashes in patches.lock.json; every patch that doesn't is listed and keeps its old entry, so
-apply-patches.py refuses it until it is fixed. Fix the listed patches and run again: each run starts from the
+gets new before/after hashes in patches.lock.json, and each file whose upstream content changed under it is listed
+for review. Every patch that doesn't apply is listed and keeps its old entry, so apply-patches.py refuses it until it
+is fixed. Fix the listed patches and run again: each run starts from the
 unpatched tree. The lite archive has no .git, so there is no three-way merge.
 """
 import argparse
@@ -46,9 +47,9 @@ def touched(patch, cwd):
 
 
 def rebase(manifest, version, source, scripts, work, git=GIT):
-    """Return the rewritten manifest and the conflicts, without touching the source tree."""
+    """Return the rewritten manifest, the conflicts and the files to review, without touching the source tree."""
     current = {}  # path -> contents after the patches applied so far
-    entries, conflicts = [], []
+    entries, conflicts, review = [], [], []
     for index, entry in enumerate(manifest["patches"]):
         patch = scripts / entry["file"]
         stage = work / f"{index:03d}"
@@ -78,7 +79,10 @@ def rebase(manifest, version, source, scripts, work, git=GIT):
             item["after"] = sha(data)
             current[item["path"]] = data
         entries.append({"file": entry["file"], "sha256": sha(patch.read_bytes()), "files": files})
-    return {"chromium_version": version, "patches": entries}, conflicts
+        old = {item["path"]: item["before"] for item in entry["files"]}
+        review += [{"patch": entry["file"], "path": item["path"]} for item in files
+                   if old.get(item["path"]) != item["before"]]
+    return {"chromium_version": version, "patches": entries}, conflicts, review
 
 
 def guarded(lock, root, source):
@@ -100,9 +104,11 @@ def guarded(lock, root, source):
     work_root = root / "tmp/patch-rebase"
     work_root.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=work_root) as work:
-        manifest, conflicts = rebase(json.loads(path.read_text()), lock["chromium_version"], source, HERE, Path(work))
+        manifest, conflicts, review = rebase(json.loads(path.read_text()), lock["chromium_version"], source, HERE,
+                                             Path(work))
     path.write_text(json.dumps(manifest, indent=2) + "\n")
-    print(json.dumps({"patches": len(manifest["patches"]), "conflicts": conflicts}, indent=2))
+    # Review: patched files that changed upstream; the patch still applied, but check it still means the same thing.
+    print(json.dumps({"patches": len(manifest["patches"]), "conflicts": conflicts, "review": review}, indent=2))
     return 1 if conflicts else 0
 
 

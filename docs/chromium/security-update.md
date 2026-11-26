@@ -42,7 +42,7 @@ It runs these steps in order and stops at the first failure:
 | `fetch` | `fetch-source.py --fetch` |
 | `toolchains-check` | `prepare-toolchains.py --check-deps` |
 | `rebase` | `rebase-patches.py --rebase` |
-| `commit` | commits `source.lock.json`, `patches.lock.json` and `patches/` on the branch, then checks no other Chromium input is uncommitted |
+| `commit` | commits the source, patch and toolchain pins and `patches/` on the branch, then checks no other Chromium input is uncommitted |
 | `apply` | `apply-patches.py --apply` |
 | `toolchains`, `objdump` | `prepare-toolchains.py --prepare`, `prepare-objdump.py --prepare` |
 | `host` | `install-host.py --install` |
@@ -62,12 +62,14 @@ it the build output, so two trees fit in the volume's 158 GiB free above the gua
 
 **Patch rebase.** The lite archive has no `.git`, so there is no three-way merge. `rebase-patches.py` applies each
 patch, in order, to copies of the files it touches. A clean apply gets new before and after hashes in
-`patches.lock.json`. A conflicting patch is listed with git's error and keeps its old entry, so `apply-patches.py`
-refuses it. Edit the listed patch against the new tree, then run `security-update.py VERSION --from rebase`. Every
+`patches.lock.json`, and every patched file whose upstream content changed is listed under `review`: the patch
+still applied, but read it against the new code, above all in security-touched files. A conflicting patch is listed
+with git's error and keeps its old entry, so `apply-patches.py` refuses it. Edit the listed patch against the new tree, then run `security-update.py VERSION --from rebase`. Every
 rebase starts again from the unpatched tree.
 
-**Toolchains.** `toolchains.lock.json` stays valid while the new tree's DEPS still name every pinned artifact
-(GCS object and SHA-256, CIPD version). When they don't, usually at a new major version, `toolchains-check` lists what
+**Toolchains.** `toolchains.lock.json` stays valid while, for each pinned destination, the DEPS entry that owns it
+(root `DEPS`, or the dawn and devtools-frontend DEPS for their own directories) still pins exactly that artifact: GCS
+object, SHA-256 and size, or CIPD package and version, with `Var()` resolved. The DEPS files are parsed, never run. When they don't, usually at a new major version, `toolchains-check` lists what
 moved. Re-pin those entries from the new DEPS (see [direct-toolchains](direct-toolchains.md)), update
 `toolchains.resolved.json`, and rebuild the content-blocking library (`build-adblock.py`), whose receipt is bound to
 the toolchain lock. Then continue with `--from toolchains-check`.

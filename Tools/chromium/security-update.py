@@ -21,7 +21,9 @@ REPO = HERE.parent.parent
 SOURCE_LOCK = HERE / "source.lock.json"
 ARCHIVES = "https://commondatastorage.googleapis.com/chromium-browser-official/"
 # Committed with the bump so chromium-base.py can key and pack the build.
-PINS = ["Tools/chromium/source.lock.json", "Tools/chromium/patches.lock.json", "Tools/chromium/patches"]
+PINS = ["Tools/chromium/source.lock.json", "Tools/chromium/patches.lock.json", "Tools/chromium/patches",
+        "Tools/chromium/toolchains.lock.json", "Tools/chromium/toolchains.resolved.json",
+        "Tools/chromium/toolchains.objdump.json"]
 
 
 def version_key(value):

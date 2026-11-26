@@ -124,7 +124,7 @@ class Rebase(unittest.TestCase):
         work = self.dir / "work"
         shutil.rmtree(work, ignore_errors=True)
         work.mkdir()
-        return rebase.rebase(self.manifest, "2.0.0.0", self.dir / "src", self.dir / "scripts", work)
+        return rebase.rebase(self.manifest, "2.0.0.0", self.dir / "src", self.dir / "scripts", work)[:2]
 
     def test_chains_clean_applies_and_rewrites_hashes(self):
         (self.dir / "src/a/file.txt").write_text(UPSTREAM)
@@ -139,6 +139,21 @@ class Rebase(unittest.TestCase):
         self.assertEqual(two["files"][0]["before"], one["files"][0]["after"])
         self.assertEqual(two["files"][0]["after"], sha(UPSTREAM.replace("two", "TWO").replace("three", "THREE")))
         self.assertEqual((self.dir / "src/a/file.txt").read_text(), UPSTREAM)
+
+    def test_lists_patched_files_that_changed_upstream(self):
+        (self.dir / "src/a/file.txt").write_text(UPSTREAM)
+        manifest, _ = self.run_rebase()
+        self.manifest = manifest  # the same tree again: nothing changed under the patches
+        work = self.dir / "work"
+        shutil.rmtree(work)
+        work.mkdir()
+        self.assertEqual(rebase.rebase(manifest, "2.0.0.0", self.dir / "src", self.dir / "scripts", work)[2], [])
+        (self.dir / "src/a/file.txt").write_text("new\n" + UPSTREAM)
+        shutil.rmtree(work)
+        work.mkdir()
+        review = rebase.rebase(manifest, "2.0.0.1", self.dir / "src", self.dir / "scripts", work)[2]
+        self.assertEqual(review, [{"patch": "patches/one.patch", "path": "a/file.txt"},
+                                  {"patch": "patches/two.patch", "path": "a/file.txt"}])
 
     def test_lists_conflicts_and_keeps_their_old_entries(self):
         (self.dir / "src/a/file.txt").write_text(UPSTREAM.replace("two", "changed"))
@@ -176,19 +191,68 @@ class Trees(unittest.TestCase):
             fetch.retire(self.root, "157.0.8103.51")
         self.assertTrue((self.root / "chromium/src").is_dir())
 
-    def test_toolchain_drift_names_pins_missing_from_deps(self):
-        source = self.root / "chromium/src"
-        for name in toolchains.DEPS_FILES:
-            (source / name).parent.mkdir(parents=True, exist_ok=True)
-            (source / name).write_text("")
-        (source / "DEPS").write_text("'object_name': 'Mac_arm64/clang-1.tar.xz', 'sha256sum': 'aa',\n"
-                                     "'version': 'git_revision:1234',\n")
-        lock = {"gcs": [{"id": "clang", "bucket": "b", "object": "Mac_arm64/clang-1.tar.xz", "sha256": "aa"},
-                        {"id": "rust", "bucket": "b", "object": "Mac_arm64/rust-2.tar.xz", "sha256": "bb"}],
-                "cipd": [{"id": "gn", "version": "git_revision:1234"}]}
-        self.assertEqual(toolchains.deps_drift(lock, source),
-                         ["rust: Mac_arm64/rust-2.tar.xz", "rust: bb"])
 
+
+class ToolchainDrift(unittest.TestCase):
+    LOCK = {"gcs": [{"id": "clang", "destination": "third_party/llvm-build/Release+Asserts", "bucket": "b",
+                     "object": "Mac_arm64/clang-1.tar.xz", "sha256": "aa", "size_bytes": 5}],
+            "cipd": [{"id": "gn", "destination": "buildtools/mac", "package": "gn/gn/mac-arm64",
+                      "version": "git_revision:1234"},
+                     {"id": "go", "destination": "third_party/dawn/tools/golang/mac-arm64",
+                      "package": "infra/3pp/tools/go/mac-arm64", "version": "version:3@1.0"}]}
+    ROOT = """
+vars = {'gn_rev': '1234'}
+deps = {
+  'src/buildtools/mac': {'packages': [{'package': 'gn/gn/mac-${{arch}}',
+                                       'version': 'git_revision:' + Var('gn_rev')}],
+                         'dep_type': 'cipd'},
+  'src/third_party/llvm-build/Release+Asserts': {'dep_type': 'gcs', 'bucket': 'b', 'objects': [
+      {'object_name': 'Mac/clang-1.tar.xz', 'sha256sum': 'zz', 'size_bytes': 9},
+      {'object_name': 'Mac_arm64/clang-1.tar.xz', 'sha256sum': 'aa', 'size_bytes': 5}]},
+}
+"""
+    DAWN = """
+vars = {'go': 'version:3@1.0'}
+deps = {
+  'tools/golang/mac-arm64': {'packages': [{'package': 'infra/3pp/tools/go/mac-arm64', 'version': Var('go')}],
+                             'dep_type': 'cipd'},
+  'buildtools/mac': {'packages': [{'package': 'gn/gn/mac-${{arch}}', 'version': 'git_revision:1234'}],
+                     'dep_type': 'cipd'},
+}
+"""
+
+    def drift(self, root=ROOT, dawn=DAWN, devtools="deps = {}"):
+        source = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, source)
+        for name, text in (("DEPS", root), ("third_party/dawn/DEPS", dawn),
+                           ("third_party/devtools-frontend/src/DEPS", devtools)):
+            (source / name).parent.mkdir(parents=True, exist_ok=True)
+            (source / name).write_text(text)
+        return toolchains.deps_drift(self.LOCK, source)
+
+    def test_matching_entries_with_vars_resolved(self):
+        self.assertEqual(self.drift(), [])
+
+    def test_a_lagging_copy_cannot_mask_a_move_in_the_owning_deps(self):
+        # Root DEPS moved gn; dawn's own buildtools/mac entry still names the old revision.
+        moved = self.ROOT.replace("'gn_rev': '1234'", "'gn_rev': '5678'")
+        self.assertEqual(self.drift(root=moved), ["gn: DEPS no longer pins git_revision:1234"])
+
+    def test_a_moved_object_checksum_is_drift(self):
+        moved = self.ROOT.replace("'sha256sum': 'aa'", "'sha256sum': 'bb'")
+        self.assertEqual(self.drift(root=moved), ["clang: DEPS no longer pins Mac_arm64/clang-1.tar.xz"])
+
+    def test_a_sub_deps_pin_is_read_from_its_own_file(self):
+        moved = self.DAWN.replace("'go': 'version:3@1.0'", "'go': 'version:3@2.0'")
+        self.assertEqual(self.drift(dawn=moved), ["go: DEPS no longer pins version:3@1.0"])
+
+    def test_a_destination_nobody_owns_is_drift(self):
+        gone = self.DAWN.replace("'tools/golang/mac-arm64'", "'tools/golang/mac-arm64-old'")
+        self.assertEqual(self.drift(dawn=gone),
+                         ["go: no single DEPS entry owns third_party/dawn/tools/golang/mac-arm64"])
+
+    def test_deps_is_never_executed(self):
+        self.assertEqual(self.drift(root=self.ROOT + "\nimport os\nos.system('false')\n"), [])
 
 if __name__ == "__main__":
     unittest.main()
