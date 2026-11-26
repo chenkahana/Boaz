@@ -649,6 +649,11 @@ private struct ToastView: View {
                         .buttonStyle(.plain).font(.callout.weight(.bold)).foregroundStyle(.tint)
                         .help(model.keyBindings.hint("Reopen Closed Tab", .reopenClosedTab))
                 }
+                if let action = toast.action {
+                    Button(action.title) { model.toast = nil; action.perform() }
+                        .buttonStyle(.plain).font(.callout.weight(.bold)).foregroundStyle(.tint)
+                        .accessibilityIdentifier("toast.action")
+                }
             }
             .padding(.horizontal, 16).padding(.vertical, 10)
             .glassEffect(.regular, in: .capsule)
@@ -746,7 +751,9 @@ private struct MacSpaceEditor: View {
             if let id = request.spaceID {
                 if let space = model.space(id) {
                     SpaceEditor(mode: .edit(space, canDelete: model.sidebar.spaces.count > 1),
-                                deleteMessage: model.deletionMessage(for: space)) { title, icon, themeJSON in
+                                deleteMessage: model.deletionMessage(for: space),
+                                sites: model.routes(in: space).map { SiteRuleInput.label($0.host, $0.pathPrefix) },
+                                onSaveSites: { model.saveRoutes($0, in: space) }) { title, icon, themeJSON in
                         try? model.store?.updateSpace(space.id, title: title, icon: icon, themeJSON: themeJSON)
                     } onDelete: {
                         model.deleteSpace(space)

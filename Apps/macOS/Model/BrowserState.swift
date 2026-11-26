@@ -363,6 +363,7 @@ final class BrowserState {
         }
         // A page Chromium opened (a middle-click, ⌘-click or target=_blank link) goes right below the tab it came from.
         let item: SidebarItem
+        var routedFrom: String?
         let title = page.state.title.isEmpty ? page.state.url?.host() : page.state.title
         if isIncognito {
             let slot = incognitoSlot(below: activeTab)
@@ -370,7 +371,10 @@ final class BrowserState {
                 kind: .tab, title: title, url: page.state.url, position: slot.position, lastActiveAt: .now)
             incognitoTabs.insert(item, at: slot.index)
         } else {
-            guard let space = model.sidebar.spaces.first(where: {
+            // A site rule can send it to another space of the same profile (the page, its session and opener stay).
+            // Pop-up windows (sign-ins) never get here: Chromium gives them their own window.
+            let routed = page.state.url.flatMap { routedSpace(for: $0, from: activeTab, inProfile: page.profile.id) }
+            guard let space = routed ?? model.sidebar.spaces.first(where: {
                 $0.id == spaceID && $0.profileID == page.profile.id
             }) ?? model.sidebar.spaces.first(where: { $0.profileID == page.profile.id }),
                   let box = model.sidebar.container(.unpinned, in: space.id) else {
@@ -378,15 +382,17 @@ final class BrowserState {
             }
             item = SidebarItem(id: UUID().uuidString, spaceID: space.id, profileID: space.profileID,
                 parentID: box.id, kind: .tab, title: title, url: page.state.url,
-                position: model.newTabPosition(in: box.id, below: activeTab),
+                position: model.newTabPosition(in: box.id, below: routed == nil ? activeTab : nil),
                 lastActiveAt: .now, deviceID: model.deviceID)
             model.commit(item)
+            if routed != nil { routedFrom = spaceID }
         }
         enginePages[item.id] = page
         reportExternalTabs()
         recency.removeAll { $0 == item.id }
         recency.append(item.id)
         if active { activate(item) }
+        if let routedFrom { showRoutedToast(item, from: routedFrom, select: active) }
         closeIdlePages()
     }
     @ObservationIgnored private var chromiumScrollDocuments: [String: UInt64] = [:]
@@ -998,18 +1004,30 @@ final class BrowserState {
         #endif
     }
 
-    /// A new Today tab, at the top or right below `source`. One opened in the background starts loading without
-    /// taking the window.
-    func openTab(_ url: URL, title: String? = nil, below source: SidebarItem? = nil, inBackground: Bool = false, engine: BrowserEngineKind? = nil) {
+    /// Which new tabs a site rule may send to another space: one opened from the command bar, or a link a page
+    /// opened (same profile only, and not from a tab the user placed by hand).
+    enum Routing { case none, commandBar, link }
+
+    /// A new Today tab, at the top or right below `source` (or at the top of a site rule's space, see `routing`).
+    /// One opened in the background starts loading without taking the window.
+    func openTab(_ url: URL, title: String? = nil, below source: SidebarItem? = nil, inBackground: Bool = false,
+                 engine: BrowserEngineKind? = nil, routing: Routing = .none) {
         let tab: SidebarItem
+        var routedFrom: String?
         if isIncognito {
             let slot = incognitoSlot(below: source)
             tab = SidebarItem(id: UUID().uuidString, spaceID: nil, profileID: "incognito", parentID: nil,
                               kind: .tab, title: title ?? url.host(), url: url, position: slot.position, lastActiveAt: .now)
             withMotion(.standard) { incognitoTabs.insert(tab, at: slot.index) }
         } else {
+            let routed = switch routing {
+            case .none: nil as Space?
+            case .commandBar: routedSpace(for: url, from: nil)
+            case .link: routedSpace(for: url, from: source, inProfile: model.space(spaceID)?.profileID)
+            }
+            if routed != nil { routedFrom = spaceID }
             guard let new = withMotion(.standard, {
-                model.newTab(url, title: title, in: spaceID, below: source)
+                model.newTab(url, title: title, in: routed?.id ?? spaceID, below: routed == nil ? source : nil)
             }) else { return }
             tab = new
         }
@@ -1027,6 +1045,7 @@ final class BrowserState {
             do { _ = try enginePage(for: tab) }
             catch { model.showToast(error.localizedDescription) }
         } else { activate(tab) }
+        if let routedFrom { showRoutedToast(tab, from: routedFrom, select: !inBackground) }
     }
 
     /// Where a new private tab goes: right below `source` when it's one, otherwise at the top.

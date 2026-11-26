@@ -840,6 +840,24 @@ struct ItemRow: View {
     }
 }
 
+/// "Always Open github.com in Work", or "Stop Opening…" when that is already the rule.
+private struct SiteRuleMenuItem: View {
+    @Environment(MacModel.self) private var model
+    let host: String
+    let space: Space
+
+    var body: some View {
+        if let rule = model.siteRoute(host: host), rule.spaceID == space.id {
+            Button("Stop Opening \(host) in \(space.title)", systemImage: "arrow.uturn.left.square") { model.removeRoute(rule) }
+        } else {
+            Button("Always Open \(host) in \(space.title)", systemImage: "arrow.right.square") {
+                guard model.addRoute(host: host, pathPrefix: nil, to: space) != nil else { return }
+                model.showToast("\(host) now opens in \(space.title)")
+            }
+        }
+    }
+}
+
 struct TabMenu: View {
     @Environment(MacModel.self) private var model
     @Environment(BrowserState.self) private var browser
@@ -902,6 +920,9 @@ struct TabMenu: View {
                         Button(space.title) { withAnimation { model.move(tab, to: space) } }
                     }
                 } label: { Label("Move to Space", systemImage: "square.grid.2x2") }
+            }
+            if !model.isFavorite(tab), let host = SiteRuleInput.host(of: tab.url), let space = model.space(tab.spaceID) {
+                SiteRuleMenuItem(host: host, space: space)
             }
         }
         // Pin + mute

@@ -36,6 +36,13 @@ All notable changes to Boaz are recorded here. The format follows
   `Tools/symbolicate`, which turns an `.ips` crash report and the build's dSYMs into a trace with function names
   and lines. Each DMG release on GitHub now carries its dSYMs, and the release docs make a crash review, with no
   new crash cluster, a gate for every release.
+- Mac: Site rules send sites to the right space, as Arc's Air Traffic Control does. A link to a ruled site opens in
+  its space whether it comes from another app, the command bar or a page (a new tab in the same profile), and the
+  window switches to that space in place. "Opened in Work" offers "Open in Personal" to put the tab back, and a tab
+  you move to another space stays there. Right-click a tab for Always Open github.com in Work. Rules are one
+  ordered list in Settings › Sites (drag or Move Up/Down; the first that fits wins), also under Customize Space ›
+  Sites that open here, and they sync between your Macs. Searches, Incognito, sign-in pop-ups and the iPhone are
+  never routed.
 
 ### Changed
 
@@ -43,6 +50,8 @@ All notable changes to Boaz are recorded here. The format follows
   sends the group's tabs to the Archive without asking first, and Undo or ⌘⇧T brings the whole group back. Ungroup
   leaves the tabs where the group was, in order, and can be undone. Clear only archives this Mac's groups, never
   another Mac's.
+- Mac: Your existing site rules (Settings › Sites) carry over as they are, and a link from another app to one of
+  those sites now opens in the main window, in the rule's space, instead of a Quick Window.
 - CI finishes the run of every push to master and release branches instead of cancelling it for the next push, and
   the Mac UI tests job lists passed, failed and skipped counts and the skipped tests' names on the run page. Its
   result bundle is kept for green runs too.

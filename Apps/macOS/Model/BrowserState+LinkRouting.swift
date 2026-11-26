@@ -48,7 +48,7 @@ extension BrowserState {
             return .allow
         case .tab(let id):
             if newTabClick {
-                openTab(url, below: tab(id), inBackground: !flags.contains(.shift))
+                openTab(url, below: tab(id), inBackground: !flags.contains(.shift), routing: .link)
                 return .cancel
             }
             if opensWindow {
@@ -64,7 +64,7 @@ extension BrowserState {
         if let tab = tab(tabID), model.isPinned(tab) {
             openPeek(url, profileID: tab.profileID)
         } else {
-            openTab(url, below: tab(tabID))
+            openTab(url, below: tab(tabID), routing: .link)
         }
     }
 

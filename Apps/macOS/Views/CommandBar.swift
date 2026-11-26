@@ -305,7 +305,7 @@ struct CommandBar: View {
     private func run(_ suggestion: Suggestion?) {
         guard let suggestion else { return }
         switch suggestion {
-        case .go(let url, _, _): open(url)
+        case .go(let url, _, let isSearch): open(url, routable: !isSearch)
         case .search(let suggestion):
             // Like iOS, a suggestion opens as if typed: a suggested address goes to the site.
             guard let url = SearchInput.url(for: suggestion, searchTemplate: Preferences.searchEngine.template,
@@ -319,9 +319,13 @@ struct CommandBar: View {
         browser.commandMode = nil
     }
 
-    private func open(_ url: URL) {
+    /// A web search is never routed: its host is the search engine's, so a rule for it would capture every search.
+    private func open(_ url: URL, routable: Bool = true) {
+        let template = Preferences.searchEngine.template
+        let isSearch = template.firstRange(of: "%@").map { url.absoluteString.hasPrefix(template[..<$0.lowerBound]) } ?? false
         switch mode {
-        case .newTab: browser.openTab(url, below: browser.newTabAnchor)
+        case .newTab:
+            browser.openTab(url, below: browser.newTabAnchor, routing: routable && !isSearch ? .commandBar : .none)
         case .currentTab: browser.load(url)
         case .split: browser.openInSplit(url)
         }

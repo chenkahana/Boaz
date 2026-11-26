@@ -126,6 +126,9 @@ iPad screenshots aren't needed for an iPhone-only app.
    Development only knows the fields a Debug build has saved with a value, and Production rejects records with
    fields it doesn't know, so first check that each record type has every field its `write(to:)` in
    `Packages/BoazKit/Sources/BoazKit/Sync/SyncMapping.swift` sets (add missing ones in Development).
+   Pending as of 0.5.0: record type `SpaceRoute` (site rules; fields `profileID`, `spaceID`, `position`,
+   `modifiedAt`, `deletedAt`, encrypted `host` and `pathPrefix`, from `Sync/SpaceRouteRecord.swift`). Until it is
+   deployed, release builds keep site rules on the Mac and Settings › Sites says so; the rest of the library syncs.
 2. **App Store Connect** › Apps › New App: iOS and macOS, name Boaz Browser, bundle ID `com.chenkahana.boaz`, SKU `boaz`.
 3. **Upload builds**: double-click `build/archives/Boaz-iOS.xcarchive` and `Boaz-macOS.xcarchive` (opens them in
    Xcode's Organizer) › Distribute App › App Store Connect › Upload. To rebuild them first, run `make archive`.

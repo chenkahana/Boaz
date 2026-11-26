@@ -160,7 +160,7 @@ final class ChromiumQuickWindow: NSObject, ObservableObject, NSWindowDelegate {
     }
     private func promote() {
         guard let url = page?.state.url else { return }
-        model.openInMainWindow(url, title: page?.state.title, spaceID: model.ruleSpace(for: url)?.id)
+        model.openInMainWindow(url, title: page?.state.title, spaceID: model.routedSpace(for: url)?.id)
         window.performClose(nil)
     }
     func windowShouldClose(_ sender: NSWindow) -> Bool {

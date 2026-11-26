@@ -432,7 +432,7 @@ private final class ChromiumApplication: NSObject {
         case "passwords": present(PasswordsSettings(signedOutOfICloud: model.sync?.status == .signedOut).environment(model), title: "Passwords")
         case "archive": present(ArchiveWindow().environment(model), title: "Archive")
         case "little":
-            let ruleProfileID = url.flatMap(model.ruleSpace(for:))?.profileID
+            let ruleProfileID = url.flatMap(model.routedSpace(for:))?.profileID
             let profileID = ruleProfileID
                 ?? (model.sidebar.profiles.first(where: \.isDefault) ?? model.sidebar.profiles.first)?.id ?? "default"
             do {

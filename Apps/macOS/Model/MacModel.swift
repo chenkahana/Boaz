@@ -33,13 +33,26 @@ final class MacModel {
         var id = UUID()
         var message: String
         var canUndo = false
+        /// A named button besides Undo ("Open in Personal").
+        var action: Action?
+
+        struct Action: Equatable {
+            let title: String
+            let perform: () -> Void
+            static func == (a: Action, b: Action) -> Bool { a.title == b.title }
+        }
     }
 
     var sidebar = Sidebar()
     var loadError: String?
     var toast: Toast?
-    /// Site rules: external links to these hosts open in their Space. Mac only, no sync.
-    var spaceHostRules: [SpaceHostRule] = MacModel.loadSpaceHostRules() { didSet { persistSpaceHostRules() } }
+    /// Site rules, in list order (`SpaceRoute`, synced). See `SpaceHostRules.swift`.
+    var spaceRoutes: [SpaceRoute] = []
+    /// Tabs the user placed in a space by hand, which rules leave alone (this Mac only).
+    @ObservationIgnored var tabSpaceOverrides: Set<String> = []
+    /// Links from other apps wait for the rules, so a launch from a link routes like any other.
+    @ObservationIgnored private var routesLoaded = false
+    static let routesLog = Logger(subsystem: "com.chenkahana.boaz", category: "routing")
     let keyBindings = KeyBindings()
     /// This Mac, in the device list: the sidebar's Today shows only the tabs opened here (see `SidebarItem.deviceID`).
     let deviceID = Device.localID(in: .standard)
@@ -142,8 +155,18 @@ final class MacModel {
             // A broken fixture must fail the run loudly, not show an empty library that still "passes".
             if UITestMode.isActive { fatalError("UI test store setup failed: \(error)") }
             loadError = String(describing: error)
+            // No library, so no rules: links from other apps open in Quick Windows, as before.
+            routesLoaded = true
+            drainPendingExternalURLs()
             return
         }
+        migrateLegacySpaceHostRules(store)
+        spaceRoutes = (try? store.spaceRoutes()) ?? []
+        try? store.pruneTabSpaceOverrides()
+        tabSpaceOverrides = (try? store.tabSpaceOverrides()) ?? []
+        routesLoaded = true
+        Task { await observeSpaceRoutes(store) }
+        drainPendingExternalURLs()
         // Not tied to the window whose task started the app: closing that window would stop the sidebar following
         // the library, and a new space wouldn't show until relaunch.
         Task { await observeSidebar(store) }
@@ -299,8 +322,9 @@ final class MacModel {
         Task { openExternal(pending) }
     }
 
-    /// Links from other apps open in a Quick Window. Chromium also opens local files, as Chrome does: HTML files Boaz
-    /// is the viewer for, and the sign-in pages VPN clients such as GlobalProtect write to disk.
+    /// Links from other apps open in a Quick Window, or, when a site rule matches, in the rule's space of the main
+    /// window (`openRouted`). Chromium also opens local files, as Chrome does: HTML files Boaz is the viewer for, and
+    /// the sign-in pages VPN clients such as GlobalProtect write to disk.
     func openExternal(_ urls: [URL]) {
         let urls = urls.filter { url in
             #if BOAZ_CHROMIUM
@@ -308,8 +332,13 @@ final class MacModel {
             #endif
             return ["http", "https"].contains(url.scheme?.lowercased() ?? "") && url.host() != nil
         }
-        guard let openWindowAction else { pendingExternalURLs += urls; return }
-        for url in urls { openWindowAction("little", url) }
+        guard let openWindowAction, routesLoaded else { pendingExternalURLs += urls; return }
+        var routed: [(url: URL, space: Space)] = []
+        for url in urls {
+            if !url.isFileURL, let space = routedSpace(for: url) { routed.append((url, space)) }
+            else { openWindowAction("little", url) }
+        }
+        if !routed.isEmpty { openRouted(routed) }
     }
 
     /// Opens a URL as a Today tab in the most recent main window, creating one if needed. `spaceID` (a site
@@ -867,6 +896,8 @@ final class MacModel {
         item.parentID = parentID
         let spaceID = targetContainer?.containerKind == .favorites ? nil : parent.spaceID
         var changed = [item]
+        // Moved or dragged to another space by hand: site rules leave this tab alone from now on.
+        if item.spaceID != nil, spaceID != nil, item.spaceID != spaceID { setSpaceOverride(item) }
         if item.kind == .folder, item.spaceID != spaceID || entersToday || leavesToday {
             changed += descendants(of: id).map { var d = $0; d.spaceID = spaceID; if let device { d.deviceID = device }; return d }
         }
@@ -903,6 +934,7 @@ final class MacModel {
     /// What deleting a space takes with it, for its confirmation.
     func deletionMessage(for space: Space) -> String {
         let tabs = "Its tabs move to the Archive, on all your devices."
+            + (routes(in: space).isEmpty ? "" : " Sites that open here stop being routed.")
         guard isLastSpaceOfProfile(space), let profile = sidebar.profiles.first(where: { $0.id == space.profileID })
         else { return tabs }
         return tabs + " It's the last space of the \(profile.name) profile, so the profile is removed too: its "
@@ -990,8 +1022,9 @@ final class MacModel {
         showToast(message)
     }
 
-    func showToast(_ message: String, canUndo: Bool = false) {
-        let toast = Toast(message: message, canUndo: canUndo)
+    func showToast(_ message: String, canUndo: Bool = false, action: Toast.Action? = nil) {
+        let toast = Toast(message: message, canUndo: canUndo, action: action)
+        let canUndo = canUndo || action != nil
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { self.toast = toast }
         // Toasts are visual only; VoiceOver hears them, and gets longer to reach Undo.
         AccessibilityNotification.Announcement(message).post()

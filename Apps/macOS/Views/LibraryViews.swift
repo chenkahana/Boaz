@@ -394,67 +394,118 @@ private struct PrivacySettings: View {
 
 private struct SiteRulesSettings: View {
     @Environment(MacModel.self) private var model
-    @State private var newHost = ""
+    @State private var newSite = ""
     @State private var newSpaceID: String?
 
-    private var rules: [SpaceHostRule] {
-        model.spaceHostRules.filter { model.space($0.spaceID) != nil }
-    }
+    private var rules: [SpaceRoute] { model.spaceRoutes }
 
     var body: some View {
         Form {
             Section {
-                Text("Links from other apps to these sites open in their space.")
+                Text("Links to these sites open in their space: from other apps, the command bar and new tabs. If "
+                     + "more than one rule fits a link, the one higher in the list wins.")
                     .font(.caption).foregroundStyle(.secondary)
-                if rules.isEmpty {
-                    Text("No site rules").foregroundStyle(.secondary)
+                if model.sync?.refusesSpaceRoutes == true {
+                    Text("Site rules stay on this Mac for now. They'll reach your other Macs after an update.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
-                ForEach(rules, id: \.host) { rule in
-                    LabeledContent(rule.host) {
-                        Picker("Space", selection: spaceBinding(for: rule.host)) {
-                            ForEach(model.sidebar.spaces) { space in Text(space.title).tag(space.id) }
-                        }
-                        .labelsHidden()
-                        Button(role: .destructive) {
-                            model.spaceHostRules.removeAll { $0.host == rule.host }
-                        } label: { Image(systemName: "trash") }
-                        .buttonStyle(.borderless)
-                    }
+                if rules.isEmpty {
+                    Text("No site rules yet. Right-click a tab and choose Always Open in This Space, or add one below.")
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(Array(rules.enumerated()), id: \.element.id) { index, rule in
+                    SiteRuleRow(rule: rule, index: index, count: rules.count, rules: rules)
                 }
             }
             Section {
                 HStack {
-                    TextField("Host, e.g. github.com", text: $newHost)
-                        .accessibilityLabel("Host")
+                    TextField("Site", text: $newSite, prompt: Text("github.com"))
+                        .accessibilityLabel("Site")
+                        .onSubmit(addRule)
                     Picker("Space", selection: $newSpaceID) {
-                        Text("Choose a space").tag(String?.none)
                         ForEach(model.sidebar.spaces) { space in Text(space.title).tag(String?.some(space.id)) }
                     }
                     .labelsHidden()
-                    Button("Add", action: addRule)
-                        .disabled(SpaceHostRule.normalizeHost(newHost) == nil || newSpaceID == nil)
+                    Button("Add", action: addRule).disabled(parsed == nil || newSpace == nil)
                 }
+                if !newSite.isEmpty { Text(caption).font(.caption).foregroundStyle(.secondary) }
             }
         }
         .formStyle(.grouped)
         .onAppear { newSpaceID = newSpaceID ?? model.sidebar.spaces.first?.id }
     }
 
-    private func spaceBinding(for host: String) -> Binding<String> {
-        Binding(
-            get: { model.spaceHostRules.first { $0.host == host }?.spaceID ?? "" },
-            set: { spaceID in
-                guard let index = model.spaceHostRules.firstIndex(where: { $0.host == host }) else { return }
-                model.spaceHostRules[index].spaceID = spaceID
-            })
+    private var parsed: (host: String, pathPrefix: String?)? { SiteRuleInput.parse(newSite) }
+    private var newSpace: Space? { model.space(newSpaceID) }
+
+    private var caption: String {
+        guard let parsed, let space = newSpace else { return "Enter a site like github.com" }
+        let label = SiteRuleInput.label(parsed.host, parsed.pathPrefix)
+        if let existing = rules.first(where: { $0.host == parsed.host && $0.pathPrefix == parsed.pathPrefix }),
+           existing.spaceID != space.id {
+            let current = model.space(existing.spaceID)?.title ?? "a deleted space"
+            return "\(label) already opens in \(current). Adding moves it to \(space.title)."
+        }
+        return SiteRuleInput.caption(host: parsed.host, pathPrefix: parsed.pathPrefix, space: space.title)
     }
 
     private func addRule() {
-        guard let host = SpaceHostRule.normalizeHost(newHost), let spaceID = newSpaceID else { return }
-        model.spaceHostRules.removeAll { $0.host == host }
-        model.spaceHostRules.append(SpaceHostRule(host: host, spaceID: spaceID))
-        newHost = ""
+        guard let parsed, let space = newSpace else { return }
+        model.addRoute(host: parsed.host, pathPrefix: parsed.pathPrefix, to: space)
+        newSite = ""
     }
+}
+
+/// One rule in Settings › Sites: drag to reorder, or Move Up / Move Down from its menu.
+private struct SiteRuleRow: View {
+    @Environment(MacModel.self) private var model
+    let rule: SpaceRoute
+    let index: Int
+    let count: Int
+    let rules: [SpaceRoute]
+
+    private var space: Space? { model.space(rule.spaceID) }
+    private var label: String { SiteRuleInput.label(rule.host, rule.pathPrefix) }
+
+    var body: some View {
+        LabeledContent {
+            Picker("Space", selection: Binding(
+                get: { rule.spaceID },
+                set: { id in if let target = model.space(id) { model.repoint(rule, to: target) } })) {
+                if space == nil { Text("Deleted space").tag(rule.spaceID) }
+                ForEach(model.sidebar.spaces) { space in Text(space.title).tag(space.id) }
+            }
+            .labelsHidden()
+            Button(role: .destructive) { model.removeRoute(rule) } label: { Image(systemName: "trash") }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Delete \(label)")
+        } label: {
+            Text(label).foregroundStyle(space == nil ? .secondary : .primary)
+        }
+        .contentShape(Rectangle())
+        .draggable(rule.id)
+        .dropDestination(for: String.self) { ids, _ in
+            guard let id = ids.first, id != rule.id, let moved = rules.first(where: { $0.id == id }) else { return false }
+            let from = rules.firstIndex(of: moved) ?? 0
+            // Dropped on a row below it: it goes after that row, so dragging down one row works.
+            model.moveRoute(moved, before: from < index ? rules[safe: index + 1] : rule)
+            return true
+        }
+        .contextMenu {
+            Button("Move Up") { model.moveRoute(rule, before: rules[safe: index - 1]) }.disabled(index == 0)
+            Button("Move Down") { model.moveRoute(rule, before: rules[safe: index + 2]) }.disabled(index == count - 1)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(label) opens in \(space?.title ?? "a deleted space"), rule \(index + 1) of \(count)")
+        .accessibilityActions {
+            if index > 0 { Button("Move Up") { model.moveRoute(rule, before: rules[safe: index - 1]) } }
+            if index < count - 1 { Button("Move Down") { model.moveRoute(rule, before: rules[safe: index + 2]) } }
+        }
+    }
+}
+
+private extension Array {
+    subscript(safe index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
 }
 
 /// Settings ▸ Accounts & Sync: iCloud sync, then which profiles have live folders.

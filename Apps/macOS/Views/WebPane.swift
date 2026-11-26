@@ -488,7 +488,7 @@ struct QuickWindow: View {
                 Spacer()
                 Button {
                     if let current = page?.url ?? url {
-                        model.openInMainWindow(current, title: page?.title, spaceID: model.ruleSpace(for: current)?.id)
+                        model.openInMainWindow(current, title: page?.title, spaceID: model.routedSpace(for: current)?.id)
                     }
                     dismiss()
                 } label: {
@@ -560,7 +560,7 @@ struct QuickWindow: View {
     private func start(_ url: URL) {
         let holder = LittleRouter.Holder()
         var configuration = WebPage.Configuration()
-        let ruleProfileID = model.ruleSpace(for: url)?.profileID
+        let ruleProfileID = model.routedSpace(for: url)?.profileID
         let profile = ruleProfileID.flatMap { id in model.sidebar.profiles.first { $0.id == id } }
             ?? model.sidebar.profiles.first(where: \.isDefault) ?? model.sidebar.profiles.first
         if let profile {

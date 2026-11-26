@@ -1,0 +1,12 @@
+{
+  "spaces": [
+    { "id": "space-personal", "name": "Personal", "icon": "🏡", "pinned": [], "folders": [], "today": [] },
+    { "id": "space-work", "name": "Work", "icon": "💼", "pinned": [], "folders": [], "today": [] }
+  ],
+  "routes": [
+    { "host": "example.test", "space": "space-work" }
+  ],
+  "favorites": [],
+  "archived": [],
+  "history": []
+}

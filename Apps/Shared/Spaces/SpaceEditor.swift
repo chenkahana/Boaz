@@ -14,6 +14,9 @@ struct SpaceEditor: View {
     var onPreview: ((Data?) -> Void)?
     /// What deleting takes with it, for the confirmation.
     var deleteMessage = "Its tabs move to the Archive, on all your devices."
+    /// Mac, editing: saves this space's site rules ("Sites that open here", as `github.com/acme` labels) with the
+    /// sheet; nil hides the section.
+    var onSaveSites: (([String]) -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
@@ -25,6 +28,8 @@ struct SpaceEditor: View {
     /// The theme's customizable parts as they will be saved (Mac).
     @State private var options: SpaceThemeOptions
     @State private var confirmDelete = false
+    @State private var sites: [String]
+    @State private var newSite = ""
     @State private var deleted = false
     @FocusState private var nameFocused: Bool
 
@@ -32,9 +37,12 @@ struct SpaceEditor: View {
                                  "📰", "💡", "🌱", "⚽️", "🎬", "🧘", "💰", "🗂️", "🚀", "🎓", "🧳", "🐾",
                                  "☕️", "❤️", "⭐️", "✦"]
 
-    init(mode: Mode, deleteMessage: String? = nil, onSave: @escaping (String, String?, Data?) -> Void,
+    init(mode: Mode, deleteMessage: String? = nil, sites: [String] = [], onSaveSites: (([String]) -> Void)? = nil,
+         onSave: @escaping (String, String?, Data?) -> Void,
          onDelete: (() -> Void)? = nil, onPreview: ((Data?) -> Void)? = nil) {
         self.mode = mode
+        self.onSaveSites = onSaveSites
+        _sites = State(initialValue: sites)
         self.onSave = onSave
         self.onDelete = onDelete
         self.onPreview = onPreview
@@ -145,6 +153,7 @@ struct SpaceEditor: View {
 
             #if os(macOS)
             Section("Color") { ThemeColorPicker(options: $options).padding(.vertical, 6) }
+            if onSaveSites != nil { sitesSection }
             #else
             Section {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 44), spacing: 10)], spacing: 10) {
@@ -255,12 +264,51 @@ struct SpaceEditor: View {
     private func save() {
         guard !trimmedTitle.isEmpty else { return }
         onSave(trimmedTitle, icon, themeJSON)
+        onSaveSites?(sites)
         dismiss()
     }
 }
 
 #if os(macOS)
 extension SpaceEditor {
+    /// This space's rules in list order, a field to add one and a trash per row. No reordering here: order only
+    /// matters across spaces, which is Settings › Sites.
+    fileprivate var sitesSection: some View {
+        Section("Sites that open here") {
+            ForEach(sites, id: \.self) { site in
+                LabeledContent(site) {
+                    Button(role: .destructive) { sites.removeAll { $0 == site } } label: { Image(systemName: "trash") }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Delete \(site)")
+                }
+            }
+            HStack {
+                TextField("Site", text: $newSite, prompt: Text("github.com"))
+                    .accessibilityLabel("Site")
+                    .onSubmit(addSite)
+                Button("Add", action: addSite).disabled(SiteRuleInput.parse(newSite) == nil)
+            }
+            if !newSite.isEmpty {
+                Group {
+                    if let site = SiteRuleInput.parse(newSite) {
+                        Text(SiteRuleInput.caption(host: site.host, pathPrefix: site.pathPrefix,
+                                                   space: trimmedTitle.isEmpty ? "this space" : trimmedTitle))
+                    } else {
+                        Text("Enter a site like github.com")
+                    }
+                }
+                .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func addSite() {
+        guard let site = SiteRuleInput.parse(newSite) else { return }
+        let label = SiteRuleInput.label(site.host, site.pathPrefix)
+        if !sites.contains(label) { sites.append(label) }
+        newSite = ""
+    }
+
     /// A small window in one appearance: the backdrop with its texture, the space's name and a selected row.
     fileprivate func previewCard(scheme: ColorScheme) -> some View {
         let style = previewStyle(scheme: scheme)

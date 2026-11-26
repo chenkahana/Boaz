@@ -35,8 +35,16 @@ enum UITestFixtures {
         var daysAgo: Double?
     }
 
+    /// A site rule (`SpaceRoute`), in list order.
+    private struct RouteFixture: Decodable {
+        var host: String
+        var path: String?
+        var space: String
+    }
+
     private struct Root: Decodable {
         var spaces: [SpaceFixture]?
+        var routes: [RouteFixture]?
         var favorites: [Tab]?
         var archived: [ArchivedFixture]?
         var history: [HistoryFixture]?
@@ -80,6 +88,9 @@ enum UITestFixtures {
         }
         try store.save(spaces)
         try store.save(items)
+        for route in root.routes ?? [] {
+            try store.addSpaceRoute(host: route.host, pathPrefix: route.path, spaceID: route.space, profileID: profileID)
+        }
 
         let archivedFixtures: [ArchivedFixture] = root.archived ?? []
         let archived = archivedFixtures.compactMap { entry -> ArchiveItem? in
