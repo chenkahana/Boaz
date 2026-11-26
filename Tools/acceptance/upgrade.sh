@@ -12,7 +12,9 @@ ID=com.chenkahana.boaz
 APP=/Applications/Boaz.app
 CONTAINER=$HOME/Library/Containers/$ID/Data
 OLD_DB="$CONTAINER/Library/Application Support/Boaz/boaz.sqlite"
-OLD_PREFS=$CONTAINER/Library/Preferences/$ID   # a defaults path, without .plist
+# Preferences by path, without .plist: "defaults read com.chenkahana.boaz" reads the old container's while it exists.
+OLD_PREFS=$CONTAINER/Library/Preferences/$ID
+NEW_PREFS=$HOME/Library/Preferences/$ID
 PORT=8765 SITE=http://127.0.0.1:8765
 SESSION=s$(uuidgen | tr -d -) PLAIN=p$(uuidgen | tr -d -)
 mkdir -p "$OUT"
@@ -44,6 +46,7 @@ install() {
 }
 
 # Quits like the Dock does (an Apple Event from AppKit, so no Automation prompt), then waits for every Boaz process.
+# With a second argument, a quit the app refuses is only noted (the old app's first-run welcome sheet refuses it).
 quit() {
     "$OUT/quit" "$ID"
     if wait_for 60 bash -c "! pgrep -f '$APP/Contents/MacOS/' > /dev/null"; then
@@ -51,7 +54,7 @@ quit() {
     else
         shot "quit-stuck-$1"
         for pid in $(pgrep -f "$APP/Contents/MacOS/Boaz$"); do sample "$pid" 3 -file "$OUT/quit-sample-$1.txt" > /dev/null 2>&1; done
-        fail "$1: still running 60 s after quit; killed"
+        if [ -n "${2:-}" ]; then note "$1: still running 60 s after quit; killed"; else fail "$1: still running 60 s after quit; killed"; fi
         pkill -9 -f "$APP/Contents/MacOS/"
         sleep 2
     fi
@@ -90,7 +93,7 @@ open -a "$APP"
 wait_for 60 test -f "$OLD_DB" && pass "first launch created the library" || { shot first-launch; fail "no library after first launch"; }
 sleep 5
 shot first-launch
-quit first-launch
+quit first-launch soft
 # Settings: a real choice from each pane the old app has, a key no Boaz knows, and no update checks mid-test.
 defaults write "$OLD_PREFS" onboardingCompleted -bool YES
 defaults write "$OLD_PREFS" SUEnableAutomaticChecks -bool NO
@@ -98,12 +101,15 @@ defaults write "$OLD_PREFS" searchEngine -string duckDuckGo
 defaults write "$OLD_PREFS" archiveAfter -int 604800
 defaults write "$OLD_PREFS" sidebarTextSize -string large
 defaults write "$OLD_PREFS" BoazAcceptanceFixture -string "$PLAIN"
-defaults write "$ID" SUEnableAutomaticChecks -bool NO
+defaults write "$NEW_PREFS" SUEnableAutomaticChecks -bool NO
 python3 "$HERE/library.py" seed "$OLD_DB" && pass "seeded fixture folders, tabs, archive and history" || fail "could not seed the library"
+# Signs in from a running app, after its library has loaded, as a person would.
+open -a "$APP"
+sleep 15
 visit sign-in /set && pass "previous version signed in to the fixture site"
 quit sign-in
-grep -q "$SESSION" "$CONTAINER"/Library/WebKit/WebsiteDataStore/*/Cookies/Cookies.binarycookies 2>/dev/null \
-    && pass "the sign-in cookie is on disk in the old container" || note "the sign-in cookie is not in an old-container cookie file"
+stores=$(grep -rl "$SESSION" "$CONTAINER/Library" 2>/dev/null | sed "s|$CONTAINER/||" | tr '\n' ' ')
+[ -n "$stores" ] && note "the old version saved the sign-in cookie in: $stores" || fail "the old version saved no sign-in cookie"
 python3 "$HERE/library.py" snapshot "$OLD_DB" "$OUT/before.json"
 cp "$OLD_PREFS.plist" "$OUT/prefs-before.plist"
 find "$CONTAINER/Library/WebKit" -type f -exec shasum {} + 2>/dev/null | sort > "$OUT/webkit-before.txt"
@@ -121,13 +127,13 @@ python3 "$HERE/library.py" compare "$OUT/before.json" "$OUT/after.json" > "$OUT/
 if [ $? -eq 0 ]; then pass "library: every space, tab, folder, archive item, history visit and profile survived"; else fail "library changed: $(grep -c FAIL "$OUT/library.txt") rows"; fi
 sed 's/^/  /' "$OUT/library.txt" >> "$RESULTS"
 [ ! -e "$HOME/Library/Application Support/Boaz/boaz.sqlite" ] && pass "no second library in Application Support" || fail "a second library appeared in Application Support"
-[ "$(prefs_value "$ID" BoazLibraryLocation)" = legacy ] && pass "kept the library in the old container" || fail "BoazLibraryLocation is not legacy"
+[ "$(prefs_value "$NEW_PREFS" BoazLibraryLocation)" = legacy ] && pass "kept the library in the old container" || fail "BoazLibraryLocation is not legacy"
 for key in searchEngine archiveAfter sidebarTextSize BoazAcceptanceFixture onboardingCompleted; do
-    old=$(prefs_value "$OLD_PREFS" "$key") new=$(prefs_value "$ID" "$key")
+    old=$(prefs_value "$OLD_PREFS" "$key") new=$(prefs_value "$NEW_PREFS" "$key")
     [ "$old" = "$new" ] && pass "setting $key = $new" || fail "setting $key was '$old', now '$new'"
 done
 for marker in BoazChromiumLegacyPreferencesImportedV1 BoazChromiumLegacyWebKitDataImportedV1 "BoazChromiumLegacyCookiesImportedV1.$PROFILE"; do
-    [ "$(prefs_value "$ID" "$marker")" = 1 ] && pass "$marker set" || fail "$marker not set"
+    [ "$(prefs_value "$NEW_PREFS" "$marker")" = 1 ] && pass "$marker set" || fail "$marker not set"
 done
 find "$CONTAINER/Library/WebKit" -type f -exec shasum {} + 2>/dev/null | sort > "$OUT/webkit-after.txt"
 comm -23 "$OUT/webkit-before.txt" "$OUT/webkit-after.txt" > "$OUT/webkit-changed.txt"
