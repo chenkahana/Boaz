@@ -8,6 +8,10 @@ All notable changes to Boaz are recorded here. The format follows
 
 ### Added
 
+- Mac: Site Styles: change how a site looks with your own CSS, saved for that site. Choose View › Edit Site Style…
+  on any web page, type CSS or start from Dark, Hide Cookie Banners or Bigger Text, and see it on the page as you
+  type. It applies every time the site loads, in that profile only, and stays on this Mac. Settings › Site Styles
+  lists them to edit or delete.
 - Mac: SECURITY.md says how fast Chromium security fixes reach you: when Google ships a Chrome stable update with
   security fixes, Boaz aims to ship an update on the same Chromium version within 72 hours, through Sparkle.
 - A check every six hours compares Boaz's Chromium with Chrome stable and keeps one GitHub issue open while Boaz is

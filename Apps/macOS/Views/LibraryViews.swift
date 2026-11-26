@@ -223,14 +223,14 @@ private func dayTitle(_ day: Date) -> String {
 /// Boaz ▸ Settings: same preferences as iOS, plus keyboard shortcut overrides. The App Store build shows the panes in
 /// SwiftUI's Settings scene; the DMG shows them in `ChromiumSettingsWindow`.
 enum MacSettingsPane: CaseIterable {
-    case general, theme, privacy, accountsAndSync, passwords, sites, shortcuts
+    case general, theme, privacy, accountsAndSync, passwords, sites, siteStyles, shortcuts
 
     static var allCases: [MacSettingsPane] {
         #if BOAZ_CHROMIUM
         // The DMG shows passwords in their own window, from the Passwords menu.
-        [.general, .theme, .privacy, .accountsAndSync, .sites, .shortcuts]
+        [.general, .theme, .privacy, .accountsAndSync, .sites, .siteStyles, .shortcuts]
         #else
-        [.general, .theme, .privacy, .accountsAndSync, .passwords, .sites, .shortcuts]
+        [.general, .theme, .privacy, .accountsAndSync, .passwords, .sites, .siteStyles, .shortcuts]
         #endif
     }
 
@@ -242,6 +242,7 @@ enum MacSettingsPane: CaseIterable {
         case .accountsAndSync: "Accounts & Sync"
         case .passwords: "Passwords"
         case .sites: "Sites"
+        case .siteStyles: "Site Styles"
         case .shortcuts: "Shortcuts"
         }
     }
@@ -254,6 +255,7 @@ enum MacSettingsPane: CaseIterable {
         case .accountsAndSync: "person.crop.circle"
         case .passwords: "key"
         case .sites: "arrow.triangle.branch"
+        case .siteStyles: "paintbrush"
         case .shortcuts: "keyboard"
         }
     }
@@ -284,6 +286,7 @@ struct MacSettingsPaneView: View {
             case .accountsAndSync: AccountsSyncSettings()
             case .passwords: PasswordsSettings().frame(minHeight: 460)
             case .sites: SiteRulesSettings()
+            case .siteStyles: SiteStylesSettings()
             case .shortcuts: ShortcutsSettings()
             }
         }

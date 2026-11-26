@@ -1,8 +1,9 @@
 """Runtime acceptance for the Chromium DMG (PLAN-02 rows 2-4) on a throwaway Mac (a CI runner): it replaces
 /Applications/Boaz.app and the current user's Boaz data. Pages are driven through Boaz's own opt-in Local
-Automation (authenticated DevTools protocol on 127.0.0.1); tabs are opened with `open -a`, as another app would.
+Automation (authenticated DevTools protocol on 127.0.0.1); native steps (tabs with ⌘T, menus, extensions UI) by
+BoazAcceptanceUITests.
 
-  runtime.py <Boaz.dmg> <output dir> [check ...]     checks: menus, reopen (with the probe), webstore (default: all)
+  runtime.py <Boaz.dmg> <output dir> [check ...]     checks: menus, reopen (with the probe), webstore, unpacked (default: all)
 
 COHORT=all installs all 8 cohort extensions from the live Chrome Web Store; otherwise only uBlock Origin Lite.
 """
@@ -302,6 +303,95 @@ def webstore(run):
             run.check(id in settings and id in workers, f'{COHORT[id]}: still installed and running after a relaunch')
 
 
+def unpacked_id(folder):
+    """Chromium's ID for an unpacked extension without a key: the first 128 bits of SHA-256 of its path, as a-p."""
+    return ''.join(chr(97 + int(c, 16)) for c in hashlib.sha256(str(folder).encode()).hexdigest()[:32])
+
+
+def unpacked(run):
+    """Row 3, part B: the cohort's store CRXs, loaded unpacked with their store keys in a second profile, plus the
+    parity fixture: controls, shortcut, side panel, workers, functions, isolation and a relaunch."""
+    run.heading('Extensions loaded unpacked, in a second profile')
+    folder = run.out / 'cohort'
+    prepared = subprocess.run([sys.executable, str(HERE / 'cohort.py'), str(folder), *COHORT],
+                              capture_output=True, text=True)
+    run.note('cohort CRXs (update2, this run): ' + prepared.stdout.replace('\n', '; ').strip('; '))
+    if not run.check(prepared.returncode == 0, 'downloaded every cohort CRX, its key matching its store ID'):
+        run.note(prepared.stderr[-500:])
+        return
+    fixture = (run.out / 'parity-extension').resolve()
+    shutil.copytree(HERE.parent / 'chromium/fixtures/parity-extension', fixture, dirs_exist_ok=True)
+    fixture_id = unpacked_id(fixture)
+    if boaz_pids():
+        quit_app(run, 'before-second-profile')
+    added = subprocess.run([sys.executable, str(HERE / 'library.py'), 'add-profile', str(SUPPORT / 'boaz.sqlite'),
+                            'acceptance-b', 'Acceptance B'], capture_output=True, text=True)
+    if not run.check(added.returncode == 0, 'added a second profile with its space'):
+        run.note(added.stderr[-500:])
+        return
+    launch()
+    automation()
+    time.sleep(5)
+    run.check(native(run, 'testSwitchSpace', BOAZ_ACCEPTANCE_SPACE='Acceptance B'), 'switched to the second profile\'s space')
+    folders = [str((folder / id).resolve()) for id in COHORT] + [str(fixture)]
+    run.check(native(run, 'testLoadUnpacked', BOAZ_ACCEPTANCE_UNPACKED=','.join(folders)),
+              'chrome://extensions → Developer mode → Load unpacked, for all 9 (XCUITest)')
+    time.sleep(5)
+    settings, default = extension_settings('acceptance-b'), extension_settings()
+    for id in [*COHORT, fixture_id]:
+        name = COHORT.get(id, 'parity fixture')
+        entry = settings.get(id, {})
+        run.check(entry.get('location') == 4 and not entry.get('disable_reasons'),
+                  f'{name}: loaded unpacked and enabled in the second profile, under its store ID')
+        run.check(default.get(id, {}).get('location') != 4, f'{name}: not in the first profile')
+    port_token = automation()
+    workers = {t['url'].split('/')[2] for t in targets(*port_token) if t['type'] == 'service_worker'} if port_token else set()
+    for id in [*COHORT, fixture_id]:
+        if (settings.get(id, {}).get('manifest', {}).get('background') or {}).get('service_worker'):
+            run.check(id in workers, f'{COHORT.get(id, "parity fixture")}: its MV3 service worker is running')
+    run.check(native(run, 'testExtensionControls', BOAZ_ACCEPTANCE_EXTENSIONS=','.join([*COHORT, fixture_id]),
+                     BOAZ_ACCEPTANCE_FIXTURE=fixture_id),
+              'pin, popup and unpin for all 9; the fixture\'s shortcut and side panel (XCUITest)')
+
+    native(run, 'testOpenTabs', BOAZ_ACCEPTANCE_URLS=f'{SITE}/functions,https://example.com/')
+    time.sleep(8)
+    if port_token:
+        pages = {t['url']: t for t in targets(*port_token) if t['type'] == 'page'}
+        page = pages.get(f'{SITE}/functions')
+        if run.check(page is not None, 'the functions page is open in the second profile'):
+            seen = automation_client.run(target_socket(*port_token, page), """new Promise(r => setTimeout(r, 3000))
+                .then(() => JSON.stringify({
+                  react: typeof window.__REACT_DEVTOOLS_GLOBAL_HOOK__ === 'object',
+                  vue: typeof window.__VUE_DEVTOOLS_GLOBAL_HOOK__ === 'object',
+                  ad: window.adLoaded,
+                  darkReader: !!document.querySelector('style.darkreader, meta[name="darkreader"]'),
+                  grammarly: ['data-gr-ext-installed', 'data-new-gr-c-s-check-loaded'].some(a =>
+                    document.documentElement.hasAttribute(a) || document.body.hasAttribute(a))
+                    || !!document.querySelector('grammarly-desktop-integration'),
+                }))""")
+            run.note(f'functions page: {seen}')
+            run.check(seen['ad'] is False, 'uBlock Origin Lite: the known ad script was blocked')
+            run.check(seen['darkReader'], 'Dark Reader: restyled the page')
+            run.check(seen['react'], 'React Developer Tools: its hook is in the page')
+            run.check(seen['vue'], 'Vue.js devtools: its hook is in the page')
+            run.check(seen['grammarly'], 'Grammarly: its content script marked the page')
+        example = pages.get('https://example.com/')
+        if example:
+            marked = automation_client.run(target_socket(*port_token, example),
+                                           'Promise.resolve(JSON.stringify(document.documentElement.dataset.boazParity || null))')
+            run.check(marked == 'content-script', 'parity fixture: its content script ran on example.com')
+
+    quit_app(run, 'unpacked')
+    launch()
+    port_token = automation()
+    time.sleep(10)
+    settings = extension_settings('acceptance-b')
+    workers = {t['url'].split('/')[2] for t in targets(*port_token) if t['type'] == 'service_worker'} if port_token else set()
+    kept = [id for id in [*COHORT, fixture_id] if settings.get(id, {}).get('location') == 4]
+    run.check(len(kept) == 9, f'after a relaunch, {len(kept)} of 9 are still installed in the second profile')
+    run.note(f'after a relaunch, {len(workers & set(kept))} of them have a running worker')
+
+
 def main():
     dmg, out, *checks = sys.argv[1:]
     out = pathlib.Path(out)
@@ -320,8 +410,8 @@ def main():
         launch()
         automation()
         time.sleep(5)
-        for check in checks or ['menus', 'reopen', 'webstore']:
-            {'probe': probe, 'reopen': reopen, 'menus': menus, 'webstore': webstore}[check](run)
+        for check in checks or ['menus', 'reopen', 'webstore', 'unpacked']:
+            {'probe': probe, 'reopen': reopen, 'menus': menus, 'webstore': webstore, 'unpacked': unpacked}[check](run)
         if boaz_pids():
             quit_app(run, 'end')
     finally:

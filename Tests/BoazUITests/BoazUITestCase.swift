@@ -265,7 +265,7 @@ class BoazUITestCase: XCTestCase {
     }
 
     /// Opens Boaz ▸ Settings… and selects the pane titled `tab` ("General", "Theme", "Privacy",
-    /// "Accounts & Sync", "Passwords", "Sites" or "Shortcuts"), returning that pane (`screen.settings.<pane>`).
+    /// "Accounts & Sync", "Passwords", "Sites", "Site Styles" or "Shortcuts"), returning that pane (`screen.settings.<pane>`).
     ///
     /// The Settings window is found by its toolbar, not its title: a tabbed Settings scene titles its window after
     /// the selected pane ("General"), never "Settings".
@@ -291,7 +291,7 @@ class BoazUITestCase: XCTestCase {
 
     private static let settingsPaneIDs = ["General": "general", "Theme": "theme", "Privacy": "privacy",
                                           "Accounts & Sync": "accountsAndSync", "Passwords": "passwords",
-                                          "Sites": "sites", "Shortcuts": "shortcuts"]
+                                          "Sites": "sites", "Site Styles": "siteStyles", "Shortcuts": "shortcuts"]
 
     /// The first element anywhere in the app with accessibility identifier `id` (the `screen.*` convention).
     /// Searches the windows (sheets and popovers are in them), not the menu bar, which is most of the app's tree.

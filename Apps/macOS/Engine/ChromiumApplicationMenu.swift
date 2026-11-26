@@ -148,6 +148,7 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         add(view, "Actual Size", enabled: { $0?.activeTab != nil }, perform: { $0?.zoom(.reset) }, key: "0")
         add(view, "Add Split View", command: .addSplitView, enabled: { $0?.activeTab != nil },
             title: { $0?.split == nil ? "Add Split View" : "Close Split View" }) { $0?.toggleSplit() }
+        add(view, "Edit Site Style…", enabled: SiteStyleEditorPresenter.canEdit) { SiteStyleEditorPresenter.present(in: $0) }
         responder(view, "Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), key: "f", modifiers: [.command, .control])
         add(view, "Archive", command: .showArchive, enabled: { _ in true }) { [weak self] _ in self?.openScene("archive") }
         add(view, "Downloads…", enabled: { $0?.chromiumProfileIdentity != nil }) { $0?.libraryPanelPresented = true }
