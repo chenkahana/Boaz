@@ -9,6 +9,14 @@ final class SpaceRoutingUITests: BoazUITestCase {
         app.open(URL(string: "https://example.test/a")!)
     }
 
+    /// The window as it looks now, kept in the result bundle as evidence of the flow.
+    private func snapshot(_ name: String) {
+        let screenshot = XCTAttachment(screenshot: mainWindow.screenshot())
+        screenshot.name = name
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
     func testExternalOpenFollowsTheRule() {
         openRoutedLink()
         XCTAssertTrue(waitForSpace("Work"), "The ruled link didn't switch the window to Work")
@@ -19,6 +27,7 @@ final class SpaceRoutingUITests: BoazUITestCase {
         let toast = element("screen.toast")
         XCTAssertTrue(toast.waitForExistence(timeout: 5), "No toast after routing")
         XCTAssertTrue(toast.staticTexts["Opened in Work"].exists)
+        snapshot("routing-1-opened-in-work")
     }
 
     func testOpenInPreviousSpaceOverridesTheRule() {
@@ -26,10 +35,12 @@ final class SpaceRoutingUITests: BoazUITestCase {
         XCTAssertTrue(waitForSpace("Work"))
         let action = element("screen.toast").buttons["Open in Personal"]
         XCTAssertTrue(action.waitForExistence(timeout: 5), "The toast has no Open in Personal")
+        snapshot("override-1-toast-in-work")
         action.click()
         XCTAssertTrue(waitForSpace("Personal"), "Open in Personal didn't switch back")
         XCTAssertTrue(sidebar.buttons["example.test"].firstMatch.waitForExistence(timeout: 5),
                       "The tab didn't move to Personal")
         XCTAssertEqual(app.windows.count, 1)
+        snapshot("override-2-back-in-personal")
     }
 }
