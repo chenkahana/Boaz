@@ -4,19 +4,6 @@ All notable changes to Boaz are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.49] - 2026-11-25
-
-### Changed
-
-- Mac: Picture in Picture floats above every window, on every Space and display, including over full-screen apps,
-  whichever app is active. Drag it anywhere, onto any display, and it settles neatly against the nearest edge or
-  corner. It keeps its video's shape as you resize it.
-- Mac: Picture in Picture has new controls, modeled on YouTube's player. They appear when the pointer is over the
-  video and fade when it's still: play and pause, 10 seconds back and forward, a seek bar with the buffered range and
-  a time preview, current time and length, volume and mute, playback speed, back to tab and close. Click the video to
-  play or pause. YouTube's keys work too: space or K, J and L, the arrows, M, F (back to tab), 0–9, and < and > for
-  speed.
-
 ## [0.4.47] - 2026-11-25
 
 ### Fixed
