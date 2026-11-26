@@ -702,7 +702,7 @@ private struct MacSpaceColumn: View {
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 8)
                 }
-                ForEach(today) { MacItemRow(item: $0, depth: 0, tint: tint, open: open, shows: isMacTab) }
+                ForEach(today) { MacItemRow(item: $0, depth: 0, tint: tint, open: open, shows: showsInToday) }
             }
             .padding(.horizontal, 12)
             .padding(.bottom, 16)
@@ -714,9 +714,12 @@ private struct MacSpaceColumn: View {
     /// each Mac's groups as ordinary folders (any holding such a tab). Their open state here is the iPhone's own.
     private var macTodayTabs: [SidebarItem] {
         guard let box = model.sidebar.container(.unpinned, in: space.id) else { return [] }
-        return model.sidebar.children(of: box.id).filter { item in
-            item.kind == .folder ? model.sidebar.children(of: item.id).contains(where: isMacTab) : isMacTab(item)
-        }
+        return model.sidebar.children(of: box.id).filter(showsInToday)
+    }
+
+    /// A Mac's tab, or a folder holding one at any depth.
+    private func showsInToday(_ item: SidebarItem) -> Bool {
+        item.kind == .folder ? model.sidebar.children(of: item.id).contains(where: showsInToday) : isMacTab(item)
     }
 
     /// A Today tab a Mac opened, or one from before devices were recorded.

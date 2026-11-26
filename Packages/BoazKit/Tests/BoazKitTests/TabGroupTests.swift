@@ -66,6 +66,27 @@ struct TabGroupTests {
         #expect(Set(after.items.filter { $0.kind != .container }.map(\.id)) == ["a-group", "a-grouped", "a-today"])
     }
 
+    /// A folder nested in a group (synced from an older build) goes with Clear too: its tabs are archived, never left
+    /// under a deleted parent.
+    @Test func clearReachesFoldersNestedInAGroup() throws {
+        let library = try makeLibrary()
+        let nested = SidebarItem(id: "nested", spaceID: library.space.id, profileID: "p1", parentID: "g", kind: .folder,
+                                 title: "nested", position: 1, modifiedAt: t0)
+        try library.store.save([
+            group("g", library, device: "mac-a"),
+            tab("direct", in: "g", library, position: 0, device: "mac-a"), nested,
+            tab("deep", in: "nested", library, position: 0, device: "mac-a"),
+        ])
+        let clear = try library.store.sidebar().clearable(in: library.space.id, onDevice: "mac-a")
+        #expect(Set(clear.tabs.map(\.id)) == ["direct", "deep"])
+        #expect(Set(clear.groups.map(\.id)) == ["g", "nested"])
+
+        let tombstones = clear.groups.map { var group = $0; group.deletedAt = t1; group.modifiedAt = t1; return group }
+        try library.store.archive(clear.tabs, reason: "cleared", saving: tombstones, at: t1)
+        #expect(try library.store.sidebar().items.allSatisfy { $0.kind == .container })
+        #expect(Set(try library.store.archivedItems().map(\.url.lastPathComponent)) == ["direct", "deep"])
+    }
+
     @Test func newGroupTakesTheTabsSlotAndThisDevice() throws {
         let library = try makeLibrary()
         let target = tab("b", in: library.today.id, library, position: 1, device: "mac-a")

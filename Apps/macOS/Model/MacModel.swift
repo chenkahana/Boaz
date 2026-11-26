@@ -691,8 +691,9 @@ final class MacModel {
     /// and ⌘⇧T bring back whole. No confirmation, as for any Today tab.
     func archiveGroup(_ group: SidebarItem) {
         guard item(group.id) != nil else { return }
-        let tabs = descendants(of: group.id).filter { $0.kind == .tab }
-        let folders = [group] + descendants(of: group.id).filter { $0.kind == .folder }
+        let inside = sidebar.descendants(of: group.id)
+        let tabs = inside.filter { $0.kind == .tab }
+        let folders = [group] + inside.filter { $0.kind == .folder }
         for browser in openBrowsers { tabs.map(\.id).forEach(browser.unload) }
         let name = group.title ?? Sidebar.newGroupTitle
         archiveBatch(tabs, removing: folders, reason: "closed",
@@ -915,9 +916,7 @@ final class MacModel {
         return current.kind == .folder ? current : nil
     }
 
-    private func descendants(of id: String) -> [SidebarItem] {
-        sidebar.children(of: id).flatMap { [$0] + descendants(of: $0.id) }
-    }
+    private func descendants(of id: String) -> [SidebarItem] { sidebar.descendants(of: id) }
 
     private func isDescendant(_ id: String, of ancestor: String) -> Bool {
         var current = item(id)

@@ -17,13 +17,20 @@ extension Sidebar {
         today(in: spaceID, onDevice: deviceID).filter { $0.kind == .folder }
     }
 
-    /// What Clear archives on `deviceID`: its Today tabs and the tabs in its groups, and those groups. Another
-    /// device's groups, which this one doesn't show, stay.
+    /// What Clear archives on `deviceID`: its Today tabs and every tab in its groups (a folder nested in one too, as
+    /// a sync from an older build can bring), and those groups and folders. Another device's groups, which this one
+    /// doesn't show, stay.
     public func clearable(in spaceID: String, onDevice deviceID: String) -> (tabs: [SidebarItem], groups: [SidebarItem]) {
         let rows = today(in: spaceID, onDevice: deviceID)
         let groups = rows.filter { $0.kind == .folder }
-        let tabs = rows.filter { $0.kind == .tab } + groups.flatMap { children(of: $0.id).filter { $0.kind == .tab } }
-        return (tabs, groups)
+        let inside = groups.flatMap { descendants(of: $0.id) }
+        return (rows.filter { $0.kind == .tab } + inside.filter { $0.kind == .tab },
+                groups + inside.filter { $0.kind == .folder })
+    }
+
+    /// Everything under `id`, depth first in sidebar order.
+    public func descendants(of id: String) -> [SidebarItem] {
+        children(of: id).flatMap { [$0] + descendants(of: $0.id) }
     }
 
     /// A new, expanded group named "New Group" in `tab`'s slot, with `tab` inside: the group record, then the tab.

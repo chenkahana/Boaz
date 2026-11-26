@@ -441,7 +441,9 @@ private struct SpaceColumn: View {
                     .overlay(alignment: .bottom) { if pinnedTargeted { InsertionLine(tint: tint) } }
                 ForEach(pinned) { ItemRow(item: $0, depth: 0, tint: tint) }
 
-                TodayDivider(space: space, hasTabs: !today.isEmpty)
+                // Clear shows while there's a tab to archive, not for empty groups alone.
+                TodayDivider(space: space,
+                             hasTabs: !model.sidebar.clearable(in: space.id, onDevice: model.deviceID).tabs.isEmpty)
                     .dropDestination(for: SidebarDrag.Drop.self) { payloads, _ in
                         guard let todayBox else { return false }
                         return dropItems(payloads, into: todayBox.id, before: today.first?.id, model: model, browser: browser)
@@ -621,13 +623,15 @@ private struct EmptyGroupRow: View {
     let depth: Int
     let tint: Color
     @State private var targeted = false
+    /// Lines the text up with a row's title: the icon column (18) and the gap after it (8).
+    private static let titleInset: CGFloat = 18 + 8
 
     var body: some View {
         Text("Drag tabs here")
             .font(SidebarStyle.rowFont(size: textSize))
             .foregroundStyle(.secondary)
             .lineLimit(1)
-            .padding(.leading, 8 + 26 + CGFloat(depth) * 14)
+            .padding(.leading, 8 + Self.titleInset + CGFloat(depth) * 14)
             .frame(maxWidth: .infinity, minHeight: SidebarStyle.rowHeight, alignment: .leading)
             .overlay {
                 if targeted { RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(tint, lineWidth: 2) }
@@ -688,13 +692,15 @@ struct ItemRow: View {
         // A collapsed group holding the active tab wears its selection.
         let active = item.kind == .tab ? (activeID == item.id || browser.split?.contains(item.id) == true)
             : isGroup && !item.isExpanded && activeID.flatMap(model.item)?.parentID == item.id
+        // A collapsed group's tab count; none for an empty one.
+        let collapsedCount = isGroup && !item.isExpanded ? model.sidebar.children(of: item.id).count(where: { $0.kind == .tab }) : 0
         return HStack(spacing: 8) {
             HStack(spacing: 8) {
                 leadingIcon
                 Text(title).font(SidebarStyle.rowFont(size: textSize, selected: active)).lineLimit(1)
                 Spacer(minLength: 0)
-                if isGroup && !item.isExpanded {
-                    Text("\(model.sidebar.children(of: item.id).count { $0.kind == .tab })")
+                if collapsedCount > 0 {
+                    Text("\(collapsedCount)")
                         .font(SidebarStyle.sectionFont(size: textSize))
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
@@ -884,12 +890,12 @@ struct TabMenu: View {
             if !groups.isEmpty {
                 Menu {
                     ForEach(groups) { group in
-                        Button(group.title ?? Sidebar.newGroupTitle) { withAnimation { model.move(tab.id, into: group.id, before: nil) } }
+                        Button(group.title ?? Sidebar.newGroupTitle) { withMotion(.standard) { model.move(tab.id, into: group.id, before: nil) } }
                     }
                 } label: { Label("Move to Group", systemImage: "folder") }
             }
             if model.group(of: tab) != nil {
-                Button("Remove from Group", systemImage: "folder.badge.minus") { withAnimation { model.removeFromGroup(tab) } }
+                Button("Remove from Group", systemImage: "folder.badge.minus") { withMotion(.standard) { model.removeFromGroup(tab) } }
             }
         } else if !browser.isPrivate(tab) {
             Button("Add to New Folder", systemImage: "folder.badge.plus") {
