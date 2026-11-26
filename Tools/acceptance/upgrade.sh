@@ -1,12 +1,13 @@
 #!/bin/bash
 # Upgrade acceptance (must-have #13): installs a published Boaz DMG, gives it a library, settings and a sign-in,
 # replaces it with a newer DMG and checks that all of it survived. Run only on a throwaway Mac (a CI runner):
-# it replaces /Applications/Boaz.app and the current user's Boaz data.
+# it replaces /Applications/Boaz.app and the current user's Boaz data. With a third DMG, it then upgrades once more,
+# as someone who had already upgraded to the second one.
 #
-#   Tools/acceptance/upgrade.sh <from.dmg> <to.dmg> <output dir>
+#   Tools/acceptance/upgrade.sh <from.dmg> <to.dmg> <output dir> [<then.dmg>]
 set -uo pipefail
 
-FROM_DMG=$1 TO_DMG=$2 OUT=$3
+FROM_DMG=$1 TO_DMG=$2 OUT=$3 THEN_DMG=${4:-}
 HERE=$(cd "$(dirname "$0")" && pwd)
 ID=com.chenkahana.boaz
 APP=/Applications/Boaz.app
@@ -16,7 +17,7 @@ OLD_DB="$CONTAINER/Library/Application Support/Boaz/boaz.sqlite"
 OLD_PREFS=$CONTAINER/Library/Preferences/$ID
 NEW_PREFS=$HOME/Library/Preferences/$ID
 PORT=8765 SITE=http://127.0.0.1:8765
-SESSION=s$(uuidgen | tr -d -) PLAIN=p$(uuidgen | tr -d -)
+SESSION=s$(uuidgen | tr -d -) PLAIN=p$(uuidgen | tr -d -) COLD=c$(uuidgen | tr -d -)
 mkdir -p "$OUT"
 RESULTS=$OUT/results.md FAILED=0
 : > "$RESULTS"
@@ -35,6 +36,15 @@ wait_for() {
 requested() { grep -q "\"path\": \"$1\"" "$OUT/requests.jsonl" 2>/dev/null; }
 # The last request for path $1 carried the fixture's session cookie.
 signed_in() { grep "\"path\": \"$1\"" "$OUT/requests.jsonl" | tail -1 | grep -q "boaz_session=$SESSION"; }
+# The same, for the sign-in v0.2.18 kept in WebKit's default store (#188).
+cold_signed_in() { grep "\"path\": \"$1\"" "$OUT/requests.jsonl" | tail -1 | grep -q "boaz_cold=$COLD"; }
+# The installed Boaz brings the default store's sign-ins over (0.5.0 and later); before that, #188 is a known gap.
+fixed_188() { [ "$(printf '%s\n' 0.5.0 "$(defaults read "$APP/Contents/Info" CFBundleShortVersionString)" | sort -V | head -1)" = 0.5.0 ]; }
+check_cold() {
+    if cold_signed_in "$1"; then pass "$2: the link-launched sign-in came back (#188)"
+    elif fixed_188; then fail "$2: the link-launched sign-in is gone (#188)"
+    else note "$2: the link-launched sign-in is gone: known gap #188 in this version"; fi
+}
 
 install() {
     local mount
@@ -83,7 +93,7 @@ swiftc -O -o "$OUT/quit" - <<'EOF' || exit 1
 import AppKit
 for app in NSRunningApplication.runningApplications(withBundleIdentifier: CommandLine.arguments[1]) { _ = app.terminate() }
 EOF
-python3 "$HERE/fixture_server.py" "$PORT" "$SESSION" "$PLAIN" "$OUT/requests.jsonl" &
+python3 "$HERE/fixture_server.py" "$PORT" "$SESSION" "$PLAIN" "$COLD" "$OUT/requests.jsonl" &
 SERVER=$!
 trap 'kill $SERVER 2>/dev/null' EXIT
 
@@ -103,6 +113,14 @@ defaults write "$OLD_PREFS" sidebarTextSize -string large
 defaults write "$OLD_PREFS" BoazAcceptanceFixture -string "$PLAIN"
 defaults write "$NEW_PREFS" SUEnableAutomaticChecks -bool NO
 python3 "$HERE/library.py" seed "$OLD_DB" && pass "seeded fixture folders, tabs, archive and history" || fail "could not seed the library"
+# Signs in from a link that starts the app, before its library loads: v0.2.18 keeps that page's cookies in
+# WebKit's default store, which the sandbox keeps in the container's Library/Cookies (#188).
+visit cold-sign-in /cold && pass "previous version signed in from a link that started it"
+quit cold-sign-in
+stores=$(grep -rl "$COLD" "$CONTAINER/Library" 2>/dev/null | sed "s|$CONTAINER/||" | tr '\n' ' ')
+note "the old version saved the link-launched sign-in in: ${stores:-nowhere}"
+[[ " $stores " == *" Library/Cookies/Cookies.binarycookies "* ]] && pass "that sign-in is in the default store's cookie file" \
+    || fail "that sign-in is not in Library/Cookies/Cookies.binarycookies, so this run doesn't test #188"
 # Signs in from a running app, after its library has loaded, as a person would.
 open -a "$APP"
 sleep 15
@@ -121,6 +139,7 @@ visit upgrade /whoami
 sleep 5
 shot after-upgrade
 if signed_in /whoami; then pass "still signed in after the upgrade (the session cookie came back)"; else fail "signed out after the upgrade"; fi
+check_cold /whoami "after the upgrade"
 quit upgrade
 python3 "$HERE/library.py" snapshot "$OLD_DB" "$OUT/after.json"
 python3 "$HERE/library.py" compare "$OUT/before.json" "$OUT/after.json" > "$OUT/library.txt"
@@ -132,9 +151,20 @@ for key in searchEngine archiveAfter sidebarTextSize BoazAcceptanceFixture onboa
     old=$(prefs_value "$OLD_PREFS" "$key") new=$(prefs_value "$NEW_PREFS" "$key")
     [ "$old" = "$new" ] && pass "setting $key = $new" || fail "setting $key was '$old', now '$new'"
 done
-for marker in BoazChromiumLegacyPreferencesImportedV1 BoazChromiumLegacyWebKitDataImportedV1 "BoazChromiumLegacyCookiesImportedV1.$PROFILE"; do
+for marker in BoazChromiumLegacyPreferencesImportedV1 BoazChromiumLegacyWebKitDataImportedV1; do
     [ "$(prefs_value "$NEW_PREFS" "$marker")" = 1 ] && pass "$marker set" || fail "$marker not set"
 done
+cookie_state() {
+    if fixed_188; then
+        for key in "BoazChromiumLegacyCookiesImportV2.$PROFILE" BoazChromiumLegacyDefaultCookiesImportedV1; do
+            note "$key: $(python3 -c 'import plistlib, sys; v = plistlib.load(open(sys.argv[1], "rb")).get(sys.argv[2]); print(v.decode() if isinstance(v, bytes) else v)' "$NEW_PREFS.plist" "$key")"
+        done
+    else
+        [ "$(prefs_value "$NEW_PREFS" "BoazChromiumLegacyCookiesImportedV1.$PROFILE")" = 1 ] \
+            && pass "BoazChromiumLegacyCookiesImportedV1.$PROFILE set" || fail "BoazChromiumLegacyCookiesImportedV1.$PROFILE not set"
+    fi
+}
+cookie_state
 find "$CONTAINER/Library/WebKit" -type f -exec shasum {} + 2>/dev/null | sort > "$OUT/webkit-after.txt"
 comm -23 "$OUT/webkit-before.txt" "$OUT/webkit-after.txt" > "$OUT/webkit-changed.txt"
 [ ! -s "$OUT/webkit-changed.txt" ] && pass "old website data left untouched" || fail "old website data changed: $(wc -l < "$OUT/webkit-changed.txt") files"
@@ -142,13 +172,14 @@ security find-generic-password -s "Boaz Chromium Safe Storage" > /dev/null 2>&1 
     && note "the Boaz Chromium Safe Storage Keychain item exists" || note "no Boaz Chromium Safe Storage Keychain item"
 for db in "$HOME/Library/Application Support/Boaz/Chromium"/Boaz-*/Cookies "$HOME/Library/Application Support/Boaz/Chromium"/Boaz-*/Network/Cookies; do
     [ -f "$db" ] || continue
-    rows=$(sqlite3 "$db" "SELECT count(*) FROM cookies WHERE host_key = '127.0.0.1' AND name IN ('boaz_session', 'boaz_plain')")
+    rows=$(sqlite3 "$db" "SELECT count(*) FROM cookies WHERE host_key = '127.0.0.1' AND name IN ('boaz_session', 'boaz_plain', 'boaz_cold')")
     note "Chromium cookie store ${db#"$HOME"/}: $rows fixture cookies"
 done
 
 echo "## Again: a second launch" >> "$RESULTS"
 visit relaunch "/whoami?again"
 if signed_in "/whoami?again"; then pass "still signed in on the next launch"; else fail "signed out on the next launch"; fi
+check_cold "/whoami?again" "on the next launch"
 # Probe: does quitting with osascript need an Automation permission on this Mac?
 if perl -e 'alarm 20; exec @ARGV' osascript -e "tell application id \"$ID\" to quit" > "$OUT/osascript.txt" 2>&1; then
     note "probe: osascript quit ran without an Automation prompt"
@@ -157,6 +188,19 @@ else
     note "probe: osascript quit failed or timed out: $(tr '\n' ' ' < "$OUT/osascript.txt")"
 fi
 running && quit relaunch || note "Boaz quit on osascript's request"
+
+if [ -n "$THEN_DMG" ]; then
+    echo "## Then: upgrading again, from the version above" >> "$RESULTS"
+    install "$THEN_DMG" || { fail "could not install $THEN_DMG"; exit 1; }
+    visit second-upgrade "/whoami?then"
+    if signed_in "/whoami?then"; then pass "still signed in after the second upgrade"; else fail "signed out after the second upgrade"; fi
+    check_cold "/whoami?then" "after the second upgrade"
+    quit second-upgrade
+    cookie_state
+    python3 "$HERE/library.py" snapshot "$OLD_DB" "$OUT/then.json"
+    python3 "$HERE/library.py" compare "$OUT/before.json" "$OUT/then.json" > "$OUT/library-then.txt" \
+        && pass "library survived the second upgrade" || fail "library changed in the second upgrade"
+fi
 
 log show --last 30m --info --predicate "subsystem == \"$ID\"" > "$OUT/boaz.log" 2>&1
 log show --last 30m --predicate 'process == "tccd"' 2>/dev/null | grep -i -E "boaz|AppData" > "$OUT/tccd.log"

@@ -17,6 +17,9 @@ on:
       to:
         description: Release tag to upgrade to
         default: v0.4.48
+      then:
+        description: Optional release tag to upgrade to next, as someone already on the one above
+        default: ""
 
 concurrency:
   group: upgrade-acceptance-${{ github.ref }}
@@ -33,20 +36,21 @@ jobs:
     env:
       FROM: ${{ inputs.from || 'v0.2.18' }}
       TO: ${{ inputs.to || 'v0.4.48' }}
+      THEN: ${{ inputs.then || '' }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Download both releases
         run: |
-          for tag in "$FROM" "$TO"; do
+          for tag in "$FROM" "$TO" $THEN; do
             mkdir -p "$RUNNER_TEMP/$tag"
             gh release download "$tag" --repo "$GITHUB_REPOSITORY" -p Boaz.dmg -p Boaz.dmg.sha256 -D "$RUNNER_TEMP/$tag"
             (cd "$RUNNER_TEMP/$tag" && shasum -a 256 -c Boaz.dmg.sha256)
           done
 
       - name: Upgrade and check
-        run: Tools/acceptance/upgrade.sh "$RUNNER_TEMP/$FROM/Boaz.dmg" "$RUNNER_TEMP/$TO/Boaz.dmg" "$RUNNER_TEMP/acceptance"
+        run: Tools/acceptance/upgrade.sh "$RUNNER_TEMP/$FROM/Boaz.dmg" "$RUNNER_TEMP/$TO/Boaz.dmg" "$RUNNER_TEMP/acceptance" ${THEN:+"$RUNNER_TEMP/$THEN/Boaz.dmg"}
 
       - name: Summary
         if: always()

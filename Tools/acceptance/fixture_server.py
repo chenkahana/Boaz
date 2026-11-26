@@ -1,13 +1,13 @@
-"""Local site for the upgrade acceptance run: /set signs in with cookies, /whoami logs what the browser sends back.
+"""Local site for the upgrade acceptance run: /set and /cold sign in with cookies, /whoami logs what the browser sends back.
 
-Usage: fixture_server.py <port> <session value> <plain value> <log.jsonl>
+Usage: fixture_server.py <port> <session value> <plain value> <cold value> <log.jsonl>
 """
 import http.server
 import json
 import sys
 import time
 
-PORT, SESSION, PLAIN, LOG = int(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4]
+PORT, SESSION, PLAIN, COLD, LOG = int(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
 YEAR = 365 * 24 * 3600
 
 
@@ -23,6 +23,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     f'<script>localStorage.setItem("boaz_local", "{PLAIN}")</script>')
             cookies = [f'boaz_session={SESSION}; Max-Age={YEAR}; Path=/; HttpOnly; SameSite=Lax',
                        f'boaz_plain={PLAIN}; Max-Age={YEAR}; Path=/']
+        elif page == '/cold':
+            body = '<title>Boaz fixture cold sign-in</title><p>Signed in from a link.</p>'
+            cookies = [f'boaz_cold={COLD}; Max-Age={YEAR}; Path=/; HttpOnly; SameSite=Lax']
         elif page == '/whoami':
             signed_in = f'boaz_session={SESSION}' in self.headers.get('Cookie', '')
             body = f'<title>Boaz fixture {"signed in" if signed_in else "signed out"}</title>'
