@@ -66,6 +66,8 @@ All notable changes to Boaz are recorded here. The format follows
 
 ### Fixed
 
+- Mac: Settings › General › About no longer shows a "WebKit internals" row in the Boaz download from GitHub, which
+  runs on Chromium. The iPhone and Mac App Store versions keep it. (#190)
 - Deleting a saved password asks first, on iPhone and Mac: it's removed from Boaz on all your devices.
 - iPhone: the locked Passwords screen points to Use Boaz Passwords in Other Apps instead of Apple's Passwords app.
   Mac: the DMG's save prompt reads like the iPhone's and the App Store app's

@@ -27,9 +27,12 @@ struct AboutSection: View {
                 .buttonStyle(.link)
                 #endif
                 .accessibilityIdentifier("settings.reportProblem")
+            // The DMG is Chromium: WebKit never appears in its UI (must-have #1).
+            #if !BOAZ_CHROMIUM
             LabeledContent("WebKit internals") {
                 Text(WebKitInternals.summary).accessibilityIdentifier("settings.webkitDiagnostics")
             }
+            #endif
         } header: {
             Text("About")
         } footer: {
