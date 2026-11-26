@@ -2,6 +2,8 @@
 
 #import <Foundation/Foundation.h>
 
+#include <string>
+
 #include "base/apple/bundle_locations.h"
 #include "base/check.h"
 #include "base/check_op.h"
@@ -57,5 +59,10 @@ void ConfigurePackagedApplicationLaunch() {
   command->AppendSwitch("no-first-run");
   command->AppendSwitchASCII("profile-directory", "Default");
   command->AppendSwitchPath("user-data-dir", *expected);
+  // The field-trial testing config that unofficial builds apply turns on Omnibox Everywhere, which puts Chromium's
+  // magnifying glass in the menu bar. Boaz has no menu bar icon.
+  std::string disabled = command->GetSwitchValueASCII("disable-features");
+  command->AppendSwitchASCII("disable-features",
+                             disabled.empty() ? "OmniboxEverywhere" : disabled + ",OmniboxEverywhere");
 }
 }  // namespace boaz

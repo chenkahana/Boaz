@@ -4,6 +4,15 @@ All notable changes to Boaz are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.50] - 2026-11-26
+
+### Fixed
+
+- Mac: Boaz no longer puts a magnifying glass in the menu bar. It was Chromium's experimental "search from anywhere"
+  box, switched on because Boaz's Chromium build used Chromium's test settings; Boaz now turns it off.
+- Mac: macOS prompts for the microphone, camera, location, Bluetooth and passkeys, Finder's Get Info, and
+  notifications name Boaz, with Boaz's icon, instead of Chromium.
+
 ## [0.4.47] - 2026-11-25
 
 ### Fixed
