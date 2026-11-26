@@ -65,6 +65,12 @@ jobs:
       - name: Build Mac app
         run: make mac
 
+      - name: Build the WebKit DMG configuration
+        # The rollback app (project-webkit-dmg.yml) keeps building, and only ever as a build: no release uploads it.
+        run: |
+          make mac-webkit-dmg
+          ! grep -n -E 'release-webkit-mac|--webkit' .github/workflows/release.yml
+
   uitest:
     name: Mac UI tests
     runs-on: xcode-27
