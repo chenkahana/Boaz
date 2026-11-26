@@ -112,11 +112,28 @@ enum ChromiumLegacyStore {
     @MainActor static func importWebKitCookies(runtime: ChromiumRuntime, profile: ChromiumProfile, model: MacModel) async {
         guard !profile.identity.isPrivate, Bundle.main.bundleIdentifier == "com.chenkahana.boaz",
               Bundle.main.object(forInfoDictionaryKey: "BoazDistributionChannel") as? String == "production" else { return }
+        // Several windows ask at launch; one at a time, so a later call sees what an earlier one read and imported.
+        let previous = importing
+        let task = Task { @MainActor in
+            await previous?.value
+            await importWebKitCookiesNow(runtime: runtime, profile: profile, model: model)
+        }
+        importing = task
+        await task.value
+    }
+
+    @MainActor private static var importing: Task<Void, Never>?
+
+    @MainActor private static func importWebKitCookiesNow(runtime: ChromiumRuntime, profile: ChromiumProfile,
+                                                          model: MacModel) async {
         let id = profile.identity.id
         // A store without an identifier is the new app's own default store, given while the library is still loading.
         let own = model.dataStore(for: id)
         guard own.identifier != nil else { return }
-        let destination = chromiumCookieKeys(profileID: id)
+        // What the profile had before this launch imported anything: once Chromium is writing this launch's
+        // imports, its cookie file can be mid-write and unreadable, which would hold the next source back a launch.
+        let destination = launchDestinations[id] ?? chromiumCookieKeys(profileID: id)
+        if launchDestinations[id] == nil, let destination { launchDestinations[id] = destination }
         // The profile's own cookies win, so the default store's wait until those could be read.
         guard let winning = await importCookies(from: own, stateKey: "BoazChromiumLegacyCookiesImportV2.\(id)",
                                                 oldMarker: "BoazChromiumLegacyCookiesImportedV1.\(id)", excluded: [],
@@ -167,7 +184,9 @@ enum ChromiumLegacyStore {
         return WKWebsiteDataStore(forIdentifier: legacyDefaultStoreID)
     }
 
-    @MainActor private static var importedThisLaunch: Set<String> = []
+    @MainActor private static var launchDestinations: [String: Set<LegacyCookieImport.Key>] = [:]
+    /// Each source's step this launch, by state key, with the cookies it read (nil when it couldn't).
+    @MainActor private static var importedThisLaunch: [String: Set<LegacyCookieImport.Key>?] = [:]
 
     /// One launch's step for one source; returns the cookies it read, which win over a later source's, or nil when
     /// it couldn't read or import them.
@@ -176,7 +195,18 @@ enum ChromiumLegacyStore {
                                                  destination: Set<LegacyCookieImport.Key>?,
                                                  runtime: ChromiumRuntime, profile: ChromiumProfile) async -> Set<LegacyCookieImport.Key>? {
         // Once a launch: what this launch imported reaches the disk only later, so the check waits for the next one.
-        guard importedThisLaunch.insert(stateKey).inserted else { return [] }
+        // A later call still gets the cookies this launch read, so the profile's own keep winning.
+        if let read = importedThisLaunch[stateKey] { return read }
+        let read = await importStep(from: store, stateKey: stateKey, oldMarker: oldMarker, excluded: excluded,
+                                    destination: destination, runtime: runtime, profile: profile)
+        importedThisLaunch[stateKey] = .some(read)
+        return read
+    }
+
+    @MainActor private static func importStep(from store: WKWebsiteDataStore, stateKey: String, oldMarker: String?,
+                                              excluded: Set<LegacyCookieImport.Key>,
+                                              destination: Set<LegacyCookieImport.Key>?,
+                                              runtime: ChromiumRuntime, profile: ChromiumProfile) async -> Set<LegacyCookieImport.Key>? {
         let defaults = UserDefaults.standard
         let state = LegacyCookieImport.State(stored: defaults.data(forKey: stateKey),
                                              closedByOldMarker: oldMarker.map(defaults.bool(forKey:)) ?? false)
@@ -188,6 +218,7 @@ enum ChromiumLegacyStore {
                 return nil
             }
             let keys = cookies.map { LegacyCookieImport.Key(host: $0.domain, name: $0.name, path: $0.path) }
+            if destination == nil { log.error("The profile's cookie file wasn't readable; next launch checks it") }
             let (action, next) = LegacyCookieImport.plan(state, source: keys, excluded: excluded, destination: destination)
             if case .importCookies(let picked) = action {
                 let result = try await runtime.importCookies(profile: profile, cookies: picked.map { cookies[$0] })
