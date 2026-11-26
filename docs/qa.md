@@ -161,11 +161,25 @@ To see where main-thread time goes, run `sample Boaz 5 -file out.txt` while doin
 folder suites. Each screen must be hittable, inside its window, have every control labeled, no overlapping buttons, and
 pass the system accessibility audit (all of it but contrast, which samples the screen and varies from run to run;
 check contrast by eye, as in section 2); a screenshot of each lands in `build/UITestResults.xcresult`. CI runs the same
-target and uploads that result bundle when it fails.
+target on every pull request and every push to master and release branches, and uploads that result bundle as the
+run's `UITestResults` artifact (kept 7 days when the run fails, 3 when it passes).
 
 - **Run:** `make uitest`. To look at a failure: `xcrun xcresulttool get test-results summary --path
   build/UITestResults.xcresult`, and `xcrun xcresulttool export attachments --path build/UITestResults.xcresult
   --output-path <dir>` for the screenshots and accessibility hierarchy dumps (`manifest.json` maps them to tests).
+- **UI test health:** a green tick says nothing failed, not that everything ran. Read the **Mac UI tests** job's
+  summary on the run page: passed, failed and skipped counts, then the name and message of each failed and skipped
+  test. For a red run, download the `UITestResults` artifact, unzip it, and run the two `xcresulttool` commands above
+  on it; add `--test-id "Suite/test()"` to export one test's attachments. Each failure carries the app's
+  accessibility hierarchy at the moment it failed (the largest `.txt`), a screenshot, and a screen recording of the
+  whole test (`.mp4`); the recording usually shows a flake's cause. The expected skips, all on CI's WebKit build:
+  `ChromiumExtensionsUITests` ×9 (no `BOAZ_UITEST_APP`), `ScreenTests.testAISheet` (no Apple Intelligence on the
+  runner), `ScreenTests.testRemovePinnedTabConfirmation` (the runner isn't trusted for Accessibility, so it can't
+  middle-click) and `ScreenTests.testQRCodeSheet` (quarantined, #187). Any other skip is new and needs a look. A test
+  is quarantined only after a root-cause attempt fails: one issue per test titled `UI test quarantined: Suite.test`
+  (run links, failure text, hypothesis), and `throw XCTSkip("Quarantined: #NNN …")` as the test's first line. Never
+  `-skip-testing` or `continue-on-error`. Pushes to master and release branches each finish their own run (a later
+  push doesn't cancel it), so every red run on them stays visible.
 - **Chromium build:** set `BOAZ_UITEST_APP=<path to the staged .app>` to run the same suite against it instead of the
   WebKit app the scheme builds.
 - **Isolation:** the test build is ad hoc signed with its own bundle id, `com.chenkahana.boaz.uitest`, so its sandbox

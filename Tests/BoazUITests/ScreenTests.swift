@@ -317,7 +317,7 @@ final class ScreenTests: BoazUITestCase {
     func testQRCodeSheet() throws {
         // `QRCodeSheet` is presented only from the Chromium engine's page context menu (ChromiumApplication.swift);
         // the WebKit build this scheme tests has no way to open it.
-        throw XCTSkip("The QR code sheet is reachable only in the Chromium build's page context menu")
+        throw XCTSkip("Quarantined: #187. The QR code sheet is reachable only in the Chromium build's page context menu")
     }
 
     // MARK: Develop

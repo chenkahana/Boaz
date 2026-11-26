@@ -10,11 +10,17 @@ All notable changes to Boaz are recorded here. The format follows
 
 ### Changed
 
+- CI finishes the run of every push to master and release branches instead of cancelling it for the next push, and
+  the Mac UI tests job lists passed, failed and skipped counts and the skipped tests' names on the run page. Its
+  result bundle is kept for green runs too.
+
 ### Fixed
 
 - Mac: Upgrading from the sandboxed Boaz no longer risks losing your sign-ins. Boaz copied the old cookies only if
   WebKit listed them right away; when it answered empty before it had loaded them, Boaz stopped looking for good. It
   now also checks the old cookie file, and if WebKit hasn't handed the cookies over yet, it tries again next launch.
+- The Mac live folder UI test moves into the Pull Requests submenu before choosing a filter, so the submenu no
+  longer closes under the pointer and fails the run.
 
 ## [0.4.48] - 2026-11-26
 

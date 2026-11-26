@@ -69,6 +69,10 @@ final class LiveFolderUITests: BoazUITestCase {
         screenshot.lifetime = .keepAlways
         add(screenshot)
 
+        // Straight right into the submenu first, as a person would. A diagonal from "Pull Requests" to the filter
+        // crosses "Move to", which closes the submenu, so the click lands on the window and toggles nothing.
+        let pullRequests = app.menuItems["Pull Requests"].firstMatch
+        pullRequests.coordinate(withNormalizedOffset: CGVector(dx: 1, dy: 0.5)).withOffset(CGVector(dx: 30, dy: 0)).hover()
         app.menuItems["Team Review Requests"].firstMatch.click()
         XCTAssertTrue(mainWindow.buttons["chore(knip): drop unused exports"].waitForExistence(timeout: 10),
                       "Turning on Team Review Requests didn't list the team's pull request")
