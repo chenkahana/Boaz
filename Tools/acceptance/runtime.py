@@ -153,12 +153,14 @@ def library_urls():
 
 
 def agents_check(run, since, label):
-    """Every request since `since` came from Chromium (must-have #1)."""
-    seen = [entry for entry in run.logged() if entry['time'] >= since and entry['path'] != '/favicon.ico']
-    webkit = sorted({entry['path'] for entry in seen if WEBKIT_AGENT.search(entry['agent'])})
-    run.check(bool(seen) and not webkit,
-              f'{label}: all {len(seen)} page requests used Chromium' if not webkit else
-              f'{label}: WebKit loaded {", ".join(webkit)} (must-have #1, #191)')
+    """Every page load since `since` ran in Chromium, and no request at all told the site it was Safari (must-have
+    #1). Page loads are told apart by their Fetch Metadata: Boaz's icon fetch (URLSession) requests pages too."""
+    since_then = [entry for entry in run.logged() if entry['time'] >= since]
+    pages = [entry for entry in since_then if entry.get('mode') == 'navigate' and entry.get('dest') == 'document']
+    webkit = sorted({entry['path'] for entry in since_then if WEBKIT_AGENT.search(entry['agent'])})
+    run.check(bool(pages) and not webkit,
+              f'{label}: all {len(pages)} page loads used Chromium' if not webkit else
+              f'{label}: requests for {", ".join(webkit)} presented as Safari (must-have #1, #191)')
 
 
 def probe(run):

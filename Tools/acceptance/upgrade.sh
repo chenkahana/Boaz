@@ -35,9 +35,11 @@ wait_for() {
 }
 requested() { grep -q "\"path\": \"$1\"" "$OUT/requests.jsonl" 2>/dev/null; }
 # The last request for path $1 carried the fixture's session cookie.
-signed_in() { grep "\"path\": \"$1\"" "$OUT/requests.jsonl" | tail -1 | grep -q "boaz_session=$SESSION"; }
+# A page load, told apart by its Fetch Metadata: Boaz's icon fetch (URLSession) requests the page too, without cookies.
+page_loads() { grep "\"path\": \"$1\"" "$OUT/requests.jsonl" | grep '"mode": "navigate"' | grep '"dest": "document"'; }
+signed_in() { page_loads "$1" | tail -1 | grep -q "boaz_session=$SESSION"; }
 # The same, for the sign-in v0.2.18 kept in WebKit's default store (#188).
-cold_signed_in() { grep "\"path\": \"$1\"" "$OUT/requests.jsonl" | tail -1 | grep -q "boaz_cold=$COLD"; }
+cold_signed_in() { page_loads "$1" | tail -1 | grep -q "boaz_cold=$COLD"; }
 # The installed Boaz brings the default store's sign-ins over (0.5.0 and later); before that, #188 is a known gap.
 fixed_188() { [ "$(printf '%s\n' 0.5.0 "$(defaults read "$APP/Contents/Info" CFBundleShortVersionString)" | sort -V | head -1)" = 0.5.0 ]; }
 check_cold() {
@@ -205,10 +207,16 @@ if [ -n "$THEN_DMG" ]; then
 fi
 
 echo "## Engine" >> "$RESULTS"
-# The fixture has no protected video, so WebKit (AppleWebKit/605.1.15, no Chrome/) never has a page to load.
-webkit=$(tail -n +"$((UPGRADED_FROM + 1))" "$OUT/requests.jsonl" | grep 'AppleWebKit/605' | grep -v 'Chrome/')
+# The fixture has no protected video, so no page loads in WebKit, and no request (icon fetches included) may tell
+# the site it is Safari.
+upgraded=$(tail -n +"$((UPGRADED_FROM + 1))" "$OUT/requests.jsonl")
+webkit=$(echo "$upgraded" | grep '"mode": "navigate"' | grep 'AppleWebKit/605' | grep -v 'Chrome/')
+safari=$(echo "$upgraded" | grep -E 'Version/[0-9.]+ Safari/')
+paths() { echo "$1" | sed -E 's/.*"path": "([^"]*)".*/\1/' | sort -u | tr '\n' ' '; }
 if [ -z "$webkit" ]; then pass "every page the upgraded Boaz loaded ran in Chromium"
-else fail "WebKit loaded $(echo "$webkit" | sed -E 's/.*"path": "([^"]*)".*/\1/' | tr '\n' ' ')(#191)"; fi
+else fail "WebKit loaded $(paths "$webkit")(#191)"; fi
+if [ -z "$safari" ]; then pass "no request from the upgraded Boaz presented as Safari"
+else fail "requests for $(paths "$safari")presented as Safari (#191)"; fi
 
 log show --last 30m --info --predicate "subsystem == \"$ID\"" > "$OUT/boaz.log" 2>&1
 log show --last 30m --predicate 'process == "tccd"' 2>/dev/null | grep -i -E "boaz|AppData" > "$OUT/tccd.log"
