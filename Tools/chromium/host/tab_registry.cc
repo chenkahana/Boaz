@@ -40,11 +40,14 @@
 #include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/memory/weak_ptr.h"
+#include "components/history/core/browser/history_service.h"
+#include "components/keyed_service/core/service_access_type.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ref.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
 #include "chrome/browser/extensions/extension_tab_util.h"
+#include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/tab_list/tab_removed_reason.h"
 #include "chrome/browser/ui/browser.h"
@@ -212,7 +215,10 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver, find_in_page::Fin
   }
   void DidFinishNavigation(content::NavigationHandle* navigation) override {
     if (!navigation->IsInPrimaryMainFrame()) return;
-    if (navigation->HasCommitted() && !navigation->IsSameDocument()) ++generation;
+    if (navigation->HasCommitted() && !navigation->IsSameDocument()) {
+      ++generation;
+      ForgetSavedPageVisit(navigation->GetURL());
+    }
     if (navigation->GetNavigationId() == latest_navigation) {
       const auto error = navigation->GetNetErrorCode();
       if (error != net::OK && error != net::ERR_ABORTED) {
@@ -221,6 +227,19 @@ struct TabRegistry::Impl::Page : content::WebContentsObserver, find_in_page::Fin
       }
     }
     owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED);
+  }
+  // A saved page Boaz shows over its tab while the live page reloads (an MHTML file, scripts off) isn't a visit, but
+  // the tab's history helper has just recorded it; it goes once that's done.
+  void ForgetSavedPageVisit(const GURL& url) {
+    if (!javascript_disabled || !url.SchemeIsFile() ||
+        web_contents()->GetContentsMimeType() != "multipart/related") return;
+    auto* history = HistoryServiceFactory::GetForProfile(
+        Profile::FromBrowserContext(web_contents()->GetBrowserContext()), ServiceAccessType::IMPLICIT_ACCESS);
+    if (!history) return;
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(FROM_HERE, base::BindOnce(
+        [](base::WeakPtr<history::HistoryService> history, GURL url) {
+          if (history) history->DeleteURLs({url});
+        }, history->AsWeakPtr(), url));
   }
   void TitleWasSet(content::NavigationEntry*) override {
     owner->Queue(*this, BOAZ_HOST_PAGE_CHANGED);

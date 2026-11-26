@@ -137,6 +137,7 @@ source_set("host") {
     "//chrome/browser",
     "//chrome/browser/extensions",
     "//chrome/browser/external_protocol",
+    "//chrome/browser/history",
     "//chrome/browser/supervised_user",
     "//chrome/browser/media/webrtc",
     "//chrome/browser/picture_in_picture",
