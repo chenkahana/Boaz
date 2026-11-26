@@ -1400,12 +1400,15 @@ final class BrowserState {
         closeChromiumSnapshot(tabID)
     }
 
+    /// A saved page is shown once: closing it drops it, so a later reload of the tab doesn't bring it back.
     func closeChromiumSnapshot(_ tabID: String) {
         guard let snapshot = chromiumSnapshots[tabID]?.page else { return }
+        let profileID = tab(tabID)?.profileID
         withMotion(.standard) { chromiumSnapshots[tabID] = nil }
         Task {
             try? await Task.sleep(for: .milliseconds(400))
             try? snapshot.close()
+            TabSnapshots.archived(tabID: tabID, url: nil, size: 0, profileID: profileID)
         }
     }
 
