@@ -191,6 +191,8 @@ struct BoazCommands: Commands {
                 if let browser, let id = browser.spaceID { browser.spaceEditor = .init(spaceID: id) }
             }
             .disabled(browser == nil || browser?.isIncognito == true)
+            Button("Edit Site Style…") { SiteStyleEditorPresenter.present(in: browser) }
+                .disabled(!SiteStyleEditorPresenter.canEdit(in: browser))
             Button("Archive") { openWindow(id: "archive") }.keyboardShortcut(key(.showArchive))
             Divider()
             PageAICommands(browser: browser)

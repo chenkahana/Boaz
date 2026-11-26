@@ -869,6 +869,7 @@ final class BrowserState {
         let page = WebPage(configuration: configuration, navigationDecider: router, dialogPresenter: MacDialogs())
         if case .peek = context { peekRouter = (ObjectIdentifier(page), router.target) }
         pictureInPicture.attach(page)
+        SiteStyles.shared.attach(page, controller: configuration.userContentController, profileID: profileID)
         if case .tab(let id) = context {
             pictureInPicture.onRestore = { [weak self] in self?.showTabReturningFromPictureInPicture(id) }
         }
@@ -1456,6 +1457,7 @@ final class BrowserState {
             } else {
                 prepareChromiumScroll(id, page: page)
                 followChromiumPage(id, page: page)
+                SiteStyles.shared.pageChanged(page)
             }
         }
         if event == BOAZ_HOST_PAGE_CLOSE_CANCELLED {
