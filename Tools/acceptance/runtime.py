@@ -2,7 +2,9 @@
 /Applications/Boaz.app and the current user's Boaz data. Pages are driven through Boaz's own opt-in Local
 Automation (authenticated DevTools protocol on 127.0.0.1); tabs are opened with `open -a`, as another app would.
 
-  runtime.py <Boaz.dmg> <output dir> [check ...]     checks: probe, reopen, menus (default: all)
+  runtime.py <Boaz.dmg> <output dir> [check ...]     checks: probe, menus, reopen, webstore (default: all)
+
+COHORT=all installs all 8 cohort extensions from the live Chrome Web Store; otherwise only uBlock Origin Lite.
 """
 import json
 import os
@@ -21,6 +23,7 @@ import uuid
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / 'chromium'))
 import automation_client  # noqa: E402
+import hashlib  # noqa: E402
 
 ID = 'com.chenkahana.boaz'
 APP = pathlib.Path('/Applications/Boaz.app')
@@ -216,10 +219,38 @@ def reopen(run):
     quit_app(run, 'popup-quit')
 
 
-def native(run, test):
+# The ledger's extension cohort (parity.md E1/E2), by Chrome Web Store ID.
+COHORT = {
+    'ddkjiahejlhfcafbddmgiahcphecmpfh': 'uBlock Origin Lite',
+    'aeblfdkhhhdcdjpifhhbdiojplfjncoa': '1Password',
+    'nngceckbapebfimnlniiiahkandclblb': 'Bitwarden',
+    'eimadpbcbfnmbkopoojfekhnkhdbieeh': 'Dark Reader',
+    'fmkadmapgofadopljbjfkapdkoienihi': 'React Developer Tools',
+    'nhdogjmejiglipccpnnnanhbledajbpd': 'Vue.js devtools',
+    'kbfnbcaeplbcioakkpcpgfkobkghlhen': 'Grammarly',
+    'gppongmhjkpfnbhagpmjfkannfbllamg': 'Wappalyzer',
+}
+
+
+def profile_dir(profile_id='default'):
+    return CHROMIUM / ('Boaz-' + hashlib.sha256(profile_id.encode()).hexdigest().upper())
+
+
+def extension_settings(profile_id='default'):
+    """extensions.settings from the profile's Preferences and Secure Preferences, merged."""
+    merged = {}
+    for name in ('Preferences', 'Secure Preferences'):
+        path = profile_dir(profile_id) / name
+        if path.exists():
+            merged.update(json.loads(path.read_text()).get('extensions', {}).get('settings', {}))
+    return merged
+
+
+def native(run, test, **environment):
     """Runs one BoazAcceptanceUITests step against the installed, running Boaz; its result bundle goes in `out`."""
+    extra = [f'{key}={value}' for key, value in environment.items()]
     result = subprocess.run(['make', '-C', str(HERE.parent.parent), 'acceptance-uitest', f'TEST={test}',
-                             f'BOAZ_ACCEPTANCE_APP={APP}'], capture_output=True, text=True)
+                             f'BOAZ_ACCEPTANCE_APP={APP}', *extra], capture_output=True, text=True)
     (run.out / f'{test}.log').write_text(result.stdout + result.stderr)
     bundle = HERE.parent.parent / f'build/Acceptance-{test}.xcresult'
     if bundle.exists():
@@ -231,6 +262,44 @@ def menus(run):
     """Row 4, must-have #1: no menu names WebKit or a browser engine."""
     run.heading('No engine in the UI')
     run.check(native(run, 'testMenusNameNoEngine'), 'no menu names WebKit or a browser engine (XCUITest, by path)')
+
+
+def webstore(run):
+    """Row 3, part A: live Chrome Web Store installs through the store's button and Boaz's sheet."""
+    run.heading('Chrome Web Store installs')
+    ids = list(COHORT) if os.environ.get('COHORT') == 'all' else ['ddkjiahejlhfcafbddmgiahcphecmpfh']
+    if not boaz_pids():
+        launch()
+        automation()
+        time.sleep(5)
+    passed = native(run, 'testWebStoreInstall', BOAZ_ACCEPTANCE_EXTENSIONS=','.join(ids))
+    log = (run.out / 'testWebStoreInstall.log').read_text()
+    unreachable = sorted(set(re.findall(r'inconclusive: store unreachable for ([a-p]{32})', log)))
+    for id in unreachable:
+        run.check(False, f'inconclusive: store unreachable for {COHORT[id]} (infra: re-run to settle)')
+    run.check(passed, 'the store button, Boaz\'s sheet, the toolbar button and the popup (XCUITest)')
+    time.sleep(5)
+    settings = extension_settings()
+    port_token = automation()
+    workers = {t['url'].split('/')[2] for t in targets(*port_token) if t['type'] == 'service_worker'
+               and t['url'].startswith('chrome-extension://')} if port_token else set()
+    for id in ids:
+        if id in unreachable:
+            continue
+        entry = settings.get(id, {})
+        version = entry.get('manifest', {}).get('version') or entry.get('version', '?')
+        run.check(entry.get('state', 1) == 1 and entry.get('from_webstore') is True and not entry.get('disable_reasons'),
+                  f'{COHORT[id]} {version}: enabled, from the Web Store')
+        run.check(id in workers, f'{COHORT[id]}: its service worker is running')
+    quit_app(run, 'webstore')
+    launch()
+    port_token = automation()
+    time.sleep(8)
+    workers = {t['url'].split('/')[2] for t in targets(*port_token) if t['type'] == 'service_worker'} if port_token else set()
+    settings = extension_settings()
+    for id in ids:
+        if id not in unreachable:
+            run.check(id in settings and id in workers, f'{COHORT[id]}: still installed and running after a relaunch')
 
 
 def main():
@@ -250,8 +319,8 @@ def main():
         defaults('boaz.chromium.automation.enabled', '-bool', 'YES')
         launch(SITE + '/probe')
         wait(60, lambda: any(e['path'] == '/probe' for e in run.logged()))
-        for check in checks or ['probe', 'menus', 'reopen']:
-            {'probe': probe, 'reopen': reopen, 'menus': menus}[check](run)
+        for check in checks or ['probe', 'menus', 'reopen', 'webstore']:
+            {'probe': probe, 'reopen': reopen, 'menus': menus, 'webstore': webstore}[check](run)
         if boaz_pids():
             quit_app(run, 'end')
     finally:

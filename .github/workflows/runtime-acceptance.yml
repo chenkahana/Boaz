@@ -15,6 +15,9 @@ on:
       tag:
         description: Release tag to check
         default: v0.4.48
+      cohort:
+        description: Chrome Web Store installs (one = uBlock Origin Lite, all = the 8-extension cohort)
+        default: one
 
 # One run per commit, as in ci.yml: a later push never cancels an earlier commit's evidence.
 concurrency:
@@ -31,6 +34,7 @@ jobs:
     timeout-minutes: 45
     env:
       TAG: ${{ inputs.tag || 'v0.4.48' }}
+      COHORT: ${{ inputs.cohort || 'one' }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
