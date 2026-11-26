@@ -3,6 +3,7 @@ import Foundation
 import Darwin
 import OSLog
 import BoazKit
+import CryptoKit
 import SQLite3
 import WebKit
 
@@ -104,43 +105,153 @@ enum ChromiumLegacyStore {
         }
     }
 
-    /// One-time per profile: imports the previous WebKit cookies into its Chromium profile. Failure retries next launch.
-    @MainActor static func importWebKitCookies(runtime: ChromiumRuntime, profile: ChromiumProfile, store: WKWebsiteDataStore) async {
+    /// The previous Boaz's WebKit cookies, brought into the profile's Chromium profile: its own WebKit store's and,
+    /// for the default profile, also those of WebKit's default store, which v0.2.18 used for a page opened before its
+    /// library loaded (#188). The profile's own store wins, and a cookie the profile already has is never replaced.
+    /// `LegacyCookieImport` decides, launch by launch, when an import has reached the disk; the old data stays put.
+    @MainActor static func importWebKitCookies(runtime: ChromiumRuntime, profile: ChromiumProfile, model: MacModel) async {
         guard !profile.identity.isPrivate, Bundle.main.bundleIdentifier == "com.chenkahana.boaz",
               Bundle.main.object(forInfoDictionaryKey: "BoazDistributionChannel") as? String == "production" else { return }
-        let marker = "BoazChromiumLegacyCookiesImportedV1.\(profile.identity.id)"
-        guard !UserDefaults.standard.bool(forKey: marker) else { return }
+        let id = profile.identity.id
+        // A store without an identifier is the new app's own default store, given while the library is still loading.
+        let own = model.dataStore(for: id)
+        guard own.identifier != nil else { return }
+        let destination = chromiumCookieKeys(profileID: id)
+        // The profile's own cookies win, so the default store's wait until those could be read.
+        guard let winning = await importCookies(from: own, stateKey: "BoazChromiumLegacyCookiesImportV2.\(id)",
+                                                oldMarker: "BoazChromiumLegacyCookiesImportedV1.\(id)", excluded: [],
+                                                destination: destination, runtime: runtime, profile: profile),
+              model.sidebar.profiles.first(where: \.isDefault)?.id == id else { return }
+        let stateKey = "BoazChromiumLegacyDefaultCookiesImportedV1"
+        guard !LegacyCookieImport.State(stored: UserDefaults.standard.data(forKey: stateKey),
+                                        closedByOldMarker: false).isFinished else { return }
+        if let store = legacyDefaultCookieStore(stateKey: stateKey) {
+            _ = await importCookies(from: store, stateKey: stateKey, oldMarker: nil, excluded: winning,
+                                    destination: destination, runtime: runtime, profile: profile)
+        }
+        if LegacyCookieImport.State(stored: UserDefaults.standard.data(forKey: stateKey), closedByOldMarker: false).isFinished {
+            try? await WKWebsiteDataStore.remove(forIdentifier: legacyDefaultStoreID)
+        }
+    }
+
+    /// Where the default store's cookies are copied, so WebKit reads them without the old store being opened.
+    private static let legacyDefaultStoreID = UUID(uuidString: "B0A20DEF-A017-4C00-8000-000000000188")!
+
+    /// A copy of the sandboxed app's default-store cookie file, as a store of its own; nil when there is nothing to
+    /// copy (recorded as done) or the copy failed (retried next launch). An existing copy is never replaced.
+    private static func legacyDefaultCookieStore(stateKey: String) -> WKWebsiteDataStore? {
+        let files = FileManager.default, home = files.homeDirectoryForCurrentUser
+        let source = home.appendingPathComponent(
+            "Library/Containers/com.chenkahana.boaz/Data/Library/Cookies/Cookies.binarycookies")
+        let current = home.appendingPathComponent("Library/WebKit/com.chenkahana.boaz/WebsiteDataStore", isDirectory: true)
+        let name = legacyDefaultStoreID.uuidString.lowercased()
+        let destination = current.appendingPathComponent(name, isDirectory: true)
+        if !files.fileExists(atPath: destination.path) {
+            guard let values = try? source.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey]),
+                  values.isRegularFile == true, values.isSymbolicLink != true else {
+                UserDefaults.standard.set(LegacyCookieImport.State(phase: .done).stored, forKey: stateKey)
+                return nil
+            }
+            let staging = current.appendingPathComponent(".\(name).importing", isDirectory: true)
+            do {
+                try? files.removeItem(at: staging)
+                try files.createDirectory(at: staging.appendingPathComponent("Cookies"), withIntermediateDirectories: true)
+                try files.copyItem(at: source, to: staging.appendingPathComponent("Cookies/Cookies.binarycookies"))
+                try files.moveItem(at: staging, to: destination)
+            } catch {
+                Logger(subsystem: "com.chenkahana.boaz", category: "app").error(
+                    "Copying the previous default-store cookies failed; next launch retries: \(String(describing: error))")
+                return nil
+            }
+        }
+        return WKWebsiteDataStore(forIdentifier: legacyDefaultStoreID)
+    }
+
+    @MainActor private static var importedThisLaunch: Set<String> = []
+
+    /// One launch's step for one source; returns the cookies it read, which win over a later source's, or nil when
+    /// it couldn't read or import them.
+    @MainActor private static func importCookies(from store: WKWebsiteDataStore, stateKey: String, oldMarker: String?,
+                                                 excluded: Set<LegacyCookieImport.Key>,
+                                                 destination: Set<LegacyCookieImport.Key>?,
+                                                 runtime: ChromiumRuntime, profile: ChromiumProfile) async -> Set<LegacyCookieImport.Key>? {
+        // Once a launch: what this launch imported reaches the disk only later, so the check waits for the next one.
+        guard importedThisLaunch.insert(stateKey).inserted else { return [] }
+        let defaults = UserDefaults.standard
+        let state = LegacyCookieImport.State(stored: defaults.data(forKey: stateKey),
+                                             closedByOldMarker: oldMarker.map(defaults.bool(forKey:)) ?? false)
+        guard !state.isFinished else { return [] }
         let log = Logger(subsystem: "com.chenkahana.boaz", category: "app")
         do {
-            let sites = await store.dataRecords(ofTypes: [WKWebsiteDataTypeCookies])
-            var cookies = await store.httpCookieStore.allCookies()
-            // WebKit can answer empty, its records included, until a web view has used the store, so the store's
-            // cookie file on disk also says whether there are cookies to wait for. One that sees nothing wakes it.
-            let file = store.identifier.map { FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(
-                "Library/WebKit/com.chenkahana.boaz/WebsiteDataStore/\($0.uuidString.lowercased())/Cookies/Cookies.binarycookies") }
-            let stored = file.flatMap { try? Data(contentsOf: $0) }.flatMap { WebKitCookieFile.unexpiredCount(in: $0) } ?? 0
-            let expected = !sites.isEmpty || stored > 0
-            var waker: WKWebView?
-            for _ in 0..<20 where cookies.isEmpty && expected {
-                if waker == nil {
-                    let configuration = WKWebViewConfiguration()
-                    configuration.websiteDataStore = store
-                    waker = WKWebView(frame: .zero, configuration: configuration)
-                    waker?.loadHTMLString("", baseURL: nil)
-                }
-                try await Task.sleep(for: .milliseconds(250))
-                cookies = await store.httpCookieStore.allCookies()
-            }
-            waker = nil
-            guard !expected || !cookies.isEmpty else {
+            guard let cookies = try await readCookies(store) else {
                 log.error("Previous cookies were not readable yet; next launch retries")
-                return
+                return nil
             }
-            let result = try await runtime.importCookies(profile: profile, cookies: cookies)
-            UserDefaults.standard.set(true, forKey: marker)
-            log.info("Imported \(result.imported) previous cookies, rejected \(result.rejected)")
+            let keys = cookies.map { LegacyCookieImport.Key(host: $0.domain, name: $0.name, path: $0.path) }
+            let (action, next) = LegacyCookieImport.plan(state, source: keys, excluded: excluded, destination: destination)
+            if case .importCookies(let picked) = action {
+                let result = try await runtime.importCookies(profile: profile, cookies: picked.map { cookies[$0] })
+                log.info("Imported \(result.imported) previous cookies, rejected \(result.rejected)")
+            }
+            defaults.set(next.stored, forKey: stateKey)
+            if next.phase == .stopped {
+                log.error("Previous cookies never reached the profile's cookie file; Boaz stopped importing them")
+            }
+            return Set(keys)
         } catch {
             log.error("Importing previous cookies failed; next launch retries: \(String(describing: error))")
+            return nil
+        }
+    }
+
+    /// The store's cookies, or nil when it should have some but WebKit hasn't handed them over yet.
+    @MainActor private static func readCookies(_ store: WKWebsiteDataStore) async throws -> [HTTPCookie]? {
+        let sites = await store.dataRecords(ofTypes: [WKWebsiteDataTypeCookies])
+        var cookies = await store.httpCookieStore.allCookies()
+        // WebKit can answer empty, its records included, until a web view has used the store, so the store's
+        // cookie file on disk also says whether there are cookies to wait for. One that sees nothing wakes it.
+        let file = store.identifier.map { FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(
+            "Library/WebKit/com.chenkahana.boaz/WebsiteDataStore/\($0.uuidString.lowercased())/Cookies/Cookies.binarycookies") }
+        let stored = file.flatMap { try? Data(contentsOf: $0) }.flatMap { WebKitCookieFile.unexpiredCount(in: $0) } ?? 0
+        let expected = !sites.isEmpty || stored > 0
+        var waker: WKWebView?
+        for _ in 0..<20 where cookies.isEmpty && expected {
+            if waker == nil {
+                let configuration = WKWebViewConfiguration()
+                configuration.websiteDataStore = store
+                waker = WKWebView(frame: .zero, configuration: configuration)
+                waker?.loadHTMLString("", baseURL: nil)
+            }
+            try await Task.sleep(for: .milliseconds(250))
+            cookies = await store.httpCookieStore.allCookies()
+        }
+        waker = nil
+        return !expected || !cookies.isEmpty ? cookies : nil
+    }
+
+    /// The cookies in the profile's Chromium cookie file, read-only (Chromium doesn't lock it); none when it doesn't
+    /// exist yet, nil when it can't be read.
+    private static func chromiumCookieKeys(profileID: String) -> Set<LegacyCookieImport.Key>? {
+        let hash = SHA256.hash(data: Data(profileID.utf8)).map { String(format: "%02X", $0) }.joined()
+        let path = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(
+            "Library/Application Support/Boaz/Chromium/Boaz-\(hash)/Network/Cookies").path
+        guard FileManager.default.fileExists(atPath: path) else { return [] }
+        var db: OpaquePointer?, statement: OpaquePointer?
+        defer { sqlite3_finalize(statement); sqlite3_close(db) }
+        guard sqlite3_open_v2(path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { return nil }
+        sqlite3_busy_timeout(db, 1000)
+        guard sqlite3_prepare_v2(db, "SELECT host_key, name, path FROM cookies", -1, &statement, nil) == SQLITE_OK else {
+            return nil
+        }
+        var keys = Set<LegacyCookieImport.Key>()
+        while true {
+            switch sqlite3_step(statement) {
+            case SQLITE_ROW:
+                let text = { (column: Int32) in sqlite3_column_text(statement, column).map { String(cString: $0) } ?? "" }
+                keys.insert(.init(host: text(0), name: text(1), path: text(2)))
+            case SQLITE_DONE: return keys
+            default: return nil
+            }
         }
     }
 

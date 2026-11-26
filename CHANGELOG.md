@@ -31,6 +31,11 @@ All notable changes to Boaz are recorded here. The format follows
 - Mac: Upgrading from the sandboxed Boaz no longer risks losing your sign-ins. Boaz copied the old cookies only if
   WebKit listed them right away; when it answered empty before it had loaded them, Boaz stopped looking for good. It
   now also checks the old cookie file, and if WebKit hasn't handed the cookies over yet, it tries again next launch.
+- Mac: Sign-ins from pages the sandboxed Boaz opened before its library had loaded, such as a link that started
+  it, now come across to the Chromium Boaz too, including for anyone who has already upgraded. They go to the default
+  profile and never replace a sign-in Boaz already has. (#188)
+- Mac: If macOS's Keychain prompt was denied while Boaz brought over your previous sign-ins, they were kept only until
+  Boaz quit. Boaz now checks on the next launch that they were saved, and brings them over again if not.
 - The Mac live folder UI test moves into the Pull Requests submenu before choosing a filter, so the submenu no
   longer closes under the pointer and fails the run.
 - iPhone: switching back to a tab no longer reloads it. Boaz keeps more pages open (up to 16, by how much memory the

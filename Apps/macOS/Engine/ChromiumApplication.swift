@@ -439,7 +439,7 @@ private final class ChromiumApplication: NSObject {
                 try await runtime.prepareBlockingAssets()
                 guard !finished else { return }
                 let profile = try await runtime.prepareProfile(.init(id: profileID, isPrivate: false))
-                await ChromiumLegacyStore.importWebKitCookies(runtime: runtime, profile: profile, store: model.dataStore(for: profileID))
+                await ChromiumLegacyStore.importWebKitCookies(runtime: runtime, profile: profile, model: model)
                 guard !finished else { return }
                 let window = try ChromiumQuickWindow(runtime: runtime, profile: profile, url: url, model: model)
                 quickWindows.append(window)
@@ -473,7 +473,7 @@ private final class ChromiumApplication: NSObject {
                 if isPrivate { _ = try await runtime.prepareProfile(.init(id: profileID, isPrivate: false)) }
                 let profile = try await runtime.prepareProfile(identity)
                 if !isPrivate, model.sidebar.profiles.contains(where: { $0.id == profile.identity.id }) {
-                    await ChromiumLegacyStore.importWebKitCookies(runtime: runtime, profile: profile, store: model.dataStore(for: profile.identity.id))
+                    await ChromiumLegacyStore.importWebKitCookies(runtime: runtime, profile: profile, model: model)
                 }
                 guard !finished else { return }
                 if let tabID {
@@ -508,8 +508,7 @@ private final class ChromiumApplication: NSObject {
         do {
             try await runtime.prepareBlockingAssets()
             let profile = try await runtime.prepareProfile(.init(id: profileID, isPrivate: false))
-            await ChromiumLegacyStore.importWebKitCookies(runtime: runtime, profile: profile,
-                                                         store: model.dataStore(for: profileID))
+            await ChromiumLegacyStore.importWebKitCookies(runtime: runtime, profile: profile, model: model)
             guard !finished, !model.isQuitting, !window.finished else {
                 releaseProfileIfUnused(profile)
                 return
