@@ -54,6 +54,16 @@ All notable changes to Boaz are recorded here. The format follows
 - iPhone: Incognito tabs share one in-memory session until you leave Incognito, so an Incognito tab that reloads
   stays signed in. Nothing of it is written to disk.
 
+## [0.4.49] - 2026-11-26
+
+### Changed
+
+- iPhone Duo, unfolded and held upright: a full status bar across the top again, as on other iPhones, in the page's
+  color. The time and cellular or Wi-Fi are on the left, the battery on the right. They're live: the battery shows
+  its real charge, a bolt and green while charging, yellow in Low Power Mode and red when low; Wi-Fi changes to the
+  cellular network's name (5G, LTE) when you leave Wi-Fi. The landscape status pill uses the same live indicators.
+  iOS doesn't share signal strength with apps, so the cellular bars and Wi-Fi fan always show full.
+
 ## [0.4.48] - 2026-11-26
 
 ### Changed
