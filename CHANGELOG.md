@@ -23,6 +23,8 @@ All notable changes to Boaz are recorded here. The format follows
   where you left it. Past 20 open pages, or when the Mac runs low on memory, the oldest close. A tab whose page
   closed shows the page as you last saw it, at the same spot, while it reloads underneath. You can scroll, select
   and copy, and a link you click opens in the tab. Never for Incognito tabs.
+- Dev tooling: `Tools/perf/` re-measures docs/qa.md §4's speed baselines against the published release DMG, under
+  guarded isolation that never touches the installed Boaz or Chen's real library.
 
 ### Fixed
 

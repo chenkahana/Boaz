@@ -141,6 +141,40 @@ than the previous cycle is a bug.
 | Archive Today's Tabs with 150+ tabs | Time until the sidebar settles | 2.9 s |
 | Memory | `footprint -p Boaz` with 10 and with 150 tabs | 85–150 MB for the app process, peak 273 MB |
 
+These numbers were taken by hand on WebKit Debug builds before #12 (PR #22 added the table; no method, machine or
+run count was recorded), on an engine this product no longer ships. They are kept only for reference, one cycle,
+until `Tools/perf/` below produces a dated, comparable Chromium-engine column to replace this note.
+
+### Method (PLAN-04): `Tools/perf/`
+
+`Tools/perf/perf.py` re-runs every row above against the *published* release DMG — never a local build, and never
+the installed Boaz — on an ad-hoc re-signed copy with no entitlements, launched under a throwaway `HOME` +
+`CFFIXED_USER_HOME`, with Sparkle and iCloud sync off. Must-have #13 (Chen's real library and CloudKit are
+untouchable) is enforced by guards that abort the whole run — a Boaz process already running, non-empty
+entitlements on the copy, or any change to Chen's real `~/Library/Application Support/Boaz` or
+`~/Library/Containers/com.chenkahana.boaz` measured before and after each row — rather than by hoping the
+isolation holds.
+
+- **Run it:** `Tools/perf/run.sh [dmg-tag] [N]` (default `v0.4.48`, `N=7`). Only on the orchestrator's go, with
+  Chen's own Boaz quit, the Mac idle and on AC power, and never while Chen is screen-sharing — every row opens a
+  real window and drives the keyboard. Takes about 25 minutes. Writes `results.json` and `results.md` (the table
+  below's format) under `~/tmp/codex/boaz-perf/<UTC timestamp>/`.
+- **Fixtures:** `Tools/perf/seed` (SwiftPM, `BoazKit`'s public API only — `recordVisit`, `save`, `updateSpace`)
+  seeds each row's throwaway `HOME` with the 50,000-visit history or the 10/150 Today-tab variants it needs.
+- **What needs Chen first:** the ⌘T/typing/archive rows drive the keyboard through System Events, which needs an
+  Accessibility grant for whatever runs the harness; `Tools/perf/perf.py guard-check` reports whether the
+  isolation guards currently pass without launching anything. As of this writing, `guard-check`'s cfprefsd probe
+  **aborts on this host**: a plain `defaults write` under a fixed `HOME`/`CFFIXED_USER_HOME` still lands in the
+  real `~/Library/Preferences`, so `com.chenkahana.boaz`'s own preference writes are not yet proven isolated by
+  environment variables alone (the harness itself never performs such a write — see `launch_app`'s comment — but
+  the running app might). Re-check `guard-check` on the actual run host before a live session; if it still aborts,
+  this needs `sandbox-exec` confinement of the app's own executable (bypassing LaunchServices) before proceeding.
+  The iPhone columns stay "not measured (needs device)" until Chen picks a spare or disposable device.
+- **Status:** tooling built and self-tested (`swift build` on the seed tool with a verified store, `window-wait.swift`
+  against a window-less pid, `perf.py`'s guards, isolation staging and page server exercised for real; see
+  plan/items/04-performance-baselines.md's Progress log). No GUI row has been run yet — this table's baseline
+  column is unchanged until a live session produces one.
+
 To see where main-thread time goes, run `sample Boaz 5 -file out.txt` while doing the slow thing, or use Instruments
 (Time Profiler, plus Allocations for memory).
 
