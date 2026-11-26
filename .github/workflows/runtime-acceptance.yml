@@ -1,0 +1,56 @@
+name: Runtime acceptance
+
+# PLAN-02 rows 2-4 on a throwaway Mac: a published Boaz DMG, driven through its own opt-in Local Automation
+# (Tools/acceptance/runtime.py). It only downloads releases: it never builds, signs, notarizes or publishes anything.
+on:
+  push:
+    branches: ["release/**"]
+    paths:
+      - .github/workflows/runtime-acceptance.yml
+      - Tools/acceptance/**
+      - Tools/chromium/automation_client.py
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to check
+        default: v0.4.48
+
+concurrency:
+  group: runtime-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  runtime:
+    name: Runtime ${{ inputs.tag || 'v0.4.48' }}
+    runs-on: xcode-27
+    timeout-minutes: 30
+    env:
+      TAG: ${{ inputs.tag || 'v0.4.48' }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Download the release
+        run: |
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" -p Boaz.dmg -p Boaz.dmg.sha256 -D "$RUNNER_TEMP/$TAG"
+          (cd "$RUNNER_TEMP/$TAG" && shasum -a 256 -c Boaz.dmg.sha256)
+
+      - name: Run the checks
+        run: python3 Tools/acceptance/runtime.py "$RUNNER_TEMP/$TAG/Boaz.dmg" "$RUNNER_TEMP/runtime"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "# Runtime acceptance, $TAG" >> "$GITHUB_STEP_SUMMARY"
+          cat "$RUNNER_TEMP/runtime/results.md" >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+
+      - name: Upload the evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: runtime-${{ env.TAG }}
+          path: ${{ runner.temp }}/runtime
+          retention-days: 30

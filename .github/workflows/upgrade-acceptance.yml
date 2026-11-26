@@ -8,7 +8,9 @@ on:
     branches: ["release/**"]
     paths:
       - .github/workflows/upgrade-acceptance.yml
-      - Tools/acceptance/**
+      - Tools/acceptance/upgrade.sh
+      - Tools/acceptance/library.py
+      - Tools/acceptance/fixture_server.py
   workflow_dispatch:
     inputs:
       from:
