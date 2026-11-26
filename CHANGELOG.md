@@ -12,6 +12,10 @@ All notable changes to Boaz are recorded here. The format follows
 
 ### Fixed
 
+- Mac: Upgrading from the sandboxed Boaz no longer risks losing your sign-ins. Boaz copied the old cookies only if
+  WebKit listed them right away; when it answered empty before it had loaded them, Boaz stopped looking for good. It
+  now also checks the old cookie file, and if WebKit hasn't handed the cookies over yet, it tries again next launch.
+
 ## [0.4.48] - 2026-11-26
 
 ### Changed

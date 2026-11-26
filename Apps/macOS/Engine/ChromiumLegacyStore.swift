@@ -2,6 +2,7 @@
 import Foundation
 import Darwin
 import OSLog
+import BoazKit
 import SQLite3
 import WebKit
 
@@ -113,9 +114,14 @@ enum ChromiumLegacyStore {
         do {
             let sites = await store.dataRecords(ofTypes: [WKWebsiteDataTypeCookies])
             var cookies = await store.httpCookieStore.allCookies()
-            // WebKit can answer empty until a web view has used the store; one that sees nothing wakes it.
+            // WebKit can answer empty, its records included, until a web view has used the store, so the store's
+            // cookie file on disk also says whether there are cookies to wait for. One that sees nothing wakes it.
+            let file = store.identifier.map { FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(
+                "Library/WebKit/com.chenkahana.boaz/WebsiteDataStore/\($0.uuidString.lowercased())/Cookies/Cookies.binarycookies") }
+            let stored = file.flatMap { try? Data(contentsOf: $0) }.flatMap { WebKitCookieFile.unexpiredCount(in: $0) } ?? 0
+            let expected = !sites.isEmpty || stored > 0
             var waker: WKWebView?
-            for _ in 0..<20 where cookies.isEmpty && !sites.isEmpty {
+            for _ in 0..<20 where cookies.isEmpty && expected {
                 if waker == nil {
                     let configuration = WKWebViewConfiguration()
                     configuration.websiteDataStore = store
@@ -126,7 +132,7 @@ enum ChromiumLegacyStore {
                 cookies = await store.httpCookieStore.allCookies()
             }
             waker = nil
-            guard sites.isEmpty || !cookies.isEmpty else {
+            guard !expected || !cookies.isEmpty else {
                 log.error("Previous cookies were not readable yet; next launch retries")
                 return
             }
