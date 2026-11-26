@@ -29,10 +29,10 @@ struct RootView: View {
             Pane(index: 0)
             if case .split = arrangement { Pane(index: 1).layoutValue(key: PaneSlot.self, value: 1) }
         }
-        // Landscape keeps the system status cluster hidden for the floating pill. Every other posture shows it:
-        // it's live (battery, cellular, Wi-Fi) and native in a way a hand-drawn bar can only fake.
-        .statusBarHidden(isLandscape)
-        .ignoresSafeArea(.container, edges: isLandscape ? [.top, .leading, .trailing] : [])
+        // Unfolded, the system squeezes its status into a ring around the camera: portrait draws a bar across the
+        // top instead (`PortraitStatusBar`), landscape a floating pill. Folded and half-open keep the system's.
+        .statusBarHidden(isPortrait || isLandscape)
+        .ignoresSafeArea(.container, edges: isLandscape ? [.top, .leading, .trailing] : isPortrait ? .top : [])
         .overlay(alignment: .topTrailing) {
             if isLandscape {
                 LandscapeStatusPill(collapsed: $landscapeStatusCollapsed, site: focusedSite)
@@ -166,6 +166,8 @@ struct PostureLayout: Layout {
 private struct Pane: View {
     @Environment(AppModel.self) private var model
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.collapsesBar) private var collapsesBar
+    @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
     let index: Int
     /// The side the next tab slides in from; set while the finger is still down, so the outgoing page
     /// has already rendered with it by the time the tab changes.
@@ -174,6 +176,7 @@ private struct Pane: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if collapsesBar { PortraitStatusBar(site: statusSite) }
             ZStack {
                 if let tab = model.tab(inPane: index) {
                     TabBrowser(tab: tab, pageDirection: $pageDirection, bump: $bump)
@@ -207,6 +210,11 @@ private struct Pane: View {
     private var carouselMotion: Animation {
         reduceMotion ? .easeInOut(duration: 0.2) : .interpolatingSpring(duration: 0.42, bounce: 0.08)
     }
+
+    private var statusSite: SiteColor? {
+        guard tintWithSiteColors, let id = model.tabID(inPane: index) else { return nil }
+        return model.siteEdges[id]?.top
+    }
 }
 
 private struct LandscapeStatusPill: View {
@@ -219,8 +227,8 @@ private struct LandscapeStatusPill: View {
                 Image(systemName: collapsed ? "chevron.down" : "chevron.up")
                 if !collapsed {
                     StatusClock()
-                    Image(systemName: "wifi")
-                    BatteryReadout()
+                    NetworkIndicator()
+                    BatteryIndicator()
                 }
             }
             .font(.system(size: 14, weight: .semibold))
@@ -233,45 +241,6 @@ private struct LandscapeStatusPill: View {
         .glassEffect(.chrome(site?.color), in: .capsule)
         .chromeScheme(site)
         .accessibilityLabel(collapsed ? "Show Status" : "Hide Status")
-    }
-}
-
-private struct StatusClock: View {
-    var body: some View {
-        TimelineView(.periodic(from: .now, by: 60)) { context in
-            Text(context.date, format: .dateTime.hour().minute()).monospacedDigit()
-        }
-    }
-}
-
-private struct BatteryReadout: View {
-    @State private var batteryLevel = UIDevice.current.batteryLevel
-
-    var body: some View {
-        HStack(spacing: 3) {
-            Image(systemName: batterySymbol)
-            if batteryLevel >= 0 { Text(Double(batteryLevel), format: .percent.precision(.fractionLength(0))) }
-        }
-        .fixedSize(horizontal: true, vertical: false)
-        .onAppear {
-            UIDevice.current.isBatteryMonitoringEnabled = true
-            batteryLevel = UIDevice.current.batteryLevel
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIDevice.batteryLevelDidChangeNotification)) { _ in
-            batteryLevel = UIDevice.current.batteryLevel
-        }
-        .onDisappear { UIDevice.current.isBatteryMonitoringEnabled = false }
-    }
-
-    private var batterySymbol: String {
-        guard batteryLevel >= 0 else { return "battery.100percent" }
-        return switch batteryLevel {
-        case ..<0.25: "battery.0percent"
-        case ..<0.5: "battery.25percent"
-        case ..<0.75: "battery.50percent"
-        case ..<0.95: "battery.75percent"
-        default: "battery.100percent"
-        }
     }
 }
 
