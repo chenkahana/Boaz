@@ -4,7 +4,8 @@ name: BoazChromiumUI
 packages:
   BoazKit:
     path: ${BOAZ_CHROMIUM_REPO_ROOT}/Packages/BoazKit
-# Reuse distribution dependencies/settings without generating the existing app targets.
+# Reuse distribution dependencies/settings without generating the existing app targets or their schemes.
+schemes:REPLACE: {}
 targets:REPLACE:
   Boaz-ChromiumUI:
     type: library.dynamic
