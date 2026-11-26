@@ -19,6 +19,10 @@ All notable changes to Boaz are recorded here. The format follows
 - CI finishes the run of every push to master and release branches instead of cancelling it for the next push, and
   the Mac UI tests job lists passed, failed and skipped counts and the skipped tests' names on the run page. Its
   result bundle is kept for green runs too.
+- Mac: tabs you haven't looked at in a while freeze instead of closing, so going back to one is instant and exactly
+  where you left it. Past 20 open pages, or when the Mac runs low on memory, the oldest close. A tab whose page
+  closed shows the page as you last saw it, at the same spot, while it reloads underneath. You can scroll, select
+  and copy, and a link you click opens in the tab. Never for Incognito tabs.
 
 ### Fixed
 
