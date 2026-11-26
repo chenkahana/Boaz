@@ -18,11 +18,7 @@ struct MacAISheet: View {
         case .page(let tabID, let mode):
             if let tab = browser.tab(tabID) {
                 #if BOAZ_CHROMIUM
-                if browser.createChromiumPage != nil {
-                    ChromiumPageAssistantSheet(tab: tab, mode: mode)
-                } else {
-                    PageAssistantView(page: browser.page(for: tab), mode: mode)
-                }
+                ChromiumPageAssistantSheet(tab: tab, mode: mode)
                 #else
                 PageAssistantView(page: browser.page(for: tab), mode: mode)
                 #endif

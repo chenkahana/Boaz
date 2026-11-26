@@ -220,7 +220,8 @@ final class BrowserState {
     }
 
     func engineKind(for tab: SidebarItem) -> BrowserEngineKind {
-        guard createChromiumPage != nil else { return .webKit }
+        // Boaz is Chromium: a window without its Chromium browser never sends a tab to WebKit, and caches nothing.
+        guard createChromiumPage != nil else { return enginePages[tab.id]?.kind ?? .chromium }
         if engineRulesRevision != ChromiumEnginePreferences.revision {
             engineRulesRevision = ChromiumEnginePreferences.revision
             cachedEngineRules.removeAll()
@@ -583,12 +584,12 @@ final class BrowserState {
     }
     var activePage: WebPage? {
         #if BOAZ_CHROMIUM
-        if createChromiumPage != nil {
-            guard activeEnginePage?.kind == .webKit, let activeTabID else { return nil }
-            return pages[activeTabID]
-        }
-        #endif
+        // Only a page already open in WebKit (protected video); reading this never opens one.
+        guard activeEnginePage?.kind == .webKit, let activeTabID else { return nil }
+        return pages[activeTabID]
+        #else
         return activeTab.map(page(for:))
+        #endif
     }
     /// The address that failed while the tab shows why; otherwise the page's address, or the tab's while the page has
     /// none of its own.
@@ -813,7 +814,9 @@ final class BrowserState {
             return engine
         }
         #if BOAZ_CHROMIUM
-        if engineKind(for: tab) == .chromium, let createChromiumPage {
+        if engineKind(for: tab) == .chromium {
+            // A window whose Chromium browser is gone (or not there yet) opens nothing: never a WebKit page instead.
+            guard let createChromiumPage else { throw EnginePageError.unavailable }
             let engine = try createChromiumPage(tab)
             enginePages[tab.id] = engine
             reportExternalTabs()
@@ -825,12 +828,10 @@ final class BrowserState {
             closeIdlePages()
             return engine
         }
-        if createChromiumPage != nil {
-            reservedWebKitTabs.insert(tab.id)
-            guard reportExternalTabs() else {
-                reservedWebKitTabs.remove(tab.id)
-                throw EnginePageError.unavailable
-            }
+        reservedWebKitTabs.insert(tab.id)
+        guard reportExternalTabs() else {
+            reservedWebKitTabs.remove(tab.id)
+            throw EnginePageError.unavailable
         }
         #endif
         let page = page(for: tab)
@@ -1817,9 +1818,10 @@ final class BrowserState {
             }
             return
         }
-        #endif
+        #else
         let page = makePage(profileID: profileID, context: .peek, loading: url)
         withMotion(.emphasized) { peek = Peek(page: page, profileID: profileID) }
+        #endif
     }
 
     func closePeek() {

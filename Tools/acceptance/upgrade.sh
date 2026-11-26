@@ -135,6 +135,8 @@ PROFILE=$(sqlite3 "$OLD_DB" "SELECT id FROM profile WHERE isDefault = 1 AND dele
 
 echo "## After: the upgrade" >> "$RESULTS"
 install "$TO_DMG" || { fail "could not install $TO_DMG"; exit 1; }
+# Every request from here on is the new versions': all of them Chromium (must-have #1, #191).
+UPGRADED_FROM=$(wc -l < "$OUT/requests.jsonl")
 visit upgrade /whoami
 sleep 5
 shot after-upgrade
@@ -201,6 +203,12 @@ if [ -n "$THEN_DMG" ]; then
     python3 "$HERE/library.py" compare "$OUT/before.json" "$OUT/then.json" > "$OUT/library-then.txt" \
         && pass "library survived the second upgrade" || fail "library changed in the second upgrade"
 fi
+
+echo "## Engine" >> "$RESULTS"
+# The fixture has no protected video, so WebKit (AppleWebKit/605.1.15, no Chrome/) never has a page to load.
+webkit=$(tail -n +"$((UPGRADED_FROM + 1))" "$OUT/requests.jsonl" | grep 'AppleWebKit/605' | grep -v 'Chrome/')
+if [ -z "$webkit" ]; then pass "every page the upgraded Boaz loaded ran in Chromium"
+else fail "WebKit loaded $(echo "$webkit" | sed -E 's/.*"path": "([^"]*)".*/\1/' | tr '\n' ' ')(#191)"; fi
 
 log show --last 30m --info --predicate "subsystem == \"$ID\"" > "$OUT/boaz.log" 2>&1
 log show --last 30m --predicate 'process == "tccd"' 2>/dev/null | grep -i -E "boaz|AppData" > "$OUT/tccd.log"
