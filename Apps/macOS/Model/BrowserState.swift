@@ -398,6 +398,7 @@ final class BrowserState {
     /// Pages past `maxLivePages`, frozen rather than closed; they close past `maxResidentPages` or when memory runs low.
     @ObservationIgnored private var frozenChromiumPages: Set<String> = []
     @ObservationIgnored private var memoryPressure: DispatchSourceMemoryPressure?
+    @ObservationIgnored private var memoryPressureCloses: Task<Void, Never>?
     /// Saved pages shown over their tab's page while it reloads (`showChromiumSnapshot`), with the address they show.
     private(set) var chromiumSnapshots: [String: (page: ChromiumEnginePageAdapter, url: URL)] = [:]
     #endif
@@ -685,8 +686,9 @@ final class BrowserState {
     }
 
     #if BOAZ_CHROMIUM
-    /// When memory runs low, frozen pages close, oldest first: half of them on a warning, all on a critical warning.
-    /// Each leaves its saved page behind (`saveChromiumArchive`).
+    /// When memory runs low, frozen pages close, oldest first. On a warning half of them close one at a time, each
+    /// leaving its saved page behind (`saveChromiumArchive`); on a critical warning all close at once, unsaved, since
+    /// saving a page takes memory.
     private func watchMemoryPressure() {
         guard memoryPressure == nil else { return }
         let source = DispatchSource.makeMemoryPressureSource(eventMask: [.warning, .critical], queue: .main)
@@ -700,9 +702,20 @@ final class BrowserState {
     private func closeFrozenPages() {
         guard let event = memoryPressure?.data else { return }
         let frozen = recency.filter { frozenChromiumPages.contains($0) }
-        for id in frozen.prefix(event.contains(.critical) ? frozen.count : (frozen.count + 1) / 2) {
-            guard !pagesInView.contains(id), let engine = enginePages[id] else { continue }
-            requestChromiumClose(id, engine: engine, automatic: true)
+        if event.contains(.critical) {
+            for id in frozen where !pagesInView.contains(id) {
+                if let engine = enginePages[id] { requestChromiumClose(id, engine: engine, automatic: true, archive: false) }
+            }
+            return
+        }
+        guard memoryPressureCloses == nil else { return }
+        memoryPressureCloses = Task {
+            defer { memoryPressureCloses = nil }
+            for id in frozen.prefix((frozen.count + 1) / 2) {
+                guard frozenChromiumPages.contains(id), !pagesInView.contains(id), let engine = enginePages[id],
+                      let close = requestChromiumClose(id, engine: engine, automatic: true) else { continue }
+                await close.value
+            }
         }
     }
     #endif
@@ -1264,13 +1277,16 @@ final class BrowserState {
         }
     }
 
-    private func requestChromiumClose(_ tabID: String, engine: EnginePage, automatic: Bool = false) {
-        guard !pendingChromiumUnloads.contains(tabID) else { return }
+    /// `archive` false closes without saving the page (`saveChromiumArchive`); its last-look image stays.
+    @discardableResult
+    private func requestChromiumClose(_ tabID: String, engine: EnginePage, automatic: Bool = false,
+                                      archive: Bool = true) -> Task<Void, Never>? {
+        guard !pendingChromiumUnloads.contains(tabID) else { return nil }
         pendingChromiumUnloads.insert(tabID)
         if frozenChromiumPages.remove(tabID) != nil {
             try? (engine.adapter as? ChromiumEnginePageAdapter)?.setFrozen(false)
         }
-        Task {
+        return Task {
             await rememberChromiumPageState(tabID)
             guard enginePages[tabID] === engine else { return }
             if automatic {
@@ -1281,7 +1297,7 @@ final class BrowserState {
                     return
                 }
             }
-            await saveChromiumArchive(tabID, engine: engine)
+            if archive { await saveChromiumArchive(tabID, engine: engine) }
             guard enginePages[tabID] === engine else { return }
             // Saving takes a moment; a page shown again meanwhile stays.
             if automatic, pagesInView.contains(tabID) {
