@@ -26,11 +26,15 @@ final class SpaceRoutingUITests: BoazUITestCase {
         wait(for: [opened], timeout: 10)
     }
 
+    /// The routed tab's sidebar row: the selected one, since the address field at the top shows the same host.
+    private var routedTab: XCUIElement {
+        sidebar.buttons.matching(NSPredicate(format: "label == %@ AND selected == true", "example.test")).firstMatch
+    }
+
     func testExternalOpenFollowsTheRule() {
         openRoutedLink()
         XCTAssertTrue(waitForSpace("Work"), "The ruled link didn't switch the window to Work")
-        XCTAssertTrue(sidebar.buttons["example.test"].firstMatch.waitForExistence(timeout: 10),
-                      "The routed tab isn't in Work")
+        XCTAssertTrue(routedTab.waitForExistence(timeout: 10), "The routed tab isn't in Work")
         XCTAssertEqual(app.windows.count, 1, "A routed link must not open a second window")
         XCTAssertFalse(app.descendants(matching: .any)["screen.quickWindow"].exists, "A routed link opened a Quick Window")
         let toast = element("screen.toast")
@@ -45,14 +49,15 @@ final class SpaceRoutingUITests: BoazUITestCase {
         XCTAssertTrue(action.waitForExistence(timeout: 5), "The toast has no Open in Personal")
         action.click()
         XCTAssertTrue(waitForSpace("Personal"), "Open in Personal didn't switch back")
-        XCTAssertTrue(sidebar.buttons["example.test"].firstMatch.waitForExistence(timeout: 5),
-                      "The tab didn't move to Personal")
+        XCTAssertTrue(routedTab.waitForExistence(timeout: 5), "The tab didn't move to Personal")
         XCTAssertEqual(app.windows.count, 1)
     }
 
     // MARK: Screens for the UI review (attached to the result bundle, CI only)
 
+    /// Best effort: an element with no frame (a menu that already closed) is never asked for a screenshot.
     private func attach(_ element: XCUIElement, _ name: String) {
+        guard element.exists, !element.frame.isEmpty else { return }
         let screenshot = XCTAttachment(screenshot: element.screenshot())
         screenshot.name = "routing-\(name)-\(appearance.rawValue)"
         screenshot.lifetime = .keepAlways
@@ -63,14 +68,17 @@ final class SpaceRoutingUITests: BoazUITestCase {
     func testRuleScreens() {
         openRoutedLink()
         XCTAssertTrue(waitForSpace("Work"))
-        let tab = sidebar.buttons["example.test"].firstMatch
+        let tab = routedTab
         XCTAssertTrue(tab.waitForExistence(timeout: 10))
 
-        tab.rightClick()
         let stop = app.menuItems["Stop Opening example.test in Work"].firstMatch
-        XCTAssertTrue(stop.waitForExistence(timeout: 3), "The tab menu has no rule item")
-        let contextMenu = app.menus.firstMatch
-        if contextMenu.exists { attach(contextMenu, "tab-menu") }
+        for _ in 0..<2 where !stop.exists {
+            tab.rightClick()
+            _ = stop.waitForExistence(timeout: 5)
+        }
+        XCTAssertTrue(stop.exists, "The tab menu has no rule item")
+        attach(app.menus.containing(NSPredicate(format: "title == %@", "Stop Opening example.test in Work")).firstMatch,
+               "tab-menu")
         app.typeKey(.escape, modifierFlags: [])
 
         menu("View", "Customize Space…")
