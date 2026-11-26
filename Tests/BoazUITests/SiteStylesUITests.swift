@@ -93,9 +93,13 @@ private final class LoopbackPage: @unchecked Sendable {
             }
         }
         let ready = DispatchSemaphore(value: 0)
+        nonisolated(unsafe) var failure: NWError?
         listener.stateUpdateHandler = { state in
             switch state {
-            case .ready, .failed, .cancelled: ready.signal()
+            case .ready, .cancelled: ready.signal()
+            case .failed(let error):
+                failure = error
+                ready.signal()
             default: break
             }
         }
@@ -103,7 +107,8 @@ private final class LoopbackPage: @unchecked Sendable {
         _ = ready.wait(timeout: .now() + 5)
         guard let port = listener.port?.rawValue, port != 0 else {
             listener.cancel()
-            throw URLError(.cannotConnectToHost)
+            // A sandboxed runner without com.apple.security.network.server fails here with EPERM.
+            throw failure ?? NWError.posix(.ETIMEDOUT)
         }
         self.port = port
     }

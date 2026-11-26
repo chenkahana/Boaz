@@ -14,6 +14,10 @@
 	<true/>
 	<key>com.apple.security.network.client</key>
 	<true/>
+	<!-- Test build only: the sandboxed test runner serves fixture pages on 127.0.0.1 (SiteStylesUITests); without this
+	     its listener fails with EPERM. -->
+	<key>com.apple.security.network.server</key>
+	<true/>
 	<!-- Read-only, test build only: fixtures (BOAZ_UITEST_FIXTURES, BOAZ_UITEST_DOWNLOADS_DIR, BOAZ_GITHUB_FIXTURE)
 	     live in the test runner's bundle and container, which this sandboxed app can't otherwise read. Xcode gives
 	     the runner the same exception. Nothing is writable outside this app's own container. -->
