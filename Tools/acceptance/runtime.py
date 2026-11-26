@@ -49,6 +49,7 @@ class Run:
         self.results = out / 'results.md'
         self.results.write_text('')
         self.requests = out / 'requests.jsonl'
+        self.calls = {}
 
     def note(self, text):
         print(text, flush=True)
@@ -264,19 +265,21 @@ def native(run, test, **environment):
     extra = [f'{key}={value}' for key, value in environment.items()]
     result = subprocess.run(['make', '-C', str(HERE.parent.parent), 'acceptance-uitest', f'TEST={test}',
                              f'BOAZ_ACCEPTANCE_APP={APP}', *extra], capture_output=True, text=True)
-    (run.out / f'{test}.log').write_text(result.stdout + result.stderr)
+    # Each call keeps its own log and result bundle; failures() reads the latest.
+    run.calls[test] = run.calls.get(test, 0) + 1
+    name = f'{test}-{run.calls[test]}'
+    (run.out / f'{name}.log').write_text(result.stdout + result.stderr)
     bundle = HERE.parent.parent / f'build/Acceptance-{test}.xcresult'
-    kept = run.out / bundle.name
-    shutil.rmtree(kept, ignore_errors=True)
     if bundle.exists():
-        shutil.copytree(bundle, kept)
+        shutil.copytree(bundle, run.out / f'Acceptance-{name}.xcresult')
     return result.returncode == 0
 
 
 def failures(run, test):
     """The failure messages in the last run of `test`, from its result bundle (a test's own output isn't in the log)."""
     result = subprocess.run(['xcrun', 'xcresulttool', 'get', 'test-results', 'tests', '--path',
-                             str(run.out / f'Acceptance-{test}.xcresult')], capture_output=True, text=True)
+                             str(run.out / f'Acceptance-{test}-{run.calls.get(test, 0)}.xcresult')],
+                            capture_output=True, text=True)
     messages = []
 
     def walk(node):
@@ -302,21 +305,27 @@ STORE = 'https://chromewebstore.google.com/detail/{id}'
 # The store's own "Add to Chrome" button, scrolled into view: where a trusted click lands, and whether anything (a
 # store promo, say) covers it there. Nothing on the page is clicked through: a covered button is reported.
 STORE_BUTTON = """Promise.resolve(JSON.stringify((() => {
-  const button = [...document.querySelectorAll('button, [role="button"]')].find(b => /add to chrome/i.test(b.textContent)
-    && !b.disabled && b.getClientRects().length);
-  if (!button) return null;
+  const candidates = [...document.querySelectorAll('button, [role="button"]')].filter(b => /add to chrome/i.test(b.textContent));
+  const button = candidates.find(b => !b.disabled && b.getAttribute('aria-disabled') !== 'true' && b.getClientRects().length);
+  const banner = [...document.querySelectorAll('div, span, p')].map(e => e.textContent.trim())
+    .find(t => /switch to chrome to install/i.test(t) && t.length < 200) || null;
+  const about = {banner, webstorePrivate: typeof chrome !== 'undefined' && typeof chrome.webstorePrivate,
+    brands: (navigator.userAgentData && navigator.userAgentData.brands || []).map(b => b.brand),
+    candidates: candidates.map(b => ({disabled: b.disabled, aria: b.getAttribute('aria-disabled'),
+      rect: [...b.getClientRects()].map(r => [Math.round(r.width), Math.round(r.height)])}))};
+  if (!button) return {about};
   button.scrollIntoView({block: 'center'});
   const r = button.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
   const hit = document.elementFromPoint(x, y);
-  return {x, y, covered: !(hit && button.contains(hit))};
+  return {x, y, covered: !(hit && button.contains(hit)), about};
 })()))"""
 
 
 def store_click(run, port, token, id):
     """Opens the extension's store page as a tab and clicks its button with a trusted mouse event, 3 tries:
-    'clicked', 'covered' or None (the store didn't answer with the button: inconclusive)."""
+    'clicked', 'covered', 'refused' (the page loaded but offers no enabled button) or None (no store page)."""
     url = STORE.format(id=id)
-    result = None
+    result, about = None, None
     for attempt in range(1, 4):
         native(run, 'testOpenTabs', BOAZ_ACCEPTANCE_URLS=url)
         end = time.time() + 30
@@ -324,17 +333,20 @@ def store_click(run, port, token, id):
             try:
                 page = next((t for t in targets(port, token) if t['type'] == 'page' and t['url'].startswith(url)), None)
                 found = page and automation_client.run(target_socket(port, token, page), STORE_BUTTON)
-                if found and not found['covered']:
-                    socket = target_socket(port, token, page)
-                    for kind in ('mousePressed', 'mouseReleased'):
-                        socket.call('Input.dispatchMouseEvent', type=kind, x=found['x'], y=found['y'],
-                                    button='left', clickCount=1)
-                    return 'clicked'
-                result = 'covered' if found else result
+                if found:
+                    about = found['about']
+                    if 'x' in found and not found['covered']:
+                        socket = target_socket(port, token, page)
+                        for kind in ('mousePressed', 'mouseReleased'):
+                            socket.call('Input.dispatchMouseEvent', type=kind, x=found['x'], y=found['y'],
+                                        button='left', clickCount=1)
+                        return 'clicked'
+                    result = 'covered' if 'x' in found else 'refused' if about['candidates'] or about['banner'] else result
             except Exception as error:  # the page navigating mid-call; the next poll retries
                 run.note(f'store page {COHORT[id]}, try {attempt}: {error}')
             time.sleep(2)
         run.shot(f'store-{id}-try-{attempt}')
+    run.note(f'store page {COHORT[id]}: {json.dumps(about)}')
     return result
 
 
@@ -355,8 +367,9 @@ def webstore(run):
         if clicked is None:
             run.check(False, f'inconclusive: store unreachable for {COHORT[id]} (infra: re-run to settle)')
             continue
-        if not run.check(clicked == 'clicked', f'{COHORT[id]}: clicked the store\'s Add to Chrome button'
-                         + ('' if clicked == 'clicked' else ' (something on the page covers it)')):
+        if not run.check(clicked == 'clicked', f'{COHORT[id]}: clicked the store\'s Add to Chrome button' + {
+                'covered': ' (something on the page covers it)',
+                'refused': ' (the store offers Boaz no enabled install button; details above)'}.get(clicked, '')):
             continue
         reached.append(id)
         run.check(native(run, 'testWebStoreInstallSheet', BOAZ_ACCEPTANCE_EXTENSIONS=id),
@@ -447,10 +460,13 @@ def unpacked(run):
     fixture_id = unpacked_id(fixture)
     if not second_profile(run):
         return
-    run.check(native(run, 'testSwitchSpace', BOAZ_ACCEPTANCE_SPACE='Acceptance B'), 'switched to the second profile\'s space')
+    if not run.check(native(run, 'testSwitchSpace', BOAZ_ACCEPTANCE_SPACE='Acceptance B'),
+                     'switched to the second profile\'s space' + ''.join(f'; {m}' for m in failures(run, 'testSwitchSpace'))):
+        return
     folders = [str((folder / id).resolve()) for id in COHORT] + [str(fixture)]
     run.check(native(run, 'testLoadUnpacked', BOAZ_ACCEPTANCE_UNPACKED=','.join(folders)),
-              'chrome://extensions → Developer mode → Load unpacked, for all 9 (XCUITest)')
+              'chrome://extensions → Developer mode → Load unpacked, for all 9 (XCUITest)'
+              + ''.join(f'; {m}' for m in failures(run, 'testLoadUnpacked')))
     time.sleep(5)
     settings, default = extension_settings(SECOND), extension_settings()
     for id in [*COHORT, fixture_id]:
@@ -466,7 +482,8 @@ def unpacked(run):
             run.check(id in workers, f'{COHORT.get(id, "parity fixture")}: its MV3 service worker is running')
     run.check(native(run, 'testExtensionControls', BOAZ_ACCEPTANCE_EXTENSIONS=','.join([*COHORT, fixture_id]),
                      BOAZ_ACCEPTANCE_FIXTURE=fixture_id),
-              'pin, popup and unpin for all 9; the fixture\'s shortcut and side panel (XCUITest)')
+              'pin, popup and unpin for all 9; the fixture\'s shortcut and side panel (XCUITest)'
+              + ''.join(f'; {m}' for m in failures(run, 'testExtensionControls')))
 
     native(run, 'testOpenTabs', BOAZ_ACCEPTANCE_URLS=f'{SITE}/functions,https://example.com/')
     time.sleep(8)
@@ -514,7 +531,9 @@ def profiles(run):
         return
     first = first_space()
     marker = f'history-b-{uuid.uuid4().hex}'
-    native(run, 'testSwitchSpace', BOAZ_ACCEPTANCE_SPACE='Acceptance B')
+    if not run.check(native(run, 'testSwitchSpace', BOAZ_ACCEPTANCE_SPACE='Acceptance B'), 'switched to the second space'
+                     + ''.join(f'; {m}' for m in failures(run, 'testSwitchSpace'))):
+        return
     native(run, 'testOpenTabs', BOAZ_ACCEPTANCE_URLS=f'{SITE}/set?profile=b,{SITE}/{marker},{SITE}/whoami?profile=b')
     native(run, 'testSwitchSpace', BOAZ_ACCEPTANCE_SPACE=first)
     native(run, 'testOpenTabs', BOAZ_ACCEPTANCE_URLS=f'{SITE}/whoami?profile=a')
@@ -584,13 +603,18 @@ def private(run):
         automation()
         time.sleep(5)
     token = uuid.uuid4().hex
-    native(run, 'testOpenPrivateTabs', BOAZ_ACCEPTANCE_URLS=','.join(
+    opened = native(run, 'testOpenPrivateTabs', BOAZ_ACCEPTANCE_URLS=','.join(
         [f'{SITE}/set?private=1', f'{SITE}/private-{token}', f'{SITE}/whoami?private=1', f'{SITE}/login?private=1']))
+    if not run.check(opened, 'opened a private window with ⌘⇧N (XCUITest)'
+                     + ''.join(f'; {m}' for m in failures(run, 'testOpenPrivateTabs'))):
+        return
     run.check(native(run, 'testPasswordPrompt', BOAZ_ACCEPTANCE_LOGIN=f'private-{token}:{PASSWORD}',
-                     BOAZ_ACCEPTANCE_EXPECT_PROMPT='0'), 'no offer to save a password typed in a private window (XCUITest)')
-    native(run, 'testClosePrivateWindows')
-    native(run, 'testOpenPrivateTabs', BOAZ_ACCEPTANCE_URLS=f'{SITE}/whoami?private=2')
-    native(run, 'testClosePrivateWindows')
+                     BOAZ_ACCEPTANCE_EXPECT_PROMPT='0'), 'no offer to save a password typed in a private window (XCUITest)'
+              + ''.join(f'; {m}' for m in failures(run, 'testPasswordPrompt')))
+    native(run, 'testCloseFrontWindow')
+    if run.check(native(run, 'testOpenPrivateTabs', BOAZ_ACCEPTANCE_URLS=f'{SITE}/whoami?private=2'),
+                 'opened a second private window'):
+        native(run, 'testCloseFrontWindow')
     first, second = cookies_sent(run, '/whoami?private=1'), cookies_sent(run, '/whoami?private=2')
     run.check(any('boaz_session=' in c for c in first), 'a private window signs in on the fixture site (control)')
     run.check(bool(second) and not any('boaz_session=' in c for c in second),

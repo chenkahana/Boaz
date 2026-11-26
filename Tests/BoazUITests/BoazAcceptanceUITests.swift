@@ -52,25 +52,24 @@ final class BoazAcceptanceUITests: XCTestCase {
         try openTabs(in: app.windows.firstMatch)
     }
 
-    /// Row 2: a new private window (⌘⇧N) with each address in `BOAZ_ACCEPTANCE_URLS` as a tab.
+    /// Row 2: a new private window (⌘⇧N, titled after its page, not "Private") with each address in
+    /// `BOAZ_ACCEPTANCE_URLS` as a tab.
     func testOpenPrivateTabs() throws {
+        let windows = app.windows.count
         app.windows.firstMatch.typeKey("n", modifierFlags: [.command, .shift])
-        let window = app.windows.matching(NSPredicate(format: "title CONTAINS 'Private'")).firstMatch
-        XCTAssertTrue(window.waitForExistence(timeout: 15), "⌘⇧N didn't open a private window")
+        XCTAssertTrue(waitUntil(15) { self.app.windows.count > windows }, "⌘⇧N didn't open a private window")
+        guard app.windows.count > windows else { return }
         sleep(2)
-        try openTabs(in: window)
+        try openTabs(in: app.windows.firstMatch)
     }
 
-    /// Row 2: closes every private window with its close button.
-    func testClosePrivateWindows() {
-        let windows = app.windows.matching(NSPredicate(format: "title CONTAINS 'Private'"))
-        while windows.count > 0 {
-            let count = windows.count
-            windows.firstMatch.buttons[XCUIIdentifierCloseWindow].click()
-            XCTAssertTrue(waitUntil(10) { windows.count < count }, "A private window didn't close")
-            guard windows.count < count else { return }
-        }
-        record("closed the private windows")
+    /// Row 2: closes the front window (the private one just used) with its close button; never the last window.
+    func testCloseFrontWindow() {
+        let windows = app.windows.count
+        XCTAssertGreaterThan(windows, 1, "Only one window is open")
+        guard windows > 1 else { return }
+        app.windows.firstMatch.buttons[XCUIIdentifierCloseWindow].click()
+        XCTAssertTrue(waitUntil(10) { self.app.windows.count < windows }, "The front window didn't close")
     }
 
     /// Row 2's password probe: signs in on the fixture's /login page (open in the front tab) with
@@ -110,11 +109,12 @@ final class BoazAcceptanceUITests: XCTestCase {
         }
     }
 
-    /// Switches to the space named `BOAZ_ACCEPTANCE_SPACE` from the Spaces menu.
+    /// Switches to the space named `BOAZ_ACCEPTANCE_SPACE` from the Spaces menu, where it's listed after its icon.
     func testSwitchSpace() throws {
         let name = try required("BOAZ_ACCEPTANCE_SPACE")
         app.menuBars.menuBarItems["Spaces"].click()
-        let item = app.menuBars.menuItems[name]
+        let item = app.menuBars.menuItems.matching(NSPredicate(format: "title == %@ OR title ENDSWITH %@",
+                                                               name, " " + name)).firstMatch
         XCTAssertTrue(item.waitForExistence(timeout: 10), "No \(name) in the Spaces menu")
         item.click()
         sleep(3)
@@ -124,14 +124,15 @@ final class BoazAcceptanceUITests: XCTestCase {
     /// Developer mode → Load unpacked, in the current space's profile.
     func testLoadUnpacked() throws {
         let folders = try required("BOAZ_ACCEPTANCE_UNPACKED").split(separator: ",").map(String.init)
-        let window = app.windows.firstMatch
-        window.typeKey("l", modifierFlags: .command)
-        app.typeText("chrome://extensions\n")
         let developer = app.descendants(matching: .any).matching(labelContaining: "Developer mode").firstMatch
-        XCTAssertTrue(developer.waitForExistence(timeout: 20), "chrome://extensions didn't open")
         let load = app.buttons.matching(labelContaining: "Load unpacked").firstMatch
-        if !load.exists { developer.click() }
         for folder in folders {
+            // An extension can open its own welcome tab or window on install (1Password does), so each folder
+            // starts from chrome://extensions in the front window again.
+            app.windows.firstMatch.typeKey("l", modifierFlags: .command)
+            app.typeText("chrome://extensions\n")
+            XCTAssertTrue(developer.waitForExistence(timeout: 20), "chrome://extensions didn't open")
+            if !load.waitForExistence(timeout: 3) { developer.click() }
             XCTAssertTrue(load.waitForExistence(timeout: 10), "No Load unpacked button")
             load.click()
             sleep(2)
