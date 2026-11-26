@@ -59,6 +59,9 @@ jobs:
       - name: Test BoazKit
         run: make kit-test
 
+      - name: Test the development-only tab control gates
+        run: make automation-control-test
+
       - name: Build iPhone app and extensions
         run: make ios
 

@@ -193,6 +193,7 @@ private final class ChromiumApplication: NSObject {
             ChromiumPasswordSuggestions.shared.dismiss()
             ChromiumPasswordSave.shared.dismiss()
             ChromiumAutomation.shared.stop()
+            AutomationControl.shared.stop()
             finished = true
             if let defaultsObserver { NotificationCenter.default.removeObserver(defaultsObserver) }
             defaultsObserver = nil
@@ -237,6 +238,7 @@ private final class ChromiumApplication: NSObject {
                 MainActor.assumeIsolated { self?.defaultsChanged() }
             }
         ChromiumAutomation.shared.start()
+        AutomationControl.shared.start(browsers: { [weak self] in self?.windows.map(\.browser) ?? [] }, quit: { [weak self] in self?.quit() })
         // Chromium retains its AppController delegate and termination machinery.
         NotificationCenter.default.addObserver(self, selector: #selector(willTerminate),
             name: NSApplication.willTerminateNotification, object: nil)

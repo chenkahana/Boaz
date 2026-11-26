@@ -1,7 +1,7 @@
 """Client for Boaz's authenticated loopback automation (DevTools protocol), standard library only.
 
-Turn on automation, relaunch Boaz and open any web page; callers drive that tab. Boaz owns tab creation, so this
-client never opens or closes tabs.
+Turn on automation, relaunch Boaz and open any web page; callers drive that tab. Boaz owns tab creation, so the
+DevTools client never opens or closes tabs; `Control` does, on a development build only.
 """
 import base64
 import json
@@ -9,6 +9,7 @@ import os
 import pathlib
 import socket
 import struct
+import subprocess
 import time
 import urllib.request
 
@@ -100,3 +101,61 @@ def evaluate(port, token, url, script, settle):
     ws.call("Page.navigate", url=url)
     time.sleep(settle)
     return run(ws, script)
+
+
+class Control:
+    """Boaz's development-only tab control socket (Apps/macOS/Engine/AutomationControl.swift).
+
+    It listens only in a development-channel app launched with `-BoazAutomationControl YES` while Local Automation
+    runs, at `$TMPDIR/boaz-control-<pid>.sock`. One JSON line each way; a refused command raises RuntimeError.
+    """
+
+    def __init__(self, pid, timeout=30):
+        directory = subprocess.check_output(["/usr/bin/getconf", "DARWIN_USER_TEMP_DIR"], text=True).strip()
+        self.path = os.path.join(directory, f"boaz-control-{pid}.sock")
+        self.timeout = timeout
+
+    def wait(self, seconds=60):
+        """Waits for `list` to answer: the socket follows Local Automation, and the first window follows that."""
+        deadline = time.monotonic() + seconds
+        while True:
+            try:
+                return self.list()
+            except (OSError, RuntimeError):
+                if time.monotonic() > deadline:
+                    raise
+                time.sleep(0.5)
+
+    def call(self, command, **params):
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+            sock.settimeout(self.timeout)
+            sock.connect(self.path)
+            sock.sendall(json.dumps({"command": command, **params}).encode() + b"\n")
+            data = b""
+            while not data.endswith(b"\n"):
+                chunk = sock.recv(65536)
+                if not chunk:
+                    raise RuntimeError(f"{command}: control socket closed without a reply")
+                data += chunk
+        reply = json.loads(data)
+        if not reply.get("ok"):
+            raise RuntimeError(f"{command}: {reply.get('error')}")
+        return reply
+
+    def list(self):
+        """Spaces (id, profileID, name, selected), each with its pinned and Today tabs."""
+        return self.call("list")["spaces"]
+
+    def open(self, url, space=None):
+        """Opens `url` as a new Today tab in `space` (default: the current one); returns the new tab's id."""
+        return self.call("open", url=url, **({"space": space} if space else {}))["tab"]
+
+    def select(self, tab):
+        self.call("select", tab=tab)
+
+    def close(self, tab):
+        self.call("close", tab=tab)
+
+    def quit(self):
+        """Quits the way Cmd-Q does, so the next launch restores the saved windows."""
+        self.call("quit")
