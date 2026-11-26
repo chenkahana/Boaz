@@ -1,4 +1,5 @@
 import AppKit
+import BoazKit
 
 /// Launch contract for the BoazUITests suite. Inactive unless the app is launched with `-BoazUITest YES`, and only
 /// in a test build: the ad hoc `.uitest` build (`make uitest`) or a development-channel Chromium build. A release
@@ -21,7 +22,10 @@ enum UITestMode {
     static func resetDefaultsIfNeeded() {
         // Only the ad hoc test build (`make uitest`), never a real install launched with the flag by mistake.
         guard isActive, let bundleID = Bundle.main.bundleIdentifier, bundleID.hasSuffix(".uitest") else { return }
+        // A relaunch onto the same library stays the same Mac, or its Today tabs and groups would be another's.
+        let deviceID = reusesStore ? UserDefaults.standard.string(forKey: Device.localIDKey) : nil
         UserDefaults.standard.removePersistentDomain(forName: bundleID)
+        if let deviceID { UserDefaults.standard.set(deviceID, forKey: Device.localIDKey) }
         // Earlier runs' libraries, unless that run is still going.
         let temporary = FileManager.default.temporaryDirectory
         for name in (try? FileManager.default.contentsOfDirectory(atPath: temporary.path)) ?? []
@@ -54,10 +58,18 @@ enum UITestMode {
         return URL(fileURLWithPath: value)
     }
 
-    /// Fresh library directory for this run, so tests never touch the user's library.
+    /// Fresh library directory for this run, so tests never touch the user's library. `BOAZ_UITEST_STORE_DIR` names
+    /// one instead (a folder name in the app's own temporary directory, which the sandbox lets it write), that a
+    /// relaunch in the same test reuses; the fixture seeds it only while it's empty.
     static let storeDirectory: URL? = isActive
-        ? FileManager.default.temporaryDirectory.appendingPathComponent("BoazUITest-\(ProcessInfo.processInfo.processIdentifier)")
+        ? FileManager.default.temporaryDirectory.appendingPathComponent(
+            storeName.map { "BoazUITestStore-\($0)" } ?? "BoazUITest-\(ProcessInfo.processInfo.processIdentifier)")
         : nil
+    private static var storeName: String? {
+        ProcessInfo.processInfo.environment["BOAZ_UITEST_STORE_DIR"].flatMap { $0.isEmpty || $0.contains("/") ? nil : $0 }
+    }
+    /// The test named the library directory, so this launch may be a relaunch onto an earlier run's library.
+    static var reusesStore: Bool { isActive && storeName != nil }
     /// JSON describing spaces, pinned tabs and folders to seed (`BOAZ_UITEST_FIXTURES`).
     static var fixturesURL: URL? { path("BOAZ_UITEST_FIXTURES") }
     /// Downloads folder instead of ~/Downloads: `BOAZ_UITEST_DOWNLOADS_DIR`, else an empty one beside the run's

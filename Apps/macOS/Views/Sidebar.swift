@@ -428,9 +428,9 @@ private struct SpaceColumn: View {
         let pinned = model.pinnedItems(in: space)
         let pinnedBox = model.sidebar.container(.pinned, in: space.id)
         let todayBox = model.sidebar.container(.unpinned, in: space.id)
-        // This Mac's tabs and any folders (from Tidy Tabs or an Arc import). Tabs opened on the iPhone stay there.
-        let today = todayBox.map { model.sidebar.children(of: $0.id) }?
-            .filter { $0.kind != .tab || $0.deviceID == nil || $0.deviceID == model.deviceID } ?? []
+        // This Mac's tabs and groups, and folders from before devices were recorded (Tidy Tabs, an Arc import). Tabs
+        // opened on the iPhone, and another Mac's groups, stay there.
+        let today = model.sidebar.today(in: space.id, onDevice: model.deviceID)
         ScrollView {
             VStack(alignment: .leading, spacing: SidebarStyle.rowSpacing) {
                 SpaceHeader(space: space)
@@ -478,7 +478,10 @@ private struct SpaceColumn: View {
             ForEach(pinned) { AccessibilityRotorEntry($0.title ?? $0.url?.host() ?? "Folder", id: $0.id) }
         }
         .accessibilityRotor("Today") {
-            ForEach(today) { AccessibilityRotorEntry($0.title ?? $0.url?.host() ?? "New Tab", id: $0.id) }
+            ForEach(today) { item in
+                AccessibilityRotorEntry(item.kind == .folder ? "\(item.title ?? Sidebar.newGroupTitle), group"
+                                        : item.title ?? item.url?.host() ?? "New Tab", id: item.id)
+            }
         }
     }
 }
@@ -530,6 +533,7 @@ struct SpaceMenu: View {
         Button("Customize Space…") { browser.spaceEditor = .init(spaceID: space.id) }
         Button("Rename Space…") { browser.rename = .init(target: .space(space), text: space.title) }
         Button("New Folder") { withAnimation { model.newFolder(in: space) } }
+        Button("New Group") { browser.newGroup(in: space) }
         NewLiveFolderMenu(space: space)
         SpaceAIMenuItems(space: space)
         if model.sidebar.spaces.count > 1, let index = model.sidebar.spaces.firstIndex(where: { $0.id == space.id }) {
@@ -608,6 +612,34 @@ private struct InsertionLine: View {
     }
 }
 
+/// An expanded empty group's one dim row, a place to drop tabs. VoiceOver skips it: the group says it's empty.
+private struct EmptyGroupRow: View {
+    @Environment(MacModel.self) private var model
+    @Environment(BrowserState.self) private var browser
+    @Environment(\.sidebarTextSize) private var textSize
+    let group: SidebarItem
+    let depth: Int
+    let tint: Color
+    @State private var targeted = false
+
+    var body: some View {
+        Text("Drag tabs here")
+            .font(SidebarStyle.rowFont(size: textSize))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .padding(.leading, 8 + 26 + CGFloat(depth) * 14)
+            .frame(maxWidth: .infinity, minHeight: SidebarStyle.rowHeight, alignment: .leading)
+            .overlay {
+                if targeted { RoundedRectangle(cornerRadius: Radius.row, style: .continuous).strokeBorder(tint, lineWidth: 2) }
+            }
+            .contentShape(Rectangle())
+            .dropDestination(for: SidebarDrag.Drop.self) { payloads, _ in
+                dropItems(payloads, into: group.id, before: nil, model: model, browser: browser)
+            } isTargeted: { targeted = $0; if $0 { Haptics.slotChanged.play() } }
+            .accessibilityHidden(true)
+    }
+}
+
 // MARK: Rows
 
 /// A pinned or Today row; folders expand in place. Drop on a tab inserts above it, on a folder moves inside.
@@ -615,6 +647,7 @@ struct ItemRow: View {
     @Environment(MacModel.self) private var model
     @Environment(BrowserState.self) private var browser
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.sidebarTextSize) private var textSize
     let item: SidebarItem
     let depth: Int
@@ -629,32 +662,54 @@ struct ItemRow: View {
         return .some(LiveFolderRefresher.shared.state(of: parent)?.items[item.id])
     }
 
+    /// A folder in Today (`MacModel.isGroup`).
+    private var isGroup: Bool { model.isGroup(item) }
+
     var body: some View {
         VStack(alignment: .leading, spacing: SidebarStyle.rowSpacing) {
             row
             if item.kind == .folder && item.isExpanded {
-                ForEach(model.sidebar.children(of: item.id)) { ItemRow(item: $0, depth: depth + 1, tint: tint) }
+                let children = model.sidebar.children(of: item.id)
+                ForEach(children) { ItemRow(item: $0, depth: depth + 1, tint: tint) }
+                if isGroup && children.isEmpty { EmptyGroupRow(group: item, depth: depth + 1, tint: tint) }
             }
         }
     }
 
+    /// "<name>, group, N tabs" for a group; the title otherwise.
+    private var spokenTitle: String {
+        guard isGroup else { return title }
+        let count = model.sidebar.children(of: item.id).count { $0.kind == .tab }
+        return count == 0 ? "\(title), group, empty" : String(inflecting: "\(title), group, ^[\(count) tab](inflect: true)")
+    }
+
     private var row: some View {
-        let active = item.kind == .tab && (browser.activeTabID == item.id || browser.split?.contains(item.id) == true)
+        let activeID = browser.activeTabID
+        // A collapsed group holding the active tab wears its selection.
+        let active = item.kind == .tab ? (activeID == item.id || browser.split?.contains(item.id) == true)
+            : isGroup && !item.isExpanded && activeID.flatMap(model.item)?.parentID == item.id
         return HStack(spacing: 8) {
             HStack(spacing: 8) {
                 leadingIcon
                 Text(title).font(SidebarStyle.rowFont(size: textSize, selected: active)).lineLimit(1)
                 Spacer(minLength: 0)
+                if isGroup && !item.isExpanded {
+                    Text("\(model.sidebar.children(of: item.id).count { $0.kind == .tab })")
+                        .font(SidebarStyle.sectionFont(size: textSize))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .padding(.trailing, 4)
+                }
             }
             .opacity(liveStatus??.isDraft == true ? 0.55 : 1)
             .padding(.leading, 8 + CGFloat(depth) * 14)
             .frame(maxHeight: .infinity)
             .sidebarPress(onMouseDown: item.kind == .tab && browser.commandMode == nil, action: open)
-            .accessibilityLabel(title)
+            .accessibilityLabel(spokenTitle)
             .accessibilityValue(item.kind == .folder ? (item.isExpanded ? "Expanded" : "Collapsed")
                                 : liveStatus.map { LivePullIcon.label($0) } ?? "")
             .accessibilityAddTraits(active ? .isSelected : [])
-            .accessibilityIdentifier(item.kind == .folder ? "sidebar.folder.\(title)"
+            .accessibilityIdentifier(isGroup ? "sidebar.group.\(title)" : item.kind == .folder ? "sidebar.folder.\(title)"
                                      : liveStatus.map { LivePullIcon.identifier($0) } ?? "")
             // The row's everyday actions in VoiceOver's Actions rotor, not only behind the context menu.
             .accessibilityActions {
@@ -666,6 +721,11 @@ struct ItemRow: View {
                         Button("Rename") { browser.rename = .init(target: .item(item), text: item.title ?? "") }
                     }
                     Button("Open in Split View") { browser.openInSplit(item) }
+                } else if isGroup {
+                    Button(item.isExpanded ? "Collapse" : "Expand") { withAnimation(SidebarStyle.motion) { model.toggleExpanded(item) } }
+                    Button("Rename") { browser.rename = .init(target: .item(item), text: item.title ?? "") }
+                    Button("Ungroup") { model.ungroup(item) }
+                    Button("Archive Group") { withAnimation(SidebarStyle.motion) { model.archiveGroup(item) } }
                 }
             }
             .help(liveStatus??.detail ?? "")
@@ -761,6 +821,8 @@ struct ItemRow: View {
                         .font(.system(size: ChromeType(base: textSize).scaled(8), weight: .bold))
                         .foregroundStyle(.secondary)
                         .rotationEffect(.degrees(item.isExpanded ? 90 : 0))
+                        // Reduce Motion: the chevron turns without spinning.
+                        .transaction { if reduceMotion { $0.animation = nil } }
                         .offset(x: -12)
                         .opacity(hovering ? 1 : 0)
                 }
@@ -796,7 +858,22 @@ struct TabMenu: View {
         if let url = tab.url {
             Button("Duplicate", systemImage: "plus.square.on.square") { browser.openTab(url, title: tab.title) }
         }
-        if !browser.isPrivate(tab) {
+        if !browser.isPrivate(tab), let space = model.space(tab.spaceID),
+           model.container(of: tab)?.containerKind == .unpinned {
+            // In Today it's a group: this Mac's only.
+            Button("Add to New Group", systemImage: "folder.badge.plus") { browser.addToNewGroup(tab) }
+            let groups = model.groups(in: space).filter { $0.id != tab.parentID }
+            if !groups.isEmpty {
+                Menu {
+                    ForEach(groups) { group in
+                        Button(group.title ?? Sidebar.newGroupTitle) { withAnimation { model.move(tab.id, into: group.id, before: nil) } }
+                    }
+                } label: { Label("Move to Group", systemImage: "folder") }
+            }
+            if model.group(of: tab) != nil {
+                Button("Remove from Group", systemImage: "folder.badge.minus") { withAnimation { model.removeFromGroup(tab) } }
+            }
+        } else if !browser.isPrivate(tab) {
             Button("Add to New Folder", systemImage: "folder.badge.plus") {
                 withAnimation {
                     if let folder = model.addToNewFolder(tab) {
@@ -936,6 +1013,7 @@ private struct SidebarBottomBar: View {
                 Button("New Space") { browser.newSpace() }
                 if let space = browser.currentSpace {
                     Button("New Folder") { model.newFolder(in: space) }
+                    Button("New Group") { browser.newGroup(in: space) }
                     NewLiveFolderMenu(space: space)
                 }
                 Divider()

@@ -453,7 +453,7 @@ final class MacModel {
         return sidebar.favorites(profileID: profileID)
     }
 
-    /// Tabs in sidebar order: favorites, pinned (inside expanded folders), then Today.
+    /// Tabs in sidebar order: favorites, pinned (inside expanded folders), then Today (inside expanded groups).
     func visibleTabs(in space: Space) -> [SidebarItem] {
         func flatten(_ items: [SidebarItem]) -> [SidebarItem] {
             items.flatMap { item -> [SidebarItem] in
@@ -464,7 +464,8 @@ final class MacModel {
                 }
             }
         }
-        return favorites(profileID: space.profileID) + flatten(pinnedItems(in: space)) + todayTabs(in: space)
+        return favorites(profileID: space.profileID) + flatten(pinnedItems(in: space))
+            + flatten(sidebar.today(in: space.id, onDevice: deviceID))
     }
 
     /// Every tab under a space's pinned container, including collapsed folders.
@@ -643,16 +644,34 @@ final class MacModel {
 
     /// Archives every Today tab as one batch, so Undo brings them all back.
     func clearToday(in space: Space) {
-        // Tabs in Today's folders (from Tidy Tabs) go too, and the emptied folders with them; Undo restores both.
-        let folders = sidebar.container(.unpinned, in: space.id)
-            .map { sidebar.children(of: $0.id).filter { $0.kind == .folder } } ?? []
-        let tabs = todayTabs(in: space) + folders.flatMap { sidebar.children(of: $0.id).filter { $0.kind == .tab } }
-        guard !tabs.isEmpty, let store else { return }
+        // Tabs in this Mac's groups go too, and the emptied groups with them; Undo restores both. Another Mac's groups,
+        // hidden here, stay.
+        let (tabs, groups) = sidebar.clearable(in: space.id, onDevice: deviceID)
+        guard !tabs.isEmpty else { return }
+        archiveBatch(tabs, removing: groups, reason: "cleared",
+                     toast: String(inflecting: "Archived ^[\(tabs.count) tab](inflect: true)"))
+    }
+
+    /// Archive Group: every tab in a Today group goes to the Archive and the group with them, as one batch that Undo
+    /// and ⌘⇧T bring back whole. No confirmation, as for any Today tab.
+    func archiveGroup(_ group: SidebarItem) {
+        guard item(group.id) != nil else { return }
+        let tabs = descendants(of: group.id).filter { $0.kind == .tab }
+        let folders = [group] + descendants(of: group.id).filter { $0.kind == .folder }
+        for browser in openBrowsers { tabs.map(\.id).forEach(browser.unload) }
+        let name = group.title ?? Sidebar.newGroupTitle
+        archiveBatch(tabs, removing: folders, reason: "closed",
+                     toast: String(inflecting: "Archived \u{201C}\(name)\u{201D} (^[\(tabs.count) tab](inflect: true))"))
+    }
+
+    /// Archives `tabs` and removes `folders` in one write, as one undoable close.
+    private func archiveBatch(_ tabs: [SidebarItem], removing folders: [SidebarItem], reason: String, toast: String) {
+        guard let store else { return }
         let now = Date.now
         let emptied = folders.map { var folder = $0; folder.deletedAt = now; folder.modifiedAt = now; return folder }
         let archived: [ArchiveOutcome]
         do {
-            archived = try store.archive(tabs, reason: "cleared", saving: emptied, at: now)
+            archived = try store.archive(tabs, reason: reason, saving: emptied, at: now)
         } catch {
             showError("Couldn't archive these tabs. Try again.", error)
             return
@@ -665,8 +684,9 @@ final class MacModel {
             guard case .archived(let entry) = outcome else { return nil }
             return (tab, entry?.id)
         }
+        // Tabs first: the window shows the first restored item, a tab when the batch has one.
         closedTabs.append(entries + folders.map { (tab: $0, archiveID: nil) })
-        showToast(String(inflecting: "Archived ^[\(tabs.count) tab](inflect: true)"), canUndo: true)
+        showToast(toast, canUndo: true)
     }
 
     /// Restores the last close (all of a Clear's tabs) and returns the first restored tab.
@@ -815,8 +835,16 @@ final class MacModel {
     func move(_ id: String, into parentID: String, before beforeID: String?) {
         guard id != parentID, id != beforeID, var item = self.item(id), item.kind != .container,
               let parent = self.item(parentID) else { return }
+        var parentID = parentID, beforeID = beforeID
         let targetContainer = container(of: parent)
         if item.kind == .folder, targetContainer?.containerKind == .favorites || isDescendant(parentID, of: id) { return }
+        // Groups don't nest: a folder dropped on a group, or on a row in one, lands before that group.
+        if item.kind == .folder, targetContainer?.containerKind == .unpinned, parent.kind == .folder,
+           let group = topLevelGroup(containing: parent), let today = group.parentID {
+            guard group.id != id else { return }
+            parentID = today
+            beforeID = group.id
+        }
         let siblings = sidebar.children(of: parentID).filter { $0.id != id }
         if let beforeID, let index = siblings.firstIndex(where: { $0.id == beforeID }) {
             let next = siblings[index].position
@@ -824,20 +852,27 @@ final class MacModel {
         } else {
             item.position = (siblings.last?.position ?? -1) + 1
         }
-        // A tab moved into Today becomes this Mac's; pinned and favorite tabs are every device's.
-        if targetContainer?.containerKind != .unpinned {
-            item.deviceID = nil
-        } else if item.kind == .tab, container(of: item)?.containerKind != .unpinned {
-            item.deviceID = deviceID
-        }
+        // A tab or group moved into Today becomes this Mac's, with everything in it; pinned and favorite items are
+        // every device's.
+        let entersToday = targetContainer?.containerKind == .unpinned && container(of: item)?.containerKind != .unpinned
+        let leavesToday = targetContainer?.containerKind != .unpinned && container(of: item)?.containerKind == .unpinned
+        let device: String?? = entersToday ? .some(deviceID) : targetContainer?.containerKind != .unpinned ? .some(nil) : .none
+        if let device { item.deviceID = device }
         item.parentID = parentID
         let spaceID = targetContainer?.containerKind == .favorites ? nil : parent.spaceID
         var changed = [item]
-        if item.spaceID != spaceID {
-            changed[0].spaceID = spaceID
-            if item.kind == .folder { changed += descendants(of: id).map { var d = $0; d.spaceID = spaceID; return d } }
+        if item.kind == .folder, item.spaceID != spaceID || entersToday || leavesToday {
+            changed += descendants(of: id).map { var d = $0; d.spaceID = spaceID; if let device { d.deviceID = device }; return d }
         }
+        changed[0].spaceID = spaceID
         commit(changed)
+    }
+
+    /// The group in Today that holds `item` (or is it).
+    private func topLevelGroup(containing item: SidebarItem) -> SidebarItem? {
+        var current = item
+        while let parent = self.item(current.parentID), parent.kind != .container { current = parent }
+        return current.kind == .folder ? current : nil
     }
 
     private func descendants(of id: String) -> [SidebarItem] {

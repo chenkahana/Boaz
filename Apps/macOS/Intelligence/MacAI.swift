@@ -155,15 +155,20 @@ enum AIUndo {
 }
 
 extension MacModel {
-    /// Creates the plan's folders at the end of Today and moves its tabs in, as one undoable change.
+    /// Creates the plan's groups at the end of Today and moves its tabs in, as one undoable change.
     func applyTidy(_ plan: TabTidier.Plan, in space: Space) {
         guard let box = sidebar.container(.unpinned, in: space.id) else { return }
-        let records = TabTidier.records(for: plan, today: box, in: sidebar)
+        // The new folders are groups of this Mac's, as its Today tabs are.
+        let records = TabTidier.records(for: plan, today: box, in: sidebar).map { record in
+            var record = record
+            if record.kind == .folder, item(record.id) == nil { record.deviceID = deviceID }
+            return record
+        }
         guard !records.isEmpty else { return }
         let before = records.compactMap { item($0.id) }
         let folders = records.filter { $0.kind == .folder }
         withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { commit(records) }
-        showToast(String(inflecting: "Tidied into ^[\(folders.count) folder](inflect: true)"), canUndo: true)
+        showToast(String(inflecting: "Tidied into ^[\(folders.count) group](inflect: true)"), canUndo: true)
         AIUndo.register(toast: toast?.id) { [weak self] in
             let removed = folders.map { var folder = $0; folder.deletedAt = .now; return folder }
             withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { self?.commit(before + removed) }
@@ -181,22 +186,5 @@ extension MacModel {
         commit(renamed)
         showToast(String(inflecting: "Renamed ^[\(renamed.count) tab](inflect: true)"), canUndo: true)
         AIUndo.register(toast: toast?.id) { [weak self] in self?.commit(before) }
-    }
-
-    /// Moves a Today folder's tabs back into Today and removes the folder.
-    func ungroup(_ folder: SidebarItem) {
-        guard folder.kind == .folder, let parent = folder.parentID else { return }
-        var position = sidebar.nextPosition(in: parent)
-        var records = sidebar.children(of: folder.id).map { child in
-            var child = child
-            child.parentID = parent
-            child.position = position
-            position += 1
-            return child
-        }
-        var removed = folder
-        removed.deletedAt = .now
-        records.append(removed)
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { commit(records) }
     }
 }

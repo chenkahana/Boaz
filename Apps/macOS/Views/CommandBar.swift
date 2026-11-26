@@ -299,7 +299,7 @@ struct CommandBar: View {
     private var openTabs: [SidebarItem] {
         if browser.isIncognito { return browser.incognitoTabs }
         guard let space = browser.currentSpace else { return [] }
-        return model.todayTabs(in: space) + model.allPinnedTabs(in: space) + model.favorites(profileID: space.profileID)
+        return model.allTodayTabs(in: space) + model.allPinnedTabs(in: space) + model.favorites(profileID: space.profileID)
     }
 
     private func run(_ suggestion: Suggestion?) {
@@ -313,6 +313,7 @@ struct CommandBar: View {
             open(url)
         case .history(let visit): open(visit.url)
         case .tab(let tab):
+            model.reveal(tab)
             if mode == .split { browser.openInSplit(tab) } else { browser.activate(tab) }
         }
         browser.commandMode = nil

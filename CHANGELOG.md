@@ -17,9 +17,19 @@ All notable changes to Boaz are recorded here. The format follows
 - A check every six hours compares Boaz's Chromium with Chrome stable and keeps one GitHub issue open while Boaz is
   behind. `Tools/chromium/security-update.py VERSION` runs the update on the build Mac, from the new source pin to
   the uploaded Chromium base, and times every step ([runbook](docs/chromium/security-update.md)).
+- Mac: Tab groups. In a space's Today, a tab's menu has Add to New Group (⌥⌘G in the Tabs menu for the current
+  tab), Move to Group and Remove from Group, and the space and + menus have New Group. A group opens named "New
+  Group", ready to rename; click it to collapse or expand, drag tabs in and out, and it comes back as you left it
+  after a relaunch. Groups are this Mac's, like its Today tabs; drag one into Pinned to make it a folder on every
+  device. VoiceOver reads a group's name, tab count and state, with Collapse, Rename, Ungroup and Archive Group in
+  its Actions. The iPhone shows a Mac's groups as folders under its Today tabs.
 
 ### Changed
 
+- Mac: Folders in Today are now groups. Their menu says Rename Group…, Ungroup and Archive Group. Archive Group
+  sends the group's tabs to the Archive without asking first, and Undo or ⌘⇧T brings the whole group back. Ungroup
+  leaves the tabs where the group was, in order, and can be undone. Clear only archives this Mac's groups, never
+  another Mac's.
 - CI finishes the run of every push to master and release branches instead of cancelling it for the next push, and
   the Mac UI tests job lists passed, failed and skipped counts and the skipped tests' names on the run page. Its
   result bundle is kept for green runs too.

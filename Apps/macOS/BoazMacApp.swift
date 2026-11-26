@@ -212,6 +212,11 @@ struct BoazCommands: Commands {
             Button("Next Tab") { browser?.cycleTab(by: 1) }.keyboardShortcut(key(.nextTab)).disabled(browser == nil)
             Button("Previous Tab") { browser?.cycleTab(by: -1) }.keyboardShortcut(key(.previousTab)).disabled(browser == nil)
             Divider()
+            Button("Add Tab to New Group") { browser?.addActiveTabToNewGroup() }
+                .keyboardShortcut(key(.addTabToNewGroup)).disabled(browser?.canGroupActiveTab != true)
+            Button(browser?.activeGroup?.isExpanded == false ? "Expand Group" : "Collapse Group") { browser?.toggleActiveGroup() }
+                .disabled(browser?.activeGroup == nil)
+            Divider()
             let favoriteCount = browser.map { model.favorites(profileID: $0.currentSpace?.profileID).count } ?? 0
             ForEach(1...9, id: \.self) { number in
                 Button("Favorite \(number)") { browser?.selectFavorite(number) }

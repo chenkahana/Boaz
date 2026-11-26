@@ -7,7 +7,7 @@ enum BrowserCommand: String, CaseIterable {
     case newTab, openLocation, closeTab, reopenClosedTab, pinTab, toggleSidebar, copyURL
     case reload, hardReload, goBack, goForward, find, nextTab, previousTab, nextSpace, previousSpace
     case addSplitView, newWindow, newIncognitoWindow, newLittleWindow, showArchive, newSpace, pictureInPicture
-    case responsiveDesignMode, javaScriptConsole, viewSource, emptyCaches
+    case responsiveDesignMode, javaScriptConsole, viewSource, emptyCaches, addTabToNewGroup
 
     var arcIDs: [String] {
         switch self {
@@ -35,7 +35,7 @@ enum BrowserCommand: String, CaseIterable {
         case .newSpace: ["newSpace"]
         case .pictureInPicture: ["pictureInPicture", "togglePictureInPicture"]
         // Not in Arc's menus.
-        case .responsiveDesignMode, .javaScriptConsole, .viewSource, .emptyCaches: []
+        case .responsiveDesignMode, .javaScriptConsole, .viewSource, .emptyCaches, .addTabToNewGroup: []
         }
     }
 
@@ -68,6 +68,7 @@ enum BrowserCommand: String, CaseIterable {
         case .javaScriptConsole: KeyboardShortcut("c", modifiers: [.command, .option])
         case .viewSource: KeyboardShortcut("u", modifiers: [.command, .option])
         case .emptyCaches: KeyboardShortcut("e", modifiers: [.command, .option])
+        case .addTabToNewGroup: KeyboardShortcut("g", modifiers: [.command, .option])
         }
     }
 

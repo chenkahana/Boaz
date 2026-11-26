@@ -122,7 +122,8 @@ struct NewLiveFolderMenu: View {
 }
 
 /// A folder's context menu: for a live folder, Arc's (its source's submenu first); for any folder, Move to, Copy All
-/// Links, Change Icon…, Rename… and Delete.
+/// Links, Change Icon…, Rename… and Delete. A group (a folder in Today) says so, and archives without asking: Undo
+/// brings it back.
 struct FolderMenu: View {
     @Environment(MacModel.self) private var model
     @Environment(BrowserState.self) private var browser
@@ -131,6 +132,7 @@ struct FolderMenu: View {
 
     var body: some View {
         let live = folder.liveSource?.provider == LiveSource.githubPulls
+        let group = model.isGroup(folder)
         if live {
             Menu {
                 PullRequestsMenu(folder: folder)
@@ -140,7 +142,7 @@ struct FolderMenu: View {
             .accessibilityIdentifier("control.liveFolder.menu")
         } else {
             Button(folder.isExpanded ? "Collapse" : "Expand") { model.toggleExpanded(folder) }
-            if model.container(of: folder)?.containerKind == .unpinned { Button("Ungroup") { model.ungroup(folder) } }
+            if group { Button("Ungroup") { model.ungroup(folder) } }
         }
         Divider()
         let otherSpaces = model.sidebar.spaces.filter { $0.id != folder.spaceID }
@@ -156,9 +158,15 @@ struct FolderMenu: View {
         Button("Copy All Links") { model.copyAllLinks(in: folder) }
         Divider()
         Button("Change Icon…", action: changeIcon)
-        Button(live ? "Rename…" : "Rename Folder…") { browser.rename = .init(target: .item(folder), text: folder.title ?? "") }
+        Button(live ? "Rename…" : group ? "Rename Group…" : "Rename Folder…") {
+            browser.rename = .init(target: .item(folder), text: folder.title ?? "")
+        }
         Divider()
-        Button(live ? "Delete Live Folder" : "Delete Folder", role: .destructive) { browser.folderToDelete = folder }
+        if group {
+            Button("Archive Group") { withAnimation(SidebarStyle.motion) { model.archiveGroup(folder) } }
+        } else {
+            Button(live ? "Delete Live Folder" : "Delete Folder", role: .destructive) { browser.folderToDelete = folder }
+        }
     }
 }
 

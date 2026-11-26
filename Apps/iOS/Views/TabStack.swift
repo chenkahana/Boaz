@@ -697,7 +697,7 @@ private struct MacSpaceColumn: View {
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 8)
                 }
-                ForEach(today) { MacItemRow(item: $0, depth: 0, tint: tint, open: open) }
+                ForEach(today) { MacItemRow(item: $0, depth: 0, tint: tint, open: open, shows: isMacTab) }
             }
             .padding(.horizontal, 12)
             .padding(.bottom, 16)
@@ -705,16 +705,19 @@ private struct MacSpaceColumn: View {
         .scrollIndicators(.never)
     }
 
-    /// The space's Today tabs opened on a Mac, or from before devices were recorded, with the Mac's folders under
-    /// Today flattened.
+    /// The space's Today as the Macs show it: the tabs opened on a Mac, or from before devices were recorded, and
+    /// each Mac's groups as ordinary folders (any holding such a tab). Their open state here is the iPhone's own.
     private var macTodayTabs: [SidebarItem] {
-        let macs = Set(model.sidebar.devices.filter { $0.platform == .macOS }.map(\.id))
-        func tabs(under parent: String) -> [SidebarItem] {
-            model.sidebar.children(of: parent)
-                .flatMap { $0.kind == .folder ? tabs(under: $0.id) : $0.kind == .tab ? [$0] : [] }
+        guard let box = model.sidebar.container(.unpinned, in: space.id) else { return [] }
+        return model.sidebar.children(of: box.id).filter { item in
+            item.kind == .folder ? model.sidebar.children(of: item.id).contains(where: isMacTab) : isMacTab(item)
         }
-        return model.sidebar.container(.unpinned, in: space.id).map { tabs(under: $0.id) }?
-            .filter { $0.url != nil && $0.deviceID.map(macs.contains) ?? true } ?? []
+    }
+
+    /// A Today tab a Mac opened, or one from before devices were recorded.
+    private func isMacTab(_ item: SidebarItem) -> Bool {
+        let macs = Set(model.sidebar.devices.filter { $0.platform == .macOS }.map(\.id))
+        return item.kind == .tab && item.url != nil && item.deviceID.map(macs.contains) ?? true
     }
 
     /// Up to four a row, the rows as even as they can be, as on the Mac.
@@ -746,6 +749,8 @@ private struct MacItemRow: View {
     let depth: Int
     let tint: Color
     let open: (SidebarItem) -> Void
+    /// Which items inside a folder show (a Today group lists only the Macs' tabs).
+    var shows: (SidebarItem) -> Bool = { _ in true }
     @State private var expanded: Bool?
 
     var body: some View {
@@ -780,7 +785,9 @@ private struct MacItemRow: View {
             .disabled(!isFolder && item.url == nil)
             .accessibilityValue(isFolder ? (isExpanded ? "Expanded" : "Collapsed") : item.url?.host() ?? "")
             if isFolder && isExpanded {
-                ForEach(model.sidebar.children(of: item.id)) { MacItemRow(item: $0, depth: depth + 1, tint: tint, open: open) }
+                ForEach(model.sidebar.children(of: item.id).filter(shows)) {
+                    MacItemRow(item: $0, depth: depth + 1, tint: tint, open: open, shows: shows)
+                }
             }
         }
     }

@@ -161,6 +161,13 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
             title: { browser in browser?.activeTab.map { MacModel.shared.isPinned($0) } == true ? "Unpin Tab" : "Pin Tab" }) { $0?.togglePinActive() }
         add(tabs, "Next Tab", command: .nextTab) { $0?.cycleTab(by: 1) }
         add(tabs, "Previous Tab", command: .previousTab) { $0?.cycleTab(by: -1) }
+        tabs.addItem(.separator())
+        add(tabs, "Add Tab to New Group", command: .addTabToNewGroup, enabled: { $0?.canGroupActiveTab == true }) {
+            $0?.addActiveTabToNewGroup()
+        }
+        add(tabs, "Collapse Group", enabled: { $0?.activeGroup != nil },
+            title: { $0?.activeGroup?.isExpanded == false ? "Expand Group" : "Collapse Group" }) { $0?.toggleActiveGroup() }
+        tabs.addItem(.separator())
         for number in 1...9 {
             add(tabs, "Favorite \(number)", enabled: { browser in
                 guard let browser else { return false }

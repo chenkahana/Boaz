@@ -192,6 +192,17 @@ extension BoazStore {
                 .filter(SQL(sql: "COALESCE(lastActiveAt, createdAt) < ?", arguments: [cutoff]))
                 .fetchAll(db) + staleMobile
             for tab in stale { try Self.archive(tab, reason: "autoArchived", at: now, in: db) }
+            // A group the sweep emptied goes with its last tab; one already empty (made by hand, awaiting tabs) stays,
+            // and so does another device's.
+            for id in Set(stale.compactMap(\.parentID)).intersection(todayFolders) {
+                guard var group = try SidebarItem.fetchOne(db, key: id),
+                      group.deviceID == nil || group.deviceID == deviceID,
+                      try SidebarItem.filter(Column("parentID") == id && Column("deletedAt") == nil).fetchCount(db) == 0
+                else { continue }
+                group.deletedAt = now
+                group.modifiedAt = now
+                try group.save(db)
+            }
             return stale.count
         }
     }

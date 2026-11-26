@@ -48,6 +48,8 @@ enum UITestFixtures {
     /// mode, or when no fixture was given (an empty library).
     static func seedIfNeeded(_ store: BoazStore, deviceID: String) async throws {
         guard UITestMode.isActive, let url = UITestMode.fixturesURL else { return }
+        // A relaunch onto the test's own library keeps what the last run left.
+        if UITestMode.reusesStore, try !store.isEmpty() { return }
         let root = try JSONDecoder().decode(Root.self, from: Data(contentsOf: url))
         let now = Date.now
 
