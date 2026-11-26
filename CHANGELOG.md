@@ -45,6 +45,8 @@ All notable changes to Boaz are recorded here. The format follows
 - iPhone: a tab whose page iOS ended while you were in another tab no longer comes back blank. It loads once, back
   where you were, when you open it. A page that ends again within a minute shows "This Page Stopped Responding" with
   Try Again instead of reloading over and over, and a network change no longer reloads it.
+- iPhone: a tab Boaz closes to save memory now gives that memory back. Before, a closed page stayed in memory, so
+  closing tabs lost their place without freeing anything.
 - iPhone: Incognito tabs share one in-memory session until you leave Incognito, so an Incognito tab that reloads
   stays signed in. Nothing of it is written to disk.
 

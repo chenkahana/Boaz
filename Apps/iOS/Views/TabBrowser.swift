@@ -193,7 +193,9 @@ struct TabBrowser: View {
             // A page that fits the width doesn't rubber-band sideways.
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
             .webViewOnScrollGeometryChange(for: PageScroll.Sample.self, of: PageScroll.Sample.init) { old, new in
-                handlePullGeometry(old: old.offset, new: new.offset, page: page)
+                // Never `page` in here: WebKit keeps this action as long as the page's web view, so capturing the page
+                // would keep a page closed to save memory alive.
+                handlePullGeometry(old: old.offset, new: new.offset)
                 model.pageDidScroll(tab)
                 scroll.note(new)
                 // Followed in every posture (this action can outlive an environment change); shown only where
@@ -281,7 +283,7 @@ struct TabBrowser: View {
             }
     }
 
-    private func handlePullGeometry(old: CGFloat, new: CGFloat, page: WebPage) {
+    private func handlePullGeometry(old: CGFloat, new: CGFloat) {
         guard !reloading else { return }
         if new < 0 {
             let distance = -new
@@ -295,7 +297,7 @@ struct TabBrowser: View {
                 pullPeak = 0
                 pullArmed = false
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) { pullDistance = 0 }
-                if wasArmed { reload(page) }
+                if wasArmed { reload(model.page(for: tab)) }
             }
         } else if old < 0 {
             pullPeak = 0
