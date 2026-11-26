@@ -129,6 +129,7 @@ jobs:
           run=$(ls -td "$ROOT"/app/runs/*/ | head -1)
           echo "UI_RECEIPT=${run}artifacts/build.json" >> "$GITHUB_ENV"
           echo "SPARKLE_BIN=${run}SourcePackages/artifacts/sparkle/Sparkle/bin" >> "$GITHUB_ENV"
+          echo "UI_PRODUCTS=${run}DerivedData/Build/Products/Release" >> "$GITHUB_ENV"
 
       - name: Install the signing keys
         # The Developer ID key signs with its certificate, fetched with the API key; the API key also notarizes and
@@ -244,6 +245,16 @@ jobs:
           served=$(curl -fsSL "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/appcast.xml")
           [[ "$served" == *"<sparkle:shortVersionString>$VERSION<"* ]] \
             || { echo "::error::releases/latest does not serve the $VERSION appcast"; exit 1; }
+
+      - name: Attach the symbols
+        # Tools/symbolicate reads users' DMG crash reports with this exact build's dSYMs (docs/release.md). The
+        # release is already out by now, so a failure here only leaves the symbols off.
+        if: ${{ !inputs.dry_run && github.ref == 'refs/heads/master' }}
+        continue-on-error: true
+        run: |
+          cd "$UI_PRODUCTS"
+          zip -qry "$RUNNER_TEMP/Boaz-$VERSION-dSYMs.zip" libBoazApplicationUI.dylib.dSYM boaz.dSYM BoazDockTile.docktileplugin.dSYM
+          gh release upload "v$VERSION" --repo "$GITHUB_REPOSITORY" "$RUNNER_TEMP/Boaz-$VERSION-dSYMs.zip"
 
       - name: Keep the dry-run DMG
         if: ${{ inputs.dry_run }}

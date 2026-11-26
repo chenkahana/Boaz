@@ -145,3 +145,17 @@ iPad screenshots aren't needed for an iPhone-only app.
 The `Boaz-iOS` and `Boaz-macOS` schemes are shared (`scheme: {}` in `project.yml`), which Xcode Cloud requires.
 Create the workflows once in Xcode (Product › Xcode Cloud › Create Workflow): Archive `Boaz-iOS` and `Boaz-macOS`
 on pushes to `master`, with TestFlight (Internal Testing) as the post-action, on the newest Xcode 27 environment.
+
+## Crash review
+
+Every release has a crash review step, and the release ships only if it finds no new crash cluster
+([release.md](release.md#automatic-releases-on-github) defines the gate). For the App Store builds, Apple collects
+the crashes. It only gets them from users who share analytics with app developers, and from every TestFlight tester.
+
+1. **App Store Connect** › Apps › Boaz Browser › TestFlight › Crashes for TestFlight builds, and App Analytics ›
+   Crashes for the counts from App Store builds. Check the iPhone and the Mac versions that are out now.
+2. **Xcode** › Window › Organizer › Crashes, signed in with the team account. It groups the same reports by signature
+   and shows them symbolicated, because Xcode Cloud and `make archive` uploads include the dSYMs (keep "Upload
+   your app's symbols" checked when you upload by hand).
+3. A report that only shows addresses came from a build whose symbols weren't uploaded. Find its archive in
+   Organizer › Archives, and run `Tools/symbolicate REPORT.ips path/to/Boaz-iOS.xcarchive/dSYMs`.

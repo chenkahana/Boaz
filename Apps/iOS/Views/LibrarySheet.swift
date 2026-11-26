@@ -165,6 +165,7 @@ private struct Row: View {
 }
 
 struct SettingsSheet: View {
+    @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @AppStorage(Preferences.archiveAfterKey) private var archiveAfter = ArchiveInterval.week.rawValue
@@ -218,7 +219,10 @@ struct SettingsSheet: View {
                 AISettingsSection()
                 SyncSettingsSection()
                 AppIconPicker()
-                AboutSection()
+                AboutSection { url in
+                    model.openAfterSheet(url, title: nil)
+                    dismiss()
+                }
             }
             .navigationTitle("Settings")
             // An inline title stays small; at accessibility sizes the large one grows with the rows.

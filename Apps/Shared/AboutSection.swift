@@ -1,9 +1,13 @@
+import BoazKit
 import SwiftUI
 
-/// The end of Settings on both platforms: privacy policy, support and third-party notices.
+/// The end of Settings on both platforms: privacy policy, support, Report a Problem and third-party notices.
 struct AboutSection: View {
     static let privacyPolicy = URL(string: "https://github.com/chenkahana/Boaz/blob/master/docs/privacy.md")!
     static let support = URL(string: "https://github.com/chenkahana/Boaz/issues")!
+    /// Opens the prefilled bug report in a Boaz tab.
+    let reportProblem: (URL) -> Void
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Section {
@@ -18,6 +22,11 @@ struct AboutSection: View {
             .accessibilityElement(children: .combine)
             Link("Privacy Policy", destination: Self.privacyPolicy)
             Link("Support", destination: Self.support)
+            Button("Report a Problem") { reportProblem(ProblemReport.current(dark: colorScheme == .dark).url) }
+                #if os(macOS)
+                .buttonStyle(.link)
+                #endif
+                .accessibilityIdentifier("settings.reportProblem")
             LabeledContent("WebKit internals") {
                 Text(WebKitInternals.summary).accessibilityIdentifier("settings.webkitDiagnostics")
             }

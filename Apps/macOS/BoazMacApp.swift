@@ -205,6 +205,9 @@ struct BoazCommands: Commands {
         CommandMenu("History") {
             Button("Show All History") { openWindow(id: "history") }.keyboardShortcut("y")
         }
+        CommandGroup(replacing: .help) {
+            Button("Report a Problem…") { model.reportProblem() }
+        }
 
         CommandMenu("Tabs") {
             Button(browser?.activeTab.map { model.isPinned($0) } == true ? "Unpin Tab" : "Pin Tab") { browser?.togglePinActive() }

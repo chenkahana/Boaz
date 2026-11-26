@@ -1164,9 +1164,12 @@ final class AppModel {
         sheet = nil
     }
 
-    func sheetDidDismiss() {
-        afterSheet?()
+    /// Whether something was waiting for the sheet to close.
+    @discardableResult func sheetDidDismiss() -> Bool {
+        guard let action = afterSheet else { return false }
         afterSheet = nil
+        action()
+        return true
     }
 
     /// Entering starts on Incognito's own empty page, in both panes, so nothing browsed next is a normal tab's;

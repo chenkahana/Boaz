@@ -328,7 +328,7 @@ private struct GeneralSettings: View {
             BoazCLISettings()
             #endif
             AISettingsSection()
-            AboutSection()
+            AboutSection { model.openInMainWindow($0) }
         }
         .formStyle(.grouped)
         .onChange(of: archiveAfter) { model.archiveStaleTabs() }

@@ -53,15 +53,27 @@ Polish-only commits (copy, spacing, icons, docs) skip the soak. If you want a re
 appcast from a prerelease and point a few installs at it; that needs a separate feed URL in the app, so it is not
 set up here.
 
-**Crash check before the next release.** Boaz has no analytics and no crash reporting, so field visibility is
-procedural. Before cutting a release, look at the previous one:
+**Crash review (release gate: no new crash cluster).** Boaz has no analytics and no crash SDK, so crashes reach
+the maintainer only through Apple's opt-in sharing and through reports users attach themselves. Before cutting a
+release, review the one that is out:
 
-- App Store Connect, the app's crash reports (TestFlight and App Store builds), for the iPhone and Mac App Store versions.
-- Xcode › Window › Organizer › Crashes, for the same versions.
-- For the DMG, there is no automatic report; check new GitHub issues since the last release.
+- **App Store builds** (iPhone and Mac App Store): App Store Connect › the app › TestFlight › Crashes, and Xcode ›
+  Window › Organizer › Crashes for the current versions. See [the App Store steps](app-store.md#crash-review).
+- **DMG:** nothing arrives on its own. Chromium's crash reporter keeps its minidumps on the user's Mac and has no
+  upload address in Boaz's build. Look through the GitHub issues opened since the last release for attached crash
+  reports (Help › Report a Problem… links users to [SUPPORT.md](../SUPPORT.md#sending-a-crash-report)). Symbolicate
+  each one with the dSYMs of the release it names, which the workflow attaches to the GitHub release as
+  `Boaz-X.Y.Z-dSYMs.zip`:
 
-If the current release has a crash signature that is new or rising, fix it before shipping anything else. Write what
-you looked at in the release notes ("Crash reports reviewed: none new"), so skipping the check is visible.
+  ```sh
+  gh release download vX.Y.Z --pattern 'Boaz-*-dSYMs.zip' --dir /tmp/dsyms && ditto -x -k /tmp/dsyms/*.zip /tmp/dsyms
+  Tools/symbolicate Chromium-2026-11-26-101500.ips /tmp/dsyms
+  ```
+
+A **crash cluster** is two or more reports whose crashed thread stops in the same Boaz function, or any one crash at
+launch. The gate: the release being cut ships only if the current release has no cluster that is new since the
+previous release or growing; when one exists, its fix is the only thing that ships next. Write the result in the
+release notes ("Crash review: none new", or "Crash review: fixes #N"), so a skipped review is visible.
 
 **Secrets** (Settings › Secrets and variables › Actions):
 

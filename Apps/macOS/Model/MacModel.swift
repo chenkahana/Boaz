@@ -342,6 +342,12 @@ final class MacModel {
 
     func openWindow(id: String) { openWindowAction?(id, nil) }
 
+    /// Help › Report a Problem…: the prefilled bug report, in a normal window even when Incognito is in front.
+    func reportProblem() {
+        let dark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        openInMainWindow(ProblemReport.current(dark: dark).url)
+    }
+
     // MARK: Window restoration
 
     /// macOS only reopens windows itself when "Close windows when quitting an application" is off, and it's on by

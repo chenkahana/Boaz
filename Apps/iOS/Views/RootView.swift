@@ -65,7 +65,7 @@ struct RootView: View {
         .sensoryFeedback(Haptics.tabClosed.feedback, trigger: model.toast) { _, new in new?.canUndo == true && new?.felt == false }
         // While a sheet is up, the alert has to come from there instead.
         .modifier(ShakeToUndo(isEnabled: model.sheet == nil && !model.showOnboarding))
-        .sheet(item: $model.sheet, onDismiss: model.sheetDidDismiss) { sheet in
+        .sheet(item: $model.sheet, onDismiss: { model.sheetDidDismiss() }) { sheet in
             switch sheet {
             case .library: LibrarySheet()
             case .settings: SettingsSheet()

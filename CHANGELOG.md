@@ -23,6 +23,13 @@ All notable changes to Boaz are recorded here. The format follows
   after a relaunch. Groups are this Mac's, like its Today tabs; drag one into Pinned to make it a folder on every
   device. VoiceOver reads a group's name, tab count and state, with Collapse, Rename, Ungroup and Archive Group in
   its Actions. The iPhone shows a Mac's groups as folders under its Today tabs.
+- Report a Problem: Help › Report a Problem… on Mac, and Settings › About › Report a Problem on Mac and iPhone,
+  open a GitHub bug report in a Boaz tab with your Boaz version, build, commit, device and OS filled in. Nothing
+  about your tabs or browsing is included, and nothing is posted until you submit it.
+- SUPPORT.md explains how to attach a crash report you choose, on Mac and iPhone. Maintainers read it with
+  `Tools/symbolicate`, which turns an `.ips` crash report and the build's dSYMs into a trace with function names
+  and lines. Each DMG release on GitHub now carries its dSYMs, and the release docs make a crash review, with no
+  new crash cluster, a gate for every release.
 
 ### Changed
 

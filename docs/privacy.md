@@ -25,6 +25,8 @@ collect, see or sell any of it.
 ## What Boaz does not do
 
 - No accounts, sign-in, analytics, advertising, tracking or crash-reporting services.
+- Report a Problem opens a public GitHub bug report form with your Boaz version, build, device model and OS filled
+  in. Nothing is posted unless you submit it.
 - No third-party SDKs that collect data.
 - No sale or sharing of data with anyone.
 

@@ -159,6 +159,9 @@ def assemble(base, receipt, output, native_launch=False, production_version=None
         metadata.pop('CFBundleIconName', None)
         if dock_tile is not None:
             metadata['NSDockTilePlugIn'] = dock_tile.name
+        # Receipts from before the UI build recorded its commit leave it out; Report a Problem says "unknown".
+        if isinstance(record.get('commit'), str) and re.fullmatch(r'[0-9a-f]{7,40}', record['commit']):
+            metadata['BoazCommit'] = record['commit']
         if production_version:
             metadata.update({key: value for key, value in distribution.items() if key.startswith('SU')})
             metadata.update({'CFBundleIdentifier': 'com.chenkahana.boaz', 'CFBundleName': 'Boaz',

@@ -162,7 +162,7 @@ struct TabCarousel: View {
             withAnimation(motion) { presented = true }
         }
         .onChange(of: tabs.map(\.id)) { old, new in refocus(from: old, to: new) }
-        .sheet(item: $sheet, onDismiss: openMacTab) { sheet in
+        .sheet(item: $sheet, onDismiss: { openMacTab(); openAfterSettings() }) { sheet in
             switch sheet {
             case .macTabs: MacTabsSheet { macTab = $0 }
             case .settings: SettingsSheet()
@@ -397,6 +397,11 @@ struct TabCarousel: View {
         macTab = nil
         model.showsCoverFlow = false
         model.activate(tab)
+    }
+
+    /// Settings › Report a Problem asks for a tab once Settings is gone (`AppModel.openAfterSheet`).
+    private func openAfterSettings() {
+        if model.sheetDidDismiss() { model.showsCoverFlow = false }
     }
 }
 

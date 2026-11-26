@@ -268,6 +268,10 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         responder(window, "Zoom", #selector(NSWindow.performZoom(_:)))
         responder(window, "Bring All to Front", #selector(NSApplication.arrangeInFront(_:)))
         NSApp.windowsMenu = window
+
+        let help = menu("Help")
+        add(help, "Report a Problem…", enabled: { _ in true }) { _ in MacModel.shared.reportProblem() }
+        NSApp.helpMenu = help
         NSApp.mainMenu = bar
     }
 

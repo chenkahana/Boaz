@@ -199,7 +199,10 @@ def build(jobs, resume_run=None, cache_from=None):
     icon = artifacts / 'Boaz.icns'
     subprocess.run(['/usr/bin/iconutil', '-c', 'icns', '-o', str(icon), str(iconset)], check=True)
     resources.append({'source': str(icon_source), 'staged': str(icon)})
-    manifest = {'distribution_info': distribution_info, 'cli': str(staged_cli), 'library': str(final), 'immutable_copy': str(staged),
+    # Report a Problem shows the commit (stage-application.py writes it to Info.plist as BoazCommit).
+    commit = subprocess.run(['git', '-C', str(REPO), 'rev-parse', '--short=7', 'HEAD'],
+                            text=True, capture_output=True).stdout.strip() or None
+    manifest = {'distribution_info': distribution_info, 'commit': commit, 'cli': str(staged_cli), 'library': str(final), 'immutable_copy': str(staged),
                 'abi_header_sha256': abi_header_sha256,
                 'ui_library_sha256': hashlib.sha256(staged.read_bytes()).hexdigest(),
                 'previous': str(previous) if previous else None,
