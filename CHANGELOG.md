@@ -4,6 +4,21 @@ All notable changes to Boaz are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.51] - 2026-11-28
+
+### Changed
+
+- Mac: Settings has a Theme pane with every design choice in one place. Each space's background (its colors,
+  gradient, pattern such as Clean or Matte, translucency and light streak), the sidebar's text size and the app icon.
+- Mac: Accounts and Sync are one pane, Accounts & Sync.
+- Mac: History ▸ Show All History opens Chromium's history page for the space's profile. Passwords ▸ Show All
+  Passwords opens your saved passwords in their own window instead of a Settings pane.
+
+### Fixed
+
+- Mac: Settings buttons read clearly again (they were white text on light grey), the window is wider, and it no
+  longer opens partly below the bottom of the screen; a tall pane scrolls instead.
+
 ## [0.4.47] - 2026-11-25
 
 ### Fixed
