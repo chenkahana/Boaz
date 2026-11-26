@@ -1,14 +1,20 @@
 import XCTest
 
 /// Native-UI steps of the runtime acceptance run (`Tools/acceptance/runtime.py`) against an installed production Boaz.
-/// Runs only on a throwaway Mac with `BOAZ_ACCEPTANCE_APP` set to that app's path; it attaches to the running app
-/// as it is, with no test mode, fixture or relaunch.
+/// Runs only with `BOAZ_ACCEPTANCE_APP` set to that app's path, and against /Applications/Boaz.app only on a CI
+/// runner. It attaches to the running app as it is, with no test mode, fixture or relaunch.
 final class BoazAcceptanceUITests: XCTestCase {
     private var app: XCUIApplication!
 
     override func setUpWithError() throws {
-        guard let path = ProcessInfo.processInfo.environment["BOAZ_ACCEPTANCE_APP"], !path.isEmpty else {
+        let environment = ProcessInfo.processInfo.environment
+        guard let path = environment["BOAZ_ACCEPTANCE_APP"], !path.isEmpty else {
             throw XCTSkip("Set BOAZ_ACCEPTANCE_APP to an installed Boaz to run the acceptance steps.")
+        }
+        // /Applications/Boaz.app on a person's Mac is their real Boaz and library (must-have #13).
+        guard URL(fileURLWithPath: path).resolvingSymlinksInPath().path != "/Applications/Boaz.app"
+                || environment["CI"] == "true" else {
+            throw XCTSkip("BoazAcceptanceUITests drives /Applications/Boaz.app only on a CI runner (CI=true).")
         }
         continueAfterFailure = true
         app = XCUIApplication(url: URL(fileURLWithPath: path))

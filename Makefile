@@ -74,9 +74,13 @@ uitest: project ## Run the BoazUITests suite (set BOAZ_UITEST_APP=<path to .app>
 	$(XCB) -scheme Boaz-macOS -destination 'platform=macOS' -resultBundlePath $(RESULTS) $(ADHOC) \
 		-test-timeouts-enabled YES -default-test-execution-time-allowance 300 test
 
-acceptance-uitest: project ## One BoazAcceptanceUITests step (TEST=name) against BOAZ_ACCEPTANCE_APP; throwaway Macs only
+acceptance-uitest: project ## One BoazAcceptanceUITests step (TEST=name) against BOAZ_ACCEPTANCE_APP (required; BUILD_ONLY=1 only builds)
+	@[ -n "$(TEST)" ] || { echo "TEST is required" >&2; exit 2; }
+	@[ -n "$(BUILD_ONLY)$(BOAZ_ACCEPTANCE_APP)" ] || { echo "BOAZ_ACCEPTANCE_APP is required" >&2; exit 2; }
+	@[ "$(CI)" = true ] || [ -n "$(BUILD_ONLY)" ] || [ "$$(cd "$(BOAZ_ACCEPTANCE_APP)" 2>/dev/null && pwd -P)" != /Applications/Boaz.app ] || \
+		{ echo "Refusing to drive /Applications/Boaz.app outside CI: it is your real Boaz." >&2; exit 2; }
 	rm -rf build/Acceptance-$(TEST).xcresult
-	TEST_RUNNER_BOAZ_ACCEPTANCE_APP=$(BOAZ_ACCEPTANCE_APP) $(XCB) -scheme Boaz-macOS -destination 'platform=macOS' \
+	TEST_RUNNER_CI=$(CI) TEST_RUNNER_BOAZ_ACCEPTANCE_APP=$(if $(BUILD_ONLY),,$(BOAZ_ACCEPTANCE_APP)) $(XCB) -scheme Boaz-macOS -destination 'platform=macOS' \
 		-resultBundlePath build/Acceptance-$(TEST).xcresult $(ADHOC) \
 		-only-testing:BoazUITests/BoazAcceptanceUITests/$(TEST) test
 

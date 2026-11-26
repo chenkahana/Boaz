@@ -23,9 +23,10 @@ on:
         description: Optional release tag to upgrade to next, as someone already on the one above
         default: ""
 
+# One run per commit, as in ci.yml: a later push never cancels an earlier commit's evidence.
 concurrency:
-  group: upgrade-acceptance-${{ github.ref }}
-  cancel-in-progress: true
+  group: upgrade-acceptance-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

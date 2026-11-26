@@ -16,9 +16,10 @@ on:
         description: Release tag to check
         default: v0.4.48
 
+# One run per commit, as in ci.yml: a later push never cancels an earlier commit's evidence.
 concurrency:
-  group: runtime-acceptance-${{ github.ref }}
-  cancel-in-progress: true
+  group: runtime-acceptance-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -54,8 +55,8 @@ jobs:
         run: sudo automationmodetool enable-automationmode-without-authentication
 
       - name: Build the native-UI steps
-        # With no BOAZ_ACCEPTANCE_APP the step skips, so this only builds them before Boaz is installed.
-        run: make acceptance-uitest TEST=testMenusNameNoEngine
+        # BUILD_ONLY: the step skips, so this only builds them before Boaz is installed.
+        run: make acceptance-uitest TEST=testMenusNameNoEngine BUILD_ONLY=1
 
       - name: Download the release
         run: |
