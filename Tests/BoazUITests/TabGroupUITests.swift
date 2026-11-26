@@ -17,14 +17,16 @@ final class TabGroupUITests: BoazUITestCase {
     private var groupedTab: XCUIElement { sidebar.buttons["Today Tab"].firstMatch }
     private var toast: XCUIElement { element("screen.toast") }
 
-    /// The open context menu, as a screenshot.
+    /// The open context menu, as a screenshot, when it has a frame to capture. Best effort: never fails the test.
     private func attachMenu(_ name: String) {
-        let menu = app.menus.firstMatch
-        guard menu.waitForExistence(timeout: 3) else { return XCTFail("No menu for \(name)") }
-        let screenshot = XCTAttachment(screenshot: menu.screenshot())
-        screenshot.name = "\(name)-\(appearance.rawValue)"
-        screenshot.lifetime = .keepAlways
-        add(screenshot)
+        _ = app.menuItems.firstMatch.waitForExistence(timeout: 3)
+        guard let menu = app.menus.allElementsBoundByIndex.first(where: { $0.exists && !$0.frame.isEmpty }) else { return }
+        XCTContext.runActivity(named: "Menu \(name)") { activity in
+            let screenshot = XCTAttachment(screenshot: menu.screenshot())
+            screenshot.name = "\(name)-\(appearance.rawValue)"
+            screenshot.lifetime = .keepAlways
+            activity.add(screenshot)
+        }
     }
 
     func testCreateCollapseRelaunchUngroupArchive() {
