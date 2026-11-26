@@ -1,0 +1,54 @@
+--- a/chrome/browser/ui/views/overlay/BUILD.gn
++++ b/chrome/browser/ui/views/overlay/BUILD.gn
+@@ -92,7 +92,10 @@
+ 
+   if (is_mac) {
+     sources += [ "video_overlay_window_native_widget_mac.mm" ]
+-    deps += [ "//components/remote_cocoa/common:mojo" ]
++    deps += [
++      "//boaz:headers",
++      "//components/remote_cocoa/common:mojo",
++    ]
+     frameworks = [ "Cocoa.framework" ]
+   }
+ 
+--- a/chrome/browser/ui/views/overlay/video_overlay_window_views.cc
++++ b/chrome/browser/ui/views/overlay/video_overlay_window_views.cc
+@@ -18,6 +18,9 @@
+ #include "base/time/time.h"
+ #include "base/timer/timer.h"
+ #include "build/build_config.h"
++#if BUILDFLAG(IS_MAC)
++#include "boaz/native_picture_in_picture.h"
++#endif
+ #include "chrome/browser/media/media_engagement_service.h"
+ #include "chrome/browser/picture_in_picture/picture_in_picture_occlusion_tracker.h"
+ #include "chrome/browser/picture_in_picture/picture_in_picture_window_manager.h"
+@@ -370,6 +373,13 @@
+   overlay_window->Init(std::move(params));
+   overlay_window->OnRootViewReady();
+ 
++#if BUILDFLAG(IS_MAC)
++  boaz::AttachNativePictureInPictureControls(
++      overlay_window.get(), controller,
++      base::BindRepeating(&VideoOverlayWindowViews::IsOverlayViewShown,
++                          base::Unretained(overlay_window.get())));
++#endif
++
+ #if BUILDFLAG(IS_WIN)
+   std::wstring app_user_model_id;
+   BrowserWindowInterface* browser =
+@@ -777,6 +787,13 @@
+ 
+ void VideoOverlayWindowViews::UpdateControlsVisibility(bool is_visible,
+                                                        bool should_animate) {
++#if BUILDFLAG(IS_MAC)
++  // Boaz draws its own controls over the video.
++  if (boaz::NativePictureInPictureControlsEnabled()) {
++    is_visible = false;
++    force_title_and_scrim_visible_ = false;
++  }
++#endif
+   if (is_moving_) {
+     // If we've already queued a visibility change for the same visibility, then
+     // only animate if both should animate (which matches what would have

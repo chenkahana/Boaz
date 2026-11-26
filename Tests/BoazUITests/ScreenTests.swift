@@ -415,11 +415,10 @@ final class ScreenTests: BoazUITestCase {
 
     func testSettingsGeneralLight() { runSettings("General", appearance: .light) }
     func testSettingsGeneralDark() { runSettings("General", appearance: .dark) }
-    func testSettingsAppIcon() { runSettings("App Icon") }
+    func testSettingsTheme() { runSettings("Theme") }
     func testSettingsPrivacy() { runSettings("Privacy") }
-    func testSettingsSync() { runSettings("Sync") }
     func testSettingsPasswords() { runSettings("Passwords") }
-    func testSettingsAccounts() { runSettings("Accounts") }
+    func testSettingsAccountsAndSync() { runSettings("Accounts & Sync") }
     func testSettingsSites() { runSettings("Sites") }
     func testSettingsShortcutsLight() { runSettings("Shortcuts", appearance: .light) }
     func testSettingsShortcutsDark() { runSettings("Shortcuts", appearance: .dark) }

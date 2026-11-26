@@ -51,7 +51,7 @@ enum SidebarStyle {
     static let rowHeight: CGFloat = 34
     /// The gap between rows, so each row's hover and selection fill stands apart.
     static let rowSpacing: CGFloat = 2
-    /// Rows' text size; Settings › General › Sidebar Text Size picks 14, 15 or 17 (`sidebarTextSize`).
+    /// Rows' text size; Settings › Theme › Sidebar Text Size picks 14, 15 or 17 (`sidebarTextSize`).
     static let defaultTextSize: CGFloat = 15
     static func rowFont(size: CGFloat = defaultTextSize, selected: Bool = false) -> Font {
         ChromeType(base: size).row(selected: selected)

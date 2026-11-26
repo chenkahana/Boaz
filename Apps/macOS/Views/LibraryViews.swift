@@ -223,16 +223,24 @@ private func dayTitle(_ day: Date) -> String {
 /// Boaz ▸ Settings: same preferences as iOS, plus keyboard shortcut overrides. The App Store build shows the panes in
 /// SwiftUI's Settings scene; the DMG shows them in `ChromiumSettingsWindow`.
 enum MacSettingsPane: CaseIterable {
-    case general, appIcon, privacy, sync, passwords, accounts, sites, shortcuts
+    case general, theme, privacy, accountsAndSync, passwords, sites, shortcuts
+
+    static var allCases: [MacSettingsPane] {
+        #if BOAZ_CHROMIUM
+        // The DMG shows passwords in their own window, from the Passwords menu.
+        [.general, .theme, .privacy, .accountsAndSync, .sites, .shortcuts]
+        #else
+        [.general, .theme, .privacy, .accountsAndSync, .passwords, .sites, .shortcuts]
+        #endif
+    }
 
     var title: String {
         switch self {
         case .general: "General"
-        case .appIcon: "App Icon"
+        case .theme: "Theme"
         case .privacy: "Privacy"
-        case .sync: "Sync"
+        case .accountsAndSync: "Accounts & Sync"
         case .passwords: "Passwords"
-        case .accounts: "Accounts"
         case .sites: "Sites"
         case .shortcuts: "Shortcuts"
         }
@@ -241,11 +249,10 @@ enum MacSettingsPane: CaseIterable {
     var symbol: String {
         switch self {
         case .general: "gearshape"
-        case .appIcon: "app.badge.checkmark"
+        case .theme: "paintpalette"
         case .privacy: "hand.raised"
-        case .sync: "icloud"
+        case .accountsAndSync: "person.crop.circle"
         case .passwords: "key"
-        case .accounts: "person.crop.circle"
         case .sites: "arrow.triangle.branch"
         case .shortcuts: "keyboard"
         }
@@ -260,32 +267,31 @@ struct MacSettingsView: View {
             }
         }
     }
-
-    static let footnote = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? NSColor(white: 1, alpha: 0.62) : NSColor(white: 0, alpha: 0.64)
-    })
 }
 
 struct MacSettingsPaneView: View {
     let pane: MacSettingsPane
 
+    /// The screen's usable height less the window's title bar and toolbar, with a margin.
+    static var maxHeight: CGFloat { min(760, (NSScreen.main?.visibleFrame.height ?? 900) - 160) }
+
     var body: some View {
         Group {
             switch pane {
             case .general: GeneralSettings()
-            case .appIcon: AppIconSettings()
+            case .theme: ThemeSettings()
             case .privacy: PrivacySettings()
-            case .sync: SyncSettings()
+            case .accountsAndSync: AccountsSyncSettings()
             case .passwords: PasswordsSettings().frame(minHeight: 460)
-            case .accounts: AccountsSettings()
             case .sites: SiteRulesSettings()
             case .shortcuts: ShortcutsSettings()
             }
         }
-        // System label colors on the system background. Footnotes and values take the second level, which reads at
-        // 4.5:1 or better (the system's secondary label is about 4:1 in Light).
-        .foregroundStyle(.primary, MacSettingsView.footnote)
-        .frame(width: 520)
+        // System colors throughout: overriding the hierarchical styles here also tinted every button's bezel and the
+        // row separators, which turned buttons into white text on light grey.
+        .frame(width: 640)
+        // A tall pane scrolls instead of growing the window past the bottom of the screen.
+        .frame(maxHeight: Self.maxHeight)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen.settings.\(pane)")
     }
@@ -295,7 +301,6 @@ private struct GeneralSettings: View {
     @Environment(MacModel.self) private var model
     @AppStorage(Preferences.archiveAfterKey) private var archiveAfter = ArchiveInterval.week.rawValue
     @AppStorage(Preferences.searchEngineKey) private var searchEngine = SearchEngine.duckDuckGo.rawValue
-    @AppStorage(Preferences.sidebarTextSizeKey) private var sidebarTextSize = SidebarStyle.defaultTextSize
     @AppStorage(PictureInPicture.whenLeavingKey) private var pictureInPictureWhenLeaving = true
 
     var body: some View {
@@ -307,11 +312,6 @@ private struct GeneralSettings: View {
                 }
                 Picker("Search Engine", selection: $searchEngine) {
                     ForEach(SearchEngine.allCases) { Text($0.name).tag($0.rawValue) }
-                }
-                Picker("Sidebar Text Size", selection: $sidebarTextSize) {
-                    Text("Small").tag(14.0)
-                    Text("Medium").tag(15.0)
-                    Text("Large").tag(17.0)
                 }
                 if PictureInPicture.isSupported {
                     Toggle(isOn: $pictureInPictureWhenLeaving) {
@@ -328,8 +328,6 @@ private struct GeneralSettings: View {
             AboutSection()
         }
         .formStyle(.grouped)
-        // The Settings window takes this tab's height and can't be resized; without it About sat below the fold.
-        .frame(minHeight: 600)
         .onChange(of: archiveAfter) { model.archiveStaleTabs() }
     }
 }
@@ -456,7 +454,8 @@ private struct SiteRulesSettings: View {
     }
 }
 
-private struct SyncSettings: View {
+/// Settings ▸ Accounts & Sync: iCloud sync, then which profiles have live folders.
+private struct AccountsSyncSettings: View {
     @Environment(MacModel.self) private var model
     @Environment(\.openURL) private var openURL
     @State private var syncMessage: String?
@@ -488,8 +487,9 @@ private struct SyncSettings: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             } else {
-                Text("Sync starts once your library has loaded.")
+                Section("iCloud Sync") { Text("Sync starts once your library has loaded.") }
             }
+            LiveFoldersSection()
         }
         .formStyle(.grouped)
     }

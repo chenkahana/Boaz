@@ -100,9 +100,6 @@ targets:
   Boaz-macOS:
     type: application
     platform: macOS
-    scheme:
-      testTargets:
-        - BoazUITests
     sources: [Apps/macOS, Apps/Shared, Apps/Browser]
     dependencies:
       - package: BoazKit
@@ -217,3 +214,22 @@ targets:
         # XCTestCase's own members aren't actor-isolated; the project-wide MainActor default isolation
         # (base settings) would otherwise conflict with overrides like `tearDownWithError()`.
         SWIFT_DEFAULT_ACTOR_ISOLATION: nonisolated
+schemes:
+  Boaz-macOS:
+    build:
+      targets:
+        Boaz-macOS: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets: [BoazUITests]
+      # Screenshots, not Xcode's default screen recording: on CI the recorder can fail to stop after a test, and
+      # every later test then hangs waiting to start a new recording until the job runs out of time.
+      preferredScreenCaptureFormat: screenshots
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
