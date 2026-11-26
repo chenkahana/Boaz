@@ -260,14 +260,13 @@ struct MacSettingsView: View {
             }
         }
     }
-
-    static let footnote = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? NSColor(white: 1, alpha: 0.62) : NSColor(white: 0, alpha: 0.64)
-    })
 }
 
 struct MacSettingsPaneView: View {
     let pane: MacSettingsPane
+
+    /// The screen's usable height less the window's title bar and toolbar, with a margin.
+    static var maxHeight: CGFloat { min(760, (NSScreen.main?.visibleFrame.height ?? 900) - 160) }
 
     var body: some View {
         Group {
@@ -282,10 +281,11 @@ struct MacSettingsPaneView: View {
             case .shortcuts: ShortcutsSettings()
             }
         }
-        // System label colors on the system background. Footnotes and values take the second level, which reads at
-        // 4.5:1 or better (the system's secondary label is about 4:1 in Light).
-        .foregroundStyle(.primary, MacSettingsView.footnote)
-        .frame(width: 520)
+        // System colors throughout: overriding the hierarchical styles here also tinted every button's bezel and the
+        // row separators, which turned buttons into white text on light grey.
+        .frame(width: 640)
+        // A tall pane scrolls instead of growing the window past the bottom of the screen.
+        .frame(maxHeight: Self.maxHeight)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("screen.settings.\(pane)")
     }
