@@ -21,12 +21,10 @@ final class TabGroupUITests: BoazUITestCase {
     private func attachMenu(_ name: String) {
         _ = app.menuItems.firstMatch.waitForExistence(timeout: 3)
         guard let menu = app.menus.allElementsBoundByIndex.first(where: { $0.exists && !$0.frame.isEmpty }) else { return }
-        XCTContext.runActivity(named: "Menu \(name)") { activity in
-            let screenshot = XCTAttachment(screenshot: menu.screenshot())
-            screenshot.name = "\(name)-\(appearance.rawValue)"
-            screenshot.lifetime = .keepAlways
-            activity.add(screenshot)
-        }
+        let screenshot = XCTAttachment(screenshot: menu.screenshot())
+        screenshot.name = "\(name)-\(appearance.rawValue)"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
     }
 
     func testCreateCollapseRelaunchUngroupArchive() {
