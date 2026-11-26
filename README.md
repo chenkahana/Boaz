@@ -197,11 +197,9 @@ Versioning, archives, App Store metadata and the review checklist are in [docs/a
 The Chromium DMG, its signing and the Sparkle feed are in [docs/release.md](docs/release.md). Changes are recorded
 in [CHANGELOG.md](CHANGELOG.md).
 
-## The plan
+## Roadmap
 
-Where Boaz is going and what gets built next, as ordered, agent-executable work items with live status:
-[docs/plan/README.md](docs/plan/README.md). Coding agents pick items up there and record their progress in the
-repo.
+Where Boaz is going and what gets built next: [ROADMAP.md](ROADMAP.md).
 
 ## Contributing
 
