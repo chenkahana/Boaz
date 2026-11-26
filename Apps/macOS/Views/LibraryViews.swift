@@ -225,6 +225,15 @@ private func dayTitle(_ day: Date) -> String {
 enum MacSettingsPane: CaseIterable {
     case general, theme, privacy, accountsAndSync, passwords, sites, shortcuts
 
+    static var allCases: [MacSettingsPane] {
+        #if BOAZ_CHROMIUM
+        // The DMG shows passwords in their own window, from the Passwords menu.
+        [.general, .theme, .privacy, .accountsAndSync, .sites, .shortcuts]
+        #else
+        [.general, .theme, .privacy, .accountsAndSync, .passwords, .sites, .shortcuts]
+        #endif
+    }
+
     var title: String {
         switch self {
         case .general: "General"

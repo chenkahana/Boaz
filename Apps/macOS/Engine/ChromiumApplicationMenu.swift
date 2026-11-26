@@ -131,6 +131,7 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
                   let window = browser.window, window.attachedSheet == nil else { return }
             Task { await ChromiumPasswordFill.run(on: page, window: window) { browser.model.showToast($0) } }
         }
+        add(passwords, "Show All Passwords", enabled: { _ in true }, perform: { [weak self] _ in self?.openScene("passwords") })
 
         let view = menu("View")
         add(view, "Picture in Picture", command: .pictureInPicture, enabled: hasEnginePage) {
