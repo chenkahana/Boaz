@@ -6,7 +6,9 @@ import SwiftUI
 /// AutoFill extension (`autofill.yml`). Boaz asks iOS here only, when the user taps, never on its own.
 struct AutoFillSection: View {
     @Environment(\.scenePhase) private var scenePhase
-    @State private var isOn: Bool?
+    /// The last answer from iOS this launch, so reopening Settings shows it at once instead of flipping the row.
+    private static var cached: Bool?
+    @State private var isOn = AutoFillSection.cached
 
     var body: some View {
         Section {
@@ -19,13 +21,17 @@ struct AutoFillSection: View {
             Text(isOn == true ? "Turn it off in Settings › General › AutoFill & Passwords."
                               : "Fill your Boaz passwords in Safari and other apps from the key above the keyboard.")
         }
+        // Until iOS first answers, hold the row's place without showing either state.
+        .opacity(isOn == nil ? 0 : 1)
         .task { await refresh() }
         // The user may switch it in the Settings app while Boaz waits in the background.
         .onChange(of: scenePhase) { _, phase in if phase == .active { Task { await refresh() } } }
     }
 
     private func refresh() async {
-        isOn = await ASCredentialIdentityStore.shared.state().isEnabled
+        let answer = await ASCredentialIdentityStore.shared.state().isEnabled
+        Self.cached = answer
+        isOn = answer
     }
 
     private func turnOn() async {

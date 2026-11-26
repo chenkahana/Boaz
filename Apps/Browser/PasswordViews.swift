@@ -115,7 +115,9 @@ struct PasswordsSettings: View {
     @State private var revealed: (id: SavedPassword.ID, password: String)?
     @State private var importing = false
     @State private var message: String?
+    /// Kept after the alert closes, so its title doesn't change while it animates away.
     @State private var deleting: SavedPassword?
+    @State private var confirmingDelete = false
 
     private var autofill: PasswordAutofill { .shared }
 
@@ -141,7 +143,7 @@ struct PasswordsSettings: View {
                         Text(search.isEmpty ? "No saved passwords" : "No matches").foregroundStyle(.secondary)
                     }
                     ForEach(shown) { entry in row(entry) }
-                        .onDelete { offsets in deleting = offsets.first.map { shown[$0] } }
+                        .onDelete { offsets in if let first = offsets.first { confirmDelete(shown[first]) } }
                 } header: {
                     Text("Saved Passwords")
                 } footer: {
@@ -166,9 +168,8 @@ struct PasswordsSettings: View {
         .navigationTitle("Passwords")
         #endif
         // Deleting reaches every device through iCloud Keychain, and can't be undone: ask once.
-        .alert("Delete the password for \(deleting?.site ?? "")?", isPresented: Binding(
-            get: { deleting != nil }, set: { if !$0 { deleting = nil } }
-        ), presenting: deleting) { entry in
+        .alert("Delete the password for \(deleting?.site ?? "")?", isPresented: $confirmingDelete,
+               presenting: deleting) { entry in
             Button("Delete", role: .destructive) { delete(entry) }
             Button("Cancel", role: .cancel) {}
         } message: { _ in
@@ -189,15 +190,15 @@ struct PasswordsSettings: View {
     @ViewBuilder private var syncFooter: some View {
         #if os(iOS)
         if signedOutOfICloud {
-            Text("Boaz keeps your passwords in your iCloud Keychain. With Passwords and Keychain on in Settings › [your name] › iCloud, they reach Boaz on your other devices; with it off, they stay on this iPhone. You're signed out of iCloud, so new passwords stay on this iPhone.")
+            Text("Boaz keeps your passwords in your iCloud Keychain. With iCloud Keychain on, they reach Boaz on your other devices; with it off, they stay on this iPhone.\n\nYou're signed out of iCloud, so new passwords stay on this iPhone.")
         } else {
-            Text("Boaz keeps your passwords in your iCloud Keychain. With Passwords and Keychain on in Settings › [your name] › iCloud, they reach Boaz on your other devices; with it off, they stay on this iPhone.")
+            Text("Boaz keeps your passwords in your iCloud Keychain. With iCloud Keychain on, they reach Boaz on your other devices; with it off, they stay on this iPhone.")
         }
         #else
         if signedOutOfICloud {
-            Text("Boaz keeps your passwords in your iCloud Keychain. With Passwords and Keychain on in System Settings › [your name] › iCloud, they reach Boaz on your other devices; with it off, they stay on this Mac. You're signed out of iCloud, so new passwords stay on this Mac.")
+            Text("Boaz keeps your passwords in your iCloud Keychain. With iCloud Keychain on, they reach Boaz on your other devices; with it off, they stay on this Mac.\n\nYou're signed out of iCloud, so new passwords stay on this Mac.")
         } else {
-            Text("Boaz keeps your passwords in your iCloud Keychain. With Passwords and Keychain on in System Settings › [your name] › iCloud, they reach Boaz on your other devices; with it off, they stay on this Mac.")
+            Text("Boaz keeps your passwords in your iCloud Keychain. With iCloud Keychain on, they reach Boaz on your other devices; with it off, they stay on this Mac.")
         }
         #endif
     }
@@ -225,7 +226,7 @@ struct PasswordsSettings: View {
             .buttonStyle(.borderless)
             .accessibilityLabel(revealed?.id == entry.id ? "Hide Password" : "Show Password")
             #if os(macOS)
-            Button(role: .destructive) { deleting = entry } label: { Image(systemName: "trash") }
+            Button(role: .destructive) { confirmDelete(entry) } label: { Image(systemName: "trash") }
                 .buttonStyle(.borderless)
                 .accessibilityLabel("Delete")
             #endif
@@ -236,6 +237,11 @@ struct PasswordsSettings: View {
         guard !unlocked else { return }
         unlocked = await PasswordAutofill.authenticate("show your saved passwords")
         if unlocked { autofill.reload() }
+    }
+
+    private func confirmDelete(_ entry: SavedPassword) {
+        deleting = entry
+        confirmingDelete = true
     }
 
     private func delete(_ entry: SavedPassword) {

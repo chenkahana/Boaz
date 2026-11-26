@@ -124,7 +124,8 @@ private struct PasswordList: View {
                 .contentShape(.rect)
             }
             .foregroundStyle(.primary)
-            .accessibilityLabel("Fill \(entry.username) for \(entry.site)")
+            .accessibilityLabel(entry.username.isEmpty ? "Fill the password for \(entry.site)"
+                                                       : "Fill \(entry.username) for \(entry.site)")
         }
     }
 }
