@@ -3,7 +3,8 @@
 Automation (authenticated DevTools protocol on 127.0.0.1); native steps (tabs with ⌘T, menus, extensions UI) by
 BoazAcceptanceUITests.
 
-  runtime.py <Boaz.dmg> <output dir> [check ...]     checks: menus, reopen (with the probe), webstore, unpacked (default: all)
+  runtime.py <Boaz.dmg> <output dir> [check ...]     checks: menus, reopen (with the probe), webstore, unpacked, profiles, private,
+                                                     passwords (default: all)
 
 COHORT=all installs all 8 cohort extensions from the live Chrome Web Store; otherwise only uBlock Origin Lite.
 """
@@ -36,6 +37,9 @@ PORT = 8766
 SITE = f'http://127.0.0.1:{PORT}'
 # Chromium's user agent names Chrome; WebKit's ends in Safari's (must-have #1: every page runs in Chromium).
 WEBKIT_AGENT = re.compile(r'Version/[0-9.]+ Safari/')
+SECOND = 'acceptance-b'
+# This run's test password for the fixture's sign-in form; it is never written to the results.
+PASSWORD = 'pw' + uuid.uuid4().hex
 
 
 class Run:
@@ -303,6 +307,47 @@ def webstore(run):
             run.check(id in settings and id in workers, f'{COHORT[id]}: still installed and running after a relaunch')
 
 
+def second_profile(run):
+    """A second profile with its space, Acceptance B, added to the library while Boaz is quit; Boaz is left running."""
+    with sqlite3.connect(SUPPORT / 'boaz.sqlite') as db:
+        exists = db.execute('SELECT 1 FROM profile WHERE id = ?', (SECOND,)).fetchone()
+    if not exists:
+        if boaz_pids():
+            quit_app(run, 'before-second-profile')
+        added = subprocess.run([sys.executable, str(HERE / 'library.py'), 'add-profile', str(SUPPORT / 'boaz.sqlite'),
+                                SECOND, 'Acceptance B'], capture_output=True, text=True)
+        if not run.check(added.returncode == 0, 'added a second profile with its space'):
+            run.note(added.stderr[-500:])
+            return False
+    if not boaz_pids():
+        launch()
+        automation()
+        time.sleep(5)
+    return True
+
+
+def first_space():
+    with sqlite3.connect(SUPPORT / 'boaz.sqlite') as db:
+        return db.execute('SELECT space.title FROM space JOIN profile ON profile.id = space.profileID WHERE '
+                          'profile.isDefault = 1 AND space.deletedAt IS NULL ORDER BY space.position LIMIT 1').fetchone()[0]
+
+
+def rows(path, sql):
+    """`sql` on a copy of a Chromium database (it may hold an exclusive lock); None when there's no such file."""
+    if not path.exists():
+        return None
+    with tempfile.TemporaryDirectory() as folder:
+        for suffix in ('', '-wal', '-journal'):
+            if os.path.exists(f'{path}{suffix}'):
+                shutil.copy(f'{path}{suffix}', f'{folder}/db{suffix}')
+        with sqlite3.connect(f'{folder}/db') as db:
+            return db.execute(sql).fetchall()
+
+
+def cookies_sent(run, path, since=0):
+    return [entry['cookie'] for entry in run.logged() if entry['path'] == path and entry['time'] >= since]
+
+
 def unpacked_id(folder):
     """Chromium's ID for an unpacked extension without a key: the first 128 bits of SHA-256 of its path, as a-p."""
     return ''.join(chr(97 + int(c, 16)) for c in hashlib.sha256(str(folder).encode()).hexdigest()[:32])
@@ -322,22 +367,14 @@ def unpacked(run):
     fixture = (run.out / 'parity-extension').resolve()
     shutil.copytree(HERE.parent / 'chromium/fixtures/parity-extension', fixture, dirs_exist_ok=True)
     fixture_id = unpacked_id(fixture)
-    if boaz_pids():
-        quit_app(run, 'before-second-profile')
-    added = subprocess.run([sys.executable, str(HERE / 'library.py'), 'add-profile', str(SUPPORT / 'boaz.sqlite'),
-                            'acceptance-b', 'Acceptance B'], capture_output=True, text=True)
-    if not run.check(added.returncode == 0, 'added a second profile with its space'):
-        run.note(added.stderr[-500:])
+    if not second_profile(run):
         return
-    launch()
-    automation()
-    time.sleep(5)
     run.check(native(run, 'testSwitchSpace', BOAZ_ACCEPTANCE_SPACE='Acceptance B'), 'switched to the second profile\'s space')
     folders = [str((folder / id).resolve()) for id in COHORT] + [str(fixture)]
     run.check(native(run, 'testLoadUnpacked', BOAZ_ACCEPTANCE_UNPACKED=','.join(folders)),
               'chrome://extensions → Developer mode → Load unpacked, for all 9 (XCUITest)')
     time.sleep(5)
-    settings, default = extension_settings('acceptance-b'), extension_settings()
+    settings, default = extension_settings(SECOND), extension_settings()
     for id in [*COHORT, fixture_id]:
         name = COHORT.get(id, 'parity fixture')
         entry = settings.get(id, {})
@@ -385,11 +422,139 @@ def unpacked(run):
     launch()
     port_token = automation()
     time.sleep(10)
-    settings = extension_settings('acceptance-b')
+    settings = extension_settings(SECOND)
     workers = {t['url'].split('/')[2] for t in targets(*port_token) if t['type'] == 'service_worker'} if port_token else set()
     kept = [id for id in [*COHORT, fixture_id] if settings.get(id, {}).get('location') == 4]
     run.check(len(kept) == 9, f'after a relaunch, {len(kept)} of 9 are still installed in the second profile')
     run.note(f'after a relaunch, {len(workers & set(kept))} of them have a running worker')
+
+
+def profiles(run):
+    """Row 2: the second profile's sign-in and history stay out of the first; each restores its own tabs."""
+    run.heading('Profile isolation')
+    if not second_profile(run):
+        return
+    first = first_space()
+    marker = f'history-b-{uuid.uuid4().hex}'
+    native(run, 'testSwitchSpace', BOAZ_ACCEPTANCE_SPACE='Acceptance B')
+    native(run, 'testOpenTabs', BOAZ_ACCEPTANCE_URLS=f'{SITE}/set?profile=b,{SITE}/{marker},{SITE}/whoami?profile=b')
+    native(run, 'testSwitchSpace', BOAZ_ACCEPTANCE_SPACE=first)
+    native(run, 'testOpenTabs', BOAZ_ACCEPTANCE_URLS=f'{SITE}/whoami?profile=a')
+    time.sleep(3)
+    b, a = cookies_sent(run, '/whoami?profile=b'), cookies_sent(run, '/whoami?profile=a')
+    run.check(any('boaz_session=' in c for c in b), 'the second profile signs in on the fixture site (control)')
+    run.check(bool(a) and not any('boaz_session=' in c for c in a), 'the first profile is not sent the second\'s sign-in')
+    quit_app(run, 'profiles')
+
+    query = "SELECT name FROM cookies WHERE host_key LIKE '%127.0.0.1%'"
+    b_disk, a_disk = rows(profile_dir(SECOND) / 'Network/Cookies', query) or [], rows(profile_dir() / 'Network/Cookies', query) or []
+    run.check(('boaz_session',) in b_disk and ('boaz_session',) not in a_disk,
+              'on disk, the sign-in cookie is in the second profile\'s cookie store only')
+    with sqlite3.connect(SUPPORT / 'boaz.sqlite') as db:
+        owners = {row[0] for row in db.execute('SELECT profileID FROM historyVisit WHERE url LIKE ?', (f'%{marker}%',))}
+        tabs = {}
+        for profile, url in db.execute("SELECT profileID, url FROM sidebarItem WHERE kind = 'tab' AND deletedAt IS NULL"):
+            tabs.setdefault(profile, set()).add(url)
+    run.check(owners == {SECOND}, f'Boaz\'s history has the second profile\'s visit under it only ({sorted(owners)})')
+    history = rows(profile_dir() / 'History', 'SELECT url FROM urls') or []
+    run.check(not any(marker in url for (url,) in history), 'the first profile\'s Chromium history doesn\'t have it')
+    holders = {profile for profile, urls in tabs.items() if f'{SITE}/whoami?profile=a' in urls}
+    run.check(f'{SITE}/{marker}' in tabs.get(SECOND, set()) and bool(holders) and SECOND not in holders,
+              'the library keeps each profile\'s tabs under that profile')
+
+    since = time.time()
+    launch()
+    automation()
+    time.sleep(8)
+    native(run, 'testSwitchSpace', BOAZ_ACCEPTANCE_SPACE='Acceptance B')
+    time.sleep(5)
+    native(run, 'testSwitchSpace', BOAZ_ACCEPTANCE_SPACE=first)
+    time.sleep(3)
+    b, a = cookies_sent(run, '/whoami?profile=b', since), cookies_sent(run, '/whoami?profile=a', since)
+    run.note(f'after a relaunch, {len(a)} and {len(b)} loads of the first and second profile\'s front tabs')
+    run.check(bool(b) and all('boaz_session=' in c for c in b) and bool(a) and not any('boaz_session=' in c for c in a),
+              'after a relaunch, both profiles restore their tabs, each with its own cookies')
+
+
+TRACE_PLACES = [SUPPORT, HOME / f'Library/Caches/{ID}', HOME / f'Library/HTTPStorages/{ID}', HOME / f'Library/WebKit/{ID}',
+                HOME / f'Library/Saved Application State/{ID}.savedState', PREFS.parent / f'{ID}.plist']
+
+
+def traces(token):
+    """Files under Boaz's data that contain `token` (UTF-8 or UTF-16)."""
+    needles = [token.encode(), token.encode('utf-16-le')]
+    found = []
+    for place in TRACE_PLACES:
+        for path in ([place] if place.is_file() else place.rglob('*') if place.exists() else []):
+            if not path.is_file() or path.is_symlink():
+                continue
+            with path.open('rb') as file:
+                tail = b''
+                while chunk := file.read(1 << 20):
+                    if any(needle in tail + chunk for needle in needles):
+                        found.append(str(path.relative_to(HOME)))
+                        break
+                    tail = chunk[-64:]
+    return found
+
+
+def private(run):
+    """Row 2: a private window leaves nothing on disk, shares no cookie with the next one and offers no password save."""
+    run.heading('Private windows')
+    if not boaz_pids():
+        launch()
+        automation()
+        time.sleep(5)
+    token = uuid.uuid4().hex
+    native(run, 'testOpenPrivateTabs', BOAZ_ACCEPTANCE_URLS=','.join(
+        [f'{SITE}/set?private=1', f'{SITE}/private-{token}', f'{SITE}/whoami?private=1', f'{SITE}/login?private=1']))
+    run.check(native(run, 'testPasswordPrompt', BOAZ_ACCEPTANCE_LOGIN=f'private-{token}:{PASSWORD}',
+                     BOAZ_ACCEPTANCE_EXPECT_PROMPT='0'), 'no offer to save a password typed in a private window (XCUITest)')
+    native(run, 'testClosePrivateWindows')
+    native(run, 'testOpenPrivateTabs', BOAZ_ACCEPTANCE_URLS=f'{SITE}/whoami?private=2')
+    native(run, 'testClosePrivateWindows')
+    first, second = cookies_sent(run, '/whoami?private=1'), cookies_sent(run, '/whoami?private=2')
+    run.check(any('boaz_session=' in c for c in first), 'a private window signs in on the fixture site (control)')
+    run.check(bool(second) and not any('boaz_session=' in c for c in second),
+              'the next private window is not sent the closed one\'s sign-in')
+    run.check(any(e['path'] == '/signed-in' for e in run.logged()), 'the private login form submitted')
+    quit_app(run, 'private')
+    found = traces(token) + traces(PASSWORD)
+    run.check(not found, 'nothing in Boaz\'s data names the private pages, the sign-in or the password'
+              + (f': {", ".join(found)}' if found else ''))
+
+
+def passwords(run):
+    """Row 2, P3: the runner probe for Boaz's save offer, and Chromium's own password stores staying empty."""
+    run.heading('Passwords')
+    if not boaz_pids():
+        launch()
+        automation()
+        time.sleep(5)
+    since = time.time()
+    native(run, 'testOpenTabs', BOAZ_ACCEPTANCE_URLS=f'{SITE}/login')
+    native(run, 'testPasswordPrompt', BOAZ_ACCEPTANCE_LOGIN=f'acceptance:{PASSWORD}')
+    log = (run.out / 'testPasswordPrompt.log').read_text()
+    run.check(any(e['path'] == '/signed-in' and e['time'] >= since for e in run.logged()), 'the login form submitted')
+    if 'BoazAcceptance: password prompt shown' in log:
+        run.note('P3 probe: Boaz offered to save the sign-in on this runner, so the offer (and none in private) is '
+                 'automated. Saving needs Touch ID or the login password, so Save, fill and iCloud sync stay manual.')
+    else:
+        run.note('P3 probe: no save offer on this runner, so P3 stays manual.')
+    quit_app(run, 'passwords')
+    # Boaz keeps passwords in its own Keychain store; Chromium's must stay empty. Its account store isn't guarded by
+    # Boaz's password patches (architect-03, on 157 and 159), so it must stay unused: no Google sign-in.
+    for profile, label in (('default', 'first profile'), (SECOND, 'second profile')):
+        for name in ('Login Data', 'Login Data For Account'):
+            saved = rows(profile_dir(profile) / name, 'SELECT origin_url FROM logins')
+            run.check(not saved, f'{label}: Chromium\'s {name} has no saved logins '
+                      f'({"no file" if saved is None else f"{len(saved)} rows"})')
+        path = profile_dir(profile) / 'Preferences'
+        preferences = json.loads(path.read_text()) if path.exists() else {}
+        services = preferences.get('google', {}).get('services', {})
+        accounts = [a.get('email', '?') for a in preferences.get('account_info', [])]
+        run.check(not accounts and not services.get('last_gaia_id') and not services.get('last_signed_in_username'),
+                  f'{label}: no Google account signed in to Chromium ({len(accounts)} accounts)')
 
 
 def main():
@@ -410,8 +575,10 @@ def main():
         launch()
         automation()
         time.sleep(5)
-        for check in checks or ['menus', 'reopen', 'webstore', 'unpacked']:
-            {'probe': probe, 'reopen': reopen, 'menus': menus, 'webstore': webstore, 'unpacked': unpacked}[check](run)
+        steps = {'menus': menus, 'reopen': reopen, 'webstore': webstore, 'unpacked': unpacked,
+                 'profiles': profiles, 'private': private, 'passwords': passwords}
+        for check in checks or steps:
+            {'probe': probe, **steps}[check](run)
         if boaz_pids():
             quit_app(run, 'end')
     finally:

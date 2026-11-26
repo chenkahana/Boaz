@@ -49,9 +49,57 @@ final class BoazAcceptanceUITests: XCTestCase {
     /// Row 4: opens each address in `BOAZ_ACCEPTANCE_URLS` (comma-separated) as a new tab, as a person does with
     /// ⌘T. (A link another app opens goes to a Quick Window instead, which isn't kept.)
     func testOpenTabs() throws {
-        let urls = (ProcessInfo.processInfo.environment["BOAZ_ACCEPTANCE_URLS"] ?? "").split(separator: ",")
-        guard !urls.isEmpty else { throw XCTSkip("Set BOAZ_ACCEPTANCE_URLS to the addresses to open.") }
-        let window = app.windows.firstMatch
+        try openTabs(in: app.windows.firstMatch)
+    }
+
+    /// Row 2: a new private window (⌘⇧N) with each address in `BOAZ_ACCEPTANCE_URLS` as a tab.
+    func testOpenPrivateTabs() throws {
+        app.windows.firstMatch.typeKey("n", modifierFlags: [.command, .shift])
+        let window = app.windows.matching(NSPredicate(format: "title CONTAINS 'Private'")).firstMatch
+        XCTAssertTrue(window.waitForExistence(timeout: 15), "⌘⇧N didn't open a private window")
+        sleep(2)
+        try openTabs(in: window)
+    }
+
+    /// Row 2: closes every private window with its close button.
+    func testClosePrivateWindows() {
+        let windows = app.windows.matching(NSPredicate(format: "title CONTAINS 'Private'"))
+        while windows.count > 0 {
+            let count = windows.count
+            windows.firstMatch.buttons[XCUIIdentifierCloseWindow].click()
+            XCTAssertTrue(waitUntil(10) { windows.count < count }, "A private window didn't close")
+            guard windows.count < count else { return }
+        }
+        record("closed the private windows")
+    }
+
+    /// Row 2's password probe: signs in on the fixture's /login page (open in the front tab) with
+    /// `BOAZ_ACCEPTANCE_LOGIN`'s run-generated test credentials ("user:password"), then reports whether Boaz offered
+    /// to save them. The offer is always declined; saving needs the person's own authentication (manual P3). With
+    /// `BOAZ_ACCEPTANCE_EXPECT_PROMPT=0` (a private window) an offer fails the test.
+    func testPasswordPrompt() throws {
+        let login = try required("BOAZ_ACCEPTANCE_LOGIN").split(separator: ":", maxSplits: 1).map(String.init)
+        let user = app.textFields.matching(labelContaining: "Username").firstMatch
+        XCTAssertTrue(user.waitForExistence(timeout: 15), "No username field on the login page")
+        user.click()
+        app.typeText(login[0])
+        let password = app.secureTextFields.matching(labelContaining: "Password").firstMatch
+        XCTAssertTrue(password.waitForExistence(timeout: 5), "No password field on the login page")
+        password.click()
+        app.typeText(login[1] + "\n")
+        let offer = app.sheets.staticTexts.matching(NSPredicate(format: "value CONTAINS 'Save Password' OR label CONTAINS 'Save Password'")).firstMatch
+        let shown = offer.waitForExistence(timeout: 15)
+        record(shown ? "password prompt shown" : "password prompt not shown")
+        if shown {
+            app.sheets.buttons["Not Now"].firstMatch.click()
+        }
+        if ProcessInfo.processInfo.environment["BOAZ_ACCEPTANCE_EXPECT_PROMPT"] == "0" {
+            XCTAssertFalse(shown, "Boaz offered to save a password typed in a private window")
+        }
+    }
+
+    private func openTabs(in window: XCUIElement) throws {
+        let urls = try required("BOAZ_ACCEPTANCE_URLS").split(separator: ",")
         for url in urls {
             window.typeKey("t", modifierFlags: .command)
             sleep(1)

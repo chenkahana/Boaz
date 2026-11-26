@@ -1,4 +1,5 @@
-"""Local site for the upgrade acceptance run: /set and /cold sign in with cookies, /whoami logs what the browser sends back.
+"""Local site for the upgrade acceptance run: /set and /cold sign in with cookies, /whoami logs what the browser sends back,
+/login is a sign-in form.
 
 Usage: fixture_server.py <port> <session value> <plain value> <cold value> <log.jsonl>
 """
@@ -12,6 +13,10 @@ YEAR = 365 * 24 * 3600
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
+    def do_POST(self):
+        self.rfile.read(int(self.headers.get('Content-Length') or 0))
+        self.do_GET()
+
     def do_GET(self):
         with open(LOG, 'a') as log:
             log.write(json.dumps({'time': time.time(), 'path': self.path,
@@ -33,6 +38,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     '<script>window.adLoaded = null;</script>'
                     '<script src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js" '
                     'onload="window.adLoaded = true" onerror="window.adLoaded = false"></script>')
+            cookies = []
+        elif page == '/login':
+            # Row 2's password probe: a plain sign-in form whose submit navigates, as a real one does.
+            body = ('<title>Boaz fixture login</title><form method="post" action="/signed-in">'
+                    '<input name="username" autocomplete="username" aria-label="Username" autofocus>'
+                    '<input name="password" type="password" autocomplete="current-password" aria-label="Password">'
+                    '<button type="submit">Sign in</button></form>')
             cookies = []
         elif page == '/whoami':
             signed_in = f'boaz_session={SESSION}' in self.headers.get('Cookie', '')
