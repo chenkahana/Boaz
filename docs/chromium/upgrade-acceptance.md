@@ -1,10 +1,12 @@
-# Upgrade acceptance: the manual part
+# Upgrade and runtime acceptance: the manual part
 
 Must-have #13 says an upgrade never loses the library: spaces, tabs, folders, history, passwords and sign-ins. The
 [Upgrade acceptance workflow](../../.github/workflows/upgrade-acceptance.yml) checks most of it on a throwaway Mac
 in CI (`Tools/acceptance/upgrade.sh`). It installs a published DMG, seeds a library, settings and a cookie sign-in,
-upgrades to a newer published DMG and compares. It can't check what needs a person or a real account. That's this
-script. It takes under an hour.
+upgrades to a newer published DMG and compares. The [Runtime acceptance workflow](../../.github/workflows/runtime-acceptance.yml)
+(`Tools/acceptance/runtime.py`) drives a published DMG through its own Local Automation. Neither can check what
+needs a person, a real account or a macOS permission prompt. That's this script: about 25 minutes for the upgrade
+part, then about 30 for the runtime part, under an hour in all.
 
 ## What CI already covers
 
@@ -63,6 +65,31 @@ and the one you're upgrading to.
     `com.chenkahana.boaz`, and a copy of the three folders from "Before you start". File an issue
     ([docs/qa.md](../qa.md#reporting)), severity P1.
 
+## Runtime
+
+Do this right after the upgrade, in the same Boaz. Each step names its row in [parity.md](parity.md), so a result
+can go straight there.
+
+1. **Sign-in popups (B2).** On a site with "Sign in with Google", with Apple and with Microsoft (for example
+   figma.com, or any site you use), sign in through the popup. The popup closes by itself and the page is signed in.
+2. **Location (P1).** Open maps.google.com and click "Your location". Boaz asks first, then macOS asks once. Allow
+   both: the map moves to you. Quit and reopen Boaz: it doesn't ask again. Remove the permission in Settings, then
+   reload: Boaz asks again.
+3. **Notifications (P1).** On a site that offers notifications (for example web.whatsapp.com, or any site you use),
+   allow them. Boaz asks first, then macOS asks once. A notification arrives in Notification Center, named Boaz.
+4. **Camera and microphone (P1).** Open meet.google.com/landing and start a meeting preview. Boaz asks for the camera
+   and microphone; allow both and you see yourself. In a space of your other profile, the same site asks again.
+5. **Password managers (E1/E2).** Install 1Password and Bitwarden from the Chrome Web Store. Unlock each with your
+   own account and fill a login with it. Uninstall the one you don't use.
+6. **Protected video (#1, M4).** Play a minute of something on Netflix or Disney+. It plays. No menu, setting,
+   badge or window mentions WebKit, Safari or an engine, before, during or after playback.
+7. **Passwords sync (P3).** On a site, save a password when Boaz offers. On the iPhone, it shows in Boaz's
+   passwords after sync, and it fills on the Mac.
+8. **Default browser (U1).** Make Boaz the default browser in System Settings ▸ Desktop & Dock. A link clicked in
+   Mail or Messages opens in Boaz.
+9. **iPhone (R1).** In Boaz on the iPhone: scroll a long page, fill a saved password, play a video in Picture in
+   Picture, sign in through a popup, and check an ad-heavy page shows no ads.
+
 ## Results
 
 Copy this table into the PLAN-02 progress log, or into the issue for a failure.
@@ -86,4 +113,13 @@ Copy this table into the PLAN-02 progress log, or into the issue for a failure.
 | Second profile sign-in | pass / fail / not used |
 | iCloud sync after the upgrade | pass / fail / not used |
 | Still signed in after a second launch | pass / fail |
+| B2 Sign-in popups: Google, Apple, Microsoft | pass / fail |
+| P1 Location: Boaz then macOS ask, remembered, revoked | pass / fail |
+| P1 Notifications: asked, delivered as Boaz | pass / fail |
+| P1 Camera and microphone, per profile | pass / fail |
+| E1/E2 1Password and Bitwarden unlock and fill | pass / fail / not used |
+| #1/M4 Netflix or Disney+ plays, no engine shown anywhere | pass / fail |
+| P3 Password saved, synced to iPhone, filled | pass / fail |
+| U1 Default browser after the upgrade | pass / fail |
+| R1 iPhone smoke: scroll, password, PiP, popup, blocking | pass / fail |
 | Notes, evidence paths | |
