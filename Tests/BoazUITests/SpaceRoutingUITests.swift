@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 
 /// Site rules (PLAN-08): a link from another app to a ruled site opens in the rule's space, in the same window,
@@ -6,15 +7,23 @@ final class SpaceRoutingUITests: BoazUITestCase {
     private func openRoutedLink() {
         launch(fixture: "routing", arguments: ["-BoazUITestToastSeconds", "30"])
         XCTAssertTrue(waitForSpace("Personal"), "The routing fixture never seeded")
-        app.open(URL(string: "https://example.test/a")!)
+        openFromAnotherApp(URL(string: "https://example.test/a")!)
     }
 
-    /// The window as it looks now, kept in the result bundle as evidence of the flow.
-    private func snapshot(_ name: String) {
-        let screenshot = XCTAttachment(screenshot: mainWindow.screenshot())
-        screenshot.name = name
-        screenshot.lifetime = .keepAlways
-        add(screenshot)
+    /// What Mail does with a link: Launch Services hands it to this build of Boaz (by path, so it never reaches
+    /// another installed Boaz or the default browser).
+    private func openFromAnotherApp(_ url: URL) {
+        let products = Bundle(for: Self.self).bundleURL.deletingLastPathComponent()  // PlugIns
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()  // Products dir
+        let appURL = ProcessInfo.processInfo.environment["BOAZ_UITEST_APP"].map(URL.init(fileURLWithPath:))
+            ?? products.appendingPathComponent("Boaz.app")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: appURL.path), "No app at \(appURL.path)")
+        let opened = expectation(description: "open")
+        NSWorkspace.shared.open([url], withApplicationAt: appURL, configuration: NSWorkspace.OpenConfiguration()) { _, error in
+            XCTAssertNil(error)
+            opened.fulfill()
+        }
+        wait(for: [opened], timeout: 10)
     }
 
     func testExternalOpenFollowsTheRule() {
@@ -27,7 +36,6 @@ final class SpaceRoutingUITests: BoazUITestCase {
         let toast = element("screen.toast")
         XCTAssertTrue(toast.waitForExistence(timeout: 5), "No toast after routing")
         XCTAssertTrue(toast.staticTexts["Opened in Work"].exists)
-        snapshot("routing-1-opened-in-work")
     }
 
     func testOpenInPreviousSpaceOverridesTheRule() {
@@ -35,12 +43,10 @@ final class SpaceRoutingUITests: BoazUITestCase {
         XCTAssertTrue(waitForSpace("Work"))
         let action = element("screen.toast").buttons["Open in Personal"]
         XCTAssertTrue(action.waitForExistence(timeout: 5), "The toast has no Open in Personal")
-        snapshot("override-1-toast-in-work")
         action.click()
         XCTAssertTrue(waitForSpace("Personal"), "Open in Personal didn't switch back")
         XCTAssertTrue(sidebar.buttons["example.test"].firstMatch.waitForExistence(timeout: 5),
                       "The tab didn't move to Personal")
         XCTAssertEqual(app.windows.count, 1)
-        snapshot("override-2-back-in-personal")
     }
 }

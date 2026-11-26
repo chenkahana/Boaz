@@ -188,9 +188,12 @@ extension BrowserState {
     func showRoutedToast(_ tab: SidebarItem, from previousSpaceID: String, select: Bool = true) {
         guard let space = model.space(tab.spaceID), space.id != previousSpaceID,
               let previous = model.space(previousSpaceID) else { return }
-        model.showToast("Opened in \(space.title)", action: .init(title: "Open in \(previous.title)") { [weak self] in
-            self?.sendBack(tab.id, to: previous.id, select: select)
-        })
+        // After the space switch and window activation this turn has started, which re-render the window.
+        DispatchQueue.main.async { [weak self] in
+            self?.model.showToast("Opened in \(space.title)", action: .init(title: "Open in \(previous.title)") { [weak self] in
+                self?.sendBack(tab.id, to: previous.id, select: select)
+            })
+        }
     }
 
     /// The toast's override: the routed tab goes back to the space that was showing and is never routed again. In

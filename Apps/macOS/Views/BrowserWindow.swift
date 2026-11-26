@@ -639,8 +639,22 @@ struct LoadingGlow: View {
 private struct ToastView: View {
     @Environment(MacModel.self) private var model
     @Environment(BrowserState.self) private var browser
+    /// Bumped when this window becomes or stops being key, which SwiftUI doesn't observe on its own: a toast shown
+    /// while Boaz was coming forward (a link from another app) appears once its window is key.
+    @State private var keyChanges = 0
 
     var body: some View {
+        content
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { note in
+                if note.object as? NSWindow === browser.window { keyChanges += 1 }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { note in
+                if note.object as? NSWindow === browser.window { keyChanges += 1 }
+            }
+    }
+
+    @ViewBuilder private var content: some View {
+        let _ = keyChanges
         if let toast = model.toast, browser.window?.isKeyWindow ?? true {
             HStack(spacing: 12) {
                 Text(toast.message).font(.callout.weight(.medium))
