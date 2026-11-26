@@ -299,9 +299,15 @@ final class MacModel {
         Task { openExternal(pending) }
     }
 
-    /// Links from other apps open in a Quick Window.
+    /// Links from other apps open in a Quick Window. Chromium also opens local files, as Chrome does: HTML files Boaz
+    /// is the viewer for, and the sign-in pages VPN clients such as GlobalProtect write to disk.
     func openExternal(_ urls: [URL]) {
-        let urls = urls.filter { ["http", "https"].contains($0.scheme?.lowercased() ?? "") && $0.host() != nil }
+        let urls = urls.filter { url in
+            #if BOAZ_CHROMIUM
+            if url.isFileURL { return true }
+            #endif
+            return ["http", "https"].contains(url.scheme?.lowercased() ?? "") && url.host() != nil
+        }
         guard let openWindowAction else { pendingExternalURLs += urls; return }
         for url in urls { openWindowAction("little", url) }
     }

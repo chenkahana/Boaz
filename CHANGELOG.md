@@ -17,6 +17,13 @@ All notable changes to Boaz are recorded here. The format follows
   play or pause. YouTube's keys work too: space or K, J and L, the arrows, M, F (back to tab), 0–9, and < and > for
   speed.
 
+## [0.4.47] - 2026-11-25
+
+### Fixed
+
+- Mac: local files that other apps open in Boaz, such as GlobalProtect's VPN sign-in page and HTML files you
+  double-click, now open in a Quick Window. Before, Boaz came to the front and showed nothing.
+
 ## [0.4.46] - 2026-11-25
 
 ### Added

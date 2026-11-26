@@ -197,6 +197,10 @@ Versioning, archives, App Store metadata and the review checklist are in [docs/a
 The Chromium DMG, its signing and the Sparkle feed are in [docs/release.md](docs/release.md). Changes are recorded
 in [CHANGELOG.md](CHANGELOG.md).
 
+## Roadmap
+
+Where Boaz is going and what gets built next: [ROADMAP.md](ROADMAP.md).
+
 ## Contributing
 
 Contributions are welcome, from a typo fix to a new feature.
