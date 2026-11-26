@@ -345,9 +345,10 @@ def rows(path, sql):
 
 
 def cookies_sent(run, path, since=0):
-    """Cookies of the page loads of `path`; a request with WebKit's user agent isn't a page load (#191's icon fetch)."""
+    """Cookies of the page loads of `path`, told apart by their Fetch Metadata whatever the user agent: Boaz's icon
+    fetch (URLSession, #191) requests the page too, without the cookies or those headers."""
     return [entry['cookie'] for entry in run.logged() if entry['path'] == path and entry['time'] >= since
-            and not WEBKIT_AGENT.search(entry['agent'])]
+            and entry.get('mode') == 'navigate' and entry.get('dest') == 'document']
 
 
 def unpacked_id(folder):

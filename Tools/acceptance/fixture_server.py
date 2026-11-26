@@ -21,7 +21,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         with open(LOG, 'a') as log:
             log.write(json.dumps({'time': time.time(), 'path': self.path,
                                   'cookie': self.headers.get('Cookie', ''),
-                                  'agent': self.headers.get('User-Agent', '')}) + '\n')
+                                  'agent': self.headers.get('User-Agent', ''),
+                                  # A browser's page load says so (Fetch Metadata); URLSession sends neither header.
+                                  'mode': self.headers.get('Sec-Fetch-Mode', ''),
+                                  'dest': self.headers.get('Sec-Fetch-Dest', '')}) + '\n')
         page = self.path.split('?')[0]
         if page == '/set':
             body = (f'<title>Boaz fixture sign-in</title><p>Signed in.</p>'
