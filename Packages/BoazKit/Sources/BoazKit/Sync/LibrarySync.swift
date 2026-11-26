@@ -58,6 +58,10 @@ public final class LibrarySync {
         }
     }
 
+    /// Site rule uploads iCloud refused this session (the Production schema has no `SpaceRoute` until it is
+    /// deployed). Rules keep working on this device; the rest of the library syncs, and `status` doesn't turn red.
+    public var refusesSpaceRoutes: Bool { cloud.refusesSpaceRoutes }
+
     /// The fallback folder in use, if any.
     public var folderURL: URL? { folder?.folderURL }
 

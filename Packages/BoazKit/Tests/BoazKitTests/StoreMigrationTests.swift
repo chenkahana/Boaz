@@ -20,7 +20,7 @@ struct StoreMigrationTests {
         for expected in ["profile", "space", "sidebarItem", "archiveItem", "historyVisit",
                          "syncState", "syncPending", "syncRecordMeta", "syncFieldState", "syncPeer",
                          "device", "tabEngineChoice", "siteEngineRule", "siteEngineRuleRecord",
-                         "protectedEngineSeed", "liveFolderState"] {
+                         "protectedEngineSeed", "liveFolderState", "spaceRoute", "tabSpaceOverride"] {
             #expect(tables.contains(expected), "missing table \(expected)")
         }
         // And a migrated store is immediately usable.

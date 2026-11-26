@@ -24,6 +24,10 @@ public final class CloudKitSync {
     public static let defaultContainerIdentifier = "iCloud.com.chenkahana.boaz"
 
     public private(set) var status: Status = .idle
+    /// iCloud refused a site rule upload this session (until the Production schema is deployed, it has no
+    /// `SpaceRoute` type). Not an error: only rules stay on this device, and they aren't offered again until the next
+    /// launch. Cleared by the first rule upload that succeeds.
+    public private(set) var refusesSpaceRoutes = false
     public let containerIdentifier: String
     /// Runs right before the engine starts (at launch or when an iCloud account appears), e.g. to retire another
     /// transport that drains the same pending queue.
@@ -216,6 +220,7 @@ public final class CloudKitSync {
         var add: [CKSyncEngine.PendingRecordZoneChange] = [], remove: [CKSyncEngine.PendingRecordZoneChange] = []
         for change in queue {
             guard let id = change.cloudRecordID else { continue }
+            if refusesSpaceRoutes, change.recordType == SyncRecordType.spaceRoute.rawValue { continue }
             let wanted: CKSyncEngine.PendingRecordZoneChange = change.isDeletion ? .deleteRecord(id) : .saveRecord(id)
             let opposite: CKSyncEngine.PendingRecordZoneChange = change.isDeletion ? .saveRecord(id) : .deleteRecord(id)
             if !existing.contains(wanted) { add.append(wanted) }
@@ -380,6 +385,9 @@ extension CloudKitSync: CKSyncEngineDelegate {
             try await store.didDelete(recordIDs: sent.deletedRecordIDs + goneAnyway)
         } catch { report(error) }
 
+        if sent.savedRecords.contains(where: { SyncMapping.parse($0.recordID)?.type == .spaceRoute }) {
+            refusesSpaceRoutes = false
+        }
         for failure in sent.failedRecordSaves {
             let id = failure.record.recordID
             switch failure.error.code {
@@ -396,7 +404,12 @@ extension CloudKitSync: CKSyncEngineDelegate {
             case .quotaExceeded:
                 status = .error("iCloud storage is full.")
             default:
-                report(failure.error)
+                if SyncMapping.parse(id)?.type == .spaceRoute {
+                    Self.log.notice("Site rule upload refused: \(failure.error, privacy: .public)")
+                    refusesSpaceRoutes = true
+                } else {
+                    report(failure.error)
+                }
             }
         }
         do {

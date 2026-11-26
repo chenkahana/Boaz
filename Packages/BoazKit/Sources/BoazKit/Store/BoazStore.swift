@@ -295,6 +295,25 @@ public final class BoazStore: Sendable {
                 t.column("singleSignOn", .text).notNull()
             }
         }
+        // Site rules (`SpaceRoute`): synced, ordered, first match wins. The Mac copies its #98 UserDefaults rules in
+        // at launch (`importSpaceHostRules`). Which tab the user kept out of a rule's space stays on this device.
+        migrator.registerMigration("v10-space-routes") { db in
+            try db.create(table: "spaceRoute") { t in
+                t.primaryKey("id", .text)
+                t.column("profileID", .text).notNull()
+                t.column("spaceID", .text).notNull().indexed()
+                t.column("host", .text).notNull()
+                t.column("pathPrefix", .text)
+                t.column("position", .double).notNull()
+                t.column("modifiedAt", .datetime).notNull()
+                t.column("deletedAt", .datetime)
+            }
+            try db.create(table: "tabSpaceOverride") { t in
+                t.primaryKey("tabID", .text)
+                t.column("profileID", .text).notNull()
+            }
+            try createSyncTriggers(for: .spaceRoute, in: db)
+        }
         return migrator
     }
 

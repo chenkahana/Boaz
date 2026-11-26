@@ -11,6 +11,7 @@ public enum SyncRecordType: String, CaseIterable, Sendable {
     case archiveItem = "ArchiveItem"
     case device = "Device"
     case siteEngineRule = "SiteEngineRule"
+    case spaceRoute = "SpaceRoute"
 
     var tableName: String {
         switch self {
@@ -20,6 +21,7 @@ public enum SyncRecordType: String, CaseIterable, Sendable {
         case .archiveItem: ArchiveItem.databaseTableName
         case .device: Device.databaseTableName
         case .siteEngineRule: SiteEngineRuleRecord.databaseTableName
+        case .spaceRoute: SpaceRoute.databaseTableName
         }
     }
 
@@ -31,6 +33,7 @@ public enum SyncRecordType: String, CaseIterable, Sendable {
         case .archiveItem: ArchiveItem.self
         case .device: Device.self
         case .siteEngineRule: SiteEngineRuleRecord.self
+        case .spaceRoute: SpaceRoute.self
         }
     }
 }

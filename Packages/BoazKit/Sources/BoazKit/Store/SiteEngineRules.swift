@@ -19,6 +19,14 @@ public struct SiteEngineRule: Codable, Equatable, Sendable {
     public init(profileID: String, host: String, pathPrefix: String? = nil,
                 engine: StoredBrowserEngine, reason: Reason, createdAt: Date = .now) throws {
         guard !profileID.isEmpty, !profileID.contains("\0") else { throw ValidationError.invalidProfile }
+        let (normalized, path) = try Self.validatedSite(host: host, pathPrefix: pathPrefix)
+        self.profileID = profileID; self.host = normalized; self.pathPrefix = path
+        self.engine = engine; self.reason = reason; self.createdAt = createdAt
+    }
+
+    /// A DNS host (lowercased, no IP literal) and an optional path prefix ("/" and a trailing slash dropped), or
+    /// `ValidationError`. Shared with `SpaceRoute`.
+    static func validatedSite(host: String, pathPrefix: String?) throws -> (host: String, pathPrefix: String?) {
         let normalized = host.lowercased()
         let labels = normalized.split(separator: ".", omittingEmptySubsequences: false)
         guard normalized.utf8.count <= 253, !labels.isEmpty,
@@ -38,8 +46,7 @@ public struct SiteEngineRule: Codable, Equatable, Sendable {
             while value.count > 1 && value.hasSuffix("/") { value.removeLast() }
             path = value == "/" ? nil : value
         }
-        self.profileID = profileID; self.host = normalized; self.pathPrefix = path
-        self.engine = engine; self.reason = reason; self.createdAt = createdAt
+        return (normalized, path)
     }
 
     public func matches(_ url: URL) -> Bool {
