@@ -103,7 +103,7 @@ private final class LoopbackPage: @unchecked Sendable {
         _ = ready.wait(timeout: .now() + 5)
         guard let port = listener.port?.rawValue, port != 0 else {
             listener.cancel()
-            throw URLError(.cannotListenToPort)
+            throw URLError(.cannotConnectToHost)
         }
         self.port = port
     }
