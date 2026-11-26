@@ -1,7 +1,7 @@
 --- a/chrome/browser/renderer_context_menu/BUILD.gn
 +++ b/chrome/browser/renderer_context_menu/BUILD.gn
-@@ -201,6 +201,9 @@
-     if (enable_print_preview) {
+@@ -204,6 +204,9 @@
+     if (enable_printing) {
        deps += [ "//chrome/browser/printing" ]
      }
 +    if (is_mac) {
@@ -12,7 +12,7 @@
    if (is_chromeos) {
 --- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 +++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
-@@ -96,6 +96,10 @@
+@@ -101,6 +101,10 @@
  #include "chrome/browser/profiles/profile_window.h"
  #include "chrome/browser/reading_list/reading_list_model_factory.h"
  #include "chrome/browser/renderer_context_menu/accessibility_labels_menu_observer.h"
@@ -23,7 +23,7 @@
  #include "chrome/browser/renderer_context_menu/context_menu_content_type_factory.h"
  #include "chrome/browser/renderer_context_menu/dictation_menu_observer.h"
  #include "chrome/browser/renderer_context_menu/link_to_text_menu_observer.h"
-@@ -1057,6 +1061,97 @@
+@@ -1092,6 +1096,97 @@
    return nullptr;
  }
  
@@ -121,7 +121,7 @@
  }  // namespace
  
  // static
-@@ -1619,6 +1714,20 @@
+@@ -1654,6 +1749,20 @@
        AppendReadAnythingItem();
      }
    }
@@ -142,7 +142,7 @@
  }
  
  Profile* RenderViewContextMenu::GetProfile() const {
-@@ -1686,6 +1795,12 @@
+@@ -1721,6 +1830,12 @@
  }
  
  void RenderViewContextMenu::RecordUsedItem(int id) {
@@ -155,7 +155,7 @@
    // Log general ID.
  
    int enum_id =
-@@ -3426,6 +3541,21 @@
+@@ -3529,6 +3644,21 @@
  // Menu delegate functions -----------------------------------------------------
  
  bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
@@ -177,7 +177,7 @@
  #if BUILDFLAG(IS_CHROMEOS)
    // Disable context menu in locked fullscreen mode to prevent users from
    // exiting this mode (the menu is not really disabled as the user can still
-@@ -3867,6 +3997,22 @@
+@@ -3973,6 +4103,22 @@
    }
    command_executed_ = true;
  
@@ -200,7 +200,7 @@
    // Process extension menu items.
    if (ContextMenuMatcher::IsExtensionsCustomCommandId(id)) {
      RenderFrameHost* render_frame_host = GetRenderFrameHost();
-@@ -5678,8 +5824,12 @@
+@@ -5807,8 +5953,12 @@
  
  void RenderViewContextMenu::ExecPrint() {
  #if BUILDFLAG(ENABLE_PRINTING)
@@ -214,10 +214,10 @@
    if (params_.media_type != ContextMenuDataMediaType::kNone) {
      RenderFrameHost* rfh = GetRenderFrameHost();
      if (rfh) {
-@@ -6122,6 +6272,13 @@
+@@ -6270,6 +6420,13 @@
+ 
  #if !BUILDFLAG(IS_ANDROID)
- void RenderViewContextMenu::OpenLinkInSplitView(
-     split_tabs::SplitTabLayout layout) {
+ void RenderViewContextMenu::OpenLinkInSplitView() {
 +#if BUILDFLAG(IS_MAC)
 +  // Boaz owns split view; a split made here would be replaced by Boaz's.
 +  if (boaz::RunContextMenuCommand(source_web_contents_, IDC_CONTENT_CONTEXT_OPENLINKSPLITVIEW, params_.link_url,
@@ -230,7 +230,7 @@
    CHECK(browser->GetType() == BrowserWindowInterface::TYPE_NORMAL);
 --- a/chrome/browser/ui/cocoa/BUILD.gn
 +++ b/chrome/browser/ui/cocoa/BUILD.gn
-@@ -214,6 +214,7 @@
+@@ -212,6 +212,7 @@
    if (is_mac) {
      # tab_group_menu_bridge.mm includes chrome/browser/ui/chrome_pages.h.
      deps += [ "//chrome/browser/ui:chrome_pages" ]

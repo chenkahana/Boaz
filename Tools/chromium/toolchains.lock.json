@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "chromium_version": "157.0.8103.51",
+  "chromium_version": "159.0.8154.34",
   "root": "/Volumes/BoazBuild/cef/direct",
   "python": "/opt/homebrew/bin/python3.12",
   "depot_tools": "/Volumes/BoazBuild/cef/depot_tools",
@@ -10,25 +10,25 @@
       "id": "clang",
       "destination": "third_party/llvm-build/Release+Asserts",
       "bucket": "chromium-browser-clang",
-      "object": "Mac_arm64/clang-llvmorg-24-init-7747-g62397f8b-67.tar.xz",
-      "sha256": "7ac4fb2a7fd4996bbade60ce75835d46f0bc3e89c9d994d0510c81d53b0bb2bf",
-      "size_bytes": 44479696
+      "object": "Mac_arm64/clang-llvmorg-24-init-17044-gc3223914-1.tar.xz",
+      "sha256": "f9294be515a0096120c497bdb70374e3846baa244f039a68444ff44899510c74",
+      "size_bytes": 45274068
     },
     {
       "id": "rust",
       "destination": "third_party/rust-toolchain",
       "bucket": "chromium-browser-clang",
-      "object": "Mac_arm64/rust-toolchain-1edd55dcfcd573872c727fa3e086369a71661ee0-1125-llvmorg-24-init-7747-g62397f8b.tar.xz",
-      "sha256": "71b31b71326d7bf53eef44676f88d759c03677ae382dd9d331615c4f491e0dd1",
-      "size_bytes": 258108500
+      "object": "Mac_arm64/rust-toolchain-96a18bf5ffa2b24f9cf3d1c731a9eb121c1acad9-4-llvmorg-24-init-17044-gc3223914.tar.xz",
+      "sha256": "8f8ede3cef573e9bc70382c2f863668eafbb1ab44cfc02a14a5263c7c15013db",
+      "size_bytes": 259507944
     },
     {
       "id": "libclang",
       "destination": "third_party/llvm-libclang",
       "bucket": "chromium-browser-clang",
-      "object": "Mac_arm64/rust-libclang-1edd55dcfcd573872c727fa3e086369a71661ee0-1125-llvmorg-24-init-7747-g62397f8b.tar.xz",
-      "sha256": "4b82de2a286aeb02fa0ed99cf75a7b3f3c8dd408abd176a4e5c5fc5e7217754d",
-      "size_bytes": 20585892
+      "object": "Mac_arm64/rust-libclang-96a18bf5ffa2b24f9cf3d1c731a9eb121c1acad9-4-llvmorg-24-init-17044-gc3223914.tar.xz",
+      "sha256": "47e232e3e635f84d41ddaa5d949ae312b813c8dfaf64264ffc424e7f44763839",
+      "size_bytes": 20996496
     },
     {
       "id": "node",
@@ -44,7 +44,7 @@
       "id": "gn",
       "destination": "buildtools/mac",
       "package": "gn/gn/mac-arm64",
-      "version": "git_revision:0035961837fbcfe875d855744b3eda4fd2eefb43"
+      "version": "git_revision:4df39f484f1f49f5c7f6264adc88d27811cb7b00"
     },
     {
       "id": "python",

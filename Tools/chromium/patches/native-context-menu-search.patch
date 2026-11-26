@@ -1,6 +1,6 @@
 --- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 +++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
-@@ -1139,6 +1139,9 @@
+@@ -1174,6 +1174,9 @@
  #if BUILDFLAG(IS_MAC)
  // Boaz's Apple Intelligence item: Explain the selection, or Ask About This Page. A free id in the content range.
  constexpr int kBoazAskCommandId = 50900;
@@ -10,11 +10,10 @@
  // Longer URLs don't fit in a QR code that a phone camera reads reliably.
  constexpr size_t kBoazMaxQRCodeURLLength = 2048;
  
-@@ -1149,6 +1152,17 @@
-   }
+@@ -1185,6 +1188,17 @@
    NavigationEntry* entry = contents->GetController().GetLastCommittedEntry();
    return entry ? entry->GetURL() : GURL();
-+}
+ }
 +
 +// Inserts a Boaz item right after the first of `anchors` in the menu, or nowhere without one.
 +void InsertBoazItemAfter(ui::SimpleMenuModel& menu, std::initializer_list<int> anchors, int id,
@@ -25,10 +24,11 @@
 +      return;
 +    }
 +  }
- }
++}
  #endif
  
-@@ -1717,6 +1731,16 @@
+ }  // namespace
+@@ -1752,6 +1766,16 @@
  
    KeepBoazItems(menu_model_, source_web_contents_);
  #if BUILDFLAG(IS_MAC)
@@ -45,7 +45,7 @@
    if (boaz::PageAssistantEnabled(source_web_contents_)) {
      if (menu_model_.GetItemCount()) {
        menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
-@@ -1796,8 +1820,8 @@
+@@ -1831,8 +1855,8 @@
  
  void RenderViewContextMenu::RecordUsedItem(int id) {
  #if BUILDFLAG(IS_MAC)
@@ -56,7 +56,7 @@
      return;
    }
  #endif
-@@ -3542,7 +3566,7 @@
+@@ -3645,7 +3669,7 @@
  
  bool RenderViewContextMenu::IsCommandIdEnabled(int id) const {
  #if BUILDFLAG(IS_MAC)
@@ -65,7 +65,7 @@
      return true;
    }
    if (boaz::NativeHostEnabled()) {
-@@ -4002,6 +4026,14 @@
+@@ -4108,6 +4132,14 @@
      boaz::AskAboutPage(source_web_contents_, params_.selection_text);
      return;
    }
@@ -80,7 +80,7 @@
    if (id == IDC_CONTENT_CONTEXT_OPENLINKOFFTHERECORD &&
        boaz::RunContextMenuCommand(source_web_contents_, id, params_.link_url, params_.link_text)) {
      return;
-@@ -4694,6 +4726,12 @@
+@@ -4813,6 +4845,12 @@
  }
  
  bool RenderViewContextMenu::ShouldOpenTextQueryInLens() const {
@@ -246,10 +246,10 @@
    const TemplateURL* const default_provider =
 -      template_url_service->GetDefaultSearchProvider();
 +      ImageSearchProvider(template_url_service, provider, explicit_provider);
-   DCHECK(default_provider);
+   CHECK(default_provider, base::NotFatalUntil::M162);
    TemplateURLRef::SearchTermsArgs search_args =
        TemplateURLRef::SearchTermsArgs(std::u16string());
-@@ -323,12 +342,14 @@
+@@ -321,12 +340,14 @@
  
    std::string additional_query_params_modified = additional_query_params;
    if (base::FeatureList::IsEnabled(lens::features::kLensStandalone) &&
@@ -266,7 +266,7 @@
      search_args.processed_image_dimensions =
          base::NumberToString(image.Size().width()) + "," +
          base::NumberToString(image.Size().height());
-@@ -348,7 +369,8 @@
+@@ -346,7 +367,8 @@
      int thumbnail_min_area,
      int thumbnail_max_width,
      int thumbnail_max_height,
@@ -276,7 +276,7 @@
    mojo::AssociatedRemote<chrome::mojom::ChromeRenderFrame> chrome_render_frame;
    render_frame_host->GetRemoteAssociatedInterfaces()->GetInterface(
        &chrome_render_frame);
-@@ -358,7 +380,8 @@
+@@ -356,7 +378,8 @@
    thumbnail_capturer_proxy->RequestBitmapForContextNode(base::BindOnce(
        &CoreTabHelper::DoSearchByImageWithBitmap, weak_factory_.GetWeakPtr(),
        std::move(chrome_render_frame), src_url, additional_query_params,
@@ -286,7 +286,7 @@
  }
  
  // static
-@@ -497,6 +520,7 @@
+@@ -495,6 +518,7 @@
          chrome_render_frame,
      const GURL& src_url,
      const std::string& additional_query_params,
@@ -294,7 +294,7 @@
      int thumbnail_min_area,
      int thumbnail_max_width,
      int thumbnail_max_height,
-@@ -507,12 +531,14 @@
+@@ -505,12 +529,14 @@
        base::BindPostTask(base::SequencedTaskRunner::GetCurrentDefault(),
                           base::BindOnce(&CoreTabHelper::DoSearchByImage,
                                          weak_factory_.GetWeakPtr(), src_url,
@@ -310,7 +310,7 @@
      const std::vector<unsigned char>& thumbnail_data,
      const std::string& content_type,
      const gfx::Size& original_size,
-@@ -523,20 +549,23 @@
+@@ -521,20 +547,23 @@
    }
  
    TemplateURLService* template_url_service = GetTemplateURLService();
@@ -318,7 +318,7 @@
    const TemplateURL* const default_provider =
 -      template_url_service->GetDefaultSearchProvider();
 +      ImageSearchProvider(template_url_service, provider, explicit_provider);
-   DCHECK(default_provider);
+   CHECK(default_provider, base::NotFatalUntil::M162);
  
    std::string additional_query_params_modified = additional_query_params;
    if (base::FeatureList::IsEnabled(lens::features::kLensStandalone) &&

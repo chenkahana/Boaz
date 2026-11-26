@@ -71,8 +71,15 @@ rebase starts again from the unpatched tree.
 (root `DEPS`, or the dawn and devtools-frontend DEPS for their own directories) still pins exactly that artifact: GCS
 object, SHA-256 and size, or CIPD package and version, with `Var()` resolved. The DEPS files are parsed, never run. When they don't, usually at a new major version, `toolchains-check` lists what
 moved. Re-pin those entries from the new DEPS (see [direct-toolchains](direct-toolchains.md)), update
-`toolchains.resolved.json`, and rebuild the content-blocking library (`build-adblock.py`), whose receipt is bound to
-the toolchain lock. Then continue with `--from toolchains-check`.
+`toolchains.resolved.json` (its `recipe_sha256` is the new lock's SHA-256; resolve a moved CIPD version with
+`.cipd_client resolve PACKAGE -version VERSION`). When clang moves, re-pin `toolchains.objdump.json` too: its
+`llvmobjdump` package carries clang's package version, so take the object's generation and MD5 from the GCS object
+metadata, check the MD5, and record its SHA-256 and extracted tree. Then continue with `--from toolchains-check`.
+A moved rust also invalidates the content-blocking library, whose receipt is bound to the toolchain lock, so `build`
+stops. After the `toolchains` step has installed the new rust, rebuild it (`build-adblock.py`), re-validate its assets
+against the new library (`adblock/prepare-assets.py --resources … --output` a new `assets-DATE` directory under
+`direct/adblock`), point `adblock/assets.lock.json` at that directory and its new `assets.json` (staging refuses assets
+validated against another library), commit, and continue with `--from host`.
 
 ## When a step fails
 
@@ -117,3 +124,19 @@ Upstream version: — · T0 (chromiumdash): — · Published Boaz version: — �
 | S smoke | 2 h | | | | |
 | G publish | ≤ 24 h | | | | |
 | V verify | 0.5 h | | | | |
+
+### Phase 0 (catch-up, outside the 72 h clock)
+
+157.0.8103.51 → 159.0.8154.34 (Mac stable since 2026-11-24 18:32 UTC), two major lines, run on 2026-11-26 before
+the first real drill. Times are UTC; they come from the security-update receipt and the volume guard's logs.
+
+| Step | Started | Ended | Duration | Notes |
+|---|---|---|---|---|
+| B bump | 17:26:55 | 17:26:57 | 2 s | SHA-256 from Google's `.hashes` |
+| F fetch and extract | 17:26:57 | 17:32:21 | 5.4 min | lite archive 0.98 GB; tree 8.1 GiB before the build |
+| F toolchains-check, re-pin | 17:32:21 | 17:34:16 | 2 min | clang, rust, libclang and gn moved; `toolchains.objdump.json` re-pinned with clang |
+| P rebase | 17:34:16 | 17:39:41 | 5.5 min | 18 of 53 patches conflicted; 13 fixed by hand, 5 then applied unchanged |
+| C apply, toolchains, objdump | 17:40:20 | 17:42:44 | 2.4 min | |
+| C content-blocking library | 17:42:59 | 17:45:14 | 2.3 min | new rust; assets re-validated, rules unchanged |
+| C host, host objects (`-k 0`) | 17:45:14 | 18:13:39 | 28 min | 5 host files needed 159 API fixes |
+| C full build | 18:13:45 | | | `build.py --build --jobs 6`, 50,109 steps |

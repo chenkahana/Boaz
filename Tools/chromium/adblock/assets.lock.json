@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "artifact_directory": "/Volumes/BoazBuild/cef/direct/adblock/assets-20261113-mandatory-v1",
-  "native_library_sha256": "3c07064dcf4fef3e941c9a8ca10eee057fad50d637845b7315c39fc3aef39115",
+  "artifact_directory": "/Volumes/BoazBuild/cef/direct/adblock/assets-20261126-mandatory-v1",
+  "native_library_sha256": "84d4ca4b1742cbff41f6c8985daa4de8091592e379658f4c71026d60df99f233",
   "validation": "native_engine_creation_passed",
   "full_subscription_supported": false,
   "optional_excluded_rule_count": 7,
@@ -61,7 +61,7 @@
       "size_bytes": 4617
     },
     "assets.json": {
-      "sha256": "9fcd82b84bf68abaa1105f0b1e9608d4d9dd16a9bb13ae6b8f3b49acb659726b",
+      "sha256": "9f48aae9c968da23a8b316be6cae94be72764ed336f3cafb9c206c10a2e2a938",
       "size_bytes": 6806
     }
   },

@@ -110,7 +110,7 @@ class Dialog final : public content::WebContentsObserver, public ProfileObserver
         IsNativeExtensionPromptContext(Profile::FromBrowserContext(contents_->GetBrowserContext()), (__bridge void*)parent_)) {
       auto params = content::OpenURLParams::CreateBrowserInitiated(
           GURL(chrome::kCwsEnhancedSafeBrowsingLearnMoreURL),
-          WindowOpenDisposition::NEW_FOREGROUND_TAB, ui::PAGE_TRANSITION_LINK);
+          WindowOpenDisposition::kNewForegroundTab, ui::PAGE_TRANSITION_LINK);
       contents_->OpenURL(params, {});
     }
     Observe(nullptr); profile_observation_.Reset(); keep_alive_.reset();

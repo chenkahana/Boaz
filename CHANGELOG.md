@@ -25,6 +25,8 @@ All notable changes to Boaz are recorded here. The format follows
   and copy, and a link you click opens in the tab. Never for Incognito tabs.
 - Dev tooling: `Tools/perf/` re-measures docs/qa.md §4's speed baselines against the published release DMG, under
   guarded isolation that never touches the installed Boaz or Chen's real library.
+- Mac: Boaz runs on Chromium 159.0.8154.34, up from 157.0.8103.51. That brings in the security fixes Google shipped
+  in Chrome 157.0.8103.78, 158 and 159, including several rated Critical.
 
 ### Fixed
 

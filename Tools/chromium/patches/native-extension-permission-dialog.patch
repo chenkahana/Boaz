@@ -15,7 +15,7 @@
 @@ -87,6 +92,12 @@
      ExtensionInstallPrompt::DoneCallback done_callback,
      std::unique_ptr<InstallPromptData> prompt) {
-   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+   CHECK_CURRENTLY_ON(content::BrowserThread::UI, base::NotFatalUntil::M162);
 +#if BUILDFLAG(IS_MAC)
 +  if (boaz::NativeHostEnabled()) {
 +    boaz::ShowNativeExtensionPrompt(std::move(show_params), std::move(done_callback), std::move(prompt));
@@ -27,7 +27,7 @@
    // contents. See crbug.com/40059470.
 --- a/chrome/browser/ui/views/extensions/BUILD.gn
 +++ b/chrome/browser/ui/views/extensions/BUILD.gn
-@@ -733,8 +733,13 @@
+@@ -736,8 +736,13 @@
  
  source_set("extension_install_dialog_view_impl") {
    sources = [ "extension_install_dialog_view.cc" ]

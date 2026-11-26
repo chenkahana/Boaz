@@ -1,19 +1,17 @@
 --- a/chrome/BUILD.gn
 +++ b/chrome/BUILD.gn
-@@ -900,12 +900,21 @@
-     "aperitif_alerts",
-     ".alerts",
+@@ -918,10 +918,19 @@
      " (Aperitif Alerts)",
-+  ]
-+
+   ]
+ 
 +  # Helper app that hosts library CDMs (Widevine), signed without library
 +  # validation so it can load a CDM signed by another team.
 +  cdm_helper_params = [
 +    "cdm",
 +    ".cdm",
 +    " (CDM)",
-   ]
- 
++  ]
++
    # Merge all helper apps needed by //content and //chrome.
    chrome_mac_helpers = content_mac_helpers + content_mac_aperitif_helpers + [
                           alert_helper_params,
@@ -22,18 +20,18 @@
                         ]
  
    # Create all helper apps required by //content.
-@@ -954,6 +963,11 @@
-       helper_bundle_id_suffix = helper_params[1]
-       is_aperitif_helper = true
+@@ -972,6 +981,11 @@
      }
-+  }
-+
+   }
+ 
 +  chrome_helper_app("chrome_helper_app_${cdm_helper_params[0]}") {
 +    helper_name_suffix = cdm_helper_params[2]
 +    helper_bundle_id_suffix = cdm_helper_params[1]
-   }
- 
++  }
++
    chrome_helper_app("chrome_helper_app_${alert_helper_params[0]}") {
+     helper_name_suffix = alert_helper_params[2]
+     helper_bundle_id_suffix = alert_helper_params[1]
 --- a/chrome/browser/child_process_host_flags.h
 +++ b/chrome/browser/child_process_host_flags.h
 @@ -16,6 +16,9 @@
@@ -48,7 +46,7 @@
  
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -9090,13 +9090,16 @@
+@@ -9237,13 +9237,16 @@
  #endif  // BUILDFLAG(IS_LINUX)
  
  #if BUILDFLAG(IS_MAC)
@@ -68,7 +66,7 @@
              ? " (Aperitif Alerts)"
              : chrome::kMacHelperSuffixAlerts;
      std::string child_base_name =
-@@ -9116,6 +9119,16 @@
+@@ -9263,6 +9266,16 @@
    return base::FilePath();
  }
  
@@ -87,18 +85,18 @@
  #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
 --- a/chrome/browser/chrome_content_browser_client.h
 +++ b/chrome/browser/chrome_content_browser_client.h
-@@ -1070,6 +1070,7 @@
-       const GURL& url) override;
- 
-   base::FilePath GetChildProcessPath(int flags) override;
+@@ -1098,6 +1098,7 @@
+   base::FilePath GetChildProcessPath(
+       int flags,
+       content::ChildProcessId child_process_id) override;
 +  int GetCdmServiceChildFlags() override;
  
    bool AreIsolatedWebAppsEnabled(
        content::BrowserContext* browser_context) override;
 --- a/chrome/installer/mac/BUILD.gn
 +++ b/chrome/installer/mac/BUILD.gn
-@@ -143,6 +143,7 @@
-     "$root_out_dir/hfs_tool",
+@@ -145,6 +145,7 @@
+     "$root_out_dir/tag",
      "//chrome/app/helper-gpu-entitlements.plist",
      "//chrome/app/helper-renderer-entitlements.plist",
 +    "//boaz/helper-cdm-entitlements.plist",
@@ -107,12 +105,10 @@
      "pkg_preinstall.in",
 --- a/chrome/installer/mac/signing/parts.py
 +++ b/chrome/installer/mac/signing/parts.py
-@@ -89,6 +89,18 @@
-             | CodeSignOptions.KILL
-             | CodeSignOptions.HARDENED_RUNTIME,
+@@ -91,6 +91,18 @@
              entitlements='helper-gpu-entitlements.plist',
-+            verify_options=verify_options,
-+        ),
+             verify_options=verify_options,
+         ),
 +        'helper-cdm-app': CodeSignedProduct(
 +            '{0.framework_dir}/Helpers/{0.product} Helper (CDM).app'.format(
 +                config
@@ -123,9 +119,11 @@
 +            | CodeSignOptions.KILL
 +            | CodeSignOptions.HARDENED_RUNTIME,
 +            entitlements='helper-cdm-entitlements.plist',
-             verify_options=verify_options,
-         ),
++            verify_options=verify_options,
++        ),
          'helper-aperitif-app': CodeSignedProduct(
+             '{0.framework_dir}/Helpers/{0.product} Helper (Aperitif).app'.format(
+                 config
 --- a/content/browser/media/service_factory.cc
 +++ b/content/browser/media/service_factory.cc
 @@ -248,6 +248,11 @@
@@ -142,27 +140,27 @@
      }
 --- a/content/public/browser/content_browser_client.cc
 +++ b/content/public/browser/content_browser_client.cc
-@@ -1762,6 +1762,10 @@
- 
- base::FilePath ContentBrowserClient::GetChildProcessPath(int flags) {
+@@ -1815,6 +1815,10 @@
    return base::FilePath();
-+}
-+
-+int ContentBrowserClient::GetCdmServiceChildFlags() {
-+  return 0;
  }
  
++int ContentBrowserClient::GetCdmServiceChildFlags() {
++  return 0;
++}
++
  bool ContentBrowserClient::AreIsolatedWebAppsEnabled(
+     BrowserContext* browser_context) {
+   // The whole logic of the IWAs lives in //chrome. So IWAs should be
 --- a/content/public/browser/content_browser_client.h
 +++ b/content/public/browser/content_browser_client.h
-@@ -2961,6 +2961,10 @@
-   // binary for specific child processes. Return an empty FilePath to use
-   // the default path.
-   virtual base::FilePath GetChildProcessPath(int flags);
-+
+@@ -3032,6 +3032,10 @@
+   virtual base::FilePath GetChildProcessPath(int flags,
+                                              ChildProcessId child_process_id);
+ 
 +  // Returns the ChildProcessHost flags for the process that hosts library
 +  // CDMs, so an embedder can give it its own helper executable.
 +  virtual int GetCdmServiceChildFlags();
- 
++
    // Checks if Isolated Web Apps are enabled, e.g. by feature flag
    // or in any other way.
+   virtual bool AreIsolatedWebAppsEnabled(BrowserContext* browser_context);

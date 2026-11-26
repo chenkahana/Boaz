@@ -58,8 +58,8 @@
 +#include "base/containers/span.h"
  #include "base/compiler_specific.h"
  #include "base/files/file_util.h"
- #include "base/functional/bind.h"
-@@ -49,6 +50,7 @@
+ #include "base/files/important_file_writer.h"
+@@ -50,6 +51,7 @@
  #include "content/public/common/content_constants.h"
  #include "content/public/common/content_switches.h"
  #include "content/public/common/url_constants.h"
@@ -67,7 +67,7 @@
  #include "net/base/io_buffer.h"
  #include "net/base/net_errors.h"
  #include "net/base/url_util.h"
-@@ -151,7 +153,8 @@
+@@ -152,7 +154,8 @@
    ServerWrapper(base::WeakPtr<DevToolsHttpHandler> handler,
                  std::unique_ptr<net::ServerSocket> socket,
                  const base::FilePath& debug_frontend_dir,
@@ -77,7 +77,7 @@
  
    int GetLocalAddress(net::IPEndPoint* address);
  
-@@ -170,6 +173,9 @@
+@@ -171,6 +174,9 @@
    ~ServerWrapper() override {}
  
   private:
@@ -87,7 +87,7 @@
    // net::HttpServer::Delegate implementation.
    void OnConnect(int connection_id) override {}
    void OnHttpRequest(int connection_id,
-@@ -183,16 +189,19 @@
+@@ -184,16 +190,19 @@
    std::unique_ptr<net::HttpServer> server_;
    base::FilePath debug_frontend_dir_;
    bool bundles_resources_;
@@ -109,7 +109,7 @@
  
  int ServerWrapper::GetLocalAddress(net::IPEndPoint* address) {
    return server_->GetLocalAddress(address);
-@@ -281,7 +290,8 @@
+@@ -282,7 +291,8 @@
      const base::FilePath& output_directory,
      const base::FilePath& debug_frontend_dir,
      const std::string& browser_guid,
@@ -119,7 +119,7 @@
    CHECK(thread->task_runner()->BelongsToCurrentThread(),
          base::NotFatalUntil::M159);
    std::unique_ptr<ServerWrapper> server_wrapper;
-@@ -291,7 +301,8 @@
+@@ -292,7 +302,8 @@
    if (server_socket) {
      server_wrapper =
          std::make_unique<ServerWrapper>(handler, std::move(server_socket),
@@ -129,7 +129,7 @@
      if (server_wrapper->GetLocalAddress(ip_address.get()) != net::OK)
        ip_address.reset();
    } else {
-@@ -467,8 +478,31 @@
+@@ -480,8 +491,31 @@
    return "text/plain";
  }
  
@@ -161,7 +161,7 @@
    if (!RequestIsSafeToServe(info)) {
      Send500(connection_id,
              "Host header is specified and is not an IP address or localhost.");
-@@ -524,6 +558,7 @@
+@@ -537,6 +571,7 @@
  void ServerWrapper::OnWebSocketRequest(
      int connection_id,
      const net::HttpServerRequestInfo& request) {
@@ -169,7 +169,7 @@
    if (!RequestIsSafeToServe(request)) {
      Send500(connection_id,
              "Host header is specified and is not an IP address or localhost.");
-@@ -935,8 +970,16 @@
+@@ -949,8 +984,16 @@
      std::unique_ptr<DevToolsSocketFactory> socket_factory,
      const base::FilePath& output_directory,
      const base::FilePath& debug_frontend_dir,
@@ -187,7 +187,7 @@
    browser_guid_ =
        delegate_->IsBrowserTargetDiscoverable()
            ? kBrowserUrlPrefix
-@@ -954,7 +997,8 @@
+@@ -968,7 +1011,8 @@
          base::BindOnce(&StartServerOnHandlerThread, weak_factory_.GetWeakPtr(),
                         std::move(thread), std::move(socket_factory),
                         output_directory, debug_frontend_dir, browser_guid_,

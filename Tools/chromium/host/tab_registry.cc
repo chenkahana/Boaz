@@ -31,7 +31,6 @@
 #include "base/auto_reset.h"
 #include "base/check.h"
 #include "base/feature_list.h"
-#include "chrome/browser/ui/tabs/features.h"
 #include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 #include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
 #include "chrome/browser/ui/tabs/split_tab_metrics.h"
@@ -1153,8 +1152,7 @@ BoazHostResult TabRegistry::SetSplit(BoazHostWindow id, BoazHostPage first,
   if (strip->GetTabGroupForTab(ai) != strip->GetTabGroupForTab(bi) ||
       strip->IsTabPinned(ai) != strip->IsTabPinned(bi) ||
       strip->IsTabCollapsed(ai) || strip->IsTabCollapsed(bi) ||
-      (strip->GetFocusedGroup() && strip->GetFocusedGroup() != strip->GetTabGroupForTab(ai)) ||
-      (vertical && !base::FeatureList::IsEnabled(tabs::kSplitViewHorizontal)))
+      (strip->GetFocusedGroup() && strip->GetFocusedGroup() != strip->GetTabGroupForTab(ai)))
     return BOAZ_HOST_UNAVAILABLE;
   auto split = strip->GetSplitForTab(ai);
   auto other = strip->GetSplitForTab(bi);

@@ -187,6 +187,8 @@ std::optional<SidePanelEntryId> NativeSidePanel::GetCurrentEntryId() const {
   return impl_->showing() ? std::optional(SidePanelEntryId::kExtension) : std::nullopt;
 }
 int NativeSidePanel::GetCurrentEntryDefaultContentWidth() const { return 0; }
+void NativeSidePanel::OverrideContentsWidth(int) {}
+void NativeSidePanel::ResetContentsWidthOverride() {}
 bool NativeSidePanel::IsSidePanelShowing() const { return impl_->showing(); }
 bool NativeSidePanel::IsSidePanelEntryShowing(const SidePanelEntryKey& key) const {
   auto id = ExtensionOf(key);

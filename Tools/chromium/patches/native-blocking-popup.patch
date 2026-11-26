@@ -10,8 +10,8 @@
 +#endif
  
  #include "base/check_deref.h"
- #include "base/metrics/histogram_macros.h"
-@@ -1077,6 +1081,9 @@
+ #include "base/feature_list.h"
+@@ -1153,6 +1157,9 @@
    // to track `new_contents` after it is added to its TabModel this override can
    // be removed.
    CreateSessionServiceTabHelper(new_contents);
@@ -43,7 +43,7 @@
  #endif
  
  #include <algorithm>
-@@ -5749,6 +5750,7 @@
+@@ -5815,6 +5816,7 @@
      content::NavigationThrottleRegistry& registry) {
    CreateAndAddChromeThrottlesForNavigation(registry);
  #if BUILDFLAG(IS_MAC)

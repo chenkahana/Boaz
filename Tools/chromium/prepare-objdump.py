@@ -36,8 +36,7 @@ def install(pin):
     for path in (root, source, state, destination, archive.parent):
         if path.resolve() != path or not path.is_dir():
             raise ValueError(f'Missing or redirected directory: {path}')
-    if (source / 'chrome/VERSION').read_text().splitlines() != [
-            'MAJOR=157', 'MINOR=0', 'BUILD=8103', 'PATCH=51']:
+    if common.source_version(source) != pin['chromium_version']:
         raise ValueError('Unexpected Chromium revision')
     clang = json.loads((state / 'clang.installed.json').read_text())
     if clang['recipe_sha256'] != common.sha(HERE / 'toolchains.lock.json'):

@@ -253,7 +253,7 @@ class NativeExtensionActions::Impl final : public ExtensionsToolbarViewModel::De
     return Result::kOk;
   }
   ToolbarActionViewModel* Model(const std::string& id) const {
-    return toolbar_ && toolbar_->GetAllActionIds().contains(id) ? toolbar_->GetActionModelForId(id) : nullptr;
+    return toolbar_ && std::ranges::contains(toolbar_->GetAllActionIds(), id) ? toolbar_->GetActionModelForId(id) : nullptr;
   }
   Result GetActions(content::WebContents* expected, std::vector<Action>* output) const {
     output->clear();
@@ -263,7 +263,7 @@ class NativeExtensionActions::Impl final : public ExtensionsToolbarViewModel::De
     const auto requests = toolbar_->GetRequestAccessButtonParams(expected).extension_ids;
     std::vector<std::string> ordered;
     for (const auto& id : toolbar_->GetPinnedActionIds())
-      if (toolbar_->GetAllActionIds().contains(id)) ordered.push_back(id);
+      if (std::ranges::contains(toolbar_->GetAllActionIds(), id)) ordered.push_back(id);
     std::vector<Action> pinned;
     std::vector<Action> rest;
     for (const auto& id : toolbar_->GetAllActionIds()) {

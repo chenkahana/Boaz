@@ -28,6 +28,8 @@ class NativeSidePanel final : public SidePanelUI {
   void Toggle(SidePanelEntryKey key, SidePanelOpenTrigger open_trigger) override;
   std::optional<SidePanelEntryId> GetCurrentEntryId() const override;
   int GetCurrentEntryDefaultContentWidth() const override;
+  void OverrideContentsWidth(int width) override;
+  void ResetContentsWidthOverride() override;
   bool IsSidePanelShowing() const override;
   bool IsSidePanelEntryShowing(const SidePanelEntryKey& entry_key) const override;
   bool IsSidePanelEntryShowing(const SidePanelEntryKey& entry_key, bool for_tab) const override;

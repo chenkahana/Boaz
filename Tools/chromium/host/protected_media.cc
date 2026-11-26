@@ -2,6 +2,7 @@
 #include "bootstrap.h"
 #include "base/functional/bind.h"
 #include "base/location.h"
+#include "base/memory/self_deleting.h"
 #include "base/memory/weak_ptr.h"
 #include "base/strings/string_util.h"
 #include "base/task/single_thread_task_runner.h"
@@ -22,17 +23,17 @@ bool Eligible(content::RenderFrameHost* frame) {
 class Observer final : public content::DocumentService<mojom::EncryptedMediaObserver> {
  public:
   Observer(content::RenderFrameHost& frame,
-      mojo::PendingReceiver<mojom::EncryptedMediaObserver> receiver);
-  ~Observer() override;
+      mojo::PendingReceiver<mojom::EncryptedMediaObserver> receiver, base::SelfDeletingPassKey key);
   void Requested(const std::string& key) override;
  private:
+  ~Observer() override;
   void Deliver(std::string key);
   bool requested_ = false;
   base::WeakPtrFactory<Observer> weak_{this};
 };
 Observer::Observer(content::RenderFrameHost& frame,
-    mojo::PendingReceiver<mojom::EncryptedMediaObserver> receiver)
-    : DocumentService(frame, std::move(receiver)) {}
+    mojo::PendingReceiver<mojom::EncryptedMediaObserver> receiver, base::SelfDeletingPassKey key)
+    : DocumentService(frame, std::move(receiver), key) {}
 Observer::~Observer() = default;
 void Observer::Requested(const std::string& key) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
@@ -51,6 +52,6 @@ void Observer::Deliver(std::string key) {
 void BindProtectedMediaObserver(content::RenderFrameHost* frame,
     mojo::PendingReceiver<mojom::EncryptedMediaObserver> receiver) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  if (Eligible(frame)) new Observer(*frame, std::move(receiver));
+  if (Eligible(frame)) base::MakeSelfDeleting<Observer>(*frame, std::move(receiver));
 }
 }
