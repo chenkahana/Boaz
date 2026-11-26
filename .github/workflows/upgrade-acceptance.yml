@@ -1,0 +1,63 @@
+name: Upgrade acceptance
+
+# Must-have #13 on a throwaway Mac: install a published Boaz, give it a library, settings and a sign-in, upgrade it to
+# a newer published Boaz and check that everything survived (Tools/acceptance/upgrade.sh). It only downloads
+# releases: it never builds, signs, notarizes or publishes anything.
+on:
+  push:
+    branches: ["release/**"]
+    paths:
+      - .github/workflows/upgrade-acceptance.yml
+      - Tools/acceptance/**
+  workflow_dispatch:
+    inputs:
+      from:
+        description: Release tag to upgrade from
+        default: v0.2.18
+      to:
+        description: Release tag to upgrade to
+        default: v0.4.48
+
+concurrency:
+  group: upgrade-acceptance-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  upgrade:
+    name: Upgrade ${{ inputs.from || 'v0.2.18' }} to ${{ inputs.to || 'v0.4.48' }}
+    runs-on: xcode-27
+    timeout-minutes: 30
+    env:
+      FROM: ${{ inputs.from || 'v0.2.18' }}
+      TO: ${{ inputs.to || 'v0.4.48' }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Download both releases
+        run: |
+          for tag in "$FROM" "$TO"; do
+            mkdir -p "$RUNNER_TEMP/$tag"
+            gh release download "$tag" --repo "$GITHUB_REPOSITORY" -p Boaz.dmg -p Boaz.dmg.sha256 -D "$RUNNER_TEMP/$tag"
+            (cd "$RUNNER_TEMP/$tag" && shasum -a 256 -c Boaz.dmg.sha256)
+          done
+
+      - name: Upgrade and check
+        run: Tools/acceptance/upgrade.sh "$RUNNER_TEMP/$FROM/Boaz.dmg" "$RUNNER_TEMP/$TO/Boaz.dmg" "$RUNNER_TEMP/acceptance"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "# Upgrade $FROM to $TO" >> "$GITHUB_STEP_SUMMARY"
+          cat "$RUNNER_TEMP/acceptance/results.md" >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+
+      - name: Upload the evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: upgrade-${{ env.FROM }}-to-${{ env.TO }}
+          path: ${{ runner.temp }}/acceptance
+          retention-days: 30

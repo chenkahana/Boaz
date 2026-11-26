@@ -1,0 +1,159 @@
+#!/bin/bash
+# Upgrade acceptance (must-have #13): installs a published Boaz DMG, gives it a library, settings and a sign-in,
+# replaces it with a newer DMG and checks that all of it survived. Run only on a throwaway Mac (a CI runner):
+# it replaces /Applications/Boaz.app and the current user's Boaz data.
+#
+#   Tools/acceptance/upgrade.sh <from.dmg> <to.dmg> <output dir>
+set -uo pipefail
+
+FROM_DMG=$1 TO_DMG=$2 OUT=$3
+HERE=$(cd "$(dirname "$0")" && pwd)
+ID=com.chenkahana.boaz
+APP=/Applications/Boaz.app
+CONTAINER=$HOME/Library/Containers/$ID/Data
+OLD_DB="$CONTAINER/Library/Application Support/Boaz/boaz.sqlite"
+OLD_PREFS=$CONTAINER/Library/Preferences/$ID   # a defaults path, without .plist
+PORT=8765 SITE=http://127.0.0.1:8765
+SESSION=s$(uuidgen | tr -d -) PLAIN=p$(uuidgen | tr -d -)
+mkdir -p "$OUT"
+RESULTS=$OUT/results.md FAILED=0
+: > "$RESULTS"
+
+note() { echo "$*"; echo "- $*" >> "$RESULTS"; }
+pass() { note "PASS $*"; }
+fail() { note "FAIL $*"; FAILED=1; }
+shot() { screencapture -x "$OUT/$1.png" 2>/dev/null || true; }
+running() { pgrep -f "$APP/Contents/MacOS/" > /dev/null; }
+# Waits up to $1 seconds for the command after it to succeed.
+wait_for() {
+    local limit=$1; shift
+    for _ in $(seq "$limit"); do "$@" && return 0; sleep 1; done
+    return 1
+}
+requested() { grep -q "\"path\": \"$1\"" "$OUT/requests.jsonl" 2>/dev/null; }
+# The last request for path $1 carried the fixture's session cookie.
+signed_in() { grep "\"path\": \"$1\"" "$OUT/requests.jsonl" | tail -1 | grep -q "boaz_session=$SESSION"; }
+
+install() {
+    local mount
+    mount=$(mktemp -d)
+    hdiutil attach -nobrowse -readonly -noautoopen -mountpoint "$mount" "$1" > /dev/null || return 1
+    rm -rf "$APP" && ditto "$mount/Boaz.app" "$APP"
+    hdiutil detach -quiet "$mount"
+    note "Installed $(defaults read "$APP/Contents/Info" CFBundleShortVersionString) ($(basename "$1"))"
+}
+
+# Quits like the Dock does (an Apple Event from AppKit, so no Automation prompt), then waits for every Boaz process.
+quit() {
+    "$OUT/quit" "$ID"
+    if wait_for 60 bash -c "! pgrep -f '$APP/Contents/MacOS/' > /dev/null"; then
+        pass "$1: quit cleanly"
+    else
+        shot "quit-stuck-$1"
+        for pid in $(pgrep -f "$APP/Contents/MacOS/Boaz$"); do sample "$pid" 3 -file "$OUT/quit-sample-$1.txt" > /dev/null 2>&1; done
+        fail "$1: still running 60 s after quit; killed"
+        pkill -9 -f "$APP/Contents/MacOS/"
+        sleep 2
+    fi
+}
+
+# Opens $2 in Boaz and waits for the fixture site to see it.
+visit() {
+    open -a "$APP" "$SITE$2"
+    if wait_for 90 requested "$2"; then
+        sleep 5   # lets the page's cookies and storage settle before anything quits
+        return 0
+    fi
+    shot "no-request-$1"
+    pid=$(pgrep -f "$APP/Contents/MacOS/Boaz$" | head -1)
+    if [ -n "$pid" ]; then
+        sample "$pid" 3 -file "$OUT/sample-$1.txt" > /dev/null 2>&1
+        grep -q SecItemCopyMatching "$OUT/sample-$1.txt" && note "$1: main process is waiting on the Keychain"
+    fi
+    fail "$1: Boaz never requested $2"
+    return 1
+}
+
+prefs_value() { defaults read "$1" "$2" 2>/dev/null; }
+
+swiftc -O -o "$OUT/quit" - <<'EOF' || exit 1
+import AppKit
+for app in NSRunningApplication.runningApplications(withBundleIdentifier: CommandLine.arguments[1]) { _ = app.terminate() }
+EOF
+python3 "$HERE/fixture_server.py" "$PORT" "$SESSION" "$PLAIN" "$OUT/requests.jsonl" &
+SERVER=$!
+trap 'kill $SERVER 2>/dev/null' EXIT
+
+echo "## Before: the previous version" >> "$RESULTS"
+install "$FROM_DMG" || { fail "could not install $FROM_DMG"; exit 1; }
+open -a "$APP"
+wait_for 60 test -f "$OLD_DB" && pass "first launch created the library" || { shot first-launch; fail "no library after first launch"; }
+sleep 5
+shot first-launch
+quit first-launch
+# Settings: a real choice from each pane the old app has, a key no Boaz knows, and no update checks mid-test.
+defaults write "$OLD_PREFS" onboardingCompleted -bool YES
+defaults write "$OLD_PREFS" SUEnableAutomaticChecks -bool NO
+defaults write "$OLD_PREFS" searchEngine -string duckDuckGo
+defaults write "$OLD_PREFS" archiveAfter -int 604800
+defaults write "$OLD_PREFS" sidebarTextSize -string large
+defaults write "$OLD_PREFS" BoazAcceptanceFixture -string "$PLAIN"
+defaults write "$ID" SUEnableAutomaticChecks -bool NO
+python3 "$HERE/library.py" seed "$OLD_DB" && pass "seeded fixture folders, tabs, archive and history" || fail "could not seed the library"
+visit sign-in /set && pass "previous version signed in to the fixture site"
+quit sign-in
+grep -q "$SESSION" "$CONTAINER"/Library/WebKit/WebsiteDataStore/*/Cookies/Cookies.binarycookies 2>/dev/null \
+    && pass "the sign-in cookie is on disk in the old container" || note "the sign-in cookie is not in an old-container cookie file"
+python3 "$HERE/library.py" snapshot "$OLD_DB" "$OUT/before.json"
+cp "$OLD_PREFS.plist" "$OUT/prefs-before.plist"
+find "$CONTAINER/Library/WebKit" -type f -exec shasum {} + 2>/dev/null | sort > "$OUT/webkit-before.txt"
+PROFILE=$(sqlite3 "$OLD_DB" "SELECT id FROM profile WHERE isDefault = 1 AND deletedAt IS NULL LIMIT 1")
+
+echo "## After: the upgrade" >> "$RESULTS"
+install "$TO_DMG" || { fail "could not install $TO_DMG"; exit 1; }
+visit upgrade /whoami
+sleep 5
+shot after-upgrade
+if signed_in /whoami; then pass "still signed in after the upgrade (the session cookie came back)"; else fail "signed out after the upgrade"; fi
+quit upgrade
+python3 "$HERE/library.py" snapshot "$OLD_DB" "$OUT/after.json"
+python3 "$HERE/library.py" compare "$OUT/before.json" "$OUT/after.json" > "$OUT/library.txt"
+if [ $? -eq 0 ]; then pass "library: every space, tab, folder, archive item, history visit and profile survived"; else fail "library changed: $(grep -c FAIL "$OUT/library.txt") rows"; fi
+sed 's/^/  /' "$OUT/library.txt" >> "$RESULTS"
+[ ! -e "$HOME/Library/Application Support/Boaz/boaz.sqlite" ] && pass "no second library in Application Support" || fail "a second library appeared in Application Support"
+[ "$(prefs_value "$ID" BoazLibraryLocation)" = legacy ] && pass "kept the library in the old container" || fail "BoazLibraryLocation is not legacy"
+for key in searchEngine archiveAfter sidebarTextSize BoazAcceptanceFixture onboardingCompleted; do
+    old=$(prefs_value "$OLD_PREFS" "$key") new=$(prefs_value "$ID" "$key")
+    [ "$old" = "$new" ] && pass "setting $key = $new" || fail "setting $key was '$old', now '$new'"
+done
+for marker in BoazChromiumLegacyPreferencesImportedV1 BoazChromiumLegacyWebKitDataImportedV1 "BoazChromiumLegacyCookiesImportedV1.$PROFILE"; do
+    [ "$(prefs_value "$ID" "$marker")" = 1 ] && pass "$marker set" || fail "$marker not set"
+done
+find "$CONTAINER/Library/WebKit" -type f -exec shasum {} + 2>/dev/null | sort > "$OUT/webkit-after.txt"
+comm -23 "$OUT/webkit-before.txt" "$OUT/webkit-after.txt" > "$OUT/webkit-changed.txt"
+[ ! -s "$OUT/webkit-changed.txt" ] && pass "old website data left untouched" || fail "old website data changed: $(wc -l < "$OUT/webkit-changed.txt") files"
+security find-generic-password -s "Boaz Chromium Safe Storage" > /dev/null 2>&1 \
+    && note "the Boaz Chromium Safe Storage Keychain item exists" || note "no Boaz Chromium Safe Storage Keychain item"
+for db in "$HOME/Library/Application Support/Boaz/Chromium"/Boaz-*/Cookies "$HOME/Library/Application Support/Boaz/Chromium"/Boaz-*/Network/Cookies; do
+    [ -f "$db" ] || continue
+    rows=$(sqlite3 "$db" "SELECT count(*) FROM cookies WHERE host_key = '127.0.0.1' AND name IN ('boaz_session', 'boaz_plain')")
+    note "Chromium cookie store ${db#"$HOME"/}: $rows fixture cookies"
+done
+
+echo "## Again: a second launch" >> "$RESULTS"
+visit relaunch "/whoami?again"
+if signed_in "/whoami?again"; then pass "still signed in on the next launch"; else fail "signed out on the next launch"; fi
+# Probe: does quitting with osascript need an Automation permission on this Mac?
+if perl -e 'alarm 20; exec @ARGV' osascript -e "tell application id \"$ID\" to quit" > "$OUT/osascript.txt" 2>&1; then
+    note "probe: osascript quit ran without an Automation prompt"
+else
+    shot osascript-quit
+    note "probe: osascript quit failed or timed out: $(tr '\n' ' ' < "$OUT/osascript.txt")"
+fi
+running && quit relaunch || note "Boaz quit on osascript's request"
+
+log show --last 30m --info --predicate "subsystem == \"$ID\"" > "$OUT/boaz.log" 2>&1
+log show --last 30m --predicate 'process == "tccd"' 2>/dev/null | grep -i -E "boaz|AppData" > "$OUT/tccd.log"
+grep -E "previous cookies|Two libraries" "$OUT/boaz.log" | sed 's/^/  /' >> "$RESULTS"
+[ -s "$OUT/tccd.log" ] && note "probe: tccd logged $(wc -l < "$OUT/tccd.log") Boaz or App Data lines (tccd.log)" || note "probe: tccd logged nothing about Boaz or App Data"
+exit $FAILED
