@@ -6,9 +6,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# A pull request cancels its own older runs. A push to master or a release branch is grouped by its sha, so
+# every pushed commit finishes its run and a red one can't be hidden by the next push.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -101,10 +103,42 @@ jobs:
       - name: Run BoazUITests
         run: make uitest
 
+      - name: Summarize the test results
+        # Counts and the names of failed and skipped tests, so a green tick shows what ran (docs/qa.md §5).
+        if: always()
+        continue-on-error: true
+        run: |
+          R=build/UITestResults.xcresult
+          if [ ! -d "$R" ]; then echo "### Mac UI tests: no result bundle (the tests didn't run)" >> "$GITHUB_STEP_SUMMARY"; exit 0; fi
+          xcrun xcresulttool get test-results summary --path "$R" > "$RUNNER_TEMP/summary.json"
+          xcrun xcresulttool get test-results tests --path "$R" > "$RUNNER_TEMP/tests.json"
+          python3 - "$RUNNER_TEMP/summary.json" "$RUNNER_TEMP/tests.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json, sys
+          s = json.load(open(sys.argv[1]))
+          tests = json.load(open(sys.argv[2]))["testNodes"]
+          def cases(nodes, result):
+              for n in nodes:
+                  if n.get("nodeType") == "Test Case" and n.get("result") == result:
+                      why = next((c["name"] for c in n.get("children", []) if c.get("nodeType") in ("Failure Message", "Skip Message")), "")
+                      yield n["nodeIdentifier"], why
+                  yield from cases(n.get("children", []), result)
+          print(f"### Mac UI tests: {s['result']}\n")
+          print(f"{s['passedTests']} passed, {s['failedTests']} failed, {s['skippedTests']} skipped\n")
+          for result in ("Failed", "Skipped"):
+              rows = list(cases(tests, result))
+              if rows:
+                  print(f"**{result}**\n")
+                  for name, why in rows:
+                      print(f"- `{name}`" + (f": {why}" if why else ""))
+                  print()
+          PY
+
       - name: Upload the test results
-        if: failure() || cancelled()
+        # Kept a week when the run fails, three days when it passes.
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: UITestResults
           path: build/UITestResults.xcresult
-          retention-days: 7
+          retention-days: ${{ job.status == 'success' && 3 || 7 }}
+          if-no-files-found: ignore
