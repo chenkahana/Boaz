@@ -61,8 +61,6 @@ private struct ChromiumTabPane: View {
     @State private var recoveryDocument: OfflineFailure?
     @State private var attemptedOfflineURLs: Set<URL?> = []
     @State private var revealedSurface: String?
-    /// The page whose first load has had its chance to show the saved page (`showChromiumSnapshot`).
-    @State private var snapshotPage: BoazHostPage?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -167,10 +165,10 @@ private struct ChromiumTabPane: View {
         }
         .task(id: tab.id) { await browser.restoreChromiumPreview(tabID: tab.id, url: tab.url) }
         .task(id: loadingPage) {
-            // A new page reports its first load a moment after it opens: its saved page goes up then, once.
-            guard let page = loadingPage, page != snapshotPage,
-                  let adapter = engine?.adapter as? ChromiumEnginePageAdapter, adapter.handle == page else { return }
-            snapshotPage = page
+            // A new page reports its first load a moment after it opens: its saved page goes up then, once
+            // (`showChromiumSnapshot` keeps it to that load).
+            guard let page = loadingPage, let adapter = engine?.adapter as? ChromiumEnginePageAdapter,
+                  adapter.handle == page else { return }
             await browser.showChromiumSnapshot(for: tab, live: adapter)
         }
         .task(id: surfaceDocument) {

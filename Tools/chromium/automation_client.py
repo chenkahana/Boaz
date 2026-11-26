@@ -146,9 +146,19 @@ class Control:
         """Spaces (id, profileID, name, selected), each with its pinned and Today tabs."""
         return self.call("list")["spaces"]
 
-    def open(self, url, space=None):
-        """Opens `url` as a new Today tab in `space` (default: the current one); returns the new tab's id."""
-        return self.call("open", url=url, **({"space": space} if space else {}))["tab"]
+    def windows(self):
+        """Each window: private (Incognito), selected tab, space; an Incognito window lists its tabs."""
+        return self.call("list")["windows"]
+
+    def open(self, url, space=None, private=False):
+        """Opens `url` as a new Today tab in `space` (default: the current one), or with `private` as a tab in the
+        Incognito window (opening one if none is open); returns the new tab's id."""
+        extra = {"private": True} if private else ({"space": space} if space else {})
+        return self.call("open", url=url, **extra)["tab"]
+
+    def close_private(self):
+        """Closes every Incognito window."""
+        self.call("closePrivate")
 
     def select(self, tab):
         self.call("select", tab=tab)

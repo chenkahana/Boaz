@@ -2,8 +2,9 @@
 import Foundation
 
 /// The development-only tab control socket's gates and wire format (one JSON object per line each way). Test drivers
-/// use it to open, select and close tabs and to quit, without synthetic input; `Tools/chromium/automation_client.py`
-/// (`Control`) is its client. Pure, so `make automation-control-test` checks it without the app.
+/// use it to open, select and close tabs (Incognito ones too) and to quit, without synthetic input;
+/// `Tools/chromium/automation_client.py` (`Control`) is its client. Pure, so `make automation-control-test` checks it
+/// without the app.
 nonisolated enum AutomationControlProtocol {
     static let argument = "-BoazAutomationControl"
     static let maxLine = 64 * 1024
@@ -19,8 +20,12 @@ nonisolated enum AutomationControlProtocol {
     enum Command: Equatable {
         case list
         case open(URL, space: String?)
+        /// In an Incognito window, opening one first the way File ▸ New Incognito Window does.
+        case openPrivate(URL)
         case select(tab: String)
         case close(tab: String)
+        /// Closes every Incognito window as its close button does.
+        case closePrivate
         case quit
     }
 
@@ -40,9 +45,20 @@ nonisolated enum AutomationControlProtocol {
             let text = try string("url")
             guard let url = allowedURL(text) else { throw Failure(message: "URL not allowed: \(text)") }
             if object["space"] != nil, !(object["space"] is String) { throw Failure(message: "space must be a string") }
+            if let raw = object["private"] {
+                // JSON true or false, not a number that also reads as a Bool.
+                guard CFGetTypeID(raw as CFTypeRef) == CFBooleanGetTypeID(), let flag = raw as? Bool else {
+                    throw Failure(message: "private must be true or false")
+                }
+                if flag {
+                    guard object["space"] == nil else { throw Failure(message: "An Incognito window has no spaces") }
+                    return .openPrivate(url)
+                }
+            }
             return .open(url, space: object["space"] as? String)
         case "select": return .select(tab: try string("tab"))
         case "close": return .close(tab: try string("tab"))
+        case "closePrivate": return .closePrivate
         case "quit": return .quit
         default: throw Failure(message: "Unknown command: \(name)")
         }
@@ -122,6 +138,7 @@ final class AutomationControl {
     private var waiting: Task<Void, Never>?
     private var browsers: () -> [BrowserState] = { [] }
     private var quit: () -> Void = {}
+    private var openPrivate: (URL) async -> Void = { _ in }
 
     private var channel: String? { Bundle.main.object(forInfoDictionaryKey: "BoazDistributionChannel") as? String }
     private var automationReady: Bool { ChromiumAutomation.shared.status?.state == .ready }
@@ -130,11 +147,13 @@ final class AutomationControl {
                                             automationReady: ready)
     }
 
-    func start(browsers: @escaping () -> [BrowserState], quit: @escaping () -> Void) {
+    func start(browsers: @escaping () -> [BrowserState], quit: @escaping () -> Void,
+               openPrivate: @escaping (URL) async -> Void) {
         stop()
         guard enabled(ready: true) else { return }
         self.browsers = browsers
         self.quit = quit
+        self.openPrivate = openPrivate
         waiting = Task { @MainActor [weak self] in
             // Local Automation reports READY shortly after startup; give up if it's off or never comes up.
             for _ in 0..<120 {
@@ -264,6 +283,10 @@ final class AutomationControl {
         }
     }
 
+    private nonisolated static func row(_ tab: SidebarItem, active: String?) -> [String: Any] {
+        ["id": tab.id, "url": tab.url?.absoluteString ?? "", "title": tab.title ?? "", "selected": tab.id == active]
+    }
+
     private func handle(_ line: Data) async -> (Data, (@MainActor @Sendable () -> Void)?) {
         func failure(_ message: String) -> (Data, (@MainActor @Sendable () -> Void)?) {
             (AutomationControlProtocol.reply(["ok": false, "error": message]), nil)
@@ -275,23 +298,67 @@ final class AutomationControl {
             // The ⌘Q path, so the saved windows restore on the next launch as they do for a user.
             return (AutomationControlProtocol.reply(["ok": true]), { AutomationControl.shared.quit() })
         }
-        // The first normal window: Incognito tabs are never listed or driven.
-        guard let browser = browsers().first(where: { !$0.isIncognito }) else { return failure("No browser window is open") }
-        let model = browser.model
+        let windows = browsers()
         switch command {
         case .list:
-            let (activeTab, activeSpace) = (browser.activeTabID, browser.spaceID)
-            let spaces = model.sidebar.spaces.map { space -> [String: Any] in
-                func row(_ tab: SidebarItem, pinned: Bool) -> [String: Any] {
-                    ["id": tab.id, "url": tab.url?.absoluteString ?? "", "title": tab.title ?? "",
-                     "selected": tab.id == activeTab, "pinned": pinned, "today": !pinned]
+            // Each window: whether it is Incognito, its space and selected tab; an Incognito window's tabs come with it.
+            var listed: [[String: Any]] = []
+            for window in windows {
+                let space: String? = window.isIncognito ? nil : window.spaceID
+                var entry: [String: Any] = ["private": window.isIncognito, "selected": window.activeTabID ?? NSNull(),
+                                            "space": space ?? NSNull()]
+                if window.isIncognito {
+                    var tabs: [[String: Any]] = []
+                    for tab in window.incognitoTabs { tabs.append(Self.row(tab, active: window.activeTabID)) }
+                    entry["tabs"] = tabs
                 }
-                let tabs = model.allPinnedTabs(in: space).map { row($0, pinned: true) }
-                    + model.todayTabs(in: space).map { row($0, pinned: false) }
+                listed.append(entry)
+            }
+            guard let browser = windows.first(where: { !$0.isIncognito }) else {
+                return (AutomationControlProtocol.reply(["ok": true, "spaces": [], "windows": listed]), nil)
+            }
+            let (model, activeTab, activeSpace) = (browser.model, browser.activeTabID, browser.spaceID)
+            let spaces = model.sidebar.spaces.map { space -> [String: Any] in
+                func entry(_ tab: SidebarItem, pinned: Bool) -> [String: Any] {
+                    Self.row(tab, active: activeTab).merging(["pinned": pinned, "today": !pinned]) { $1 }
+                }
+                let tabs = model.allPinnedTabs(in: space).map { entry($0, pinned: true) }
+                    + model.todayTabs(in: space).map { entry($0, pinned: false) }
                 return ["id": space.id, "profileID": space.profileID, "name": space.title,
                         "selected": space.id == activeSpace, "tabs": tabs]
             }
-            return (AutomationControlProtocol.reply(["ok": true, "spaces": spaces]), nil)
+            return (AutomationControlProtocol.reply(["ok": true, "spaces": spaces, "windows": listed]), nil)
+        case let .openPrivate(url):
+            if let window = windows.first(where: \.isIncognito) {
+                let before = Set(window.incognitoTabs.map(\.id))
+                window.openTab(url)
+                let opened = window.incognitoTabs.first { !before.contains($0.id) }?.id
+                return (AutomationControlProtocol.reply(["ok": true, "tab": opened ?? NSNull()]), nil)
+            }
+            await openPrivate(url)
+            for _ in 0..<100 {
+                if let opened = browsers().first(where: \.isIncognito)?.incognitoTabs.first?.id {
+                    return (AutomationControlProtocol.reply(["ok": true, "tab": opened]), nil)
+                }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            return failure("The Incognito window did not open")
+        case .closePrivate:
+            for window in windows where window.isIncognito { window.window?.performClose(nil) }
+            return (AutomationControlProtocol.reply(["ok": true]), nil)
+        case let .select(id), let .close(id):
+            // An Incognito tab in its own window; any other in the first normal window.
+            guard let browser = windows.first(where: { $0.isIncognito && $0.incognitoTabs.contains { $0.id == id } })
+                    ?? windows.first(where: { !$0.isIncognito }),
+                  let tab = browser.tab(id), tab.kind == .tab else { return failure("No tab \(id)") }
+            if case .select = command { browser.activate(tab) } else { browser.close(tab) }
+            return (AutomationControlProtocol.reply(["ok": true]), nil)
+        default:
+            break
+        }
+        guard let browser = windows.first(where: { !$0.isIncognito }) else { return failure("No browser window is open") }
+        let model = browser.model
+        switch command {
         case let .open(url, space):
             if let space {
                 guard model.space(space) != nil else { return failure("No space \(space)") }
@@ -305,11 +372,7 @@ final class AutomationControl {
             browser.openTab(url)
             let opened = model.todayTabs(in: current).first { !before.contains($0.id) }?.id
             return (AutomationControlProtocol.reply(["ok": true, "tab": opened ?? NSNull(), "space": current.id]), nil)
-        case let .select(id), let .close(id):
-            guard let tab = browser.tab(id), tab.kind == .tab else { return failure("No tab \(id)") }
-            if case .select = command { browser.activate(tab) } else { browser.close(tab) }
-            return (AutomationControlProtocol.reply(["ok": true]), nil)
-        case .quit:
+        default:
             return failure("Unreachable")
         }
     }

@@ -19,7 +19,7 @@ ADHOC    := CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=YE
 XCB      := xcodebuild -project $(PROJECT) -derivedDataPath $(DERIVED) -quiet
 
 .DEFAULT_GOAL := help
-.PHONY: help bootstrap project kit kit-test automation-control-test ios mac mac-dmg mac-webkit-dmg build device archive dmg uitest acceptance-uitest clean
+.PHONY: help bootstrap project kit kit-test automation-control-test tab-snapshots-test ios mac mac-dmg mac-webkit-dmg build device archive dmg uitest acceptance-uitest clean
 
 help: ## List the available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z-]+:.*## / {printf "  %-10s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -43,6 +43,12 @@ automation-control-test: ## Check the development-only tab control socket's gate
 	xcrun swiftc -swift-version 6 -D AUTOMATION_CONTROL_TESTS Apps/macOS/Engine/AutomationControl.swift \
 		Tests/AutomationControlTests/main.swift -o build/automation-control-tests
 	build/automation-control-tests
+
+tab-snapshots-test: ## Check that a tab's saved page shows once and a newer save survives
+	@mkdir -p build
+	xcrun swiftc -swift-version 6 -D TAB_SNAPSHOTS_TESTS Apps/macOS/Model/TabSnapshots.swift \
+		Tests/TabSnapshotsTests/main.swift -o build/tab-snapshots-tests
+	build/tab-snapshots-tests
 
 # Unsigned, so it builds the AutoFill extension too, whose App ID doesn't exist yet (autofill.yml).
 ios: export BOAZ_AUTOFILL := YES

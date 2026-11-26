@@ -1,4 +1,4 @@
-#if BOAZ_CHROMIUM
+#if BOAZ_CHROMIUM || TAB_SNAPSHOTS_TESTS
 import Foundation
 
 /// The last look of each tab, kept on disk so a tab that comes back after an unload or a relaunch shows it while its
@@ -96,21 +96,44 @@ nonisolated enum TabSnapshots {
         }
     }
 
-    /// `tabID`'s saved page, if it shows `url`; one that shows another page is out of date and goes.
-    static func archive(tabID: String, url: URL, profileID: String?) async -> URL? {
+    /// Takes `tabID`'s saved page for showing, if it shows `url`: it moves to a name of its own (`claim`), so it shows
+    /// once, and the file the caller later drops (`dropClaimed`) is that one, never a page saved again since.
+    static func claimArchive(tabID: String, url: URL, profileID: String?) async -> URL? {
         await withCheckedContinuation { continuation in
             queue.async {
-                guard let files = files(tabID, profileID),
-                      let saved = try? String(contentsOf: files.archivePage, encoding: .utf8) else {
-                    return continuation.resume(returning: nil)
-                }
-                guard saved == url.absoluteString, FileManager.default.fileExists(atPath: files.archive.path) else {
-                    try? FileManager.default.removeItem(at: files.archive)
-                    try? FileManager.default.removeItem(at: files.archivePage)
-                    return continuation.resume(returning: nil)
-                }
-                continuation.resume(returning: files.archive)
+                guard let files = files(tabID, profileID) else { return continuation.resume(returning: nil) }
+                continuation.resume(returning: claim(archive: files.archive, archivePage: files.archivePage, for: url))
             }
+        }
+    }
+
+    /// Moves `archive` to a unique name beside it if `archivePage` says it shows `url`; otherwise, or if the move fails,
+    /// both go. Either way the saved page is no longer there to be found again.
+    static func claim(archive: URL, archivePage: URL, for url: URL) -> URL? {
+        let manager = FileManager.default
+        defer {
+            try? manager.removeItem(at: archive)
+            try? manager.removeItem(at: archivePage)
+        }
+        guard let saved = try? String(contentsOf: archivePage, encoding: .utf8), saved == url.absoluteString else {
+            return nil
+        }
+        let claimed = archive.deletingPathExtension()
+            .appendingPathExtension("shown-\(UUID().uuidString)").appendingPathExtension("mhtml")
+        return (try? manager.moveItem(at: archive, to: claimed)) != nil ? claimed : nil
+    }
+
+    /// Removes a page taken by `claimArchive`.
+    static func dropClaimed(_ file: URL) {
+        queue.async { try? FileManager.default.removeItem(at: file) }
+    }
+
+    /// `tabID`'s saved page goes unshown: its page came back without it.
+    static func dropArchive(tabID: String, profileID: String?) {
+        queue.async {
+            guard let files = files(tabID, profileID) else { return }
+            try? FileManager.default.removeItem(at: files.archive)
+            try? FileManager.default.removeItem(at: files.archivePage)
         }
     }
 

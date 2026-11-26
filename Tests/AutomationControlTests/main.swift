@@ -35,6 +35,18 @@ check(try! parse(#"{"command":"open","url":"https://example.com/a","space":"S1"}
       == .open(URL(string: "https://example.com/a")!, space: "S1"), "open in a space")
 check(try! parse(#"{"command":"open","url":"about:blank"}"#).get() == .open(URL(string: "about:blank")!, space: nil),
       "open in the current space")
+// Incognito: open in a private window (never with a space), close private windows.
+check(try! parse(#"{"command":"open","url":"https://example.com/a","private":true}"#).get()
+      == .openPrivate(URL(string: "https://example.com/a")!), "open in Incognito")
+check(try! parse(#"{"command":"open","url":"https://example.com/a","private":false}"#).get()
+      == .open(URL(string: "https://example.com/a")!, space: nil), "private false is a normal open")
+check(try! parse(#"{"command":"closePrivate"}"#).get() == .closePrivate, "close Incognito windows")
+for text in [#"{"command":"open","url":"https://a.b","private":true,"space":"S1"}"#,
+             #"{"command":"open","url":"https://a.b","private":1}"#,
+             #"{"command":"open","url":"https://a.b","private":"yes"}"#,
+             #"{"command":"open","url":"javascript:alert(1)","private":true}"#] {
+    check(rejects(text), "refuses \(text)")
+}
 for url in ["http://127.0.0.1:8080/", "file:///tmp/a.html", "chrome://extensions", "chrome://extensions/?id=abc"] {
     check(!rejects(#"{"command":"open","url":"\#(url)"}"#), "allows \(url)")
 }

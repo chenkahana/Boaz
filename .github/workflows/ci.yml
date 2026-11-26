@@ -62,6 +62,9 @@ jobs:
       - name: Test the development-only tab control gates
         run: make automation-control-test
 
+      - name: Test that a tab's saved page shows once
+        run: make tab-snapshots-test
+
       - name: Build iPhone app and extensions
         run: make ios
 

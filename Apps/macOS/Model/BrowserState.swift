@@ -406,8 +406,17 @@ final class BrowserState {
     @ObservationIgnored private var frozenChromiumPages: Set<String> = []
     @ObservationIgnored private var memoryPressure: DispatchSourceMemoryPressure?
     @ObservationIgnored private var memoryPressureCloses: Task<Void, Never>?
-    /// Saved pages shown over their tab's page while it reloads (`showChromiumSnapshot`), with the address they show.
-    private(set) var chromiumSnapshots: [String: (page: ChromiumEnginePageAdapter, url: URL)] = [:]
+    /// A saved page shown over its tab's page while it reloads (`showChromiumSnapshot`): the address it shows, and its
+    /// file, taken for this showing only (`TabSnapshots.claimArchive`).
+    struct ChromiumSnapshot {
+        let page: ChromiumEnginePageAdapter
+        let url: URL
+        let file: URL
+    }
+    private(set) var chromiumSnapshots: [String: ChromiumSnapshot] = [:]
+    /// The page just created for each tab, whose first load is the saved page's one chance to show, and whether that
+    /// load has started.
+    @ObservationIgnored private var chromiumSnapshotPages: [String: (page: BoazHostPage, loading: Bool)] = [:]
     #endif
     @ObservationIgnored private var recency: [String] = []
     @ObservationIgnored private var isClosingIdlePages = false
@@ -825,6 +834,9 @@ final class BrowserState {
             guard let createChromiumPage else { throw EnginePageError.unavailable }
             let engine = try createChromiumPage(tab)
             enginePages[tab.id] = engine
+            if !isPrivate(tab), let page = engine.adapter as? ChromiumEnginePageAdapter {
+                chromiumSnapshotPages[tab.id] = (page.handle, false)
+            }
             reportExternalTabs()
             recency.removeAll { $0 == tab.id }
             recency.append(tab.id)
@@ -927,6 +939,7 @@ final class BrowserState {
         chromiumVisitDocuments[tabID] = nil
         pendingRestores[tabID] = nil
         frozenChromiumPages.remove(tabID)
+        chromiumSnapshotPages[tabID] = nil
         closeChromiumSnapshot(tabID)
         chromiumLayoutChanged?()
         #endif
@@ -1368,24 +1381,46 @@ final class BrowserState {
     /// scrolled, and readable at once (scroll, select, copy). It's read-only: the saved page's scripts and network are
     /// off, and a link clicked there opens in the live page (`chromiumPageEvent`).
     func showChromiumSnapshot(for tab: SidebarItem, live: ChromiumEnginePageAdapter) async {
+        // Once, on the first load of a page just created for the tab: never over a reload later.
+        guard chromiumSnapshotPages[tab.id]?.page == live.handle else { return }
+        chromiumSnapshotPages[tab.id] = nil
         guard chromiumSnapshots[tab.id] == nil, !isPrivate(tab), live.state.isLoading,
-              let url = live.state.url ?? tab.url, let factory = createChromiumSnapshotPage,
-              let archive = await TabSnapshots.archive(tabID: tab.id, url: url, profileID: tab.profileID),
-              cachedChromiumPage(for: tab.id) === live, live.state.isLoading, chromiumSnapshots[tab.id] == nil,
-              var address = URLComponents(url: archive, resolvingAgainstBaseURL: false) else { return }
+              let url = live.state.url ?? tab.url, let factory = createChromiumSnapshotPage else {
+            TabSnapshots.dropArchive(tabID: tab.id, profileID: tab.profileID)
+            return
+        }
+        guard let file = await TabSnapshots.claimArchive(tabID: tab.id, url: url, profileID: tab.profileID) else { return }
+        // Reading it takes a moment: the tab may have been left, or its page loaded or closed, meanwhile.
+        guard !Task.isCancelled, pagesInView.contains(tab.id), cachedChromiumPage(for: tab.id) === live,
+              live.state.isLoading, chromiumSnapshots[tab.id] == nil,
+              var address = URLComponents(url: file, resolvingAgainstBaseURL: false) else {
+            TabSnapshots.dropClaimed(file)
+            return
+        }
         address.fragment = "boaz-last-look"
         guard let address = address.url, let snapshot = try? factory(tab, address).adapter as? ChromiumEnginePageAdapter
-        else { return }
-        chromiumSnapshots[tab.id] = (snapshot, url)
-        // Chromium makes a new page its active one; the tab's live page stays it.
-        if let engine = enginePages[tab.id] { activateChromiumPage?(engine) }
+        else {
+            TabSnapshots.dropClaimed(file)
+            return
+        }
+        chromiumSnapshots[tab.id] = ChromiumSnapshot(page: snapshot, url: url, file: file)
+        // Chromium makes a new page its active one; the window's active tab's page stays it.
+        if !applyingChromiumActivation, let active = activeTabID, let engine = enginePages[active] {
+            activateChromiumPage?(engine)
+        }
+        // A load that never finishes doesn't keep the saved page up.
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(10))
+            guard let self, chromiumSnapshots[tab.id]?.page === snapshot else { return }
+            closeChromiumSnapshot(tab.id)
+        }
     }
 
     /// The live page is ready: it takes over where the user has scrolled the saved page to, then the saved page fades
     /// out and closes (an instant swap with Reduce Motion).
     func handOverChromiumSnapshot(_ tabID: String, to live: ChromiumEnginePageAdapter) async {
         guard let entry = chromiumSnapshots[tabID] else { return }
-        let (snapshot, url) = entry
+        let (snapshot, url) = (entry.page, entry.url)
         // The live page's own return to its place (`prepareChromiumScroll`) goes first.
         for _ in 0..<20 where chromiumScrollTasks[tabID] != nil {
             try? await Task.sleep(for: .milliseconds(50))
@@ -1400,15 +1435,14 @@ final class BrowserState {
         closeChromiumSnapshot(tabID)
     }
 
-    /// A saved page is shown once: closing it drops it, so a later reload of the tab doesn't bring it back.
+    /// The saved page fades out and closes, and its file goes (the one taken for this showing, never a newer save).
     func closeChromiumSnapshot(_ tabID: String) {
-        guard let snapshot = chromiumSnapshots[tabID]?.page else { return }
-        let profileID = tab(tabID)?.profileID
+        guard let entry = chromiumSnapshots[tabID] else { return }
         withMotion(.standard) { chromiumSnapshots[tabID] = nil }
         Task {
             try? await Task.sleep(for: .milliseconds(400))
-            try? snapshot.close()
-            TabSnapshots.archived(tabID: tabID, url: nil, size: 0, profileID: profileID)
+            try? entry.page.close()
+            TabSnapshots.dropClaimed(entry.file)
         }
     }
 
@@ -1443,8 +1477,11 @@ final class BrowserState {
         if let tabID = chromiumSnapshots.first(where: { $0.value.page.handle == handle })?.key,
            let snapshot = chromiumSnapshots[tabID] {
             // A link clicked in a saved page opens in the live one.
-            if event == BOAZ_HOST_PAGE_CLOSED || event == BOAZ_HOST_PAGE_RENDERER_FAILED {
+            if event == BOAZ_HOST_PAGE_CLOSED {
                 chromiumSnapshots[tabID] = nil
+                TabSnapshots.dropClaimed(snapshot.file)
+            } else if event == BOAZ_HOST_PAGE_RENDERER_FAILED {
+                closeChromiumSnapshot(tabID)
             } else if let url = snapshot.page.state.url, ["http", "https"].contains(url.scheme?.lowercased() ?? "") {
                 closeChromiumSnapshot(tabID)
                 try? cachedChromiumPage(for: tabID)?.navigate(to: url)
@@ -1472,6 +1509,17 @@ final class BrowserState {
         }) else { return }
         let id = entry.key
         if let page = entry.value.adapter as? ChromiumEnginePageAdapter {
+            // A first load that ended without its saved page showing leaves it unshown for good.
+            if let first = chromiumSnapshotPages[id], first.page == page.handle {
+                if page.state.isLoading {
+                    chromiumSnapshotPages[id]?.loading = true
+                } else if first.loading || page.state.loadFailure != nil || page.state.lifecycle == .crashed {
+                    chromiumSnapshotPages[id] = nil
+                    TabSnapshots.dropArchive(tabID: id, profileID: tab(id)?.profileID)
+                }
+            }
+            // A live page that fails or crashes shows that, not the saved page over it.
+            if page.state.loadFailure != nil || page.state.lifecycle == .crashed { closeChromiumSnapshot(id) }
             if page.state.lifecycle == .crashed {
                 pendingRestores[id] = pageStates[id]
                 chromiumScrollTasks.removeValue(forKey: id)?.cancel()

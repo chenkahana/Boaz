@@ -238,7 +238,8 @@ private final class ChromiumApplication: NSObject {
                 MainActor.assumeIsolated { self?.defaultsChanged() }
             }
         ChromiumAutomation.shared.start()
-        AutomationControl.shared.start(browsers: { [weak self] in self?.windows.map(\.browser) ?? [] }, quit: { [weak self] in self?.quit() })
+        AutomationControl.shared.start(browsers: { [weak self] in self?.windows.map(\.browser) ?? [] }, quit: { [weak self] in self?.quit() },
+                                       openPrivate: { [weak self] url in await self?.openScene("incognito", url: url) })
         // Chromium retains its AppController delegate and termination machinery.
         NotificationCenter.default.addObserver(self, selector: #selector(willTerminate),
             name: NSApplication.willTerminateNotification, object: nil)
