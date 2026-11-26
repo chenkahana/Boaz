@@ -1,8 +1,8 @@
 import BoazKit
 import SwiftUI
 
-/// Settings ▸ Theme: every design choice in one place. Each space's background (its colors, gradient, texture and how
-/// much of the desktop shows through), the sidebar's text size and the app icon.
+/// Settings ▸ Theme: every design choice in one place. The app icon, each space's background (its colors, gradient,
+/// texture and how much of the desktop shows through) and the sidebar's text size.
 struct ThemeSettings: View {
     @Environment(MacModel.self) private var model
     @AppStorage(Preferences.sidebarTextSizeKey) private var sidebarTextSize = SidebarStyle.defaultTextSize
@@ -12,6 +12,7 @@ struct ThemeSettings: View {
 
     var body: some View {
         Form {
+            Section("App Icon") { AppIconSettings() }
             Section {
                 if model.sidebar.spaces.isEmpty {
                     Text("No spaces yet")
@@ -36,7 +37,6 @@ struct ThemeSettings: View {
                     Text("Large").tag(17.0)
                 }
             }
-            Section("App Icon") { AppIconSettings() }
         }
         .formStyle(.grouped)
     }

@@ -94,7 +94,9 @@ class BoazUITestCase: XCTestCase {
         // so membership is keyed by type and frame instead of the element itself.
         func key(_ control: XCUIElement) -> String { "\(control.elementType.rawValue)|\(control.frame)" }
         var scrollViewFrames: [String: CGRect] = [:]
-        for scrollView in element.descendants(matching: .scrollView).allElementsBoundByIndex where scrollView.exists {
+        // A screen can itself sit inside a scroll view (a Settings pane is a scrolling Form), so look at every scroll
+        // view in the app, not only the screen's own descendants.
+        for scrollView in app.descendants(matching: .scrollView).allElementsBoundByIndex where scrollView.exists {
             let viewport = scrollView.frame
             for kind in [XCUIElement.ElementType.button, .staticText, .textField] {
                 for control in scrollView.descendants(matching: kind).allElementsBoundByIndex {
