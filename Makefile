@@ -81,7 +81,9 @@ acceptance-uitest: project ## One BoazAcceptanceUITests step (TEST=name) against
 		{ echo "Refusing to drive /Applications/Boaz.app outside CI: it is your real Boaz." >&2; exit 2; }
 	rm -rf build/Acceptance-$(TEST).xcresult
 	TEST_RUNNER_CI=$(CI) TEST_RUNNER_BOAZ_ACCEPTANCE_EXTENSIONS=$(BOAZ_ACCEPTANCE_EXTENSIONS) \
-		TEST_RUNNER_BOAZ_ACCEPTANCE_URLS=$(BOAZ_ACCEPTANCE_URLS) TEST_RUNNER_BOAZ_ACCEPTANCE_APP=$(if $(BUILD_ONLY),,$(BOAZ_ACCEPTANCE_APP)) $(XCB) -scheme Boaz-macOS -destination 'platform=macOS' \
+		TEST_RUNNER_BOAZ_ACCEPTANCE_URLS=$(BOAZ_ACCEPTANCE_URLS) TEST_RUNNER_BOAZ_ACCEPTANCE_SPACE="$(BOAZ_ACCEPTANCE_SPACE)" \
+		TEST_RUNNER_BOAZ_ACCEPTANCE_UNPACKED=$(BOAZ_ACCEPTANCE_UNPACKED) TEST_RUNNER_BOAZ_ACCEPTANCE_FIXTURE=$(BOAZ_ACCEPTANCE_FIXTURE) \
+		TEST_RUNNER_BOAZ_ACCEPTANCE_APP=$(if $(BUILD_ONLY),,$(BOAZ_ACCEPTANCE_APP)) $(XCB) -scheme Boaz-macOS -destination 'platform=macOS' \
 		-resultBundlePath build/Acceptance-$(TEST).xcresult $(ADHOC) \
 		-only-testing:BoazUITests/BoazAcceptanceUITests/$(TEST) test
 

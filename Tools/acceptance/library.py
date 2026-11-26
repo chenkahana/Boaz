@@ -3,10 +3,12 @@
   library.py seed <boaz.sqlite>                  adds fixture folders, tabs, archive and history rows
   library.py snapshot <boaz.sqlite> <out.json>   the rows that must survive an upgrade
   library.py compare <before.json> <after.json>  exits 1 when any of them changed or disappeared
+  library.py add-profile <boaz.sqlite> <id> <space title>   a second profile with one space, laid out as the first
 """
 import json
 import sqlite3
 import sys
+import uuid
 
 # Columns that must come through an upgrade unchanged, per table (GRDB's own columns may be added to, never lost).
 KEPT = {
@@ -86,6 +88,28 @@ def compare(before_path, after_path):
     sys.exit(1 if problems else 0)
 
 
+def add_profile(path, profile, title):
+    db = sqlite3.connect(path)
+    first, space = db.execute(
+        'SELECT profileID, id FROM space WHERE deletedAt IS NULL ORDER BY position LIMIT 1').fetchone()
+    db.execute(f"INSERT INTO profile (id, name, dataStoreID, isDefault, modifiedAt) VALUES (?, ?, ?, 0, {NOW})",
+               (profile, title, uuid.uuid4().bytes))
+    new_space = str(uuid.uuid4()).upper()
+    db.execute('INSERT INTO space (id, title, icon, themeJSON, profileID, position, modifiedAt) '
+               f'SELECT ?, ?, icon, themeJSON, ?, (SELECT max(position) FROM space) + 1, {NOW} FROM space WHERE id = ?',
+               (new_space, title, profile, space))
+    # The first space's containers, and its profile's own (a NULL space), copied for the new space and profile.
+    containers = db.execute("SELECT spaceID, containerKind, position, isExpanded FROM sidebarItem WHERE kind = 'container' "
+                            'AND deletedAt IS NULL AND (spaceID = ? OR (spaceID IS NULL AND profileID = ?))',
+                            (space, first)).fetchall()
+    for space_id, kind, position, expanded in containers:
+        db.execute('INSERT INTO sidebarItem (id, spaceID, profileID, parentID, kind, containerKind, isUnread, isExpanded, '
+                   f"position, createdAt, modifiedAt) VALUES (?, ?, ?, NULL, 'container', ?, 0, ?, ?, {NOW}, {NOW})",
+                   (str(uuid.uuid4()).upper(), new_space if space_id else None, profile, kind, expanded, position))
+    db.commit()
+    print(f'added profile {profile} with space {title} ({len(containers)} containers)')
+
+
 if __name__ == '__main__':
     command, *arguments = sys.argv[1:]
-    {'seed': seed, 'snapshot': snapshot, 'compare': compare}[command](*arguments)
+    {'seed': seed, 'snapshot': snapshot, 'compare': compare, 'add-profile': add_profile}[command](*arguments)

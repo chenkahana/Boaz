@@ -26,6 +26,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         elif page == '/cold':
             body = '<title>Boaz fixture cold sign-in</title><p>Signed in from a link.</p>'
             cookies = [f'boaz_cold={COLD}; Max-Age={YEAR}; Path=/; HttpOnly; SameSite=Lax']
+        elif page == '/functions':
+            # What the extension cohort acts on: a known ad script, a light page, a text area.
+            body = ('<title>Boaz fixture functions</title><style>body { background: #ffffff; color: #000000 }</style>'
+                    '<p>Extension checks.</p><textarea id="text" rows="4" cols="40">Their is a mistake here.</textarea>'
+                    '<script>window.adLoaded = null;</script>'
+                    '<script src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js" '
+                    'onload="window.adLoaded = true" onerror="window.adLoaded = false"></script>')
+            cookies = []
         elif page == '/whoami':
             signed_in = f'boaz_session={SESSION}' in self.headers.get('Cookie', '')
             body = f'<title>Boaz fixture {"signed in" if signed_in else "signed out"}</title>'

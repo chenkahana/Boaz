@@ -60,6 +60,97 @@ final class BoazAcceptanceUITests: XCTestCase {
         }
     }
 
+    /// Switches to the space named `BOAZ_ACCEPTANCE_SPACE` from the Spaces menu.
+    func testSwitchSpace() throws {
+        let name = try required("BOAZ_ACCEPTANCE_SPACE")
+        app.menuBars.menuBarItems["Spaces"].click()
+        let item = app.menuBars.menuItems[name]
+        XCTAssertTrue(item.waitForExistence(timeout: 10), "No \(name) in the Spaces menu")
+        item.click()
+        sleep(3)
+    }
+
+    /// Row 3, part B: loads each folder in `BOAZ_ACCEPTANCE_UNPACKED` (comma-separated) with chrome://extensions →
+    /// Developer mode → Load unpacked, in the current space's profile.
+    func testLoadUnpacked() throws {
+        let folders = try required("BOAZ_ACCEPTANCE_UNPACKED").split(separator: ",").map(String.init)
+        let window = app.windows.firstMatch
+        window.typeKey("l", modifierFlags: .command)
+        app.typeText("chrome://extensions\n")
+        let developer = app.descendants(matching: .any).matching(labelContaining: "Developer mode").firstMatch
+        XCTAssertTrue(developer.waitForExistence(timeout: 20), "chrome://extensions didn't open")
+        let load = app.buttons.matching(labelContaining: "Load unpacked").firstMatch
+        if !load.exists { developer.click() }
+        for folder in folders {
+            XCTAssertTrue(load.waitForExistence(timeout: 10), "No Load unpacked button")
+            load.click()
+            sleep(2)
+            app.typeKey("g", modifierFlags: [.command, .shift])
+            sleep(1)
+            app.typeText(folder + "\n")
+            sleep(1)
+            let select = app.buttons.matching(NSPredicate(format: "title IN %@ OR label IN %@",
+                                                          ["Select", "Open"], ["Select", "Open"])).firstMatch
+            XCTAssertTrue(select.waitForExistence(timeout: 10), "No folder chooser for \(folder)")
+            select.click()
+            sleep(3)
+            record("loaded \(folder)")
+        }
+    }
+
+    /// Row 3, part B: for each ID in `BOAZ_ACCEPTANCE_EXTENSIONS`, pin it, open its popup from the toolbar, unpin
+    /// it. With `BOAZ_ACCEPTANCE_FIXTURE` (the parity fixture's ID), also its shortcut and side panel.
+    func testExtensionControls() throws {
+        let ids = try required("BOAZ_ACCEPTANCE_EXTENSIONS").split(separator: ",").map(String.init)
+        let window = app.windows.firstMatch
+        for id in ids {
+            setPinned(id, true)
+            let action = app.buttons["control.extensionAction.\(id)"].firstMatch
+            XCTAssertTrue(action.waitForExistence(timeout: 10), "Pinning \(id) didn't add its toolbar button")
+            let before = app.popovers.count + app.windows.count
+            action.click()
+            XCTAssertTrue(waitUntil(15) { self.app.popovers.count + self.app.windows.count > before },
+                          "\(id)'s popup didn't open")
+            app.typeKey(.escape, modifierFlags: [])
+            sleep(1)
+            setPinned(id, false)
+            XCTAssertTrue(action.waitForNonExistence(timeout: 10), "Unpinning \(id) left its toolbar button")
+            record("controls \(id)")
+        }
+        if let fixture = ProcessInfo.processInfo.environment["BOAZ_ACCEPTANCE_FIXTURE"], !fixture.isEmpty {
+            window.typeKey("y", modifierFlags: [.command, .shift])  // _execute_action
+            XCTAssertTrue(app.descendants(matching: .any).matching(labelContaining: "Parity popup").firstMatch
+                .waitForExistence(timeout: 10), "The fixture's ⌘⇧Y shortcut didn't open its popup")
+            app.typeKey(.escape, modifierFlags: [])
+            sleep(1)
+            window.typeKey("u", modifierFlags: [.command, .shift])  // open-panel
+            let panel = app.descendants(matching: .any)["screen.extensionSidePanel"].firstMatch
+            XCTAssertTrue(panel.waitForExistence(timeout: 10), "The fixture's ⌘⇧U shortcut didn't open its side panel")
+            window.typeKey("u", modifierFlags: [.command, .shift])
+            XCTAssertTrue(panel.waitForNonExistence(timeout: 10), "The side panel didn't close")
+            record("fixture shortcut and side panel")
+        }
+    }
+
+    private func setPinned(_ id: String, _ pinned: Bool) {
+        let action = app.buttons["control.extensionAction.\(id)"].firstMatch
+        guard action.exists != pinned else { return }
+        let button = app.windows.firstMatch.buttons["control.extensions"]
+        XCTAssertTrue(button.waitForExistence(timeout: 10), "No extensions button")
+        button.click()
+        let pin = app.descendants(matching: .any)["control.extensionPin.\(id)"]
+        XCTAssertTrue(pin.waitForExistence(timeout: 10), "\(id) isn't in the extensions menu")
+        pin.click()
+        app.typeKey(.escape, modifierFlags: [])
+    }
+
+    private func required(_ name: String) throws -> String {
+        guard let value = ProcessInfo.processInfo.environment[name], !value.isEmpty else {
+            throw XCTSkip("Set \(name).")
+        }
+        return value
+    }
+
     /// Row 3, part A: each extension in `BOAZ_ACCEPTANCE_EXTENSIONS` (comma-separated IDs) installs from its live
     /// Chrome Web Store page with the store's own button and Boaz's sheet, lands in the toolbar and opens its popup.
     /// A consent, CAPTCHA or missing-listing page is never clicked through: after 3 tries the result is
