@@ -49,4 +49,44 @@ final class SpaceRoutingUITests: BoazUITestCase {
                       "The tab didn't move to Personal")
         XCTAssertEqual(app.windows.count, 1)
     }
+
+    // MARK: Screens for the UI review (attached to the result bundle, CI only)
+
+    private func attach(_ element: XCUIElement, _ name: String) {
+        let screenshot = XCTAttachment(screenshot: element.screenshot())
+        screenshot.name = "routing-\(name)-\(appearance.rawValue)"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    /// Settings › Sites, Customize Space › Sites that open here and the tab menu's rule item, as screenshots.
+    func testRuleScreens() {
+        openRoutedLink()
+        XCTAssertTrue(waitForSpace("Work"))
+        let tab = sidebar.buttons["example.test"].firstMatch
+        XCTAssertTrue(tab.waitForExistence(timeout: 10))
+
+        tab.rightClick()
+        let stop = app.menuItems["Stop Opening example.test in Work"].firstMatch
+        XCTAssertTrue(stop.waitForExistence(timeout: 3), "The tab menu has no rule item")
+        let contextMenu = app.menus.firstMatch
+        if contextMenu.exists { attach(contextMenu, "tab-menu") }
+        app.typeKey(.escape, modifierFlags: [])
+
+        menu("View", "Customize Space…")
+        let editor = element("screen.spaceEditor")
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        let section = editor.staticTexts["Sites that open here"].firstMatch
+        let list = editor.scrollViews.firstMatch
+        for _ in 0..<5 where !(section.exists && section.isHittable) { list.scroll(byDeltaX: 0, deltaY: -400) }
+        XCTAssertTrue(section.exists, "Customize Space has no Sites that open here")
+        attach(editor, "customize-space")
+        editor.buttons["Cancel"].firstMatch.click()
+        XCTAssertTrue(waitForDisappearance(editor))
+
+        let pane = openSettings(tab: "Sites")
+        let rule = pane.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'example.test'")).firstMatch
+        XCTAssertTrue(rule.waitForExistence(timeout: 5), "Settings › Sites lacks the rule")
+        attach(app.windows.containing(.any, identifier: "screen.settings.sites").firstMatch, "settings-sites")
+    }
 }
