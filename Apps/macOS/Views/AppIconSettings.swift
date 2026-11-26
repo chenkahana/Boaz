@@ -59,16 +59,20 @@ struct AppIconSettings: View {
             Text("Boaz wears it in the Dock. \(AppIconChoice.with(id: selection).caption).")
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            LazyVGrid(columns: columns, spacing: 14) {
-                ForEach(AppIconChoice.all) { choice in
-                    AppIconTile(choice: choice, selected: choice.id == selection) {
-                        withAnimation(.snappy(duration: 0.25)) { MacAppIcon.select(choice) }
+            // Its own scroll view, so the long Theme pane doesn't grow by every row of pretzels.
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 14) {
+                    ForEach(AppIconChoice.all) { choice in
+                        AppIconTile(choice: choice, selected: choice.id == selection) {
+                            withAnimation(.snappy(duration: 0.25)) { MacAppIcon.select(choice) }
+                        }
                     }
                 }
+                .padding(6)
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("App icons")
             }
-            .padding(6)
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel("App icons")
+            .frame(height: 300)
         }
         .padding(.vertical, 4)
     }
