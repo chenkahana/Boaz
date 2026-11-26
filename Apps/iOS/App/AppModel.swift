@@ -108,6 +108,22 @@ final class AppModel {
     private(set) var restoringTabs: Set<String> = []
     /// Tabs showing a load failure, whose snapshot would be blank: the carousel draws them a failed card instead.
     var failedTabs: Set<String> = []
+    /// What each tab's last load failed with, until a load commits (`followNavigations`). Observed per tab.
+    let loadFailures = ObservedDictionary<String, LoadFailure>()
+    /// Each live page's one `navigations` subscriber, which lives as long as the page.
+    @ObservationIgnored private var navigationTasks: [String: Task<Void, Never>] = [:]
+    /// When a page whose content iOS ended loads again on its own.
+    @ObservationIgnored private var crashRestores = CrashRestoreBudget()
+    /// Tabs whose failed load was already tried again on its own, until a load finishes: a page that keeps failing
+    /// shows the error rather than reloading forever.
+    @ObservationIgnored private var retriedTabs: Set<String> = []
+    /// Tabs whose page closed to save memory this launch. Opening one again is not its first load.
+    @ObservationIgnored private var evictedTabs: Set<String> = []
+    /// The width each tab's page last showed at (`RelayoutCover`).
+    @ObservationIgnored private var shownWidths: [String: CGFloat] = [:]
+    /// Incognito's cookies and storage, in memory only, shared by its tabs until Incognito ends: a private page
+    /// closed to save memory or ended by iOS comes back still signed in.
+    @ObservationIgnored private var incognitoDataStore: WKWebsiteDataStore?
     /// Tabs whose title is cooling down after a save, and whether it changed again meanwhile (`didChangeTitle`).
     @ObservationIgnored private var titleCooldowns: [String: Bool] = [:]
     /// The address each tab's current page was recorded at in history, which its later titles name (`didCommitLoad`).
@@ -116,12 +132,19 @@ final class AppModel {
     @ObservationIgnored private var liveItemIDs: Set<String> = []
     /// The stale-tab sweep waits until the tab open at the last quit is back on screen, which keeps it out of the sweep.
     @ObservationIgnored private var holdsSweeps = true
-    private let maxLivePages = 8
+    /// Two per gigabyte of memory, 6 to 16 (`PageResidencyPolicy.phoneLimit`).
+    private let maxLivePages = PageResidencyPolicy.phoneLimit(physicalMemory: ProcessInfo.processInfo.physicalMemory)
     /// This iPhone, in the device list: its tabs are the ones opened here (see `SidebarItem.isMobileTab`).
     let deviceID = Device.localID(in: UserDefaults(suiteName: BoazStore.appGroup) ?? .standard)
     /// Archived by closing, newest last; observed so the More menu's Reopen Closed Tab stays current.
     private var closedTabs: [(tab: SidebarItem, archiveID: String?, snapshot: UIImage?)] = []
     private static let log = Logger(subsystem: "com.chenkahana.boaz", category: "app")
+    /// Every load Boaz starts on its own, with why: switching among live tabs logs none.
+    private static let loadLog = Logger(subsystem: "com.chenkahana.boaz", category: "page-load")
+    private enum LoadReason: String {
+        case firstOpen = "first open", reopenAfterClosing = "reopened after closing to save memory"
+        case contentEnded = "content ended", retry = "failed load tried again"
+    }
 
     init() {
         UserDefaults.standard.register(defaults: [
@@ -133,6 +156,10 @@ final class AppModel {
         ])
         // Window-only scroll offsets from before 0.2.4, replaced by `pageStates`.
         UserDefaults.standard.removeObject(forKey: "scrollPositions")
+        _ = NotificationCenter.default.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification,
+                                                   object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.didReceiveMemoryWarning() }
+        }
     }
 
     // MARK: Lifecycle
@@ -351,7 +378,12 @@ final class AppModel {
         if let page = pages[tab.id] { return page }
         let tabIsPrivate = isPrivate(tab)
         var configuration = WebPage.Configuration()
-        if tabIsPrivate { configuration.websiteDataStore = .nonPersistent() }
+        // A browser still leaving the screen can ask for a private tab of an Incognito that just ended: that page
+        // gets a store of its own, never the next Incognito's.
+        if tabIsPrivate {
+            let current = incognitoTabs.contains { $0.id == tab.id }
+            configuration.websiteDataStore = current ? privateDataStore() : .nonPersistent()
+        }
         // Videos play in the page, as in Safari, rather than jumping to fullscreen (the iPhone default). Autoplay keeps
         // WebKit's default: nothing plays before the user taps.
         configuration.mediaPlaybackBehavior = .allowsInlinePlayback
@@ -402,6 +434,7 @@ final class AppModel {
         }
         page.customUserAgent = PageSettings.userAgent(forHost: tab.url?.host(), isPrivate: tabIsPrivate)
         if let url = tab.url {
+            logLoad(evictedTabs.contains(tab.id) ? .reopenAfterClosing : .firstOpen, tab.id)
             if blocksContent, contentBlockLists == nil {
                 awaitingBlockLists.append((configuration.userContentController, { [weak page] in
                     // Unless the page went somewhere else in the meantime.
@@ -412,6 +445,7 @@ final class AppModel {
             }
         }
         pages[tab.id] = page
+        navigationTasks[tab.id] = followNavigations(of: page, tabID: tab.id)
         if let state = pageStates(tabIsPrivate)[tab.id], tab.url?.isSamePage(as: state.url) == true {
             armRestore(state, for: tab.id)
         }
@@ -419,20 +453,72 @@ final class AppModel {
         return page
     }
 
-    /// Over the limit, the least recently used pages close, except those in a pane and those playing, recording or
-    /// in full screen: music in a background tab keeps playing however many tabs open after it.
+    /// Over the limit, the least recently used pages close, except those in a pane, those playing, recording or
+    /// in full screen (music in a background tab keeps playing however many tabs open after it) and those the user
+    /// typed into. Normal tabs' pages close before private ones (`PageResidencyPolicy`).
     private func closeIdlePages() {
         guard pages.count > maxLivePages, !isClosingIdlePages else { return }
         isClosingIdlePages = true
         Task {
-            let close = await PageResidency.pagesToClose(recency: pageRecency, pages: pages, limit: maxLivePages,
-                                                         keeping: pagesInView)
-            for id in close where !pagesInView.contains(id) {
-                pageRecency.removeAll { $0 == id }
-                pages[id] = nil
-            }
+            await closePages(downTo: maxLivePages, closesInput: false)
             isClosingIdlePages = false
         }
+    }
+
+    /// iOS is short of memory: idle pages close down to half the limit, typed-into ones too, before it ends the app.
+    private func didReceiveMemoryWarning() {
+        Self.log.notice("Memory warning with \(self.pages.count) live pages")
+        Task { await closePages(downTo: maxLivePages / 2, closesInput: true) }
+    }
+
+    private func closePages(downTo target: Int, closesInput: Bool) async {
+        var recency: [PageResidencyPolicy.Page] = []
+        for id in pageRecency {
+            guard let page = pages[id] else { continue }
+            let isPrivate = item(withID: id).map(isPrivate) ?? false
+            // The policy keeps the pages in view whatever they are doing.
+            if pagesInView.contains(id) {
+                recency.append(.init(id: id, isPrivate: isPrivate))
+                continue
+            }
+            let busy = await PageResidency.isBusy(page)
+            let typed = await PageState.hasInput(page)
+            recency.append(.init(id: id, isBusy: busy, isPrivate: isPrivate, hasInput: typed))
+        }
+        // The pages in view may have changed meanwhile.
+        for id in PageResidencyPolicy.pagesToClose(recency, target: target, keeping: pagesInView,
+                                                   closesInput: closesInput) where !pagesInView.contains(id) {
+            evictedTabs.insert(id)
+            dropPage(id)
+        }
+    }
+
+    /// Ends a tab's live page and the subscriber following it.
+    private func dropPage(_ id: String) {
+        pages[id] = nil
+        navigationTasks.removeValue(forKey: id)?.cancel()
+        pageRecency.removeAll { $0 == id }
+    }
+
+    /// A tab that closed: its page and everything kept about its loads.
+    private func forgetPage(_ id: String) {
+        dropPage(id)
+        loadFailures[id] = nil
+        crashRestores.forget(id)
+        retriedTabs.remove(id)
+        evictedTabs.remove(id)
+        shownWidths[id] = nil
+    }
+
+    private func privateDataStore() -> WKWebsiteDataStore {
+        if let incognitoDataStore { return incognitoDataStore }
+        let store = WKWebsiteDataStore.nonPersistent()
+        incognitoDataStore = store
+        return store
+    }
+
+    private func logLoad(_ reason: LoadReason, _ tabID: String) {
+        Self.loadLog.notice("\(reason.rawValue, privacy: .public): \(tabID, privacy: .public)")
     }
 
     private var pagesInView: Set<String> { Set([tabID(inPane: 0), tabID(inPane: 1)].compactMap(\.self)) }
@@ -473,18 +559,26 @@ final class AppModel {
         for id in pagesInView {
             if isActive { pictureInPicture(id)?.returnFromLeaving() } else { pictureInPicture(id)?.floatOnLeaving() }
         }
+        // Back in front: a page on screen whose content iOS ended meanwhile loads again once, and a load that failed
+        // for a passing reason (a connection dropped while suspended) tries again. Tabs off screen wait to be opened.
+        guard isActive else { return }
+        for id in pagesInView {
+            restoreIfShowing(id)
+            retryIfPassing(id)
+        }
     }
 
     private func pictureInPicture(_ tabID: String) -> PictureInPicture? {
         pages[tabID].flatMap(PictureInPicture.controller(of:))
     }
 
-    /// Called by `TabBrowser`'s single `page.navigations` subscriber on every finished load — the
-    /// async sequence only supports one consumer, so AppModel never subscribes to it directly.
-    func pageDidFinishLoading(_ tab: SidebarItem) {
+    /// Every finished load (`followNavigations`). A page that finished off screen isn't put back: laid out at another
+    /// size there, it would land elsewhere.
+    private func pageDidFinishLoading(_ tab: SidebarItem) {
         guard let page = pages[tab.id] else { return }
         let tabIsPrivate = isPrivate(tab)
-        if let state = pendingRestores.removeValue(forKey: tab.id), page.url?.isSamePage(as: state.url) == true {
+        if let state = pendingRestores.removeValue(forKey: tab.id), pagesInView.contains(tab.id),
+           page.url?.isSamePage(as: state.url) == true {
             // The preview waits for the page to be back at its place.
             Task {
                 await state.restore(on: page)
@@ -501,6 +595,126 @@ final class AppModel {
                   let iconURL = URL(string: href, relativeTo: pageURL)?.absoluteURL else { return }
             Favicons.shared.learn(iconURL: iconURL, forPageAt: pageURL, isPrivate: tabIsPrivate)
         }
+    }
+
+    // MARK: Loads
+
+    /// The one subscriber to a page's `navigations` (the sequence takes only one), for as long as the page is live.
+    /// A load that fails, or content iOS ends, while the tab is off screen is seen too, and shows once the tab does.
+    private func followNavigations(of page: WebPage, tabID: String) -> Task<Void, Never> {
+        Task { [weak self, weak page] in
+            var requested: URL?
+            while !Task.isCancelled, let page {
+                do {
+                    for try await event in page.navigations {
+                        guard let self, let tab = item(withID: tabID) else { return }
+                        switch event {
+                        case .startedProvisionalNavigation:
+                            loadFailures[tabID] = nil
+                            requested = page.url
+                            dropStalePendingScroll(tab)
+                        case .receivedServerRedirect:
+                            requested = page.url
+                        case .committed:
+                            setLoadFailure(LoadFailure(blocked: requested, committed: page.url), for: tabID)
+                            requested = nil
+                            didCommitLoad(tab)
+                            applyTextSize(to: page, tab: tab)
+                        case .finished:
+                            retriedTabs.remove(tabID)
+                            applyTextSize(to: page, tab: tab)
+                            pageDidFinishLoading(tab)
+                        default:
+                            break
+                        }
+                    }
+                    return // The sequence finished: the page is gone.
+                } catch WebPage.NavigationError.pageClosed {
+                    return
+                } catch {
+                    // A failed navigation ends the sequence; go round again so later loads are still followed.
+                    self?.navigationFailed(error, tabID: tabID)
+                    // Never spin if resubscribing fails straight away.
+                    try? await Task.sleep(for: .milliseconds(50))
+                }
+            }
+        }
+    }
+
+    private func navigationFailed(_ error: any Error, tabID: String) {
+        guard let page = pages[tabID] else { return }
+        if case WebPage.NavigationError.webContentProcessTerminated = error {
+            PictureInPicture.controller(of: page)?.pageDidReset()
+            // Owed a restore: it loads again once it is on screen. Ended again within a minute: it stays failed.
+            if crashRestores.contentEnded(tabID, at: .now) {
+                restoreIfShowing(tabID)
+            } else {
+                setLoadFailure(LoadFailure(error), for: tabID)
+            }
+            return
+        }
+        guard let failure = LoadFailure(error) else { return }
+        setLoadFailure(failure, for: tabID)
+        // A connection dropped while suspended can fail the first load back: try once more after a moment rather
+        // than leave the error up. In the background, the return to the app tries instead.
+        if failure.passes, isInForeground, pagesInView.contains(tabID), retriedTabs.insert(tabID).inserted {
+            Task {
+                try? await Task.sleep(for: .seconds(1))
+                retryIfPassing(tabID)
+            }
+        }
+    }
+
+    /// A tab stays failed until a load commits, so reopening it shows the failure at once, not a blank page.
+    private func setLoadFailure(_ failure: LoadFailure?, for tabID: String) {
+        loadFailures[tabID] = failure
+        if failure != nil {
+            failedTabs.insert(tabID)
+        } else if failedTabs.contains(tabID) {
+            failedTabs.remove(tabID)
+        }
+    }
+
+    /// A tab whose content iOS ended loads again once it is on screen with the app in front, back at its place under
+    /// its preview: at once if it was showing, else when the user opens it, never every such tab at once.
+    private func restoreIfShowing(_ tabID: String) {
+        guard isInForeground, pagesInView.contains(tabID), crashRestores.owesRestore(tabID),
+              let page = pages[tabID], let tab = item(withID: tabID), crashRestores.takeRestore(tabID) else { return }
+        logLoad(.contentEnded, tabID)
+        reloadEnded(page, tab: tab)
+    }
+
+    /// Loads a page whose content ended back at its place: the same page again, or the tab's address if it has none.
+    private func reloadEnded(_ page: WebPage, tab: SidebarItem) {
+        pageDidTerminate(tab)
+        if page.backForwardList.currentItem != nil {
+            _ = page.reload()
+        } else if let url = tab.url {
+            _ = page.load(URLRequest(url: url))
+        }
+    }
+
+    /// Back in front or back online: a load that failed for a passing reason loads again.
+    func retryIfPassing(_ tabID: String) {
+        guard loadFailures[tabID]?.passes == true else { return }
+        logLoad(.retry, tabID)
+        retry(tabID)
+    }
+
+    /// Try Again: always allowed, and never counted against an ended page's automatic restore.
+    func retry(_ tabID: String) {
+        guard let page = pages[tabID], let tab = item(withID: tabID) else { return }
+        let failure = loadFailures[tabID]
+        loadFailures[tabID] = nil
+        if failure?.kind == .crashed { return reloadEnded(page, tab: tab) }
+        // A failed link never became the current item, so reloading would reload the page before it.
+        if let url = failure?.url { _ = page.load(URLRequest(url: url)) } else { _ = page.reload() }
+    }
+
+    /// Text Size is CSS on the document, so each new document needs it again.
+    private func applyTextSize(to page: WebPage, tab: SidebarItem) {
+        let isPrivate = isPrivate(tab)
+        if PageZoom.level(for: page.url, isPrivate: isPrivate) != 1 { PageZoom.apply(to: page, isPrivate: isPrivate) }
     }
 
     /// Until the new page reports its own edge colors, a page or site seen before shows the colors it had.
@@ -544,7 +758,7 @@ final class AppModel {
 
     /// Drops a state waiting to be put back once the page is no longer loading the address it was saved at: it
     /// finished while its browser wasn't watching, or went somewhere else first.
-    func dropStalePendingScroll(_ tab: SidebarItem) {
+    private func dropStalePendingScroll(_ tab: SidebarItem) {
         guard let state = pendingRestores[tab.id], let page = pages[tab.id], let url = page.url,
               !page.isLoading || !url.isSamePage(as: state.url) else { return }
         pendingRestores[tab.id] = nil
@@ -553,27 +767,16 @@ final class AppModel {
 
     /// iOS ended the page's process: the reload that follows goes back to where the page was. The page has no address
     /// until then; the tab's is the one it showed.
-    func pageDidTerminate(_ tab: SidebarItem) {
+    private func pageDidTerminate(_ tab: SidebarItem) {
         guard let state = pageStates(isPrivate(tab))[tab.id], let url = pages[tab.id]?.url ?? tab.url,
               url.isSamePage(as: state.url) else { return }
         armRestore(state, for: tab.id)
     }
 
-    /// A live page coming back on screen goes back to where it was read there (see `PageState.returnToPlace`),
-    /// under its preview (what it showed then) for at most a second.
-    private func pageWillShowAgain(_ tabID: String) {
-        guard let page = pages[tabID], !page.isLoading, pendingRestores[tabID] == nil, !restoringTabs.contains(tabID),
-              let tab = item(withID: tabID), pageStates(isPrivate(tab))[tabID] != nil else { return }
-        restoringTabs.insert(tabID)
-        Task {
-            await PageState.returnToPlace(page)
-            endRestoring(tabID)
-        }
-        Task {
-            try? await Task.sleep(for: .seconds(1))
-            endRestoring(tabID)
-        }
-    }
+    /// The width a tab's page last showed at, which a browser showing it again compares with its own.
+    func shownWidth(of tabID: String) -> CGFloat? { shownWidths[tabID] }
+
+    func pageShows(_ tabID: String, atWidth width: CGFloat) { shownWidths[tabID] = width }
 
     /// The page goes back to `state` once it has loaded, under its preview for at most a second and a half.
     private func armRestore(_ state: PageState, for tabID: String) {
@@ -658,8 +861,10 @@ final class AppModel {
             pageClaims[tabID] = host
             pageOwners[tabID] = nil
         } else {
+            // A live page shows as it was, uncovered: its own script takes it back to its place if it moved off screen
+            // (`PageState.returnToPlace`). Only a page whose content ended loads.
             pageOwners[tabID] = host
-            pageWillShowAgain(tabID)
+            restoreIfShowing(tabID)
         }
     }
 
@@ -674,15 +879,15 @@ final class AppModel {
     }
 
     /// A Today or private tab whose only navigation turned into a download never showed a page. Drop it,
-    /// rather than keep a tab that downloads the file again every time it's opened.
+    /// rather than keep a tab that downloads the file again every time it's opened. Not a tab whose page closed to
+    /// save memory: its load now is not its first.
     private func discardIfDownloadOnly(_ tabID: String) {
-        guard pages[tabID]?.backForwardList.currentItem == nil,
+        guard !evictedTabs.contains(tabID), pages[tabID]?.backForwardList.currentItem == nil,
               let tab = sidebar.items.first(where: { $0.id == tabID }) ?? incognitoTabs.first(where: { $0.id == tabID }),
               !isPinned(tab) else { return }
         if activeTabID == tabID { activeTabID = nil }
         if otherPaneTabID == tabID { otherPaneTabID = nil }
-        pages[tabID] = nil
-        pageRecency.removeAll { $0 == tabID }
+        forgetPage(tabID)
         snapshots[tabID] = nil
         siteEdges[tabID] = nil
         SnapshotCache.remove(tabID)
@@ -732,7 +937,7 @@ final class AppModel {
     /// A page committed a new load: one history visit (except private tabs), at the address the load ended on. The
     /// address also changes for a load that hasn't committed yet, at every server redirect hop and for same-document
     /// updates (`replaceState`, fragments); none of those commit, so none adds a visit.
-    func didCommitLoad(_ tab: SidebarItem) {
+    private func didCommitLoad(_ tab: SidebarItem) {
         guard !isPrivate(tab), let page = pages[tab.id], let url = page.url, url.scheme?.hasPrefix("http") == true else {
             visitURLs[tab.id] = nil
             return
@@ -907,9 +1112,8 @@ final class AppModel {
         if activeTabID == tab.id { activeTabID = mostRecentTab(excluding: [tab.id, otherPaneTabID])?.id }
         if otherPaneTabID == tab.id { otherPaneTabID = mostRecentTab(excluding: [tab.id, activeTabID])?.id }
         pictureInPicture(tab.id)?.detach()
-        pages[tab.id] = nil
+        forgetPage(tab.id)
         settledCaptures.removeValue(forKey: tab.id)?.cancel()
-        pageRecency.removeAll { $0 == tab.id }
         let snapshot = snapshots[tab.id]
         snapshots[tab.id] = nil
         siteEdges[tab.id] = nil
@@ -975,12 +1179,12 @@ final class AppModel {
             isIncognito = true
         } else {
             for tab in incognitoTabs {
-                pages[tab.id] = nil
+                forgetPage(tab.id)
                 snapshots[tab.id] = nil
                 siteEdges[tab.id] = nil
             }
-            pageRecency.removeAll { id in incognitoTabs.contains { $0.id == id } }
             incognitoTabs = []
+            incognitoDataStore = nil
             privatePageStates = PageState.Store()
             PageSettings.forgetPrivateChoices()
             PageZoom.forgetPrivateLevels()

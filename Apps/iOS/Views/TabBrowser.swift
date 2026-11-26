@@ -12,7 +12,6 @@ struct TabBrowser: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.collapsesBar) private var collapsesBar
     @Environment(\.paneIndex) private var pane
-    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var typeSize
     @AppStorage(Preferences.tintWithSiteColorsKey) private var tintWithSiteColors = true
     let tab: SidebarItem
@@ -21,10 +20,6 @@ struct TabBrowser: View {
     @Binding var pageDirection: Edge
     @Binding var bump: Int
     @State private var dragX: CGFloat = 0
-    @State private var loadFailure: LoadFailure?
-    /// Set once a failed load has been tried again on its own, until a load finishes: a page that keeps failing
-    /// shows the error rather than reloading forever.
-    @State private var retriedOnItsOwn = false
     @State private var findVisible = false
 
     // Pull-to-refresh: derived straight from the page's own rubber-band at the top, so no extra
@@ -139,11 +134,15 @@ struct TabBrowser: View {
             .onChange(of: page.title) { model.didChangeTitle(tab) }
             .onChange(of: page.url) { model.restoreSiteEdges(for: tab) }
             .onChange(of: collapsesBar) { barCollapsed = false }
-            .task { await trackNavigations(of: page) }
-            // Back from the background, or back online: a load that failed for a passing reason loads again.
-            .onChange(of: scenePhase) { _, phase in if phase == .active { retryIfPassing(on: page) } }
+            // The Reader button's probe, once the page has loaded (or shows again, loaded already).
+            .task(id: page.isLoading) {
+                guard !page.isLoading, page.url != nil else { return }
+                readableLength = await Reader.estimatedReadableLength(of: page)
+            }
+            // Back online: a load that failed for want of a connection loads again (coming back to the app, the model
+            // tries; see `AppModel.sceneDidChange`).
             .task {
-                for await path in NWPathMonitor() where path.status == .satisfied { retryIfPassing(on: page) }
+                for await path in NWPathMonitor() where path.status == .satisfied { model.retryIfPassing(tab.id) }
             }
             .sheet(item: $readerArticle) { article in ReaderView(article: article, tint: Theme.brand) }
             .pageAISheet(tab: tab, page: page)
@@ -162,6 +161,9 @@ struct TabBrowser: View {
         if insets.top > 0, insets.leading == 0, insets.trailing == 0 { return true }
         return proxy.reservedRegions(kind: .occlusion).contains { $0.frame.maxY <= 1 && $0.frame.width > $0.frame.height }
     }
+
+    /// What the tab's last load failed with, until a load commits (`AppModel.loadFailures`).
+    private var loadFailure: LoadFailure? { model.loadFailures[tab.id] }
 
     private func handoffURL(_ page: WebPage) -> URL? {
         guard model.activeTabID == tab.id, !model.isPrivate(tab), loadFailure == nil,
@@ -203,7 +205,9 @@ struct TabBrowser: View {
             .overlay(alignment: .top) { SavePasswordPrompt(tabID: tab.id) }
             .animation(.smooth(duration: 0.25), value: PasswordAutofill.shared.offer)
             .modifier(RelayoutCover(page: page, scroll: scroll, snapshot: { [tab] in model.snapshots[tab.id] },
-                                    background: edges?.page.color ?? Color(.systemBackground)))
+                                    background: edges?.page.color ?? Color(.systemBackground),
+                                    shownWidth: model.shownWidth(of: tab.id),
+                                    onWidth: { [tab] in model.pageShows(tab.id, atWidth: $0) }))
             // A page loaded again shows its top until it is back at the reader's place: its preview covers it.
             .overlay {
                 if model.restoringTabs.contains(tab.id), let preview = model.snapshots[tab.id] {
@@ -212,10 +216,6 @@ struct TabBrowser: View {
             }
             .animation(.easeOut(duration: 0.2), value: model.restoringTabs.contains(tab.id))
             .onDisappear { [tab, hostID] in model.releasePage(tab.id, host: hostID) }
-            // A tab stays failed until a load commits, so reopening it shows the failure at once, not a blank page.
-            .onChange(of: loadFailure == nil) { _, loaded in
-                if !loaded { model.failedTabs.insert(tab.id) }
-            }
             .overlay {
                 // WebKit draws no error page of its own, so a failed load would otherwise stay blank.
                 if let loadFailure {
@@ -224,7 +224,7 @@ struct TabBrowser: View {
                     } description: {
                         Text(loadFailure.message)
                     } actions: {
-                        Button("Try Again") { retry(loadFailure, on: page) }
+                        Button("Try Again") { model.retry(tab.id) }
                             .buttonStyle(.glassProminent)
                     }
                     .tint(Theme.brand)
@@ -245,17 +245,6 @@ struct TabBrowser: View {
     private func setBarCollapsed(_ collapsed: Bool) {
         guard collapsed != barCollapsed else { return }
         withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : .smooth(duration: 0.3)) { barCollapsed = collapsed }
-    }
-
-    private func retryIfPassing(on page: WebPage) {
-        guard let loadFailure, loadFailure.passes else { return }
-        retry(loadFailure, on: page)
-    }
-
-    private func retry(_ failure: LoadFailure, on page: WebPage) {
-        loadFailure = nil
-        // A failed link never became the current item, so reloading would reload the page before it.
-        if let url = failure.url { _ = page.load(URLRequest(url: url)) } else { _ = page.reload() }
     }
 
     /// Steps to a neighbouring tab, for VoiceOver's Next Tab and Previous Tab actions.
@@ -341,135 +330,6 @@ struct TabBrowser: View {
             }
             translationText = text
         }
-    }
-
-    /// Text Size is CSS on the document, so each new document needs it again.
-    private func applyTextSize(to page: WebPage) {
-        let isPrivate = model.isPrivate(tab)
-        if PageZoom.level(for: page.url, isPrivate: isPrivate) != 1 { PageZoom.apply(to: page, isPrivate: isPrivate) }
-    }
-
-    /// The single subscriber to this page's `navigations` (the async sequence supports only one
-    /// consumer): on every finished load it tells the model to snapshot the tab and refreshes the
-    /// cheap text-length probe used to enable/disable the Reader button. A failed load is shown.
-    private func trackNavigations(of page: WebPage) async {
-        readableLength = 0
-        // A page shown again has loaded already, so no `.finished` comes to measure it.
-        if !page.isLoading, page.url != nil { Task { readableLength = await Reader.estimatedReadableLength(of: page) } }
-        model.dropStalePendingScroll(tab)
-        var requested: URL?
-        while !Task.isCancelled {
-            do {
-                for try await event in page.navigations {
-                    switch event {
-                    case .startedProvisionalNavigation:
-                        loadFailure = nil
-                        requested = page.url
-                        model.dropStalePendingScroll(tab)
-                    case .receivedServerRedirect:
-                        requested = page.url
-                    case .committed:
-                        loadFailure = LoadFailure(blocked: requested, committed: page.url)
-                        if loadFailure == nil { model.failedTabs.remove(tab.id) }
-                        requested = nil
-                        model.didCommitLoad(tab)
-                        applyTextSize(to: page)
-                    case .finished:
-                        retriedOnItsOwn = false
-                        applyTextSize(to: page)
-                        model.pageDidFinishLoading(tab)
-                        readableLength = await Reader.estimatedReadableLength(of: page)
-                    default:
-                        break
-                    }
-                }
-                return // The sequence finished: the page is gone.
-            } catch WebPage.NavigationError.pageClosed {
-                return
-            } catch {
-                // A failed navigation ends the sequence; go round again so later loads are still tracked.
-                if let failure = LoadFailure(error) { loadFailure = failure }
-                if case WebPage.NavigationError.webContentProcessTerminated = error {
-                    PictureInPicture.controller(of: page)?.pageDidReset()
-                    model.pageDidTerminate(tab)
-                }
-                // iOS ends a background page's process to free memory, and a connection dropped while suspended
-                // can fail the first load back: try once more after a moment rather than leave the error up. In the
-                // background, the return to the app tries instead.
-                if scenePhase == .active, !retriedOnItsOwn, loadFailure?.passes == true {
-                    retriedOnItsOwn = true
-                    Task {
-                        try? await Task.sleep(for: .seconds(1))
-                        retryIfPassing(on: page)
-                    }
-                }
-                // Never spin if resubscribing fails straight away.
-                try? await Task.sleep(for: .milliseconds(50))
-            }
-        }
-    }
-}
-
-/// Why a page couldn't load, and what Try Again should load.
-private struct LoadFailure {
-    let message: String
-    let url: URL?
-    var kind = PageFailureKind.unreachable
-    /// Whether it may well load on its own later: the connection was down or dropped, or the page's process ended.
-    var passes = false
-
-    /// Nil for navigations that were cut short rather than failed: superseded by another load, or turned into a download.
-    init?(_ error: any Error) {
-        let underlying: any Error
-        switch error as? WebPage.NavigationError {
-        case .failedProvisionalNavigation(let inner): underlying = inner
-        case .webContentProcessTerminated:
-            message = "Reload the page to continue."
-            url = nil
-            kind = .crashed
-            passes = true
-            return
-        case .invalidURL:
-            message = "The address isn't valid."
-            url = nil
-            return
-        case .pageClosed: return nil
-        default: underlying = error
-        }
-        let nsError = underlying as NSError
-        if nsError.domain == NSURLErrorDomain, nsError.code == NSURLErrorCancelled { return nil }
-        // WebKitErrorFrameLoadInterruptedByPolicyChange: the response became a download.
-        if nsError.domain == "WebKitErrorDomain", nsError.code == 102 { return nil }
-        if nsError.domain == NSURLErrorDomain {
-            switch nsError.code {
-            case NSURLErrorNotConnectedToInternet, NSURLErrorDataNotAllowed:
-                message = "Check your connection. The page loads again on its own when you're back online."
-            case NSURLErrorTimedOut, NSURLErrorNetworkConnectionLost:
-                message = "The connection was interrupted. Try again."
-            case NSURLErrorCannotFindHost:
-                message = "This website couldn't be found. Check the address and try again."
-            case NSURLErrorUnsupportedURL:
-                message = "No app is available to open this link."
-            default:
-                message = nsError.localizedDescription
-            }
-        } else {
-            message = nsError.localizedDescription
-        }
-        url = nsError.userInfo[NSURLErrorFailingURLErrorKey] as? URL
-        kind = PageFailureKind(nsError)
-        passes = nsError.domain == NSURLErrorDomain && [
-            NSURLErrorNotConnectedToInternet, NSURLErrorNetworkConnectionLost, NSURLErrorTimedOut,
-            NSURLErrorDataNotAllowed, NSURLErrorCannotFindHost, NSURLErrorCannotConnectToHost,
-        ].contains(nsError.code)
-    }
-
-    /// WebKit refuses some ports (1, 9, 25 and so on) without any navigation error: it commits about:blank instead.
-    init?(blocked requested: URL?, committed: URL?) {
-        guard committed?.absoluteString == "about:blank", let requested, requested.scheme?.hasPrefix("http") == true
-        else { return nil }
-        message = "Boaz couldn't open this address."
-        url = requested
     }
 }
 

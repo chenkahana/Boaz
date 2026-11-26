@@ -22,6 +22,12 @@ extension PageState {
         return PageState(place: place, savedAt: .now)
     }
 
+    /// Whether the user typed into the page since it loaded; false when it can't say.
+    static func hasInput(_ page: WebPage) async -> Bool {
+        let typed = try? await page.callJavaScript("return window.__boazPageState?.hasInput() ?? false;", contentWorld: world)
+        return typed as? Bool ?? false
+    }
+
     /// Puts the page back as its content arrives. Returns once it is there, after 8 seconds, or as soon as the user
     /// scrolls, taps or types.
     func restore(on page: WebPage) async {

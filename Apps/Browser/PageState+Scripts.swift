@@ -39,9 +39,11 @@ extension PageState {
             // it, or at the last reading), and it goes back to one once it is that wide again. Within two points: the
             // browser gives the rail a point of clearance as it appears.
             const near = width => Math.abs(innerWidth - width) <= 2;
-            let shown = null, kept = null, latest = null, before = null, latestAt = 0;
+            let shown = null, kept = null, latest = null, before = null, latestAt = 0, typed = false;
             ['wheel', 'touchstart', 'keydown', 'pointerdown']
                 .forEach(type => addEventListener(type, () => { shown = innerWidth; }, { capture: true, passive: true }));
+            // Text the user typed (a half-filled form) is lost if the page closes: the iPhone closes such pages last.
+            addEventListener('input', () => { typed = true; }, { capture: true, passive: true });
             const onScreen = () => document.visibilityState === 'visible' && (shown === null || near(shown));
             const keep = (state, width) => {
                 kept = { state, width };
@@ -141,7 +143,7 @@ extension PageState {
                 const reading = Date.now() - latestAt < 100 ? before : latest;
                 if (reading?.state) keep(reading.state, reading.width);
             });
-            window.__boazPageState = { read, restore, returnToPlace };
+            window.__boazPageState = { read, restore, returnToPlace, hasInput: () => typed };
         })();
         """
     }

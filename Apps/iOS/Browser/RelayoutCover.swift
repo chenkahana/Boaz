@@ -63,12 +63,16 @@ final class PageScroll {
 
 /// Covers a page while a posture change resizes it, as Safari does: its preview (the viewport as last seen at rest,
 /// `AppModel.snapshots`) scaled to the new width, until the size has held still and the page is back at the
-/// reader's place, then a quick cross-fade to the live page.
+/// reader's place, then a quick cross-fade to the live page. A page coming back at another width than it last showed
+/// at (the hinge moved while its tab was away) is covered the same way; one back at the same width is not.
 struct RelayoutCover: ViewModifier {
     let page: WebPage
     let scroll: PageScroll
     let snapshot: () -> UIImage?
     let background: Color
+    /// The width the page last showed at, in any browser.
+    let shownWidth: CGFloat?
+    let onWidth: (CGFloat) -> Void
     @Environment(\.posture) private var posture
     @State private var cover: UIImage?
     @State private var width: CGFloat = 0
@@ -84,8 +88,10 @@ struct RelayoutCover: ViewModifier {
             // the browser gives the rail as it appears (`TabBrowser`) is no new layout: held, a tab coming back would
             // go to a place read before it left, or the top.
             .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { new in
-                if width > 0, abs(new - width) > 1 { hold() }
+                let old = width > 0 ? width : shownWidth ?? 0
+                if old > 0, abs(new - old) > 1 { hold() }
                 width = new
+                onWidth(new)
             }
             .onGeometryChange(for: CGSize.self, of: { $0.size }) { _ in if scroll.isHeld { settle() } }
     }

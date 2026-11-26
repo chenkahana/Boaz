@@ -33,6 +33,15 @@ All notable changes to Boaz are recorded here. The format follows
   now also checks the old cookie file, and if WebKit hasn't handed the cookies over yet, it tries again next launch.
 - The Mac live folder UI test moves into the Pull Requests submenu before choosing a filter, so the submenu no
   longer closes under the pointer and fails the run.
+- iPhone: switching back to a tab no longer reloads it. Boaz keeps more pages open (up to 16, by how much memory the
+  iPhone has, up from 8), and a page comes back as you left it, with its scroll position, form text, playing media and
+  sign-in, and without the preview flashing over it. When iOS is short of memory, tabs you typed into and Incognito
+  tabs close last, and tabs in view, playing or in Picture in Picture never do.
+- iPhone: a tab whose page iOS ended while you were in another tab no longer comes back blank. It loads once, back
+  where you were, when you open it. A page that ends again within a minute shows "This Page Stopped Responding" with
+  Try Again instead of reloading over and over, and a network change no longer reloads it.
+- iPhone: Incognito tabs share one in-memory session until you leave Incognito, so an Incognito tab that reloads
+  stays signed in. Nothing of it is written to disk.
 
 ## [0.4.48] - 2026-11-26
 
