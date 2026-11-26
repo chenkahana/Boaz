@@ -46,6 +46,20 @@ final class BoazAcceptanceUITests: XCTestCase {
         XCTAssertEqual(named, [], "menus name an engine")
     }
 
+    /// Row 4: opens each address in `BOAZ_ACCEPTANCE_URLS` (comma-separated) as a new tab, as a person does with
+    /// ⌘T. (A link another app opens goes to a Quick Window instead, which isn't kept.)
+    func testOpenTabs() throws {
+        let urls = (ProcessInfo.processInfo.environment["BOAZ_ACCEPTANCE_URLS"] ?? "").split(separator: ",")
+        guard !urls.isEmpty else { throw XCTSkip("Set BOAZ_ACCEPTANCE_URLS to the addresses to open.") }
+        let window = app.windows.firstMatch
+        for url in urls {
+            window.typeKey("t", modifierFlags: .command)
+            sleep(1)
+            app.typeText(url + "\n")
+            sleep(3)
+        }
+    }
+
     /// Row 3, part A: each extension in `BOAZ_ACCEPTANCE_EXTENSIONS` (comma-separated IDs) installs from its live
     /// Chrome Web Store page with the store's own button and Boaz's sheet, lands in the toolbar and opens its popup.
     /// A consent, CAPTCHA or missing-listing page is never clicked through: after 3 tries the result is

@@ -2,7 +2,7 @@
 /Applications/Boaz.app and the current user's Boaz data. Pages are driven through Boaz's own opt-in Local
 Automation (authenticated DevTools protocol on 127.0.0.1); tabs are opened with `open -a`, as another app would.
 
-  runtime.py <Boaz.dmg> <output dir> [check ...]     checks: probe, menus, reopen, webstore (default: all)
+  runtime.py <Boaz.dmg> <output dir> [check ...]     checks: menus, reopen (with the probe), webstore (default: all)
 
 COHORT=all installs all 8 cohort extensions from the live Chrome Web Store; otherwise only uBlock Origin Lite.
 """
@@ -163,7 +163,7 @@ def probe(run):
     if not run.check(port_token is not None, 'Local Automation published its record'):
         return None
     port, token = port_token
-    pages = [t for t in targets(port, token) if t['type'] == 'page']
+    pages = sorted((t for t in targets(port, token) if t['type'] == 'page'), key=lambda t: not t['url'].startswith(SITE))
     run.check(bool(pages), f'Automation lists {len(pages)} page targets')
     run.note('targets: ' + ', '.join(sorted(t['url'] for t in targets(port, token))))
     if pages:
@@ -181,12 +181,12 @@ def reopen(run):
     run.heading('Reopen and quit')
     paths = [f'/reopen/{n}' for n in range(1, 4)]
     since = time.time()
-    for path in paths:
-        launch(SITE + path)
-        wait(30, lambda: any(e['path'] == path for e in run.logged()))
+    # Tabs, as a person opens them (⌘T): a link from another app opens in a Quick Window, which isn't kept.
+    native(run, 'testOpenTabs', BOAZ_ACCEPTANCE_URLS=','.join(SITE + p for p in paths))
     time.sleep(5)
     run.check(all(any(e['path'] == p for e in run.logged()) for p in paths), 'Boaz opened all 3 fixture tabs')
     agents_check(run, since, 'opened tabs')
+    probe(run)
     run.shot('reopen-before')
     quit_app(run, 'reopen')
     kept = {SITE + p for p in paths} & library_urls()
@@ -317,9 +317,10 @@ def main():
         defaults('onboardingCompleted', '-bool', 'YES')
         defaults('SUEnableAutomaticChecks', '-bool', 'NO')
         defaults('boaz.chromium.automation.enabled', '-bool', 'YES')
-        launch(SITE + '/probe')
-        wait(60, lambda: any(e['path'] == '/probe' for e in run.logged()))
-        for check in checks or ['probe', 'menus', 'reopen', 'webstore']:
+        launch()
+        automation()
+        time.sleep(5)
+        for check in checks or ['menus', 'reopen', 'webstore']:
             {'probe': probe, 'reopen': reopen, 'menus': menus, 'webstore': webstore}[check](run)
         if boaz_pids():
             quit_app(run, 'end')
