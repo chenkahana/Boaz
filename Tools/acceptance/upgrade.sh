@@ -40,11 +40,12 @@ page_loads() { grep "\"path\": \"$1\"" "$OUT/requests.jsonl" | grep '"mode": "na
 signed_in() { page_loads "$1" | tail -1 | grep -q "boaz_session=$SESSION"; }
 # The same, for the sign-in v0.2.18 kept in WebKit's default store (#188).
 cold_signed_in() { page_loads "$1" | tail -1 | grep -q "boaz_cold=$COLD"; }
-# The installed Boaz brings the default store's sign-ins over (0.5.0 and later); before that, #188 is a known gap.
-fixed_188() { [ "$(printf '%s\n' 0.5.0 "$(defaults read "$APP/Contents/Info" CFBundleShortVersionString)" | sort -V | head -1)" = 0.5.0 ]; }
+# The installed Boaz is 0.5.0 or later (a candidate is staged as 0.5.0), which fixes #188 and #191; before that
+# they are known gaps.
+fixed_in_050() { [ "$(printf '%s\n' 0.5.0 "$(defaults read "$APP/Contents/Info" CFBundleShortVersionString)" | sort -V | head -1)" = 0.5.0 ]; }
 check_cold() {
     if cold_signed_in "$1"; then pass "$2: the link-launched sign-in came back (#188)"
-    elif fixed_188; then fail "$2: the link-launched sign-in is gone (#188)"
+    elif fixed_in_050; then fail "$2: the link-launched sign-in is gone (#188)"
     else note "$2: the link-launched sign-in is gone: known gap #188 in this version"; fi
 }
 
@@ -159,7 +160,7 @@ for marker in BoazChromiumLegacyPreferencesImportedV1 BoazChromiumLegacyWebKitDa
     [ "$(prefs_value "$NEW_PREFS" "$marker")" = 1 ] && pass "$marker set" || fail "$marker not set"
 done
 cookie_state() {
-    if fixed_188; then
+    if fixed_in_050; then
         for key in "BoazChromiumLegacyCookiesImportV2.$PROFILE" BoazChromiumLegacyDefaultCookiesImportedV1; do
             note "$key: $(python3 -c 'import plistlib, sys; v = plistlib.load(open(sys.argv[1], "rb")).get(sys.argv[2]); print(v.decode() if isinstance(v, bytes) else v)' "$NEW_PREFS.plist" "$key")"
         done
@@ -213,10 +214,12 @@ upgraded=$(tail -n +"$((UPGRADED_FROM + 1))" "$OUT/requests.jsonl")
 webkit=$(echo "$upgraded" | grep '"mode": "navigate"' | grep 'AppleWebKit/605' | grep -v 'Chrome/')
 safari=$(echo "$upgraded" | grep -E 'Version/[0-9.]+ Safari/')
 paths() { echo "$1" | sed -E 's/.*"path": "([^"]*)".*/\1/' | sort -u | tr '\n' ' '; }
+# A published version before 0.5.0 has #191, so there it's only noted.
+known_191() { if fixed_in_050; then fail "$1 (#191)"; else note "KNOWN #191 (fixed in 0.5.0): $1"; fi; }
 if [ -z "$webkit" ]; then pass "every page the upgraded Boaz loaded ran in Chromium"
-else fail "WebKit loaded $(paths "$webkit")(#191)"; fi
+else known_191 "WebKit loaded $(paths "$webkit")"; fi
 if [ -z "$safari" ]; then pass "no request from the upgraded Boaz presented as Safari"
-else fail "requests for $(paths "$safari")presented as Safari (#191)"; fi
+else known_191 "requests for $(paths "$safari")presented as Safari"; fi
 
 log show --last 30m --info --predicate "subsystem == \"$ID\"" > "$OUT/boaz.log" 2>&1
 log show --last 30m --predicate 'process == "tccd"' 2>/dev/null | grep -i -E "boaz|AppData" > "$OUT/tccd.log"

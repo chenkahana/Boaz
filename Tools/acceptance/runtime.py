@@ -158,6 +158,12 @@ def agents_check(run, since, label):
     since_then = [entry for entry in run.logged() if entry['time'] >= since]
     pages = [entry for entry in since_then if entry.get('mode') == 'navigate' and entry.get('dest') == 'document']
     webkit = sorted({entry['path'] for entry in since_then if WEBKIT_AGENT.search(entry['agent'])})
+    version = plistlib.loads((APP / 'Contents/Info.plist').read_bytes())['CFBundleShortVersionString']
+    if webkit and tuple(int(part) for part in version.split('.')[:3]) < (0, 5, 0):
+        # A published version before 0.5.0 has #191 (a candidate is staged as 0.5.0).
+        run.check(bool(pages), f'{label}: {len(pages)} page loads')
+        run.note(f'KNOWN #191 (fixed in 0.5.0): {label}: requests for {", ".join(webkit)} presented as Safari')
+        return
     run.check(bool(pages) and not webkit,
               f'{label}: all {len(pages)} page loads used Chromium' if not webkit else
               f'{label}: requests for {", ".join(webkit)} presented as Safari (must-have #1, #191)')
