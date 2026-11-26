@@ -131,6 +131,7 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
                   let window = browser.window, window.attachedSheet == nil else { return }
             Task { await ChromiumPasswordFill.run(on: page, window: window) { browser.model.showToast($0) } }
         }
+        add(passwords, "Show All Passwords", enabled: { _ in true }, perform: { [weak self] _ in self?.openScene("passwords") })
 
         let view = menu("View")
         add(view, "Picture in Picture", command: .pictureInPicture, enabled: hasEnginePage) {
@@ -151,7 +152,8 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
         add(view, "Archive", command: .showArchive, enabled: { _ in true }) { [weak self] _ in self?.openScene("archive") }
         add(view, "Downloads…", enabled: { $0?.chromiumProfileIdentity != nil }) { $0?.libraryPanelPresented = true }
         let history = menu("History")
-        add(history, "Show All History", enabled: { _ in true }, perform: { [weak self] _ in self?.openScene("history") }, key: "y")
+        // Chromium's own history page, for the current space's profile.
+        add(history, "Show All History", enabled: { $0 != nil }, perform: { $0?.openChromiumPage("history") }, key: "y")
 
         let tabs = menu("Tabs")
         add(tabs, "Pin Tab", command: .pinTab, enabled: { $0?.activeTab != nil && $0?.isIncognito == false },
@@ -302,6 +304,17 @@ final class ChromiumApplicationMenu: NSObject, NSMenuItemValidation {
     @objc private func invoke(_ item: NSMenuItem) {
         guard validateMenuItem(item), let entry = entries[item.tag] else { return }
         entry.perform(activeBrowser())
+    }
+}
+
+extension BrowserState {
+    /// Opens one of Chromium's own pages (`chrome://<host>`) in this window, or goes to its tab when one is open.
+    func openChromiumPage(_ host: String) {
+        if let open = cycleTabs.first(where: { $0.url?.scheme == "chrome" && $0.url?.host() == host }) {
+            activate(open)
+        } else if let url = URL(string: "chrome://\(host)") {
+            openTab(url, engine: .chromium)
+        }
     }
 }
 #endif

@@ -14,7 +14,7 @@ final class AppIconUITests: BoazUITestCase {
         launch(appearance: appearance)
         XCTAssertTrue(mainWindow.waitForExistence(timeout: 10))
 
-        let screen = openSettings(tab: "App Icon")
+        let screen = openSettings(tab: "Theme")
 
         for id in ["neon", "salted"] {
             let tile = screen.buttons["control.appIcon.\(id)"]

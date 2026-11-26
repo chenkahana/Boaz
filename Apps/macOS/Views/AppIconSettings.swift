@@ -48,20 +48,18 @@ enum MacAppIcon {
     }
 }
 
-/// Settings ▸ App Icon: every pretzel as a tile; hover lifts it, the chosen one wears a ring.
+/// Settings ▸ Theme ▸ App Icon: every pretzel as a tile; hover lifts it, the chosen one wears a ring.
 struct AppIconSettings: View {
     @AppStorage(AppIconChoice.selectionKey) private var selection = AppIconChoice.classic.id
 
     private let columns = [GridItem(.adaptive(minimum: 104, maximum: 120), spacing: 12)]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Pick a pretzel").font(.title3.weight(.semibold))
-                Text("Boaz wears it in the Dock. \(AppIconChoice.with(id: selection).caption).")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Boaz wears it in the Dock. \(AppIconChoice.with(id: selection).caption).")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            // Its own scroll view, so the long Theme pane doesn't grow by every row of pretzels.
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 14) {
                     ForEach(AppIconChoice.all) { choice in
@@ -74,9 +72,9 @@ struct AppIconSettings: View {
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("App icons")
             }
-            .frame(height: 430)
+            .frame(height: 300)
         }
-        .padding(20)
+        .padding(.vertical, 4)
     }
 }
 
