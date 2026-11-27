@@ -13,8 +13,8 @@ document explains how the pieces fit together and the rules each layer follows.
 | Widgets | iOS | `Apps/Extensions/Widgets`, `Apps/Shared` | `com.chenkahana.boaz.widgets` |
 | BoazKit | iOS 17+, macOS 14+ (Swift package) | `Packages/BoazKit` | — |
 
-The iPhone and Mac apps share one bundle ID, so they are one App Store record (universal purchase) and one iCloud
-App ID. The iOS app and its extensions share the app group `group.com.chenkahana.boaz`, where the library database
+The iPhone app is Boaz's only App Store product; the Mac browser is the Chromium DMG distributed on GitHub (the Mac
+App Store app was retired 2026-11-27). The iOS app and its extensions share the app group `group.com.chenkahana.boaz`, where the library database
 lives. Targets, entitlements and Info.plist keys are defined in [`project.yml`](../project.yml); the Xcode project is
 generated from it.
 
@@ -105,7 +105,7 @@ played first, then sound, then size). Floating calls into that frame through the
 sites' frames float too. Each app floats a playing video when its tab leaves view or the app or window does, and
 brings back what it floated when the user returns. On the Mac, WebKit floats video only with the preference
 `_allowsPictureInPictureMediaPlayback`, which has no public setter: only the DMG build (`DIRECT_DISTRIBUTION`) sets it,
-so the App Store build has no Picture in Picture and no menu item or setting for it. If a WebKit update renames that
+so a build without that condition has no Picture in Picture and no menu item or setting for it. If a WebKit update renames that
 preference or the `WKWebView` property, Picture in Picture stops and nothing else does. The iPhone app declares the
 `audio` background mode, which iOS needs for a video to keep playing, or float, once the app is left.
 
@@ -152,7 +152,7 @@ When the SDK changes, check, on both apps:
 - `backingWebView(of:)` still finds the view, and the tab's `uiDelegate` is still a `WebKit.`-prefixed class. If
   either fails, new windows keep their old placement and the app logs `No pop-up host` once (subsystem
   `com.chenkahana.boaz`, category `popups`); Mac extensions lose per-tab scripting the same way.
-- Settings ▸ About in the WebKit builds (iPhone, Mac App Store) shows a "WebKit internals" line: "No problems seen",
+- Settings ▸ About in the WebKit build (iPhone) shows a "WebKit internals" line: "No problems seen",
   or "Degraded: pop-ups" once a fallback has happened this launch (`WebKitInternals`). `ScreenTests.testWebKitInternalsStillWorkAfterAScriptWindow` fails when
   it reads Degraded after a script window; CI runs it on every change, so an SDK bump that breaks it is caught there.
 - JavaScript alert, confirm and prompt, file inputs, camera and microphone prompts and fullscreen still work on a

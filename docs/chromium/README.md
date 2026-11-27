@@ -1,6 +1,6 @@
 # Chromium migration
 
-The GitHub DMG runs Chromium (from Boaz 0.3.0, PR #70) while the Mac App Store and iPhone apps remain on WebKit. The DMG keeps both engines at runtime: any tab or site can switch to WebKit. One window shows the spaces of every profile, each profile with its own Chromium browser inside it (see [the host contract](direct-host-contract.md#abi-56-profiles-sharing-a-window)). Widevine remains disabled pending approval; protected media uses WebKit.
+The GitHub DMG runs Chromium (from Boaz 0.3.0, PR #70) while the iPhone app remains on WebKit (the Mac App Store app was retired 2026-11-27). The DMG keeps both engines at runtime: any tab or site can switch to WebKit. One window shows the spaces of every profile, each profile with its own Chromium browser inside it (see [the host contract](direct-host-contract.md#abi-56-profiles-sharing-a-window)). Widevine remains disabled pending approval; protected media uses WebKit.
 
 ## Current status
 

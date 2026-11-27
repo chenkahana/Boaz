@@ -2,12 +2,12 @@
 
 ## Supported versions
 
-Security fixes go into the latest App Store release of Boaz for iPhone and Mac, and the latest GitHub release of
+Security fixes go into the latest App Store release of Boaz for iPhone, and the latest GitHub release of
 Boaz for Mac (the DMG). Older versions are not patched; update to the latest version.
 
 | Version | Supported |
 |---|---|
-| App Store 1.x (latest) | Yes |
+| iPhone App Store 1.x (latest) | Yes |
 | Mac DMG, latest GitHub release | Yes |
 | Earlier builds and TestFlight betas | No |
 
@@ -17,8 +17,11 @@ Boaz for Mac runs its own build of Chromium. When Google ships a Chrome stable u
 ship a Boaz update on the same Chromium version within 72 hours of Google's release. A fix Google marks as exploited
 in the wild gets first priority. Installed copies update through Sparkle, and the newest DMG is always on
 [GitHub Releases](https://github.com/chenkahana/Boaz/releases/latest). If we miss the target, that release's notes say
-so and give the lag. The iPhone and Mac App Store apps use Apple's WebKit, which updates with iOS and macOS. Report
+so and give the lag. The iPhone app uses Apple's WebKit, which updates with iOS. Report
 Chromium engine bugs to the [Chromium project](https://issues.chromium.org).
+
+Security updates ship as soon as the build passes CI and the acceptance checks; they do not wait for the usual
+one-day soak.
 
 ## Reporting a vulnerability
 

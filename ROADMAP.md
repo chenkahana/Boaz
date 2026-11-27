@@ -17,7 +17,7 @@ This page is the public highlights, in the order we work them. Releases and thei
 
 - Phishing and malware protection, without your browsing history leaving the device
 - Passwords that sync across your iPhone and Mac, with AutoFill on iOS
-- One clear, honest story for the two builds: the App Store apps run WebKit, the Mac DMG from GitHub runs Chromium
+- One clear, honest story per platform: the Mac browser is the Chromium DMG from GitHub; the iPhone app is its WebKit companion
 
 ## Later: simplicity
 
@@ -29,7 +29,7 @@ This page is the public highlights, in the order we work them. Releases and thei
 
 - A TestFlight beta ring
 - Crash reporting that respects you: no telemetry, ever
-- A routine App Store submission pipeline
+- A routine App Store submission pipeline (iPhone)
 
 ## Not planned
 

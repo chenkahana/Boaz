@@ -1,6 +1,6 @@
 # Protected playback and Widevine
 
-Boaz's DMG will keep WebKit alongside Chromium. Protected playback through WebKit is required before release. Widevine stays disabled until Google authorizes the integration and the signed distribution passes playback verification. The public Mac App Store and iPhone builds remain WebKit-only.
+Boaz's DMG will keep WebKit alongside Chromium. Protected playback through WebKit is required before release. Widevine stays disabled until Google authorizes the integration and the signed distribution passes playback verification. The public iPhone build remains WebKit-only (the Mac App Store build was retired 2026-11-27).
 
 ## Current application status
 

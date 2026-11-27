@@ -19,9 +19,9 @@ Moving between engines is a navigation with separate cookies/storage, not a loss
 ## Requested implementation scope
 
 1. TWO ENGINES IN THE MAC DMG (replaces "Chromium only in the DMG")
-- The DMG app contains BOTH engines at runtime. Chromium is the default for new pages. WebKit is the system framework, so it adds no size. The Mac App Store build stays WebKit-only, as planned.
+- The DMG app contains BOTH engines at runtime. Chromium is the default for new pages. WebKit is the system framework, so it adds no size. (Update 2026-11-27: the Mac App Store build, WebKit-only, is retired; the DMG is the only Mac product.)
 - The Phase 1 engine layer (Apps/Engine) now serves both engines at once. Targets:
-  - Boaz-macOS (App Store) compiles Apps/Engine/WebKit only.
+  - Boaz-macOS (App Store, retired 2026-11-27) compiles Apps/Engine/WebKit only.
   - Boaz-macOS-DMG compiles Apps/Engine/WebKit AND Apps/Engine/Chromium.
   - The condition ENGINE_CHROMIUM now means "Chromium is available". WebKit is always available.
   - The rule still holds: no `import WebKit` above Apps/Engine/WebKit, and no CEF/Chromium headers outside the bridge.
@@ -36,7 +36,7 @@ Moving between engines is a navigation with separate cookies/storage, not a loss
 - Each engine keeps its own website data (cookies and storage), per profile. Document this in the help text.
   - The Phase 4 one-time cookie copy from WebKit into Chromium stays, so current DMG users stay signed in.
   - The WebKit data is NOT deleted: WebKit pages keep using it.
-- Extensions in the DMG are Chromium-only (Chrome Web Store), as in Crest. The WKWebExtension code stays for the App Store build. At the first Chromium launch, reinstall from the store the Web Store extensions listed in today's installed.json. List unpacked ones in a "reinstall these" sheet.
+- Extensions in the DMG are Chromium-only (Chrome Web Store), as in Crest. The WKWebExtension code stayed for the Mac App Store build, retired 2026-11-27. At the first Chromium launch, reinstall from the store the Web Store extensions listed in today's installed.json. List unpacked ones in a "reinstall these" sheet.
 - Parity now means: every feature in parity.md works for BOTH engine kinds in the DMG, except extensions (Chromium) and Picture in Picture rules per engine. Add an "engine" column to parity.md.
 
 2. PROTECTED MEDIA (DRM) ROUTING

@@ -99,6 +99,6 @@ identifies itself to Google's sites (it presents as Chrome). Boaz doesn't spoof 
 Downloading extension code from the Chrome Web Store risks rejection under App Review Guideline 2.5.2 (apps may not
 download code that adds or changes features). So **Install from Chrome Web Store…** and the Add to Boaz button exist
 only in the WebKit DMG build: `project-dmg.yml` sets the `DIRECT_DISTRIBUTION` compilation condition, and the App
-Store and Chromium (`BOAZ_CHROMIUM`) builds don't compile that code. Load Unpacked… and Install from File… remain in
+Store (iPhone) and Chromium (`BOAZ_CHROMIUM`) builds don't compile that code. Load Unpacked… and Install from File… remain in
 both builds: the user picks the files, as with any document, but App Review may still question them. If it does, wrap their menu items in
 `#if DIRECT_DISTRIBUTION` as well.

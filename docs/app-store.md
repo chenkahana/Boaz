@@ -1,18 +1,19 @@
 # Boaz on the App Store
 
-Everything needed to submit Boaz for iPhone and Mac. Facts here match the code as of version 1.0 (build 1).
+Everything needed to submit Boaz for iPhone. The Mac app was retired from the App Store on 2026-11-27; the Mac
+browser is the Chromium DMG from GitHub. Facts here match the code as of version 1.0 (build 1).
 
 ## App record
 
 | Field | Value |
 |---|---|
 | Name | Boaz Browser ("Boaz" is taken) |
-| Bundle ID | `com.chenkahana.boaz` (iPhone and Mac share it: one record, universal purchase) |
-| Platforms | iOS (iPhone; runs on iPad in compatibility mode) and macOS |
+| Bundle ID | `com.chenkahana.boaz` |
+| Platforms | iOS (iPhone; runs on iPad in compatibility mode) |
 | SKU | `boaz` |
 | Primary / secondary category | Productivity / Utilities |
-| Minimum OS | iOS 27.1, macOS 26.0 |
-| Version / build | 1.0.1 / 6 (iPhone 1.0 is approved; Mac 1.0 (4) is uploaded) (`MARKETING_VERSION`, `CURRENT_PROJECT_VERSION` in `project.yml`) |
+| Minimum OS | iOS 27.1 |
+| Version / build | 1.0.1 / 6 (iPhone 1.0 is approved; the Mac build was retired 2026-11-27) (`MARKETING_VERSION`, `CURRENT_PROJECT_VERSION` in `project.yml`) |
 | Price | Free |
 | Support URL | https://github.com/chenkahana/Boaz/issues |
 | Privacy Policy URL | https://github.com/chenkahana/Boaz/blob/master/docs/privacy.md |
@@ -129,12 +130,12 @@ iPad screenshots aren't needed for an iPhone-only app.
    Pending as of 0.5.0: record type `SpaceRoute` (site rules; fields `profileID`, `spaceID`, `position`,
    `modifiedAt`, `deletedAt`, encrypted `host` and `pathPrefix`, from `Sync/SpaceRouteRecord.swift`). Until it is
    deployed, release builds keep site rules on the Mac and Settings › Sites says so; the rest of the library syncs.
-2. **App Store Connect** › Apps › New App: iOS and macOS, name Boaz Browser, bundle ID `com.chenkahana.boaz`, SKU `boaz`.
-3. **Upload builds**: double-click `build/archives/Boaz-iOS.xcarchive` and `Boaz-macOS.xcarchive` (opens them in
-   Xcode's Organizer) › Distribute App › App Store Connect › Upload. To rebuild them first, run `make archive`.
+2. **App Store Connect** › Apps › New App: iOS, name Boaz Browser, bundle ID `com.chenkahana.boaz`, SKU `boaz`.
+3. **Upload builds**: double-click `build/archives/Boaz-iOS.xcarchive` (opens it in
+   Xcode's Organizer) › Distribute App › App Store Connect › Upload. To rebuild it first, run `make archive`.
    Raise `CURRENT_PROJECT_VERSION` in `project.yml` for every new upload, and add the release to `CHANGELOG.md`.
 4. Fill the listing from this file, upload the screenshots, answer App Privacy and Age Rating as above.
-5. Add both builds to version 1.0 and **Submit for Review**.
+5. Add the build to the version and **Submit for Review**.
 
 ## Xcode Cloud
 
@@ -146,7 +147,7 @@ iPad screenshots aren't needed for an iPhone-only app.
 - `ci_post_xcodebuild.sh` fills TestFlight's "What to Test" with the last five commit subjects after an App Store archive.
 
 The `Boaz-iOS` and `Boaz-macOS` schemes are shared (`scheme: {}` in `project.yml`), which Xcode Cloud requires.
-Create the workflows once in Xcode (Product › Xcode Cloud › Create Workflow): Archive `Boaz-iOS` and `Boaz-macOS`
+Create the workflows once in Xcode (Product › Xcode Cloud › Create Workflow): Archive `Boaz-iOS`
 on pushes to `master`, with TestFlight (Internal Testing) as the post-action, on the newest Xcode 27 environment.
 
 ## Crash review
@@ -156,7 +157,7 @@ Every release has a crash review step, and the release ships only if it finds no
 the crashes. It only gets them from users who share analytics with app developers, and from every TestFlight tester.
 
 1. **App Store Connect** › Apps › Boaz Browser › TestFlight › Crashes for TestFlight builds, and App Analytics ›
-   Crashes for the counts from App Store builds. Check the iPhone and the Mac versions that are out now.
+   Crashes for the counts from App Store builds. Check the iPhone version that is out now.
 2. **Xcode** › Window › Organizer › Crashes, signed in with the team account. It groups the same reports by signature
    and shows them symbolicated, because Xcode Cloud and `make archive` uploads include the dSYMs (keep "Upload
    your app's symbols" checked when you upload by hand).

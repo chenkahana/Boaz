@@ -95,8 +95,8 @@ the target is missed, the release notes say so and give the lag. A detected or c
 
 ## Release rules for security updates
 
-`docs/release.md` asks engine changes to soak for a day before the next risky release. Whether a security update
-skips the soak, or soaks after it ships, is Chen's call. Until he decides, a security update follows the normal rule.
+`docs/release.md` asks engine changes to soak for a day before the next risky release. Decided 2026-11-27: a
+security update skips the soak and ships as soon as CI and the acceptance harness pass.
 
 ## Drill record
 

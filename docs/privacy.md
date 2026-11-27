@@ -44,8 +44,17 @@ collect, see or sell any of it.
 - What you type in the address bar goes to the search engine you choose in Settings (DuckDuckGo by default) only
   when you search. Suggestions while typing come from your own history on the device.
 - Site icons are fetched directly from each site, not through a third-party icon service.
-- On Mac, installing an extension from the Chrome Web Store downloads it from Google, as Chrome does. Boaz contacts
-  Google only when you install one.
+- On Mac, Boaz is built on Chromium. Like other Chromium browsers, it checks with Google's component update
+  service shortly after it starts and every few hours after that. It downloads the security data a browser needs
+  (lists of revoked certificates, certificate-transparency logs, lists of lookalike and abusive sites) and a few
+  other Chromium data files. The check names Boaz's Chromium version, the macOS version, the processor type, the
+  language and the files it already has. It contains no account, identifier, history or addresses you visit. As
+  with any connection, Google sees your IP address.
+- At startup, Boaz on Mac also asks Google for the current time, used to explain certificate errors caused by a
+  wrong clock, and opens connections to www.google.com and www.gstatic.com before you browse. No browsing data is
+  sent.
+- Installing an extension from the Chrome Web Store downloads it from Google, as Chrome does, and installed
+  extensions are checked with Google for updates every few hours.
 - Boaz blocks known ad and tracking requests and, on iPhone, can decline non-essential cookies on cookie banners.
 
 ## Device permissions

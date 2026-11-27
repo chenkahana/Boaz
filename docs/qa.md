@@ -122,7 +122,7 @@ and error states look intentional. Check RTL text too (for example ynet.co.il).
 - [ ] **Password sync** (team-signed builds on the test Apple Account, iCloud Keychain on both): save a password on
       the DMG and fill it on the iPhone, then the reverse. Change the password on one device and fill the new one on
       the other; delete it on one (one confirmation) and it's gone from the other. Turn iCloud Keychain off on one
-      device: what it saves stays there. On one Mac, the DMG and the App Store app list the same passwords. The
+      device: what it saves stays there. The
       dev-signed DMG (`com.chenkahana.boaz.chromium.dev`) sees none, by design.
 - [ ] **AutoFill (iPhone)**: Settings › Passwords › Use Boaz Passwords in Other Apps, accept iOS's prompt, and the row
       reads Used in Other Apps. In Safari, a login field's key icon › Boaz asks for Face ID, lists the site's

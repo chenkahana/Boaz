@@ -12,8 +12,7 @@
 Boaz never sends crash reports on its own. If Boaz quit unexpectedly, you can add the report to your bug report:
 
 - **Mac:** open Console (Applications › Utilities), choose Crash Reports, and select the newest report for Boaz. The
-  version downloaded from GitHub files its reports as "Chromium", the engine it's built on; the App Store version
-  files them as "Boaz". Control-click the report, choose Reveal in Finder, then Control-click the file and choose
+  version downloaded from GitHub files its reports as "Chromium", the engine it's built on. Control-click the report, choose Reveal in Finder, then Control-click the file and choose
   Compress. Drag the .zip into the bug report. GitHub doesn't accept .ips files as they are.
 - **iPhone:** in the Settings app, open Privacy & Security › Analytics & Improvements › Analytics Data. Tap the
   newest entry that starts with "Boaz", tap Share and choose Save to Files. In Files, touch and hold the file,

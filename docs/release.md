@@ -1,6 +1,6 @@
 # Preparing the GitHub Mac DMG
 
-The default release path is Chromium with Boaz's native interface and in-app WebKit fallback. Mac App Store and iOS still use WebKit. PR #70 remains draft until essential production-distribution and existing-feature acceptance passes.
+The default release path is Chromium with Boaz's native interface and in-app WebKit fallback. iOS still uses WebKit; the Mac App Store app was retired on 2026-11-27, so the DMG is the only Mac product. PR #70 remains draft until essential production-distribution and existing-feature acceptance passes.
 
 Build the pinned native host and matching Release UI with `make mac-dmg`. The guarded build uses `/Volumes/BoazBuild/cef`; keep that image attached. Build receipts identify completed immutable inputs. Do not combine a UI library with a different native ABI.
 
@@ -46,11 +46,12 @@ soak before the next risky one ships:
 1. Release it as usual, but do not merge another engine, sync or migration change until it has run on your own
    Mac and iPhone for a full day, with the Mac updated through Sparkle rather than a fresh install.
 2. In that day, check the three things that fail quietly: tabs, spaces and sign-ins survive the update; two devices
-   still converge through sync; on the iPhone and the Mac App Store build, Settings ▸ About, "WebKit internals",
+   still converge through sync; on the iPhone, Settings ▸ About, "WebKit internals",
    reads "No problems seen".
 3. If anything is off, fix forward in the next release and say so in its notes; do not stack more changes on it.
 
-Polish-only commits (copy, spacing, icons, docs) skip the soak. If you want a real beta channel later, serve a second
+Polish-only commits (copy, spacing, icons, docs) skip the soak. Security updates skip it too (decided 2026-11-27):
+they ship as soon as CI and the acceptance harness pass. If you want a real beta channel later, serve a second
 appcast from a prerelease and point a few installs at it; that needs a separate feed URL in the app, so it is not
 set up here.
 
@@ -58,7 +59,7 @@ set up here.
 the maintainer only through Apple's opt-in sharing and through reports users attach themselves. Before cutting a
 release, review the one that is out:
 
-- **App Store builds** (iPhone and Mac App Store): App Store Connect › the app › TestFlight › Crashes, and Xcode ›
+- **App Store builds** (iPhone): App Store Connect › the app › TestFlight › Crashes, and Xcode ›
   Window › Organizer › Crashes for the current versions. See [the App Store steps](app-store.md#crash-review).
 - **DMG:** nothing arrives on its own. Chromium's crash reporter keeps its minidumps on the user's Mac and has no
   upload address in Boaz's build. Look through the GitHub issues opened since the last release for attached crash
@@ -113,7 +114,7 @@ prerelease never becomes `releases/latest`, so Sparkle's feed keeps pointing at 
 
 ## WebKit preservation
 
-`make mac-webkit-dmg` builds the separate unsigned WebKit configuration. `Tools/release-mac.sh X.Y.Z --webkit --no-publish` preserves the previous Xcode archive/export/notarization workflow as an explicit rollback path. It does not silently replace a failed Chromium build. App Store builds continue to use `project.yml`.
+`make mac-webkit-dmg` builds the separate unsigned WebKit configuration. `Tools/release-mac.sh X.Y.Z --webkit --no-publish` preserves the previous Xcode archive/export/notarization workflow as an explicit rollback path. It does not silently replace a failed Chromium build. The App Store build (iPhone) continues to use `project.yml`.
 
 ## Upgrade and practical acceptance
 
