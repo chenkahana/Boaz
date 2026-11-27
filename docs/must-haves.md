@@ -39,8 +39,8 @@ something else. Each one is Chen's call, with the date he made it.
 8. **No Spaces on iPhone.** Spaces are a Mac idea; the iPhone shows your tabs without them. *(2026-11-14)*
 9. **iPhone Duo in every posture.** Folded, open, book and laptop each have their own layout, and the page never
    reloads as the hinge moves.
-10. **WebKit, as App Store rules require.** The iPhone and Mac App Store apps use WebKit, while the Mac DMG is
-    Chromium.
+10. **WebKit, as App Store rules require.** The iPhone app uses WebKit. On Mac, Boaz is the Chromium DMG only;
+    there is no Mac App Store app. *(updated 2026-11-27)*
 11. **iPhone and Mac stay in sync.** Pins, folders, favorites and Today sync through the user's private iCloud
     database, and the iPhone can open the Mac's tabs. History and Incognito tabs never leave the device.
 
