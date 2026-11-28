@@ -198,7 +198,7 @@ struct TabCarousel: View {
 
     private func header(count: Int) -> some View {
         let title = Text("^[\(count) Tab](inflect: true)")
-            .font(.headline)
+            .font(.headline.monospacedDigit())
             .lineLimit(1)
             .contentTransition(.numericText(value: Double(count)))
             .accessibilityAddTraits(.isHeader)

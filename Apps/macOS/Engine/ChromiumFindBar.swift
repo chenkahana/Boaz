@@ -22,7 +22,7 @@ struct ChromiumFindBar: View {
                         find(forward: !event.modifiers.contains(.shift))
                         return .handled
                     }
-                Text(status).font(.caption).foregroundStyle(.secondary)
+                Text(status).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                     .accessibilityLabel(status)
                 Button { find(forward: false) } label: { Image(systemName: "chevron.up") }
                     .accessibilityLabel("Previous Match").help("Previous Match")
