@@ -59,12 +59,16 @@ void ConfigurePackagedApplicationLaunch() {
   command->AppendSwitch("no-first-run");
   command->AppendSwitchASCII("profile-directory", "Default");
   command->AppendSwitchPath("user-data-dir", *expected);
-  // The field-trial testing config that unofficial builds apply turns these on; Chrome ships them off. Omnibox
-  // Everywhere puts Chromium's magnifying glass in the menu bar, and UnoPhase2FollowUp shows Google's "Sync history"
-  // sign-in card on chrome://history.
-  constexpr char kTestingConfigFeatures[] = "OmniboxEverywhere,UnoPhase2FollowUp";
+  // The field-trial testing config that unofficial builds apply turns the first two on; Chrome ships them off.
+  // Omnibox Everywhere puts Chromium's magnifying glass in the menu bar, and UnoPhase2FollowUp shows Google's
+  // "Sync history" sign-in card on chrome://history. The other two contact Google at launch, before any
+  // browsing: NetworkTimeServiceQuerying only improves the wording on clock-related certificate errors (Chromium
+  // falls back to its build-time check), and PreconnectToSearch preconnects to Chromium's default engine before
+  // Boaz's set_default_search_provider switches it to DuckDuckGo (PLAN-05's launch-time network pass).
+  constexpr char kDisabledFeatures[] =
+      "OmniboxEverywhere,UnoPhase2FollowUp,NetworkTimeServiceQuerying,PreconnectToSearch";
   std::string disabled = command->GetSwitchValueASCII("disable-features");
   command->AppendSwitchASCII("disable-features",
-                             disabled.empty() ? kTestingConfigFeatures : disabled + "," + kTestingConfigFeatures);
+                             disabled.empty() ? kDisabledFeatures : disabled + "," + kDisabledFeatures);
 }
 }  // namespace boaz

@@ -46,6 +46,7 @@ All notable changes to Boaz are recorded here. The format follows
 
 ### Changed
 
+- Mac: Boaz no longer contacts Google at startup for the current time or to preconnect to a search engine.
 - Mac: Folders in Today are now groups. Their menu says Rename Group…, Ungroup and Archive Group. Archive Group
   sends the group's tabs to the Archive without asking first, and Undo or ⌘⇧T brings the whole group back. Ungroup
   leaves the tabs where the group was, in order, and can be undone. Clear only archives this Mac's groups, never
