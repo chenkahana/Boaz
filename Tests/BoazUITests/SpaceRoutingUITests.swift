@@ -84,7 +84,12 @@ final class SpaceRoutingUITests: BoazUITestCase {
         menu("View", "Customize Space…")
         let editor = element("screen.spaceEditor")
         XCTAssertTrue(editor.waitForExistence(timeout: 5))
-        let section = editor.staticTexts["Sites that open here"].firstMatch
+        // A grouped Form's section header doesn't reliably surface as a staticText in the AX tree (on the
+        // macOS 26 runner it isn't one), so match any element carrying the header as its label or title.
+        let section = editor.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == %@ OR title == %@",
+                                  "Sites that open here", "Sites that open here"))
+            .firstMatch
         let list = editor.scrollViews.firstMatch
         for _ in 0..<5 where !(section.exists && section.isHittable) { list.scroll(byDeltaX: 0, deltaY: -400) }
         XCTAssertTrue(section.exists, "Customize Space has no Sites that open here")
