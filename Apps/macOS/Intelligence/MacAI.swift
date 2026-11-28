@@ -62,7 +62,7 @@ private struct ChromiumPageAssistantSheet: View {
                 ContentUnavailableView("Couldn't Read This Page", systemImage: "doc.text.magnifyingglass",
                                        description: Text(failure))
             } else {
-                ProgressView("Opening page…")
+                DelayedProgressView(isLoading: true, title: "Opening page…")
             }
         }
         .task(id: tab.id) {

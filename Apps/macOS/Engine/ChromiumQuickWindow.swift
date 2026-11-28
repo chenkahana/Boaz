@@ -220,7 +220,7 @@ final class ChromiumQuickWindow: NSObject, ObservableObject, NSWindowDelegate {
                                 }
                             }
                             .overlay(alignment: .top) {
-                                if adapter.state.isLoading { ProgressView().padding(8) }
+                                DelayedProgressView(isLoading: adapter.state.isLoading).padding(8)
                             }
                     } else {
                         Color(nsColor: .textBackgroundColor)
