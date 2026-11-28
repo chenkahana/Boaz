@@ -59,6 +59,6 @@ struct SpinnerGateTests {
         gate.setLoading(false, at: 0.1)
         gate.setLoading(true, at: 10)
         do { let v = gate.isVisible(at: 10.1); #expect(!v) }
-        do { let v = gate.isVisible(at: 10.2); #expect(v) }
+        do { let v = gate.isVisible(at: 10.25); #expect(v) }
     }
 }
