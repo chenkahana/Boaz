@@ -80,6 +80,10 @@ final class AppModel {
 
     // Caches touched while views render; observing them would re-render in a loop.
     @ObservationIgnored private var pages: [String: WebPage] = [:]
+    /// Stand-ins for tabs that are already gone: a browser still leaving the screen asks for its tab's page
+    /// once more, and building it a real one reloads a closed - worst, private - tab (#189). One stable page
+    /// per tab id, never loaded, so it stays out of the residency ledger.
+    @ObservationIgnored private var goneTabPages: [String: WebPage] = [:]
     @ObservationIgnored private var pageRecency: [String] = []
     @ObservationIgnored private var isClosingIdlePages = false
     @ObservationIgnored private(set) var store: BoazStore?
@@ -373,9 +377,17 @@ final class AppModel {
     // MARK: Pages
 
     func page(for tab: SidebarItem) -> WebPage {
+        if let page = pages[tab.id] {
+            pageRecency.removeAll { $0 == tab.id }
+            pageRecency.append(tab.id)
+            return page
+        }
+        // A tab's browser can render once more after the tab is gone - it closed, or Incognito ended under
+        // it. Building it a page here reloads a tab that's already closed (#189), so it gets a stable
+        // stand-in that never loads instead of a fresh page per body pass (which would re-render forever).
+        guard item(withID: tab.id) != nil else { return goneTabPage(for: tab.id) }
         pageRecency.removeAll { $0 == tab.id }
         pageRecency.append(tab.id)
-        if let page = pages[tab.id] { return page }
         let tabIsPrivate = isPrivate(tab)
         var configuration = WebPage.Configuration()
         // A browser still leaving the screen can ask for a private tab of an Incognito that just ended: that page
@@ -450,6 +462,15 @@ final class AppModel {
             armRestore(state, for: tab.id)
         }
         closeIdlePages()
+        return page
+    }
+
+    /// A gone tab's stand-in: one stable page per tab id (a new one every body pass would re-render forever),
+    /// never loaded, so a closed tab neither reloads nor gains a history visit.
+    private func goneTabPage(for tabID: String) -> WebPage {
+        if let page = goneTabPages[tabID] { return page }
+        let page = WebPage()
+        goneTabPages[tabID] = page
         return page
     }
 
@@ -870,6 +891,8 @@ final class AppModel {
 
     /// Called once a browser's WebView has left the screen, or the browser itself went away.
     func releasePage(_ tabID: String, host: UUID) {
+        // A gone tab's stand-in leaves with the last browser showing it (no entry exists for live tabs).
+        goneTabPages[tabID] = nil
         if pageClaims[tabID] == host { pageClaims[tabID] = nil }
         if pageOwners[tabID] == host { pageOwners[tabID] = nil }
         if pageReleasing[tabID] == host { pageReleasing[tabID] = nil }
